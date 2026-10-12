@@ -42,7 +42,8 @@ function scheduleFlush() {
 }
 
 function toLogLine(level, args) {
-  return args.map(formatArg).join(" ");
+  const prefix = `[${level.toUpperCase()}]`;
+  return `${prefix} ${args.map(formatArg).join(" ")}`;
 }
 
 // Strip ANSI escape codes so terminal colors don't bleed into UI
