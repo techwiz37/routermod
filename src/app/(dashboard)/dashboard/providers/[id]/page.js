@@ -94,6 +94,8 @@ export default function ProviderDetailPage() {
   const [testAllRunning, setTestAllRunning] = useState(false);
   const [testAllStopping, setTestAllStopping] = useState(false);
   const stopTestAllRef = useRef(false);
+  const [healthSummary, setHealthSummary] = useState(null); // { unavailable: N, total: N }
+  const [deletingInvalid, setDeletingInvalid] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -374,6 +376,37 @@ export default function ProviderDetailPage() {
     }
   }, [providerId, isCompatible]);
 
+  const fetchHealthSummary = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/providers/health-check?provider=${providerId}`, { cache: "no-store" });
+      if (res.ok) setHealthSummary(await res.json());
+    } catch {}
+  }, [providerId]);
+
+  const handleDeleteInvalid = () => {
+    const invalids = connections.filter(c => c.testStatus === "unavailable" && c.lastError);
+    if (!invalids.length) return;
+    setConfirmState({
+      title: `Delete ${invalids.length} Invalid Connection${invalids.length > 1 ? "s" : ""}`,
+      message: `Delete ${invalids.length} connection${invalids.length > 1 ? "s" : ""} with errors? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        setDeletingInvalid(true);
+        try {
+          for (const conn of invalids) {
+            try {
+              await fetch(`/api/providers/${conn.id}`, { method: "DELETE" });
+            } catch {}
+          }
+          await fetchConnections();
+          await fetchHealthSummary();
+        } finally {
+          setDeletingInvalid(false);
+        }
+      }
+    });
+  };
+
   const handleUpdateNode = async (formData) => {
     try {
       const res = await fetch(`/api/provider-nodes/${providerId}`, {
@@ -483,11 +516,17 @@ export default function ProviderDetailPage() {
 
   useEffect(() => {
     fetchConnections();
+    fetchHealthSummary();
     fetchAliases();
     fetchCustomModels();
     fetchModelNames();
     fetchDisabledModels();
-  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchModelNames, fetchDisabledModels]);
+    const refreshInterval = setInterval(() => {
+      fetchConnections();
+      fetchHealthSummary();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(refreshInterval);
+  }, [fetchConnections, fetchHealthSummary, fetchAliases, fetchCustomModels, fetchModelNames, fetchDisabledModels]);
 
   // Live per-connection catalogs (cursor, zed): the static registry carries
   // no usable list, so resolve from the active connection. Fires only when
@@ -1672,6 +1711,12 @@ export default function ProviderDetailPage() {
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold">Connections</h2>
+            {healthSummary && healthSummary.unavailable > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/25">
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>warning</span>
+                {healthSummary.unavailable} invalid
+              </span>
+            )}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               {connections.length > 0 && proxyPools.length > 0 && (
                 <Button
@@ -1693,6 +1738,17 @@ export default function ProviderDetailPage() {
                       onClick={handleBulkDelete}
                     >
                       Delete Selected ({selectedConnectionIds.length})
+                    </Button>
+                  )}
+                  {connections.some(c => c.testStatus === "unavailable" && c.lastError) && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon="delete_sweep"
+                      onClick={handleDeleteInvalid}
+                      loading={deletingInvalid}
+                    >
+                      Hapus Invalid ({connections.filter(c => c.testStatus === "unavailable" && c.lastError).length})
                     </Button>
                   )}
                   <Button
