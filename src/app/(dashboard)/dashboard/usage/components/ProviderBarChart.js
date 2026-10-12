@@ -41,19 +41,19 @@ export default function ProviderBarChart({ byProvider }) {
   const label = viewMode === "tokens" ? "Tokens" : "Requests";
 
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
+    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 border-2 shadow-[2.5px_2.5px_0_var(--color-border)]">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-text-muted uppercase tracking-wide">By Provider</span>
-        <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1">
+        <span className="text-xs font-bold uppercase tracking-wider text-text-muted">By Provider</span>
+        <div className="grid grid-cols-2 items-center gap-1 rounded-lg border-2 border-border bg-surface-2 p-1 shadow-[1.5px_1.5px_0_var(--color-border)]">
           <button
             onClick={() => setViewMode("tokens")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+            className={`px-2.5 py-0.5 rounded-md text-xs font-bold transition-all ${viewMode === "tokens" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
           >
             Tokens
           </button>
           <button
             onClick={() => setViewMode("requests")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${viewMode === "requests" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+            className={`px-2.5 py-0.5 rounded-md text-xs font-bold transition-all ${viewMode === "requests" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
           >
             Requests
           </button>

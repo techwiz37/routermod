@@ -25,6 +25,7 @@ import BulkImportCodexModal from "./BulkImportCodexModal";
 import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import BulkImportAntigravityModal from "./BulkImportAntigravityModal";
 import CustomConfigCard from "./CustomConfigCard";
+import { useNotificationStore } from "@/store/notificationStore";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 
@@ -40,6 +41,7 @@ function sleep(ms) {
 export default function ProviderDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const addNotification = useNotificationStore((s) => s.addNotification);
   const providerId = params.id;
   const { getCaps } = useModelCaps();
   const [connections, setConnections] = useState([]);
@@ -1199,10 +1201,33 @@ export default function ProviderDetailPage() {
       });
       const data = await res.json();
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
-      setModelsTestError(data.ok ? "" : (data.error || "Model not reachable"));
-    } catch {
+      if (data.ok) {
+        setModelsTestError("");
+        addNotification({
+          type: "success",
+          title: "Test Sukses",
+          message: `${modelId} berhasil merespon (${data.latencyMs || data.latency || 0}ms)`,
+          duration: 4000,
+        });
+      } else {
+        const errMsg = data.error || "Model tidak merespon";
+        setModelsTestError(errMsg);
+        addNotification({
+          type: "error",
+          title: "Test Gagal",
+          message: `${modelId}: ${errMsg}`,
+          duration: 6000,
+        });
+      }
+    } catch (err) {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
       setModelsTestError("Network error");
+      addNotification({
+        type: "error",
+        title: "Test Gagal",
+        message: `${modelId}: Network error`,
+        duration: 6000,
+      });
     } finally {
       setTestingModelIds((prev) => { const n = new Set(prev); n.delete(modelId); return n; });
     }

@@ -155,18 +155,20 @@ export default function UsageTable({
   const totalColSpan = columns.length + valueColumns.length;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="p-4 border-b border-border bg-bg-subtle/50">
-        <h3 className="font-semibold">{title}</h3>
-      </div>
+    <Card className="overflow-hidden border-2 shadow-[3px_3px_0_var(--color-border)]">
+      {title && (
+        <div className="p-3.5 border-b-2 border-border bg-surface-2">
+          <h3 className="font-bold text-sm tracking-wider uppercase">{title}</h3>
+        </div>
+      )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-bg-subtle/30 text-text-muted uppercase text-xs">
+        <table className="w-full text-xs text-left">
+          <thead className="bg-surface-2 text-text-muted uppercase text-[11px] font-bold border-b-2 border-border">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.field}
-                  className={`px-6 py-3 cursor-pointer hover:bg-bg-subtle/50 ${col.align === "right" ? "text-right" : ""}`}
+                  className={`px-4 py-3 cursor-pointer hover:bg-surface ${col.align === "right" ? "text-right" : ""}`}
                   onClick={() => onToggleSort(tableType, col.field)}
                 >
                   {col.label}{" "}
@@ -176,7 +178,7 @@ export default function UsageTable({
               {valueColumns.map((col) => (
                 <th
                   key={col.field}
-                  className="px-6 py-3 text-right cursor-pointer hover:bg-bg-subtle/50"
+                  className="px-4 py-3 text-right cursor-pointer hover:bg-surface"
                   onClick={() => onToggleSort(tableType, col.field)}
                 >
                   {col.label}{" "}
@@ -185,20 +187,20 @@ export default function UsageTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className="divide-y-2 divide-border">
             {groupedData.map((group) => (
               <Fragment key={group.groupKey}>
                 {/* Group summary row */}
                 <tr
-                  className="group-summary cursor-pointer hover:bg-bg-subtle/50 transition-colors"
+                  className="group-summary cursor-pointer hover:bg-surface-2 transition-colors font-semibold"
                   onClick={() => toggleGroup(group.groupKey)}
                 >
-                  <td className="px-6 py-3">
+                  <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span className={`material-symbols-outlined text-[18px] text-text-muted transition-transform ${expanded.has(group.groupKey) ? "rotate-90" : ""}`}>
+                      <span className={`material-symbols-outlined text-[16px] text-text-muted transition-transform ${expanded.has(group.groupKey) ? "rotate-90" : ""}`}>
                         chevron_right
                       </span>
-                      <span className={`font-medium transition-colors ${group.summary.pending > 0 ? "text-primary" : ""}`}>
+                      <span className={`font-mono text-xs font-bold transition-colors ${group.summary.pending > 0 ? "text-primary" : "text-text-main"}`}>
                         {group.groupKey}
                       </span>
                     </div>
@@ -210,7 +212,7 @@ export default function UsageTable({
                 {expanded.has(group.groupKey) && group.items.map((item) => (
                   <tr
                     key={`detail-${item.key}`}
-                    className="group-detail hover:bg-bg-subtle/20 transition-colors"
+                    className="group-detail hover:bg-surface-2/60 bg-surface/40 transition-colors"
                   >
                     {renderDetailCells(item)}
                     <ValueCells item={item} viewMode={viewMode} />
@@ -220,7 +222,7 @@ export default function UsageTable({
             ))}
             {groupedData.length === 0 && (
               <tr>
-                <td colSpan={totalColSpan} className="px-6 py-8 text-center text-text-muted">
+                <td colSpan={totalColSpan} className="px-6 py-8 text-center text-text-muted font-medium">
                   {emptyMessage}
                 </td>
               </tr>

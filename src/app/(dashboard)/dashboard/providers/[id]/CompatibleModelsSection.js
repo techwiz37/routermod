@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { useNotificationStore } from "@/store/notificationStore";
 
 function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onDeleteAlias, onEdit, onTest, testStatus, isTesting }) {
   const [editing, setEditing] = useState(false);
@@ -127,6 +128,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   const [importing, setImporting] = useState(false);
   const [testingModelId, setTestingModelId] = useState(null);
   const [modelTestResults, setModelTestResults] = useState({});
+  const addNotification = useNotificationStore((s) => s.addNotification);
 
   const handleTestModel = async (modelId) => {
     if (testingModelId) return;
@@ -139,8 +141,29 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
       });
       const data = await res.json();
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
+      if (data.ok) {
+        addNotification({
+          type: "success",
+          title: "Test Sukses",
+          message: `${modelId} berhasil merespon (${data.latencyMs || data.latency || 0}ms)`,
+          duration: 4000,
+        });
+      } else {
+        addNotification({
+          type: "error",
+          title: "Test Gagal",
+          message: `${modelId}: ${data.error || "Model tidak merespon"}`,
+          duration: 6000,
+        });
+      }
     } catch {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
+      addNotification({
+        type: "error",
+        title: "Test Gagal",
+        message: `${modelId}: Network error`,
+        duration: 6000,
+      });
     } finally {
       setTestingModelId(null);
     }

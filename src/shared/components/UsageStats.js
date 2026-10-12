@@ -489,7 +489,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Provider and model breakdown charts */}
       {!loading && (stats.byProvider || stats.byModel) && (
-        <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <ProviderBarChart byProvider={stats.byProvider} />
           <TopModelsChart byModel={stats.byModel} />
         </div>
@@ -501,23 +501,23 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           <select
             value={tableView}
             onChange={(e) => setTableView(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-main focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
+            className="w-full rounded-lg border-2 border-border bg-surface px-3 py-1.5 text-sm font-bold text-text-main shadow-[2px_2px_0_var(--color-border)] focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
             style={{ colorScheme: 'auto' }}
           >
             {TABLE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex">
+          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border-2 border-border bg-surface-2 p-1 shadow-[2px_2px_0_var(--color-border)] sm:flex">
             <button
               onClick={() => setViewMode("costs")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "costs" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+              className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${viewMode === "costs" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
             >
               Costs
             </button>
             <button
               onClick={() => setViewMode("tokens")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+              className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${viewMode === "tokens" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
             >
               Tokens
             </button>

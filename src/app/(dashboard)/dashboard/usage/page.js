@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { RequestLogger, CardSkeleton, SegmentedControl } from "@/shared/components";
 import UsageStats from "@/shared/components/UsageStats";
 import RequestDetailsTab from "./components/RequestDetailsTab";
+import LiveServerTab from "./components/LiveServerTab";
 
 const PERIODS = [
   { value: "today", label: "Today" },
@@ -30,7 +31,7 @@ function UsageContent() {
   const [period, setPeriod] = useState("today");
 
   const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl && ["overview", "logs", "details"].includes(tabFromUrl)
+  const activeTab = tabFromUrl && ["overview", "details", "live", "logs"].includes(tabFromUrl)
     ? tabFromUrl
     : "overview";
 
@@ -44,11 +45,12 @@ function UsageContent() {
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
       {/* Tabs + period selector on same row */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SegmentedControl
           options={[
-            { value: "overview", label: "Overview" },
-            { value: "details", label: "Details" },
+            { value: "overview", label: "Ringkasan" },
+            { value: "details", label: "Detail Permintaan" },
+            { value: "live", label: "Live Server" },
           ]}
           value={activeTab}
           onChange={handleTabChange}
@@ -70,8 +72,9 @@ function UsageContent() {
           <UsageStats period={period} setPeriod={setPeriod} hidePeriodSelector />
         </Suspense>
       )}
-      {activeTab === "logs" && <RequestLogger />}
       {activeTab === "details" && <RequestDetailsTab />}
+      {activeTab === "live" && <LiveServerTab />}
+      {activeTab === "logs" && <RequestLogger />}
     </div>
   );
 }

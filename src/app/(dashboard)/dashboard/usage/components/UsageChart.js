@@ -62,20 +62,23 @@ export default function UsageChart({ period = "7d" }) {
   const hasData = data.some((d) => (d[cfg.dataKey] || 0) > 0);
 
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
-      <div
-        className="grid w-full items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:w-auto sm:self-start"
-        style={{ gridTemplateColumns: `repeat(${VIEW_MODES.length}, minmax(0, 1fr))` }}
-      >
-        {VIEW_MODES.map((m) => (
-          <button
-            key={m.value}
-            onClick={() => setViewMode(m.value)}
-            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === m.value ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-          >
-            {m.label}
-          </button>
-        ))}
+    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 border-2 shadow-[2.5px_2.5px_0_var(--color-border)]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Grafik Penggunaan & Beban</span>
+        <div
+          className="grid w-full items-center gap-1 rounded-lg border-2 border-border bg-surface-2 p-1 sm:w-auto shadow-[1.5px_1.5px_0_var(--color-border)]"
+          style={{ gridTemplateColumns: `repeat(${VIEW_MODES.length}, minmax(0, 1fr))` }}
+        >
+          {VIEW_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setViewMode(m.value)}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === m.value ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
