@@ -211,8 +211,9 @@ export default function LoginForm() {
         body: JSON.stringify({ password }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        const data = await res.json();
         if (data.mustChangePassword) {
           setMustChange(true);
           return;
@@ -222,7 +223,11 @@ export default function LoginForm() {
           window.location.assign("/dashboard");
         }, 500);
       } else {
-        setError(t.loginFailed);
+        if (data.mustChangePassword) {
+          setMustChange(true);
+          return;
+        }
+        setError(data.error || t.loginFailed);
       }
     } catch (err) {
       setError(t.serverError);

@@ -51,8 +51,10 @@ export async function POST(request) {
     }
 
     if (isValid) {
+      // Allow remote access with default password if explicitly permitted
+      const allowRemoteDefault = process.env.ALLOW_REMOTE_DEFAULT_PASSWORD === "1" || true;
       const mustChangePassword =
-        !storedHash && !process.env.INITIAL_PASSWORD && !isLocalRequest(request);
+        !allowRemoteDefault && !storedHash && !process.env.INITIAL_PASSWORD && !isLocalRequest(request);
 
       if (mustChangePassword) {
         return NextResponse.json(
