@@ -4,25 +4,29 @@ import { CapacityBadges } from "@/shared/components";
 
 /**
  * Edit popover — appears below the row when pencil is clicked.
- * Fields shown depend on model type:
- *   built-in  → Prefix (alias key) + Name (display)
- *   custom    → Model ID + Name (display)
+ *   built-in  → Prefix + Model ID (alias key = prefix/modelId → stored alias)
+ *   custom    → Prefix + Model ID (re-id) + Display Name
+ *
+ * providerAlias: current provider alias (e.g. "ag", "openai") — default prefix
  */
-function EditPopover({ model, fullModel, alias, isCustom, onSave, onClose }) {
-  // Extract current prefix from alias or fullModel
-  const currentPrefix = alias || fullModel.split("/").pop();
-  const currentName   = model.name || model.id;
+function EditPopover({ model, alias, isCustom, providerAlias, onSave, onClose }) {
+  // alias key may be "prefix/modelId" or plain "modelId"
+  const aliasParts = alias ? alias.split("/") : [];
+  const initPrefix  = aliasParts.length > 1 ? aliasParts.slice(0, -1).join("/") : (providerAlias || "");
+  const initModelId = aliasParts.length > 1 ? aliasParts[aliasParts.length - 1] : (alias || model.id);
 
-  const [prefix, setPrefix]   = useState(currentPrefix);
-  const [name,   setName]     = useState(currentName);
-  const [modelId, setModelId] = useState(model.id);
+  const [prefix,  setPrefix]  = useState(initPrefix);
+  const [modelId, setModelId] = useState(initModelId);
+  const [name,    setName]    = useState(model.name || model.id);
   const firstRef = useRef(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
 
+  const previewAlias = [prefix.trim(), modelId.trim()].filter(Boolean).join("/");
+
   function handleSave(e) {
     e.preventDefault();
-    onSave({ prefix: prefix.trim(), name: name.trim(), modelId: modelId.trim() });
+    onSave({ prefix: prefix.trim(), modelId: modelId.trim(), name: name.trim(), aliasKey: previewAlias });
   }
 
   return (
@@ -31,40 +35,45 @@ function EditPopover({ model, fullModel, alias, isCustom, onSave, onClose }) {
       className="mt-2 flex flex-col gap-2 rounded-lg border-2 border-border bg-surface p-3 shadow-[3px_3px_0px_var(--color-border)]"
       onClick={(e) => e.stopPropagation()}
     >
-      {isCustom ? (
+      <label className="flex flex-col gap-0.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Prefix</span>
+        <input
+          ref={firstRef}
+          value={prefix}
+          onChange={(e) => setPrefix(e.target.value)}
+          className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+          placeholder={providerAlias || "ag"}
+        />
+      </label>
+
+      <label className="flex flex-col gap-0.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Model ID</span>
+        <input
+          value={modelId}
+          onChange={(e) => setModelId(e.target.value)}
+          className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+          placeholder={model.id}
+        />
+      </label>
+
+      {isCustom && (
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Model ID</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Display Name</span>
           <input
-            ref={firstRef}
-            value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
-            className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-            placeholder="e.g. gpt-4o-mini"
-          />
-        </label>
-      ) : (
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Prefix (alias)</span>
-          <input
-            ref={firstRef}
-            value={prefix}
-            onChange={(e) => setPrefix(e.target.value)}
-            className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-            placeholder="e.g. gemini-3.8-high"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+            placeholder="e.g. Gemini 3.8 High"
           />
         </label>
       )}
 
-      <label className="flex flex-col gap-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Display Name</span>
-        <input
-          ref={isCustom ? firstRef : null}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-          placeholder="e.g. Gemini 3.8 High"
-        />
-      </label>
+      {/* Preview */}
+      {previewAlias && (
+        <p className="font-mono text-[10px] text-text-muted">
+          alias: <span className="text-primary">{previewAlias}</span>
+        </p>
+      )}
 
       <div className="flex items-center gap-1.5 justify-end pt-0.5">
         <button
@@ -89,10 +98,13 @@ export default function ModelRow({
   model, fullModel, alias, copied, onCopy,
   testStatus, isCustom, isFree,
   onDeleteAlias, onTest, isTesting,
-  onDisable, onEdit,
+  onDisable, onEdit, providerAlias,
   caps, thinkingSuffix,
 }) {
-  const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
+  const rawModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
+  // If alias (display name) set → show name big, prefix/modelId small below
+  const displayName = model.name || alias || null;
+  const displayModel = rawModel;
   const [editing, setEditing] = useState(false);
 
   const borderColor = testStatus === "ok"  ? "border-green-500/40"
@@ -113,13 +125,22 @@ export default function ModelRow({
         </span>
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px] sm:truncate">
-            {displayModel}
-          </code>
-          <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
-            {model.name && (
-              <span className="break-all sm:truncate text-[9px] italic text-text-muted/70">{model.name}</span>
-            )}
+          {/* Primary label: display name if set, else model path */}
+          {displayName ? (
+            <>
+              <span className="w-fit max-w-full break-all text-xs font-semibold text-text-main sm:max-w-[360px] sm:truncate">
+                {displayName}
+              </span>
+              <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-[10px] text-text-muted/70 sm:max-w-[360px] sm:truncate">
+                {displayModel}
+              </code>
+            </>
+          ) : (
+            <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px] sm:truncate">
+              {displayModel}
+            </code>
+          )}
+          <span className="flex min-w-0 items-center gap-1 pl-0.5">
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
           </span>
         </div>
@@ -200,9 +221,9 @@ export default function ModelRow({
       {editing && onEdit && (
         <EditPopover
           model={model}
-          fullModel={displayModel}
           alias={alias}
           isCustom={!!isCustom}
+          providerAlias={providerAlias}
           onClose={() => setEditing(false)}
           onSave={(vals) => {
             onEdit(vals);
@@ -228,6 +249,7 @@ ModelRow.propTypes = {
   isTesting: PropTypes.bool,
   onDisable: PropTypes.func,
   onEdit: PropTypes.func,
+  providerAlias: PropTypes.string,
   caps: PropTypes.object,
   thinkingSuffix: PropTypes.string,
 };

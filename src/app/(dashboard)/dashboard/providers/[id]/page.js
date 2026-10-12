@@ -594,11 +594,11 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Edit built-in model: change alias prefix and/or name
-  const handleEditBuiltinModel = async (modelId, { prefix, name }, providerAliasOverride = providerStorageAlias) => {
+  // Edit built-in model: set alias key (prefix/modelId) from popover
+  const handleEditBuiltinModel = async (modelId, { aliasKey }, providerAliasOverride = providerStorageAlias) => {
     const fullModel = `${providerAliasOverride}/${modelId}`;
     const oldAlias = Object.entries(modelAliases).find(([, m]) => m === fullModel)?.[0];
-    const newAlias = (prefix || oldAlias || modelId).trim();
+    const newAlias = aliasKey || modelId;
     try {
       const res = await fetch("/api/models/alias", {
         method: "PATCH",
@@ -1244,6 +1244,7 @@ export default function ProviderDetailPage() {
               }
             }}
             onEdit={(vals) => handleEditCustomModel(model.id, vals, "llm", providerStorageAlias)}
+            providerAlias={providerDisplayAlias}
             testStatus={modelTestResults[model.id]}
             onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
             isTesting={testingModelIds.has(model.id)}
@@ -1271,6 +1272,7 @@ export default function ProviderDetailPage() {
               onSetAlias={(alias) => handleSetAlias(model.id, alias, providerStorageAlias)}
               onDeleteAlias={() => handleDeleteAlias(existingAlias)}
               onEdit={(vals) => handleEditBuiltinModel(model.id, vals, providerStorageAlias)}
+              providerAlias={providerDisplayAlias}
               testStatus={modelTestResults[model.id]}
               onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
               isTesting={testingModelIds.has(model.id)}
