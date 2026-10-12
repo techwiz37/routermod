@@ -2,8 +2,8 @@ import { loadState, saveState, generateShortId } from "../shared/state.js";
 import { spawnQuickTunnel, killCloudflared, isCloudflaredRunning, setUnexpectedExitHandler } from "./cloudflared.js";
 import { clearPid } from "./pid.js";
 import { probeUrlAlive } from "./healthCheck.js";
-import { WORKER_URL } from "./config.js";
 import { getSettings, updateSettings } from "@/lib/localDb";
+import { createSubdomain, deleteSubdomain, generateSubdomainSlug } from "./cfDns.js";
 
 const svc = {
   cancelToken: { cancelled: false },
@@ -19,14 +19,6 @@ export function isTunnelReconnecting() { return svc.spawnInProgress; }
 let onUnexpectedExit = null;
 export function setTunnelUnexpectedExitCallback(cb) { onUnexpectedExit = cb; }
 
-async function registerTunnelUrl(shortId, tunnelUrl) {
-  await fetch(`${WORKER_URL}/api/tunnel/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ shortId, tunnelUrl })
-  });
-}
-
 function throwIfCancelled(token) {
   if (token.cancelled) throw new Error("tunnel cancelled");
 }
@@ -39,18 +31,27 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
   const token = svc.cancelToken;
 
   try {
+    // Reuse if still alive
     if (isCloudflaredRunning()) {
       const existing = loadState();
-      if (existing?.tunnelUrl && existing?.shortId) {
-        const publicUrl = `https://r${existing.shortId}.abc-tunnel.us`;
-        // Reuse only if BOTH direct + public URL alive (avoid stale socket after network change)
+      if (existing?.tunnelUrl && existing?.publicUrl) {
         const [directOk, publicOk] = await Promise.all([
           probeUrlAlive(existing.tunnelUrl),
-          probeUrlAlive(publicUrl),
+          probeUrlAlive(existing.publicUrl),
         ]);
         if (directOk && publicOk) {
-          console.log(`[Tunnel] already running, reuse: ${existing.tunnelUrl}`);
-          return { success: true, tunnelUrl: existing.tunnelUrl, shortId: existing.shortId, publicUrl, alreadyRunning: true };
+          console.log(`[Tunnel] already running, reuse: ${existing.publicUrl}`);
+          return {
+            success: true,
+            tunnelUrl: existing.tunnelUrl,
+            publicUrl: existing.publicUrl,
+            slug: existing.slug,
+            alreadyRunning: true,
+          };
+        }
+        // Stale — cleanup old CF record before respawn
+        if (existing.cfRecordId) {
+          await deleteSubdomain(existing.cfRecordId).catch(() => {});
         }
         console.log(`[Tunnel] stale (direct=${directOk} public=${publicOk}), respawn`);
       }
@@ -60,18 +61,17 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
     console.log("[Tunnel] killed existing cloudflared");
     throwIfCancelled(token);
 
-    const existing = loadState();
-    const shortId = existing?.shortId || generateShortId();
+    // Generate new slug each enable (fresh subdomain)
+    const slug = generateSubdomainSlug();
 
     const onUrlUpdate = async (url) => {
       if (token.cancelled) return;
       console.log(`[Tunnel] url updated: ${url}`);
-      await registerTunnelUrl(shortId, url);
-      saveState({ shortId, tunnelUrl: url });
+      // Save direct URL immediately; publicUrl provisioned after spawn completes
+      saveState({ slug, tunnelUrl: url, publicUrl: null, cfRecordId: null });
       await updateSettings({ tunnelEnabled: true, tunnelUrl: url });
     };
 
-    // Register exit handler BEFORE spawn so it fires even on early exit
     setUnexpectedExitHandler(() => {
       console.warn("[Tunnel] cloudflared exited unexpectedly, scheduling respawn");
       if (onUnexpectedExit) onUnexpectedExit();
@@ -81,17 +81,27 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
     console.log(`[Tunnel] spawned: ${tunnelUrl}`);
     throwIfCancelled(token);
 
-    const publicUrl = `https://r${shortId}.abc-tunnel.us`;
-    await registerTunnelUrl(shortId, tunnelUrl);
-    saveState({ shortId, tunnelUrl });
-    await updateSettings({ tunnelEnabled: true, tunnelUrl });
-    console.log(`[Tunnel] registered shortId=${shortId} publicUrl=${publicUrl}`);
+    // Extract hostname from cloudflared URL for CNAME target
+    const tunnelHostname = new URL(tunnelUrl).hostname;
 
-    // Health check is done client-side via pingTunnelHealth — skip blocking server probe
-    console.log("[Tunnel] enable success");
-    return { success: true, tunnelUrl, shortId, publicUrl };
+    // Provision CF subdomain: {slug}.toolwiz.id → tunnelHostname
+    let cfRecordId = null;
+    let publicUrl = tunnelUrl; // fallback to direct URL if CF fails
+    try {
+      const cf = await createSubdomain(slug, tunnelHostname);
+      cfRecordId = cf.recordId;
+      publicUrl = cf.publicUrl;
+      console.log(`[Tunnel] CF subdomain created: ${publicUrl} (record ${cfRecordId})`);
+    } catch (e) {
+      console.warn(`[Tunnel] CF subdomain failed, using direct URL: ${e.message}`);
+    }
+
+    saveState({ slug, tunnelUrl, publicUrl, cfRecordId });
+    await updateSettings({ tunnelEnabled: true, tunnelUrl });
+    console.log(`[Tunnel] enable success — publicUrl=${publicUrl}`);
+
+    return { success: true, tunnelUrl, publicUrl, slug };
   } catch (e) {
-    // Suppress noise when spawn was deliberately killed (restart/disable superseded it)
     if (!/cloudflared killed|tunnel cancelled/.test(e.message)) {
       console.error(`[Tunnel] enable error: ${e.message}`);
     }
@@ -103,18 +113,20 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
 
 export async function disableTunnel() {
   console.log("[Tunnel] disable");
-  // Abort any in-flight enable so it cannot resurrect state after we clear it
   svc.cancelToken.cancelled = true;
   setUnexpectedExitHandler(null);
 
   try { killCloudflared(svc.activeLocalPort); } catch (e) { console.warn(`[Tunnel] kill warn: ${e.message}`); }
   clearPid();
 
+  // Delete CF DNS record
   const state = loadState();
-  if (state) saveState({ shortId: state.shortId, tunnelUrl: null });
+  if (state?.cfRecordId) {
+    await deleteSubdomain(state.cfRecordId).catch((e) => console.warn("[Tunnel] CF DNS delete warn:", e.message));
+  }
+  if (state) saveState({ slug: state.slug, tunnelUrl: null, publicUrl: null, cfRecordId: null });
 
   await updateSettings({ tunnelEnabled: false, tunnelUrl: "" });
-  // Force-clear flags so a subsequent enable is not blocked by a stuck spawnInProgress
   svc.spawnInProgress = false;
   svc.activeLocalPort = null;
   return { success: true };
@@ -124,19 +136,18 @@ export async function getTunnelStatus() {
   const settings = await getSettings();
   const settingsEnabled = settings.tunnelEnabled === true;
   const state = loadState();
-  const shortId = state?.shortId || "";
-  const publicUrl = shortId ? `https://r${shortId}.abc-tunnel.us` : "";
+  const slug = state?.slug || "";
+  const publicUrl = state?.publicUrl || "";
   const tunnelUrl = state?.tunnelUrl || "";
 
-  // Lazy: skip PID probe entirely when user disabled tunnel
   const running = settingsEnabled ? isCloudflaredRunning() : false;
 
   return {
     enabled: settingsEnabled && running,
     settingsEnabled,
     tunnelUrl,
-    shortId,
     publicUrl,
-    running
+    slug,
+    running,
   };
 }

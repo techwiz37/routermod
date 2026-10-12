@@ -10,7 +10,44 @@ import {
   originOf,
 } from "./lib/mimoLoginSession";
 
+// Tunnel host patterns — only CF-based tunnels and toolwiz.id subdomains
+const TUNNEL_HOST_RE = [/\.trycloudflare\.com$/, /\.toolwiz\.id$/];
+// Paths allowed through even when tunnel disabled (API + LLM endpoints)
+const TUNNEL_ALLOW_RE = /^\/(api|v1|v1beta|codex|responses|systemone)(\/|$)/;
+
+function isTunnelHost(host) {
+  const hostname = (host || "").split(":")[0];
+  return TUNNEL_HOST_RE.some((re) => re.test(hostname));
+}
+
+// Read tunnel state directly from DB — no HTTP roundtrip, no auth needed
+async function isTunnelActive() {
+  try {
+    const { getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings();
+    return settings?.tunnelEnabled === true;
+  } catch {
+    return null; // unknown — fail open
+  }
+}
+
+const BLOCKED_HTML = `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Tunnel Nonaktif</title><style>*{margin:0;padding:0;box-sizing:border-box}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1117;font-family:monospace;color:#e2e8f0}.card{border:2px solid #ff1a53;border-radius:12px;padding:32px 28px;max-width:420px;width:90%;box-shadow:4px 4px 0 #ff1a5340;background:#161922;text-align:center}.icon{font-size:40px;margin-bottom:16px}h1{font-size:18px;font-weight:900;color:#ff1a53;letter-spacing:.1em;margin-bottom:8px;text-transform:uppercase}p{font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:20px}.badge{display:inline-block;padding:4px 12px;border:1.5px solid #ff1a5360;border-radius:6px;font-size:11px;color:#ff1a53;background:#ff1a5310;letter-spacing:.08em}.hint{margin-top:16px;font-size:11px;color:#475569}</style></head><body><div class="card"><div class="icon">🔒</div><h1>Tunnel Nonaktif</h1><p>Akses dashboard via URL tunnel diblokir karena tunnel sedang dinonaktifkan.</p><span class="badge">403 — TUNNEL DISABLED</span><p class="hint">Aktifkan tunnel dari dashboard lokal untuk mengizinkan akses remote.</p></div></body></html>`;
+
 export default async function proxy(request) {
+  const { pathname } = request.nextUrl;
+  const host = request.headers.get("host") || "";
+
+  // Block web UI access via tunnel when tunnel is disabled
+  if (isTunnelHost(host) && !TUNNEL_ALLOW_RE.test(pathname)) {
+    const active = await isTunnelActive();
+    if (active === false) {
+      return new Response(BLOCKED_HTML, {
+        status: 403,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+  }
+
   // Xiaomi account session-login proxy (src/lib/mimoLoginSession.js).
   // Session state (region + accumulated cookie jar) travels in the httpOnly
   // 9r_mimo_login cookie — route handlers and this proxy run in separate
@@ -21,7 +58,6 @@ export default async function proxy(request) {
   // forwarder. No URL-carried session — it would leak the jar via history/logs/Referer.
   const cookies = request.headers.get("cookie") || "";
   const hasSessionCookie = cookies.includes("9r_mimo_login=");
-  const { pathname } = request.nextUrl;
   if (hasSessionCookie && !(await isAuthenticated(request))) {
     // Forged or stale session cookie without dashboard auth — drop it early.
     const res = await dashboardProxy(request);

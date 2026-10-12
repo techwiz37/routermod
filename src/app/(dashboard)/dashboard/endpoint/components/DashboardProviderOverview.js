@@ -86,6 +86,8 @@ export default function DashboardProviderOverview() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [locale, setLocale] = useState("id");
+  const [seeding, setSeeding] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -104,6 +106,26 @@ export default function DashboardProviderOverview() {
       console.error("Failed to load dashboard provider stats:", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      await fetch("/api/dashboard/seed-usage", { method: "POST" });
+      await fetchStats();
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const handleClear = async () => {
+    setClearing(true);
+    try {
+      await fetch("/api/dashboard/seed-usage", { method: "DELETE" });
+      await fetchStats();
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -246,6 +268,25 @@ export default function DashboardProviderOverview() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:items-center sm:gap-2 sm:w-auto">
+            {/* Mock data buttons */}
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              title="Generate mock data"
+              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border bg-surface hover:bg-surface-2 text-text-muted hover:text-text-main transition-all font-mono text-[10px] font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[13px]">{seeding ? "progress_activity" : "science"}</span>
+              <span className="hidden sm:inline">{seeding ? "..." : "Mock"}</span>
+            </button>
+            <button
+              onClick={handleClear}
+              disabled={clearing}
+              title="Clear mock data"
+              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-red-500/40 bg-surface hover:bg-red-500/10 text-red-500/60 hover:text-red-500 transition-all font-mono text-[10px] font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[13px]">{clearing ? "progress_activity" : "delete_sweep"}</span>
+              <span className="hidden sm:inline">{clearing ? "..." : "Clear"}</span>
+            </button>
             <Link
               href="/dashboard/providers"
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border-2 border-border bg-surface text-text-main hover:bg-surface-2 shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all font-mono text-[11px] sm:text-xs font-bold uppercase text-center"

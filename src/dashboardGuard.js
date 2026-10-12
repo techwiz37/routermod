@@ -31,6 +31,7 @@ const PUBLIC_API_PATHS = [
   "/api/auth/saml",
   "/api/version",
   "/api/settings/require-login",
+  "/api/tunnel/status",
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).

@@ -857,98 +857,52 @@ export default function APIPageClient({ machineId }) {
               </Button>
             )}
           </div>
-          {/* Tailscale */}
+          {/* Public Domain — auto-provisioned toolwiz.id subdomain when tunnel is active */}
           <div className="flex items-center gap-2 min-w-0">
             <span className={`text-[11px] sm:text-xs font-mono font-bold uppercase px-2 py-1.5 rounded-md shrink-0 w-[74px] sm:w-[88px] text-center border border-border shadow-[1.5px_1.5px_0px_var(--color-border)] ${
-              tsEnabled ? "bg-[#ff1a53]/15 text-[#ff1a53]" : "bg-surface-2 text-text-muted"
-            }`}>Tailscale</span>
-            {tsEnabled && !tsLoading && tsReachable ? (
+              tunnelEnabled && tunnelPublicUrl ? "bg-[#ff1a53]/15 text-[#ff1a53]" : "bg-surface-2 text-text-muted"
+            }`}>Domain</span>
+            {tunnelEnabled && tunnelPublicUrl && tunnelReachable ? (
               <>
-                <Input value={`${tsUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs sm:text-sm truncate" />
+                <Input value={`${tunnelPublicUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs sm:text-sm truncate" />
                 <button
-                  onClick={() => copy(`${tsUrl}/v1`, "ts_url")}
+                  onClick={() => copy(`${tunnelPublicUrl}/v1`, "domain_url")}
                   className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0 cursor-pointer"
+                  title="Copy public domain URL"
                 >
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{copied === "ts_url" ? "check" : "content_copy"}</span>
+                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{copied === "domain_url" ? "check" : "content_copy"}</span>
                 </button>
-                <button
-                  onClick={() => setShowDisableTsModal(true)}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Disable Tailscale"
+                <a
+                  href={tunnelPublicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0"
+                  title="Open in browser"
                 >
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
-                </button>
+                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">open_in_new</span>
+                </a>
               </>
-            ) : tsEnabled && !tsLoading && !tsReachable ? (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-xs sm:text-sm text-amber-600 dark:text-amber-400">
-                  <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                  <span className="truncate">{tsEverReachable ? "Tailscale reconnecting..." : "Tailscale checking..."}</span>
-                </div>
-                <button
-                  onClick={() => setShowDisableTsModal(true)}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Disable Tailscale"
-                >
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
-                </button>
-              </>
-            ) : (tsLoading || tsConnecting) ? (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
-                  <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                  <span className="truncate">{tsProgress || "Connecting..."}</span>
-                </div>
-                {tsAuthUrl && (
-                  <Button
-                    size="sm"
-                    icon="open_in_new"
-                    onClick={() => window.open(tsAuthUrl, "tailscale_auth", "width=600,height=700,noopener,noreferrer")}
-                  >
-                    {tsAuthLabel || "Open"}
-                  </Button>
-                )}
-                <button
-                  onClick={() => { setTsLoading(false); setTsConnecting(false); setTsProgress(""); clearUserAuth(); }}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Stop"
-                >
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
-                </button>
-              </>
-            ) : tsStatus?.type === "error" ? (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-red-300 dark:border-red-800 bg-red-500/5 text-xs sm:text-sm text-red-600 dark:text-red-400">
-                  <span className="material-symbols-outlined text-sm shrink-0">error</span>
-                  <span className="truncate">{tsStatus.message}</span>
-                </div>
-                <Button size="sm" icon="vpn_lock" onClick={handleOpenTsModal}>Enable</Button>
-              </>
+            ) : tunnelEnabled && tunnelLoading ? (
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
+                <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
+                <span className="truncate">Provisioning domain...</span>
+              </div>
+            ) : tunnelEnabled && !tunnelPublicUrl ? (
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-xs sm:text-sm text-amber-600 dark:text-amber-400">
+                <span className="material-symbols-outlined text-sm shrink-0">schedule</span>
+                <span className="truncate">Waiting for domain assignment...</span>
+              </div>
             ) : (
-              <Button
-                size="sm"
-                icon="vpn_lock"
-                className="flex-1 sm:flex-initial"
-                onClick={() => {
-                  if (isLoginUnsafe) {
-                    addNotification({
-                      type: "error",
-                      title: "Security Required",
-                      message: unsafeReason,
-                    });
-                    return;
-                  }
-                  handleOpenTsModal();
-                }}
-              >
-                Enable
-              </Button>
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-surface-2 text-xs sm:text-sm text-text-muted">
+                <span className="material-symbols-outlined text-sm shrink-0">public</span>
+                <span className="truncate">Enable tunnel to get a public domain (*.toolwiz.id)</span>
+              </div>
             )}
           </div>
         </div>
 
         {/* Pre-enable security gate banner */}
-        {isLoginUnsafe && !tunnelEnabled && !tsEnabled && (
+        {isLoginUnsafe && !tunnelEnabled && (
           <div className="mt-4">
             <SecurityWarning
               message={unsafeReason}
