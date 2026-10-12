@@ -257,16 +257,23 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     setSelectedModels(new Set(access.allow));
   }, [access.allow.join(",")]);
 
-  // Load models when restricted
+  // Load models when restricted — only providers with active connections
   useEffect(() => {
     if (!access.restricted || allModels.length) return;
     setLoading(true);
-    fetch("/api/models")
-      .then(r => r.json())
-      .then(data => {
-        const models = data.models || data || [];
-        setAllModels(models);
-        setProviderGroups(groupByProvider(models));
+    Promise.all([fetch("/api/models"), fetch("/api/providers")])
+      .then(async ([mr, pr]) => {
+        const models = (await mr.json()).models || [];
+        const connections = pr.ok ? ((await pr.json()).connections || []) : [];
+        // providers that have at least one active connection
+        const activeProviders = new Set(
+          connections
+            .filter(c => c.isActive !== false && c.testStatus !== "unavailable")
+            .map(c => c.provider)
+        );
+        const filtered = models.filter(m => activeProviders.has(m.provider));
+        setAllModels(filtered);
+        setProviderGroups(groupByProvider(filtered));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
