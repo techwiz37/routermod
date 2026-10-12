@@ -51,7 +51,7 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
         }
         // Stale — unregister old slug before respawn
         if (existing.slug) {
-          await deleteSubdomain(existing.slug).catch(() => {});
+          await deleteSubdomain(existing.slug, existing.cfRecordId).catch(() => {});
         }
         console.log(`[Tunnel] stale (direct=${directOk} public=${publicOk}), respawn`);
       }
@@ -84,15 +84,17 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
     // Extract hostname from cloudflared URL for CNAME target
     // Provision CF Worker KV: slug -> tunnelUrl (full URL)
     let publicUrl = tunnelUrl; // fallback to direct URL if CF fails
+    let cfRecordId = null;
     try {
       const cf = await createSubdomain(slug, tunnelUrl);
       publicUrl = cf.publicUrl;
-      console.log(`[Tunnel] CF domain created: ${publicUrl}`);
+      cfRecordId = cf.recordId;
+      console.log(`[Tunnel] CF domain created: ${publicUrl} (record ${cfRecordId})`);
     } catch (e) {
       console.warn(`[Tunnel] CF subdomain failed, using direct URL: ${e.message}`);
     }
 
-    saveState({ slug, tunnelUrl, publicUrl });
+    saveState({ slug, tunnelUrl, publicUrl, cfRecordId });
     await updateSettings({ tunnelEnabled: true, tunnelUrl });
     console.log(`[Tunnel] enable success — publicUrl=${publicUrl}`);
 
@@ -115,12 +117,12 @@ export async function disableTunnel() {
   try { killCloudflared(svc.activeLocalPort); } catch (e) { console.warn(`[Tunnel] kill warn: ${e.message}`); }
   clearPid();
 
-  // Unregister from CF Worker KV
+  // Unregister from CF: delete KV + DNS A record
   const state = loadState();
   if (state?.slug) {
-    await deleteSubdomain(state.slug).catch((e) => console.warn("[Tunnel] CF unregister warn:", e.message));
+    await deleteSubdomain(state.slug, state.cfRecordId).catch((e) => console.warn("[Tunnel] CF unregister warn:", e.message));
   }
-  if (state) saveState({ slug: state.slug, tunnelUrl: null, publicUrl: null });
+  if (state) saveState({ slug: state.slug, tunnelUrl: null, publicUrl: null, cfRecordId: null });
 
   await updateSettings({ tunnelEnabled: false, tunnelUrl: "" });
   svc.spawnInProgress = false;
