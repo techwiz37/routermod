@@ -33,6 +33,24 @@ export async function PUT(request) {
   }
 }
 
+// PATCH /api/models/alias - Rename alias key (old → new)
+export async function PATCH(request) {
+  try {
+    const { oldAlias, newAlias, model } = await request.json();
+    if (!newAlias?.trim() || !model) {
+      return NextResponse.json({ error: "newAlias and model required" }, { status: 400 });
+    }
+    if (oldAlias && oldAlias !== newAlias.trim()) {
+      await deleteModelAlias(oldAlias);
+    }
+    await setModelAlias(newAlias.trim(), model);
+    return NextResponse.json({ success: true, alias: newAlias.trim() });
+  } catch (error) {
+    console.log("Error renaming alias:", error);
+    return NextResponse.json({ error: "Failed to rename alias" }, { status: 500 });
+  }
+}
+
 // DELETE /api/models/alias?alias=xxx - Delete alias
 export async function DELETE(request) {
   try {

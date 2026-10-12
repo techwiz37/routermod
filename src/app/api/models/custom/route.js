@@ -52,6 +52,21 @@ export async function POST(request) {
   }
 }
 
+// PATCH /api/models/custom - Rename (update name) of existing custom model
+export async function PATCH(request) {
+  try {
+    const { providerAlias, id, type, name } = await request.json();
+    if (!providerAlias || !id || !name?.trim()) {
+      return NextResponse.json({ error: "providerAlias, id, and name required" }, { status: 400 });
+    }
+    await addCustomModel({ providerAlias, id, type: type || "llm", name: name.trim() });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.log("Error renaming custom model:", error);
+    return NextResponse.json({ error: "Failed to rename model" }, { status: 500 });
+  }
+}
+
 // DELETE /api/models/custom?providerAlias=xxx&id=yyy&type=zzz
 export async function DELETE(request) {
   try {
