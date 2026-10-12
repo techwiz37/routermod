@@ -94,6 +94,7 @@ export default function ProviderDetailPage() {
   const [testAllRunning, setTestAllRunning] = useState(false);
   const [testAllStopping, setTestAllStopping] = useState(false);
   const stopTestAllRef = useRef(false);
+  const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
 
