@@ -41,10 +41,15 @@ export default function DashboardLayout({ children }) {
   // Preload heavy usage charts in background when browser is idle
   useEffect(() => {
     const preload = () => {
+      // Heavy chart components
       import("@/shared/components/UsageStats").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/UsageChart").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/TopModelsChart").catch(() => {});
+      // Other dashboard pages — prefetch chunks so nav is instant
+      import("@/app/(dashboard)/dashboard/providers/page").catch(() => {});
+      import("@/app/(dashboard)/dashboard/combos/page").catch(() => {});
+      import("@/app/(dashboard)/dashboard/endpoint/EndpointPageClient").catch(() => {});
     };
     if (typeof window !== "undefined") {
       if ("requestIdleCallback" in window) {
@@ -115,7 +120,7 @@ export default function DashboardLayout({ children }) {
         {/* Top Accent Reticle (identical to login) */}
         <div className="fixed top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#ff1a53] to-transparent z-50 pointer-events-none opacity-80" />
 
-        <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
+        <Header onMenuClick={() => setSidebarOpen(true)} />
 
         <div className={`flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between ${pathname === "/dashboard/basic-chat" ? "" : "p-3 sm:p-5 lg:p-8"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
           <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "w-full max-w-7xl mx-auto flex-1 flex flex-col"}`}>{children}</div>

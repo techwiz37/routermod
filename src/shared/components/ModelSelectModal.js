@@ -396,7 +396,7 @@ export default function ModelSelectModal({
           .map((m) => ({ id: m.id, name: m.name || m.id, value: `${alias}/${m.id}`, isCustom: true }));
 
         const merged = [
-          ...hardcodedModels.map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m) })),
+          ...hardcodedModels.map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m), deprecated: !!m.deprecated, deprecationDate: m.deprecationDate })),
           ...customAliasModels,
           ...customRegisteredModels,
         ];
@@ -600,11 +600,16 @@ export default function ModelSelectModal({
               {group.models.map((model) => {
                 const isSelected = selectedModel === model.value;
                 const isPlaceholder = model.isPlaceholder;
+                const isDeprecated = !!model.deprecated;
                 return (
                   <button
                     key={model.value}
                     onClick={() => handleSelect(model)}
-                    title={isPlaceholder ? "Select to pre-fill, then edit model ID in the input" : undefined}
+                    title={
+                      isPlaceholder ? "Select to pre-fill, then edit model ID in the input"
+                      : isDeprecated ? `Retiring ${model.deprecationDate || "soon"} — migrate to a newer model`
+                      : undefined
+                    }
                     className={`
                       px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer
                       ${isPlaceholder
@@ -613,7 +618,9 @@ export default function ModelSelectModal({
                           ? "bg-primary text-white border-primary"
                           : addedModelValues.includes(model.value)
                             ? "bg-primary border-primary text-white hover:bg-primary-hover"
-                            : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
+                            : isDeprecated
+                              ? "bg-surface border-amber-400/60 text-text-muted hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                              : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
                       }
                     `}
                   >
@@ -633,6 +640,13 @@ export default function ModelSelectModal({
                             custom
                           </span>
                           <CapacityBadges caps={getCaps(model.value)} />
+                        </>
+                      ) : isDeprecated ? (
+                        <>
+                          <span className="font-mono">{model.name}</span>
+                          <span className="text-[9px] px-1 rounded bg-amber-400/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-400/40">
+                            retiring
+                          </span>
                         </>
                       ) : (
                         <>

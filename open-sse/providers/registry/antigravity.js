@@ -45,32 +45,39 @@ export default {
     clientSecret: "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",
   },
   models: [
-    { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)", upstreamModelId: "gemini-3.8-flash-high(high)" },
+    // ── Gemini 3.8 Flash (default, all plans) ──────────────────────────────
+    { id: "gemini-3.8-flash-high",   name: "Gemini 3.8 Flash (High)",   upstreamModelId: "gemini-3.8-flash-high(high)" },
     { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)", upstreamModelId: "gemini-3.8-flash-medium(medium)" },
-    { id: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)", upstreamModelId: "gemini-3.8-flash-low(low)" },
-    { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", upstreamModelId: "gemini-3.8-flash-medium(medium)" },
-    { id: "gemini-3.7-flash-high", name: "Gemini 3.7 Flash (High)", upstreamModelId: "gemini-3.7-flash-tiered(high)" },
+    { id: "gemini-3.8-flash-low",    name: "Gemini 3.8 Flash (Low)",    upstreamModelId: "gemini-3.8-flash-low(low)" },
+    { id: "gemini-3.8-flash",        name: "Gemini 3.8 Flash",          upstreamModelId: "gemini-3.8-flash-medium(medium)" },
+    // ── Gemini 3.7 Flash (all plans) ──────────────────────────────────────
+    { id: "gemini-3.7-flash-high",   name: "Gemini 3.7 Flash (High)",   upstreamModelId: "gemini-3.7-flash-tiered(high)" },
     { id: "gemini-3.7-flash-medium", name: "Gemini 3.7 Flash (Medium)", upstreamModelId: "gemini-3.7-flash-tiered(medium)" },
-    { id: "gemini-3.7-flash-low", name: "Gemini 3.7 Flash (Low)", upstreamModelId: "gemini-3.7-flash-tiered(low)" },
-    { id: "gemini-3.6-flash-high", name: "Gemini 3.6 Flash (High)", upstreamModelId: "gemini-3.6-flash-tiered(high)" },
+    { id: "gemini-3.7-flash-low",    name: "Gemini 3.7 Flash (Low)",    upstreamModelId: "gemini-3.7-flash-tiered(low)" },
+    // ── Gemini 3.6 Flash (all plans) ──────────────────────────────────────
+    { id: "gemini-3.6-flash-high",   name: "Gemini 3.6 Flash (High)",   upstreamModelId: "gemini-3.6-flash-tiered(high)" },
     { id: "gemini-3.6-flash-medium", name: "Gemini 3.6 Flash (Medium)", upstreamModelId: "gemini-3.6-flash-tiered(medium)" },
-    { id: "gemini-3.6-flash-low", name: "Gemini 3.6 Flash (Low)", upstreamModelId: "gemini-3.6-flash-tiered(low)" },
-    { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro (High)", upstreamModelId: "gemini-pro-agent" },
-    { id: "gemini-pro-agent", name: "Gemini 3.1 Pro (High)", upstreamModelId: "gemini-pro-agent" },
-    { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro (Low)", upstreamModelId: "gemini-3.1-pro-low(low)" },
-    { id: "claude-sonnet-5-5-high", name: "Claude Sonnet 5.5 (High)", upstreamModelId: "claude-sonnet-5-5-high(high)" },
-    { id: "claude-sonnet-5-5-medium", name: "Claude Sonnet 5.5 (Medium)", upstreamModelId: "claude-sonnet-5-5-medium(medium)" },
-    { id: "claude-sonnet-5-5-low", name: "Claude Sonnet 5.5 (Low)", upstreamModelId: "claude-sonnet-5-5-low(low)" },
-    { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5 (Thinking)", upstreamModelId: "claude-sonnet-5-5-high(high)" },
-    { id: "claude-opus-5-5-high", name: "Claude Opus 5.5 (High)", upstreamModelId: "claude-opus-5-5-high(high)" },
-    { id: "claude-opus-5-5-medium", name: "Claude Opus 5.5 (Medium)", upstreamModelId: "claude-opus-5-5-medium(medium)" },
-    { id: "claude-opus-5-5-low", name: "Claude Opus 5.5 (Low)", upstreamModelId: "claude-opus-5-5-low(low)" },
-    { id: "claude-opus-5-5", name: "Claude Opus 5.5 (Thinking)", upstreamModelId: "claude-opus-5-5-high(high)" },
-    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (Thinking)" },
-    { id: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 (Thinking)" },
-    { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
-    // Image generation models
-    { id: "gemini-3.1-flash-image", name: "Gemini 3.1 Flash (Image)", kind: "image", imageGen: true, capabilities: ["textToImage"] },
+    { id: "gemini-3.6-flash-low",    name: "Gemini 3.6 Flash (Low)",    upstreamModelId: "gemini-3.6-flash-tiered(low)" },
+    // ── Gemini 3.1 Pro (all plans) ────────────────────────────────────────
+    { id: "gemini-3.1-pro-high",     name: "Gemini 3.1 Pro (High)",     upstreamModelId: "gemini-pro-agent" },
+    { id: "gemini-pro-agent",        name: "Gemini 3.1 Pro (High)",     upstreamModelId: "gemini-pro-agent" },
+    { id: "gemini-3.1-pro-low",      name: "Gemini 3.1 Pro (Low)",      upstreamModelId: "gemini-3.1-pro-low(low)" },
+    // ── Claude Sonnet 5.5 (Pro non-trial / Ultra only) ────────────────────
+    { id: "claude-sonnet-5-5-high",   name: "Claude Sonnet 5.5 (High)",    upstreamModelId: "claude-sonnet-5-5-high(high)" },
+    { id: "claude-sonnet-5-5-medium", name: "Claude Sonnet 5.5 (Medium)",  upstreamModelId: "claude-sonnet-5-5-medium(medium)" },
+    { id: "claude-sonnet-5-5-low",    name: "Claude Sonnet 5.5 (Low)",     upstreamModelId: "claude-sonnet-5-5-low(low)" },
+    { id: "claude-sonnet-5-5",        name: "Claude Sonnet 5.5 (Thinking)",upstreamModelId: "claude-sonnet-5-5-high(high)" },
+    // ── Claude Opus 5.5 (Pro non-trial / Ultra only) ──────────────────────
+    { id: "claude-opus-5-5-high",     name: "Claude Opus 5.5 (High)",      upstreamModelId: "claude-opus-5-5-high(high)" },
+    { id: "claude-opus-5-5-medium",   name: "Claude Opus 5.5 (Medium)",    upstreamModelId: "claude-opus-5-5-medium(medium)" },
+    { id: "claude-opus-5-5-low",      name: "Claude Opus 5.5 (Low)",       upstreamModelId: "claude-opus-5-5-low(low)" },
+    { id: "claude-opus-5-5",          name: "Claude Opus 5.5 (Thinking)",  upstreamModelId: "claude-opus-5-5-high(high)" },
+    // ── Retiring Nov 2 2026 (Free/Plus/Pro — not Enterprise) ──────────────
+    { id: "claude-sonnet-4-6",       name: "Claude Sonnet 4.6 (Thinking)", deprecated: true, deprecationDate: "2026-11-02" },
+    { id: "claude-opus-4-6-thinking",name: "Claude Opus 4.6 (Thinking)",   deprecated: true, deprecationDate: "2026-11-02" },
+    { id: "gpt-oss-120b-medium",     name: "GPT-OSS 120B (Medium)",        deprecated: true, deprecationDate: "2026-11-02" },
+    // ── Image generation ──────────────────────────────────────────────────
+    { id: "gemini-3.1-flash-image",  name: "Gemini 3.1 Flash (Image)", kind: "image", imageGen: true, capabilities: ["textToImage"] },
   ],
   oauth: {
     authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
