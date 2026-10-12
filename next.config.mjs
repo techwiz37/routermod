@@ -17,6 +17,7 @@ const nextConfig = {
     "*.trycloudflare.com",
     "*.abc-tunnel.us",
     "*.ts.net",
+    "*.toolwiz.id",
   ],
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
