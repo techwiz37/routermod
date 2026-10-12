@@ -81,6 +81,10 @@ export default function ProfilePage() {
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyTestLoading, setProxyTestLoading] = useState(false);
 
+  const [githubForm, setGithubForm] = useState({ githubToken: "", githubRepo: "" });
+  const [githubStatus, setGithubStatus] = useState({ type: "", message: "" });
+  const [githubLoading, setGithubLoading] = useState(false);
+
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined")
