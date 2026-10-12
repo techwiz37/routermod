@@ -81,9 +81,6 @@ export default function ProfilePage() {
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyTestLoading, setProxyTestLoading] = useState(false);
 
-  const [githubForm, setGithubForm] = useState({ githubToken: "", githubRepo: "" });
-  const [githubStatus, setGithubStatus] = useState({ type: "", message: "" });
-  const [githubLoading, setGithubLoading] = useState(false);
 
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
@@ -768,17 +765,16 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-0">
-      <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
         {/* Local Mode Info */}
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div className="flex items-center gap-3 sm:gap-4">
-              <div className="size-10 sm:size-12 rounded-lg bg-green-500/10 text-green-500 flex items-center justify-center shrink-0">
+              <div className="size-10 sm:size-12 rounded-xl border-2 border-border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
                 <span className="material-symbols-outlined text-xl sm:text-2xl">computer</span>
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-semibold">Local Mode</h2>
+                <h2 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Local Mode</h2>
                 <p className="text-sm text-text-muted">Running on your machine</p>
               </div>
             </div>
@@ -804,7 +800,7 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="flex flex-col gap-3 pt-4 border-t border-border">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg bg-bg border border-border gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] gap-2">
               <div>
                 <p className="font-medium text-sm sm:text-base">Database Location</p>
                 <p className="text-xs sm:text-sm text-text-muted font-mono break-all">~/.routermod/db/routermod.sqlite</p>
@@ -848,14 +844,14 @@ export default function ProfilePage() {
         {/* Language */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">language</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Language</h3>
+            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Language</h3>
           </div>
           <button
             onClick={() => setLangOpen(true)}
-            className="flex items-center justify-between w-full p-3 rounded-lg bg-bg border border-border hover:border-primary/50 transition-colors"
+            className="flex items-center justify-between w-full p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] hover:border-primary/60 hover:-translate-y-px hover:shadow-[3px_3px_0_var(--color-border)] active:translate-y-0 transition-all"
             data-i18n-skip="true"
           >
             <span className="text-sm text-text-muted">Display language</span>
@@ -866,10 +862,10 @@ export default function ProfilePage() {
         {/* Security */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">shield</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Security</h3>
+            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Security</h3>
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
@@ -952,11 +948,11 @@ export default function ProfilePage() {
             onClick={() => setOidcExpanded((v) => !v)}
             className="w-full flex items-center gap-3 text-left"
           >
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">lock_open</span>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base sm:text-lg font-semibold">Single Sign-On (SSO)</h3>
+              <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Single Sign-On (SSO)</h3>
               <p className="text-xs text-text-muted">
                 {settings.authMode === "sso" || settings.authMode === "oidc" || settings.authMode === "saml"
                   ? `${settings.ssoType === "saml" ? "SAML 2.0" : "OIDC"} SSO active`
@@ -1040,10 +1036,10 @@ export default function ProfilePage() {
                         type="button"
                         onClick={() => updateOidcForm("authMode", option.value)}
                         className={cn(
-                          "text-left rounded-lg border p-3 transition-colors",
+                          "text-left rounded-xl border-2 border-border p-3 transition-all shadow-[2px_2px_0_var(--color-border)] hover:-translate-y-px hover:shadow-[3px_3px_0_var(--color-border)] active:translate-y-0",
                           active
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-bg hover:bg-black/5 dark:hover:bg-white/5"
+                            ? "border-primary bg-primary/10 shadow-[2px_2px_0_var(--color-primary)]"
+                            : "bg-surface-2 hover:border-primary/40"
                         )}
                         disabled={loading || oidcLoading || samlLoading}
                       >
@@ -1269,7 +1265,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-bg text-xs sm:text-sm text-text-muted">
+                  <div className="flex flex-col gap-2 p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] text-xs sm:text-sm text-text-muted">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="font-medium text-text-main">ACS Callback URL</p>
@@ -1396,7 +1392,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-bg p-3 text-xs sm:text-sm text-text-muted">
+                  <div className="rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] p-3 text-xs sm:text-sm text-text-muted">
                     <p className="font-medium text-text-main mb-1">Redirect URI</p>
                     <code className="block break-all font-mono">{oidcRedirectUri}</code>
                   </div>
@@ -1442,10 +1438,10 @@ export default function ProfilePage() {
         {/* Routing Preferences */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">route</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Routing Strategy</h3>
+            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Routing Strategy</h3>
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
@@ -1533,10 +1529,10 @@ export default function ProfilePage() {
         {/* Network */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">wifi</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Network</h3>
+            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Network</h3>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -1605,10 +1601,10 @@ export default function ProfilePage() {
         {/* Observability Settings */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">monitoring</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Observability</h3>
+            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Observability</h3>
           </div>
           <div className="flex items-start sm:items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -1625,90 +1621,13 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {/* GitHub Issue Bot Settings */}
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-[#ff1a53]/10 text-[#ff1a53] shrink-0">
-              <span className="material-symbols-outlined text-[20px]">bug_report</span>
-            </div>
-            <h3 className="text-base sm:text-lg font-semibold">GitHub Issue Bot</h3>
-          </div>
-          <p className="text-xs sm:text-sm text-text-muted mb-4">
-            Auto-buat issue di <code>techwiz37/routermod</code> kalau ada model yang gagal tes (deprecated / sudah tidak bisa dipakai). Butuh GitHub token milik akun manapun — repo-nya publik, jadi token tidak harus punya akses ke repo ini.
-          </p>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setGithubLoading(true);
-              setGithubStatus({ type: "", message: "" });
-              try {
-                const res = await fetch("/api/settings", {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    githubToken: githubForm.githubToken.trim(),
-                    githubRepo: githubForm.githubRepo.trim(),
-                  }),
-                });
-                if (res.ok) {
-                  setGithubStatus({ type: "success", message: "Tersimpan." });
-                } else {
-                  setGithubStatus({ type: "error", message: "Gagal menyimpan." });
-                }
-              } catch {
-                setGithubStatus({ type: "error", message: "Gagal menyimpan." });
-              } finally {
-                setGithubLoading(false);
-              }
-            }}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-2">
-              <label className="font-medium text-sm sm:text-base">GitHub Token</label>
-              <Input
-                type="password"
-                placeholder="ghp_xxxxxxxxxxxx"
-                value={githubForm.githubToken}
-                onChange={(e) => setGithubForm((p) => ({ ...p, githubToken: e.target.value }))}
-                disabled={githubLoading}
-              />
-              <p className="text-xs text-text-muted">
-                Token dengan scope <code>repo</code>. Buat di GitHub &rarr; Settings &rarr; Developer settings &rarr; Personal access tokens.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="font-medium text-sm sm:text-base">Repo</label>
-              <Input
-                placeholder="username/repo-name"
-                value={githubForm.githubRepo}
-                onChange={(e) => setGithubForm((p) => ({ ...p, githubRepo: e.target.value }))}
-                disabled={githubLoading}
-              />
-              <p className="text-xs text-text-muted">
-                Format: <code>owner/repo</code>. Issue akan dibuat di repo ini saat model gagal tes.
-              </p>
-            </div>
-            {githubStatus.message && (
-              <p className={`text-xs sm:text-sm ${githubStatus.type === "error" ? "text-red-500" : "text-green-500"}`}>
-                {githubStatus.message}
-              </p>
-            )}
-            <div className="pt-2 border-t border-border/50">
-              <Button type="submit" variant="primary" loading={githubLoading} className="w-full sm:w-auto">
-                Simpan
-              </Button>
-            </div>
-          </form>
-        </Card>
-
-        {/* Account actions */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-3">
           <Button
             variant="outline"
             fullWidth
             icon="power_settings_new"
             onClick={() => setShutdownOpen(true)}
-            className="text-red-500 border-red-200 hover:bg-red-50 hover:border-red-300"
+            className="text-red-500 border-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-400 shadow-[2px_2px_0_var(--color-border)]"
           >
             Shutdown
           </Button>
@@ -1717,17 +1636,17 @@ export default function ProfilePage() {
             fullWidth
             icon="logout"
             onClick={handleLogout}
+            className="shadow-[2px_2px_0_var(--color-border)]"
           >
             Logout
           </Button>
         </div>
 
         {/* App Info */}
-        <div className="text-center text-xs sm:text-sm text-text-muted py-4">
-          <p>{APP_CONFIG.name} v{APP_CONFIG.version}</p>
-          <p className="mt-1">{isRemoteHost ? "Remote Mode" : "Local Mode - All data stored on your machine"}</p>
+        <div className="text-center text-xs text-text-muted py-2">
+          <p className="font-mono">{APP_CONFIG.name} v{APP_CONFIG.version}</p>
+          <p className="mt-1">{isRemoteHost ? "Remote Mode" : "Local Mode — data stored on your machine"}</p>
         </div>
-      </div>
 
       <LanguageSwitcher
         hideTrigger
