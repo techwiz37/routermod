@@ -759,89 +759,88 @@ export default function APIPageClient({ machineId }) {
             onCopy={copy}
           />
           {/* Public Domain — *.toolwiz.id subdomain auto-provisioned via CF DNS */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={`text-[11px] sm:text-xs font-mono font-bold uppercase px-2 py-1.5 rounded-md shrink-0 w-[74px] sm:w-[88px] text-center border border-border shadow-[1.5px_1.5px_0px_var(--color-border)] ${
-              tunnelEnabled ? "bg-[#ff1a53]/15 text-[#ff1a53]" : "bg-surface-2 text-text-muted"
-            }`}>Domain</span>
+          <div className="flex flex-col gap-1.5 min-w-0">
+            {/* Label row */}
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`text-[11px] sm:text-xs font-mono font-bold uppercase px-2 py-1.5 rounded-md shrink-0 w-[74px] sm:w-[88px] text-center border border-border shadow-[1.5px_1.5px_0px_var(--color-border)] ${
+                tunnelEnabled ? "bg-[#ff1a53]/15 text-[#ff1a53]" : "bg-surface-2 text-text-muted"
+              }`}>Domain</span>
 
             {/* Active + reachable */}
             {tunnelEnabled && !tunnelLoading && tunnelReachable ? (
-              <>
-                <Input value={`${tunnelPublicUrl || tunnelUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs sm:text-sm truncate" />
-                <button onClick={() => copy(`${tunnelPublicUrl || tunnelUrl}/v1`, "domain_url")}
-                  className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0 cursor-pointer"
-                  title="Copy URL">
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{copied === "domain_url" ? "check" : "content_copy"}</span>
-                </button>
-                <a href={tunnelPublicUrl || tunnelUrl} target="_blank" rel="noopener noreferrer"
-                  className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0"
-                  title="Open">
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">open_in_new</span>
-                </a>
-                <button onClick={() => setShowDisableTunnelModal(true)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer"
-                  title="Disable tunnel & delete domain">
-                  <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
-                  <span>Off</span>
-                </button>
-              </>
-
+              <Input value={`${tunnelPublicUrl || tunnelUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs sm:text-sm truncate" />
             ) : tunnelEnabled && !tunnelLoading && !tunnelReachable ? (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-xs sm:text-sm text-amber-600 dark:text-amber-400">
-                  <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                  <span className="truncate">{tunnelEverReachable ? "Reconnecting..." : "Checking domain..."}</span>
-                </div>
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-xs sm:text-sm text-amber-600 dark:text-amber-400">
+                <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
+                <span className="truncate">{tunnelEverReachable ? "Reconnecting..." : "Checking domain..."}</span>
+              </div>
+            ) : tunnelLoading ? (
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
+                <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
+                <span className="truncate">{tunnelProgress || "Generating domain..."}</span>
+              </div>
+            ) : tunnelStatus?.type === "error" ? (
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-red-300 dark:border-red-800 bg-red-500/5 text-xs sm:text-sm text-red-600 dark:text-red-400">
+                <span className="material-symbols-outlined text-sm shrink-0">error</span>
+                <span className="truncate">{tunnelStatus.message}</span>
+              </div>
+            ) : tunnelChecking ? (
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
+                <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
+                <span className="truncate">Checking...</span>
+              </div>
+            ) : (
+              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-surface-2 text-xs sm:text-sm text-text-muted">
+                <span className="material-symbols-outlined text-sm shrink-0">public</span>
+                <span className="truncate italic">Generate a free *.toolwiz.id domain</span>
+              </div>
+            )}
+            </div>
+
+            {/* Action buttons row — below on mobile, stays readable */}
+            <div className="flex items-center gap-1.5 pl-[82px] sm:pl-[96px]">
+              {tunnelEnabled && !tunnelLoading && tunnelReachable ? (
+                <>
+                  <button onClick={() => copy(`${tunnelPublicUrl || tunnelUrl}/v1`, "domain_url")}
+                    className="p-1.5 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all cursor-pointer"
+                    title="Copy URL">
+                    <span className="material-symbols-outlined text-[17px]">{copied === "domain_url" ? "check" : "content_copy"}</span>
+                  </button>
+                  <a href={tunnelPublicUrl || tunnelUrl} target="_blank" rel="noopener noreferrer"
+                    className="p-1.5 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all"
+                    title="Open">
+                    <span className="material-symbols-outlined text-[17px]">open_in_new</span>
+                  </a>
+                  <button onClick={() => setShowDisableTunnelModal(true)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all cursor-pointer"
+                    title="Disable tunnel & delete domain">
+                    <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
+                    <span>Off</span>
+                  </button>
+                </>
+              ) : tunnelEnabled && !tunnelLoading && !tunnelReachable ? (
                 <button onClick={() => setShowDisableTunnelModal(true)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all cursor-pointer"
                   title="Disable tunnel & delete domain">
                   <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
                   <span>Off</span>
                 </button>
-              </>
-
-            ) : tunnelLoading ? (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
-                  <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                  <span className="truncate">{tunnelProgress || "Generating domain..."}</span>
-                </div>
+              ) : tunnelLoading ? (
                 <button onClick={() => { setTunnelLoading(false); setTunnelProgress(""); }}
-                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all cursor-pointer"
                   title="Cancel">
                   <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
                   <span>Off</span>
                 </button>
-              </>
-
-            ) : tunnelStatus?.type === "error" ? (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-red-300 dark:border-red-800 bg-red-500/5 text-xs sm:text-sm text-red-600 dark:text-red-400">
-                  <span className="material-symbols-outlined text-sm shrink-0">error</span>
-                  <span className="truncate">{tunnelStatus.message}</span>
-                </div>
+              ) : tunnelStatus?.type === "error" ? (
                 <Button size="sm" icon="public" onClick={() => setShowEnableTunnelModal(true)}>Generate</Button>
-              </>
-
-            ) : tunnelChecking ? (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
-                  <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                  <span className="truncate">Checking...</span>
-                </div>
+              ) : tunnelChecking ? (
                 <button onClick={() => setTunnelChecking(false)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer">
+                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all cursor-pointer">
                   <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
                   <span>Off</span>
                 </button>
-              </>
-
-            ) : (
-              <>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-surface-2 text-xs sm:text-sm text-text-muted">
-                  <span className="material-symbols-outlined text-sm shrink-0">public</span>
-                  <span className="truncate italic">Generate a free *.toolwiz.id domain</span>
-                </div>
+              ) : (
                 <Button
                   size="sm"
                   icon="public"
@@ -859,8 +858,8 @@ export default function APIPageClient({ machineId }) {
                 >
                   Generate
                 </Button>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

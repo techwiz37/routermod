@@ -36,41 +36,42 @@ export default function AppPreloader() {
 
       {/* Center stage */}
       <div className="rpl-stage">
-        {/* SVG logo — "RM" lettermark drawn by stroke animation */}
+        {/* Logo — same SVG as Soft3DLogo (topbar/sidebar) */}
         <div className="rpl-logo-wrap">
-          <svg
-            className="rpl-svg"
-            viewBox="0 0 120 120"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            {/* Outer ring */}
-            <circle
-              className="rpl-ring"
-              cx="60" cy="60" r="54"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-            {/* "R" letterform */}
-            <path
-              className="rpl-letter"
-              d="M34 38 L34 82 M34 38 L54 38 Q66 38 66 52 Q66 64 54 64 L34 64 M54 64 L66 82"
-              strokeWidth="5.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* "M" letterform */}
-            <path
-              className="rpl-letter rpl-letter-m"
-              d="M72 82 L72 45 L86 68 L100 45 L100 82"
-              strokeWidth="5.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-
-          {/* Glow ring behind logo */}
+          {/* Glow behind */}
           <div className="rpl-glow" />
+
+          <svg className="rpl-svg" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="rpl-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ff1a53" />
+                <stop offset="100%" stopColor="#dc2626" />
+              </linearGradient>
+            </defs>
+
+            {/* Card background — draws border */}
+            <rect className="rpl-card-bg" x="8" y="8" width="104" height="104" rx="22" fill="#181c24" />
+            <rect className="rpl-card-inner" x="12" y="12" width="96" height="96" rx="18" />
+
+            {/* Corner triangle */}
+            <path className="rpl-tri" d="M12 36L36 12H12v24z" fill="url(#rpl-grad)" />
+
+            {/* Green dot */}
+            <circle className="rpl-dot rpl-dot-g" cx="94" cy="26" r="4.5" fill="#10b981" />
+
+            {/* R stem */}
+            <rect className="rpl-stem" x="34" y="30" width="16" height="60" rx="4" />
+            {/* R bowl outer */}
+            <path className="rpl-bowl" d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" />
+            {/* R bowl inner (cutout) */}
+            <path className="rpl-bowl-inner" d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" />
+
+            {/* R leg diagonal */}
+            <path className="rpl-leg" d="M60 62L83 90H65L48 68h14z" fill="url(#rpl-grad)" />
+
+            {/* Blue dot */}
+            <circle className="rpl-dot rpl-dot-b" cx="88" cy="88" r="4.5" fill="#3b82f6" />
+          </svg>
         </div>
 
         {/* App name */}
@@ -129,8 +130,8 @@ const CSS = `
   /* ── logo wrap ── */
   .rpl-logo-wrap {
     position: relative;
-    width: 120px;
-    height: 120px;
+    width: 110px;
+    height: 110px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -139,52 +140,71 @@ const CSS = `
   /* ── glow ── */
   .rpl-glow {
     position: absolute;
-    inset: 0;
+    inset: -10px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,26,83,0.18) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(255,26,83,0.2) 0%, transparent 70%);
     animation: rpl-pulse 2s ease-in-out infinite;
   }
   @keyframes rpl-pulse {
-    0%, 100% { transform: scale(0.9); opacity: 0.6; }
-    50%       { transform: scale(1.15); opacity: 1; }
+    0%, 100% { transform: scale(0.85); opacity: 0.5; }
+    50%       { transform: scale(1.1); opacity: 1; }
   }
 
   /* ── SVG ── */
   .rpl-svg {
-    width: 120px;
-    height: 120px;
+    width: 110px;
+    height: 110px;
     position: relative;
     z-index: 1;
+    filter: drop-shadow(2.5px 3px 0px rgba(0,0,0,0.75));
   }
 
-  /* Outer ring — draws in 0.7s, starts at 0.1s */
-  .rpl-ring {
-    stroke: var(--acc);
-    stroke-dasharray: 340;
-    stroke-dashoffset: 340;
-    animation: rpl-draw-ring 0.75s cubic-bezier(0.4,0,0.2,1) 0.1s forwards;
+  /* Card layers — pop in first */
+  .rpl-card-bg {
+    animation: rpl-popin 0.35s cubic-bezier(0.16,1,0.3,1) 0.05s both;
   }
-  @keyframes rpl-draw-ring {
-    to { stroke-dashoffset: 0; }
+  .rpl-card-inner {
+    fill: #ffffff;
+    animation: rpl-popin 0.35s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+  }
+  .rpl-root[data-dark="1"] .rpl-card-inner { fill: #1b1f2b; }
+
+  /* Corner triangle */
+  .rpl-tri {
+    animation: rpl-popin 0.3s cubic-bezier(0.16,1,0.3,1) 0.25s both;
   }
 
-  /* Letters — draws in 0.8s, starts at 0.55s */
-  .rpl-letter {
-    stroke: var(--acc);
-    stroke-dasharray: 260;
-    stroke-dashoffset: 260;
-    animation: rpl-draw-letter 0.8s cubic-bezier(0.4,0,0.2,1) 0.55s forwards;
+  /* R stem + bowl */
+  .rpl-stem, .rpl-bowl {
+    fill: #181c24;
+    animation: rpl-popin 0.35s cubic-bezier(0.16,1,0.3,1) 0.35s both;
   }
-  .rpl-letter-m {
-    stroke-dasharray: 200;
-    stroke-dashoffset: 200;
-    animation: rpl-draw-m 0.7s cubic-bezier(0.4,0,0.2,1) 0.9s forwards;
+  .rpl-root[data-dark="1"] .rpl-stem,
+  .rpl-root[data-dark="1"] .rpl-bowl { fill: #ffffff; }
+
+  /* Bowl inner cutout */
+  .rpl-bowl-inner {
+    fill: #ffffff;
+    animation: rpl-popin 0.3s cubic-bezier(0.16,1,0.3,1) 0.4s both;
   }
-  @keyframes rpl-draw-letter {
-    to { stroke-dashoffset: 0; }
+  .rpl-root[data-dark="1"] .rpl-bowl-inner { fill: #1b1f2b; }
+
+  /* R leg */
+  .rpl-leg {
+    animation: rpl-popin 0.35s cubic-bezier(0.16,1,0.3,1) 0.5s both;
   }
-  @keyframes rpl-draw-m {
-    to { stroke-dashoffset: 0; }
+
+  /* Dots — last */
+  .rpl-dot {
+    animation: rpl-popin 0.3s cubic-bezier(0.16,1,0.3,1) 0.6s both;
+  }
+  .rpl-dot-b {
+    animation-delay: 0.65s;
+  }
+
+  @keyframes rpl-popin {
+    from { opacity: 0; transform: scale(0.7); }
+    to   { opacity: 1; transform: scale(1); }
   }
 
   /* ── name ── */
