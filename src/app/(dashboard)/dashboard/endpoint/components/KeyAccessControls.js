@@ -16,10 +16,13 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   const openPicker = async () => {
     setPickerOpen(true);
-    // Same sources the combo editor feeds the picker with.
     try {
       const [providersRes, aliasRes] = await Promise.all([fetch("/api/providers"), fetch("/api/models/alias")]);
-      if (providersRes.ok) setActiveProviders((await providersRes.json()).connections || []);
+      if (providersRes.ok) {
+        const all = (await providersRes.json()).connections || [];
+        // Only pass active, non-failed connections — modal already filters but source must be clean
+        setActiveProviders(all.filter((c) => c.isActive !== false && c.testStatus !== "failed"));
+      }
       if (aliasRes.ok) setModelAliases((await aliasRes.json()).aliases || {});
     } catch (error) {
       console.log("Error loading picker data:", error);
