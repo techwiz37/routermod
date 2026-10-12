@@ -1634,7 +1634,7 @@ export default function ProfilePage() {
             <h3 className="text-base sm:text-lg font-semibold">GitHub Issue Bot</h3>
           </div>
           <p className="text-xs sm:text-sm text-text-muted mb-4">
-            Auto-buat issue di repo GitHub kamu kalau ada model yang gagal tes (model deprecated / tidak bisa dipakai).
+            Auto-buat issue di <code>techwiz37/routermod</code> kalau ada model yang gagal tes (deprecated / sudah tidak bisa dipakai). Butuh GitHub token milik akun manapun — repo-nya publik, jadi token tidak harus punya akses ke repo ini.
           </p>
           <form
             onSubmit={async (e) => {
