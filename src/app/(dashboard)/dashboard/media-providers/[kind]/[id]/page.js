@@ -131,25 +131,25 @@ export default function MediaProviderDetailPage() {
 
       {/* Kind-specific notice (e.g. codex/image requires Plus) */}
       {!isCustom && provider.kindNotice?.[kind] && (
-        <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
-          <span className="material-symbols-outlined text-[20px] mt-0.5">warning</span>
-          <p className="text-sm">{provider.kindNotice[kind]}</p>
+        <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/50 shadow-[2px_2px_0px_theme(colors.amber.400)]">
+          <span className="material-symbols-outlined text-[17px] text-amber-500 mt-0.5 shrink-0">warning</span>
+          <p className="text-xs font-medium text-amber-800 dark:text-amber-300 leading-relaxed">{provider.kindNotice[kind]}</p>
         </div>
       )}
 
       {/* Provider notice text (only when there's actual text content) */}
       {!isCustom && provider.notice?.text && !provider.deprecated && (
-        <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
-          <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{provider.notice.text}</p>
+        <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-blue-400 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/50 shadow-[2px_2px_0px_theme(colors.blue.400)]">
+          <span className="material-symbols-outlined text-[17px] text-blue-500 shrink-0 mt-0.5">info</span>
+          <p className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-blue-800 dark:text-blue-300">{provider.notice.text}</p>
           {provider.notice.apiKeyUrl && (
             <a
               href={provider.notice.apiKeyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex justify-center rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600 sm:py-0.5"
+              className="text-[11px] font-bold uppercase tracking-wide px-2 py-1 rounded border border-blue-400 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 whitespace-nowrap shrink-0 transition-colors"
             >
-              Get API Key →
+              Get API Key
             </a>
           )}
         </div>
