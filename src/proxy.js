@@ -9,51 +9,63 @@ import {
   attachSessionCookie,
   originOf,
 } from "./lib/mimoLoginSession";
+import fs from "node:fs";
+import path from "node:path";
 
-// Tunnel host patterns — only CF-based tunnels and toolwiz.id subdomains
+// Tunnel host patterns — CF tunnels and toolwiz.id subdomains
 const TUNNEL_HOST_RE = [/\.trycloudflare\.com$/, /\.toolwiz\.id$/];
-// Paths allowed through even when tunnel disabled (API + LLM endpoints)
-const TUNNEL_ALLOW_RE = /^\/(api|v1|v1beta|codex|responses|systemone)(\/|$)/;
+// API/LLM paths always allowed through regardless of gate
+const TUNNEL_API_RE = /^\/(api|v1|v1beta|codex|responses|systemone)(\/|$)/;
 
 function isTunnelHost(host) {
   const hostname = (host || "").split(":")[0];
   return TUNNEL_HOST_RE.some((re) => re.test(hostname));
 }
 
-// Read tunnel state from JSON state file — works in proxy sandbox
-async function isTunnelActive() {
+// Read gate.json synchronously — fast, no DB, works in proxy context
+// gate.json written by: manager.js (enable/disable) + settings PATCH
+function readGateSync() {
   try {
-    // Dynamic imports of builtins work in Next.js proxy Node runtime
-    const [{ default: fs }, { default: path }] = await Promise.all([
-      import("node:fs"),
-      import("node:path"),
-    ]);
-    const appData = process.env.APPDATA || process.env.HOME + "/AppData/Roaming";
-    const stateFile = path.join(appData, "routermod", "tunnel", "state.json");
-    if (!fs.existsSync(stateFile)) return false;
-    const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
-    // Disabled = tunnelUrl cleared to null
-    return !!(state?.tunnelUrl);
-  } catch (e) {
-    console.warn("[proxy-gate] isTunnelActive error:", e?.message);
+    const appData = process.env.APPDATA || (process.env.HOME + "/AppData/Roaming");
+    const gateFile = path.join(appData, "routermod", "tunnel", "gate.json");
+    if (!fs.existsSync(gateFile)) return { tunnelActive: false, dashboardAccess: true };
+    return JSON.parse(fs.readFileSync(gateFile, "utf8"));
+  } catch {
     return null; // fail open
   }
 }
 
-const BLOCKED_HTML = `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Tunnel Nonaktif</title><style>*{margin:0;padding:0;box-sizing:border-box}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1117;font-family:monospace;color:#e2e8f0}.card{border:2px solid #ff1a53;border-radius:12px;padding:32px 28px;max-width:420px;width:90%;box-shadow:4px 4px 0 #ff1a5340;background:#161922;text-align:center}.icon{font-size:40px;margin-bottom:16px}h1{font-size:18px;font-weight:900;color:#ff1a53;letter-spacing:.1em;margin-bottom:8px;text-transform:uppercase}p{font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:20px}.badge{display:inline-block;padding:4px 12px;border:1.5px solid #ff1a5360;border-radius:6px;font-size:11px;color:#ff1a53;background:#ff1a5310;letter-spacing:.08em}.hint{margin-top:16px;font-size:11px;color:#475569}</style></head><body><div class="card"><div class="icon">🔒</div><h1>Tunnel Nonaktif</h1><p>Akses dashboard via URL tunnel diblokir karena tunnel sedang dinonaktifkan.</p><span class="badge">403 — TUNNEL DISABLED</span><p class="hint">Aktifkan tunnel dari dashboard lokal untuk mengizinkan akses remote.</p></div></body></html>`;
+const BLOCKED_HTML = `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Tunnel Nonaktif</title><style>*{margin:0;padding:0;box-sizing:border-box}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1117;font-family:monospace;color:#e2e8f0}.card{border:2px solid #ff1a53;border-radius:12px;padding:32px 28px;max-width:420px;width:90%;box-shadow:4px 4px 0 #ff1a5340;background:#161922;text-align:center}.icon{font-size:40px;margin-bottom:16px}h1{font-size:18px;font-weight:900;color:#ff1a53;letter-spacing:.1em;margin-bottom:8px;text-transform:uppercase}p{font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:20px}.badge{display:inline-block;padding:4px 12px;border:1.5px solid #ff1a5360;border-radius:6px;font-size:11px;color:#ff1a53;background:#ff1a5310;letter-spacing:.08em}.hint{margin-top:16px;font-size:11px;color:#475569}</style></head><body><div class="card"><div class="icon">🔒</div><h1>Tunnel Nonaktif</h1><p>Akses dashboard via domain publik diblokir karena tunnel sedang dinonaktifkan.</p><span class="badge">403 — TUNNEL DISABLED</span><p class="hint">Aktifkan tunnel dari dashboard lokal untuk mengizinkan akses remote.</p></div></body></html>`;
+
+const BLOCKED_HTML_DASHBOARD = `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Akses Dasbor Diblokir</title><style>*{margin:0;padding:0;box-sizing:border-box}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1117;font-family:monospace;color:#e2e8f0}.card{border:2px solid #ff1a53;border-radius:12px;padding:32px 28px;max-width:420px;width:90%;box-shadow:4px 4px 0 #ff1a5340;background:#161922;text-align:center}.icon{font-size:40px;margin-bottom:16px}h1{font-size:18px;font-weight:900;color:#ff1a53;letter-spacing:.1em;margin-bottom:8px;text-transform:uppercase}p{font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:20px}.badge{display:inline-block;padding:4px 12px;border:1.5px solid #ff1a5360;border-radius:6px;font-size:11px;color:#ff1a53;background:#ff1a5310;letter-spacing:.08em}.hint{margin-top:16px;font-size:11px;color:#475569}</style></head><body><div class="card"><div class="icon">🚫</div><h1>Akses Dasbor Diblokir</h1><p>Akses dasbor via domain publik dinonaktifkan. Hanya endpoint API yang dapat diakses.</p><span class="badge">403 — DASHBOARD ACCESS DISABLED</span><p class="hint">Aktifkan "Izinkan akses dasbor melalui domain" dari dashboard lokal.</p></div></body></html>`;
 
 export default async function proxy(request) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") || "";
 
-  // Block web UI access via tunnel when tunnel is disabled
-  if (isTunnelHost(host) && !TUNNEL_ALLOW_RE.test(pathname)) {
-    const active = await isTunnelActive();
-    if (active === false) {
-      return new Response(BLOCKED_HTML, {
-        status: 403,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+  // Gate: requests from tunnel domain go through access control
+  if (isTunnelHost(host)) {
+    const isApiPath = TUNNEL_API_RE.test(pathname);
+    if (!isApiPath) {
+      // Sync read — no await needed, instant
+      const gate = readGateSync();
+      // gate null = fail open (gate.json missing = first run, allow)
+      if (gate !== null) {
+        if (!gate.tunnelActive) {
+          // Tunnel disabled — block all non-API paths
+          return new Response(BLOCKED_HTML, {
+            status: 403,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
+        if (!gate.dashboardAccess) {
+          // Tunnel active but dashboard access disabled — block UI, allow API
+          return new Response(BLOCKED_HTML_DASHBOARD, {
+            status: 403,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
+      }
     }
   }
 

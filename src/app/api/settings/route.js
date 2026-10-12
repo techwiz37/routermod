@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
+import { writeGate } from "@/lib/tunnel/shared/state";
 import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,11 @@ export async function PATCH(request) {
     }
 
     const settings = await updateSettings(body);
+
+    // Sync tunnelDashboardAccess to gate.json so proxy.js can read it without DB
+    if (Object.prototype.hasOwnProperty.call(body, "tunnelDashboardAccess")) {
+      writeGate({ dashboardAccess: settings.tunnelDashboardAccess !== false });
+    }
 
     // Apply outbound proxy settings immediately (no restart required)
     if (

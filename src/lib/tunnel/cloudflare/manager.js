@@ -1,4 +1,4 @@
-import { loadState, saveState, generateShortId } from "../shared/state.js";
+import { loadState, saveState, generateShortId, writeGate } from "../shared/state.js";
 import { spawnQuickTunnel, killCloudflared, isCloudflaredRunning, setUnexpectedExitHandler } from "./cloudflared.js";
 import { clearPid } from "./pid.js";
 import { probeUrlAlive } from "./healthCheck.js";
@@ -95,6 +95,7 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
     }
 
     saveState({ slug, tunnelUrl, publicUrl, cfRecordId });
+    writeGate({ tunnelActive: true });
     await updateSettings({ tunnelEnabled: true, tunnelUrl });
     console.log(`[Tunnel] enable success — publicUrl=${publicUrl}`);
 
@@ -123,6 +124,7 @@ export async function disableTunnel() {
     await deleteSubdomain(state.slug, state.cfRecordId).catch((e) => console.warn("[Tunnel] CF unregister warn:", e.message));
   }
   if (state) saveState({ slug: state.slug, tunnelUrl: null, publicUrl: null, cfRecordId: null });
+  writeGate({ tunnelActive: false });
 
   await updateSettings({ tunnelEnabled: false, tunnelUrl: "" });
   svc.spawnInProgress = false;
