@@ -82,36 +82,42 @@ export default function UsageChart({ period = "7d" }) {
       </div>
 
       {loading ? (
-        <div className="h-48 flex items-center justify-center text-text-muted text-sm">Loading...</div>
+        <div className="h-52 flex items-center justify-center text-text-muted text-sm gap-2">
+          <span className="material-symbols-outlined animate-spin text-primary text-[18px]">progress_activity</span>
+          Memuat data...
+        </div>
       ) : !hasData ? (
-        <div className="h-48 flex items-center justify-center text-text-muted text-sm">No data for this period</div>
+        <div className="h-52 flex flex-col items-center justify-center text-text-muted gap-2">
+          <span className="material-symbols-outlined text-[32px] opacity-30">bar_chart</span>
+          <span className="text-xs font-medium">Belum ada data untuk periode ini</span>
+        </div>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="gradTokens" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradRequests" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradCost" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.08} vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.45 }}
               tickLine={false}
               axisLine={false}
               interval="preserveStartEnd"
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.45 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={cfg.formatter}
@@ -119,21 +125,24 @@ export default function UsageChart({ period = "7d" }) {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "8px",
+                backgroundColor: "var(--color-surface)",
+                border: "2px solid var(--color-border)",
+                borderRadius: "10px",
                 fontSize: "12px",
+                fontWeight: "bold",
+                boxShadow: "3px 3px 0 var(--color-border)",
               }}
+              labelStyle={{ color: "var(--color-text-muted)", fontWeight: 600, marginBottom: 4 }}
               formatter={(value) => [cfg.formatter(value), cfg.label]}
             />
             <Area
               type="monotone"
               dataKey={cfg.dataKey}
               stroke={cfg.color}
-              strokeWidth={2}
+              strokeWidth={2.5}
               fill={`url(#${cfg.gradId})`}
               dot={false}
-              activeDot={{ r: 4 }}
+              activeDot={{ r: 5, strokeWidth: 2, fill: "var(--color-surface)", stroke: cfg.color }}
             />
           </AreaChart>
         </ResponsiveContainer>

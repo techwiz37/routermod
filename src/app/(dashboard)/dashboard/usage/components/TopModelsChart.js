@@ -64,7 +64,10 @@ export default function TopModelsChart({ byModel }) {
       </div>
 
       {!chartData.length ? (
-        <div className="h-44 flex items-center justify-center text-text-muted text-sm">No model usage yet</div>
+        <div className="h-44 flex flex-col items-center justify-center gap-2 text-text-muted">
+          <span className="material-symbols-outlined text-[28px] opacity-30">model_training</span>
+          <span className="text-xs font-medium">Belum ada penggunaan model</span>
+        </div>
       ) : (
         <ResponsiveContainer width="100%" height={180}>
           <BarChart
@@ -72,10 +75,10 @@ export default function TopModelsChart({ byModel }) {
             layout="vertical"
             margin={{ top: 4, right: 40, left: 4, bottom: 4 }}
           >
-            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} horizontal={false} />
+            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.08} horizontal={false} />
             <XAxis
               type="number"
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.45 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={fmt}
@@ -90,16 +93,18 @@ export default function TopModelsChart({ byModel }) {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "8px",
+                backgroundColor: "var(--color-surface)",
+                border: "2px solid var(--color-border)",
+                borderRadius: "10px",
                 fontSize: "12px",
+                fontWeight: "bold",
+                boxShadow: "3px 3px 0 var(--color-border)",
               }}
               formatter={(value) => [fmt(value), label]}
             />
             <Bar dataKey={viewMode} radius={[0, 4, 4, 0]}>
               {chartData.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} fillOpacity={0.85} />
+                <Cell key={i} fill={COLORS[i % COLORS.length]} fillOpacity={0.9} />
               ))}
             </Bar>
           </BarChart>

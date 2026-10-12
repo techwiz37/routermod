@@ -43,45 +43,42 @@ function TimeAgo({ timestamp }) {
 
 function RecentRequests({ requests = [] }) {
   return (
-    <Card className="flex min-w-0 flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
+    <Card className="flex min-w-0 flex-col overflow-hidden border-2 shadow-[2.5px_2.5px_0_var(--color-border)]" padding="none" style={{ height: 480 }}>
       {/* Header */}
-      <div className="px-1 py-2 border-b border-border shrink-0">
-        <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Recent Requests</span>
+      <div className="px-4 py-3 border-b-2 border-border shrink-0 bg-surface-2 flex items-center gap-2">
+        <span className="material-symbols-outlined text-[15px] text-primary">bolt</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Live Request Feed</span>
       </div>
 
       {!requests.length ? (
-        <div className="flex-1 flex items-center justify-center text-text-muted text-sm">No requests yet.</div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-text-muted">
+          <span className="material-symbols-outlined text-[32px] opacity-30">chat_bubble_outline</span>
+          <span className="text-xs font-medium">Belum ada request masuk</span>
+        </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          <table className="w-full min-w-[300px] border-collapse text-xs">
-            <thead className="sticky top-0 bg-bg z-10">
-              <tr className="border-b border-border">
-                <th className="py-1.5 text-left font-semibold text-text-muted w-2"></th>
-                <th className="py-1.5 text-left font-semibold text-text-muted">Model</th>
-                <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">In / Out</th>
-                <th className="py-1.5 text-right font-semibold text-text-muted">When</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
-              {requests.map((r, i) => {
-                const ok = !r.status || r.status === "ok" || r.status === "success";
-                return (
-                  <tr key={i} className="hover:bg-bg-subtle transition-colors">
-                    <td className="py-1.5">
-                      <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} />
-                    </td>
-                    <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>{r.model}</td>
-                    <td className="py-1.5 text-right whitespace-nowrap">
-                      <span className="text-primary">{fmt(r.promptTokens)}↑</span>
-                      {" "}
-                      <span className="text-success">{fmt(r.completionTokens)}↓</span>
-                    </td>
-                    <td className="py-1.5 text-right text-text-muted whitespace-nowrap"><TimeAgo timestamp={r.timestamp} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {requests.map((r, i) => {
+            const ok = !r.status || r.status === "ok" || r.status === "success";
+            const modelShort = (r.model || "").split("/").pop();
+            return (
+              <div
+                key={i}
+                className="flex items-start gap-3 px-4 py-2.5 border-b border-border/50 hover:bg-surface-2 transition-colors last:border-b-0"
+              >
+                <div className={`mt-0.5 size-2 shrink-0 rounded-full ${ok ? "bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.6)]" : "bg-red-400"}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[11px] font-bold text-text-main truncate" title={r.model}>{modelShort}</div>
+                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-text-muted font-mono">
+                    <span className="text-primary">{fmt(r.promptTokens)}↑</span>
+                    <span className="text-emerald-500">{fmt(r.completionTokens)}↓</span>
+                  </div>
+                </div>
+                <div className="shrink-0 text-[10px] text-text-muted font-mono whitespace-nowrap">
+                  <TimeAgo timestamp={r.timestamp} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </Card>
@@ -188,10 +185,10 @@ const ENDPOINT_COLUMNS = [
 ];
 
 const TABLE_OPTIONS = [
-  { value: "model", label: "Usage by Model" },
-  { value: "account", label: "Usage by Account" },
-  { value: "apiKey", label: "Usage by API Key" },
-  { value: "endpoint", label: "Usage by Endpoint" },
+  { value: "model", label: "Penggunaan per Model" },
+  { value: "account", label: "Penggunaan per Akun" },
+  { value: "apiKey", label: "Penggunaan per API Key" },
+  { value: "endpoint", label: "Penggunaan per Endpoint" },
 ];
 
 const PERIODS = [
@@ -440,30 +437,31 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   if (!stats && !loading) return <div className="text-text-muted">Failed to load usage statistics.</div>;
 
   const spinner = (
-    <div className="flex items-center justify-center py-12 text-text-muted">
-      <span className="material-symbols-outlined text-[32px] animate-spin">progress_activity</span>
+    <div className="flex items-center justify-center py-14 text-text-muted gap-2">
+      <span className="material-symbols-outlined text-[28px] animate-spin text-primary">progress_activity</span>
+      <span className="text-sm font-medium">Memuat data...</span>
     </div>
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-5">
       {/* Period selector (hidden when controlled by parent) */}
       {!hidePeriodSelector && (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
-          <div className="grid flex-1 grid-cols-6 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none">
+          <div className="grid flex-1 grid-cols-6 items-center gap-1 rounded-xl border-2 border-border bg-surface-2 p-1 shadow-[2px_2px_0_var(--color-border)] sm:flex sm:flex-none">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value)}
                 disabled={fetching}
-                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${period === p.value ? "bg-primary text-white shadow-sm" : "text-text-muted hover:bg-bg-hover hover:text-text"}`}
+                className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${period === p.value ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
               >
                 {p.label}
               </button>
             ))}
           </div>
           {fetching && (
-            <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
+            <span className="material-symbols-outlined text-[16px] text-primary animate-spin">progress_activity</span>
           )}
         </div>
       )}
@@ -473,7 +471,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Provider topology + Recent Requests */}
       {loading ? spinner : (
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <ProviderTopology
             providers={providers}
             activeRequests={stats.activeRequests || []}

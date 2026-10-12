@@ -36,11 +36,12 @@ function ProviderNode({ data }) {
   const [imgError, setImgError] = useState(false);
   return (
     <div
-      className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg border-2 transition-all duration-300 bg-bg"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all duration-300"
       style={{
         borderColor: active ? color : "var(--color-border)",
-        boxShadow: active ? `0 0 16px ${color}40` : "none",
-        minWidth: "150px",
+        backgroundColor: active ? `${color}12` : "var(--color-surface)",
+        boxShadow: active ? `0 0 14px ${color}35, 1.5px 1.5px 0 var(--color-border)` : "1.5px 1.5px 0 var(--color-border)",
+        minWidth: "140px",
       }}
     >
       <Handle type="target" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
@@ -50,14 +51,14 @@ function ProviderNode({ data }) {
 
       {/* Provider icon */}
       <div
-        className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
-        style={{ backgroundColor: `${color}15` }}
+        className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 border border-border/50"
+        style={{ backgroundColor: `${color}18` }}
       >
         {imageUrl && !imgError ? (
           <img
             src={imageUrl}
             alt={label}
-            className="w-6 h-6 rounded-sm object-contain"
+            className="w-5 h-5 rounded-sm object-contain"
             loading="lazy"
             decoding="async"
             onError={() => {
@@ -67,14 +68,14 @@ function ProviderNode({ data }) {
             }}
           />
         ) : (
-          <span className="text-sm font-bold" style={{ color }}>{textIcon}</span>
+          <span className="text-xs font-black" style={{ color }}>{textIcon}</span>
         )}
       </div>
 
       {/* Provider name */}
       <span
-        className="text-base font-medium truncate"
-        style={{ color: active ? color : "var(--color-text)" }}
+        className="text-xs font-bold truncate"
+        style={{ color: active ? color : "var(--color-text-main)" }}
       >
         {label}
       </span>
@@ -94,34 +95,31 @@ ProviderNode.propTypes = {
   data: PropTypes.object.isRequired,
 };
 
-// Center 9Router node — pulse/glow on card only (no expanding rings)
+// Center RouterMod node — pulse/glow on card only (no expanding rings)
 function RouterNode({ data }) {
   const powering = (data.activeCount || 0) > 0;
   return (
     <div
-      className={`relative z-[1] flex items-center justify-center px-5 py-3 rounded-xl border-2 min-w-[130px] ${
+      className={`relative z-[1] flex items-center justify-center px-4 py-2.5 rounded-xl border-2 min-w-[130px] ${
         powering
-          ? "topology-router-core border-yellow-300 bg-gradient-to-br from-primary/30 via-yellow-400/20 to-cyan-400/25"
-          : "border-primary bg-primary/5 shadow-md"
+          ? "topology-router-core border-[#ff1a53] bg-gradient-to-br from-[#ff1a53]/30 via-rose-400/20 to-orange-400/15"
+          : "border-[#ff1a53] bg-[#ff1a53]/5"
       }`}
+      style={{ boxShadow: powering ? "0 0 20px #ff1a5340, 2px 2px 0 var(--color-border)" : "2px 2px 0 var(--color-border)" }}
     >
       <Handle type="source" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
       <Handle type="source" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0 !w-0 !h-0" />
       <Handle type="source" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
       <Handle type="source" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
 
-      <img
-        src="/favicon.svg"
-        alt="9Router"
-        className={`w-6 h-6 mr-2 ${powering ? "topology-router-icon" : ""}`}
-        loading="lazy"
-        decoding="async"
-      />
-      <span className={`text-sm font-bold ${powering ? "topology-router-label text-yellow-300" : "text-primary"}`}>
-        9Router
+      <span className={`material-symbols-outlined text-[20px] mr-2 ${powering ? "topology-router-icon text-[#ff1a53]" : "text-[#ff1a53]"}`}>
+        router
+      </span>
+      <span className={`text-sm font-black tracking-wider uppercase ${powering ? "topology-router-label text-[#ff1a53]" : "text-[#ff1a53]"}`}>
+        RouterMod
       </span>
       {data.activeCount > 0 && (
-        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-yellow-400 text-black text-xs font-bold topology-router-badge">
+        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ff1a53] text-white text-[10px] font-black topology-router-badge">
           {data.activeCount}
         </span>
       )}
@@ -437,10 +435,22 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
   }, [nodes.length]);
 
   return (
-    <div ref={containerRef} className="h-[320px] w-full min-w-0 rounded-lg border border-border bg-bg-subtle/30 sm:h-[480px]">
+    <div ref={containerRef} className="relative h-[320px] w-full min-w-0 rounded-xl border-2 border-border overflow-hidden sm:h-[480px]"
+      style={{
+        background: "radial-gradient(ellipse at 50% 50%, var(--color-surface-2) 0%, var(--color-surface) 100%)",
+        boxShadow: "2.5px 2.5px 0 var(--color-border)",
+      }}
+    >
+      {/* Grid dot pattern overlay */}
+      <div className="absolute inset-0 pointer-events-none" style={{
+        backgroundImage: "radial-gradient(circle, var(--color-border) 1px, transparent 1px)",
+        backgroundSize: "28px 28px",
+        opacity: 0.45,
+      }} />
       {providers.length === 0 ? (
-        <div className="h-full flex items-center justify-center text-text-muted text-sm">
-          No providers connected
+        <div className="h-full flex flex-col items-center justify-center gap-2 text-text-muted">
+          <span className="material-symbols-outlined text-[36px] opacity-30">device_hub</span>
+          <span className="text-xs font-medium">Belum ada provider terhubung</span>
         </div>
       ) : (
         <ReactFlow
@@ -463,6 +473,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          style={{ background: "transparent" }}
         >
           <Controls showInteractive={false} className="react-flow-controls-custom" />
         </ReactFlow>
