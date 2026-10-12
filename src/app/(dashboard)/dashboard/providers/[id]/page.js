@@ -1274,6 +1274,7 @@ export default function ProviderDetailPage() {
     // reset previous results
     setModelTestResults({});
 
+    try {
     for (const modelId of allModelIds) {
       if (stopTestAllRef.current) break;
       await handleTestModel(modelId, true); // silent=true: no toast per model
@@ -1291,10 +1292,11 @@ export default function ProviderDetailPage() {
       message: `${pass} model OK · ${fail} model gagal · dari ${allModelIds.length} total`,
       duration: 8000,
     });
-
+    } finally {
     setTestAllRunning(false);
     setTestAllStopping(false);
     stopTestAllRef.current = false;
+    }
   };
 
   const renderModelsSection = () => {
@@ -1984,10 +1986,7 @@ export default function ProviderDetailPage() {
             );
           })()}
         </div>
-        {!!modelsTestError && (
-          <div className="mb-3">
-            <p className="text-xs text-red-500 break-words">{modelsTestError}</p>
-            {/RegionError|hosted in China|regionNotAllowed/i.test(modelsTestError) && (() => {
+        {!!modelsTestError && /RegionError|hosted in China|regionNotAllowed/i.test(modelsTestError) && (() => {
               const str = typeof modelsTestError === "string" ? modelsTestError : JSON.stringify(modelsTestError);
               const linkMatch = str.match(/https:\/\/opencode\.ai\/workspace\/[^\s"')]+/);
               const wrkMatch = str.match(/wrk_[0-9A-Za-z]+/);
@@ -1998,7 +1997,7 @@ export default function ProviderDetailPage() {
                   : "https://opencode.ai";
 
               return (
-                <div className="mt-1.5">
+                <div className="mb-3">
                   <a
                     href={targetUrl}
                     target="_blank"
@@ -2011,8 +2010,6 @@ export default function ProviderDetailPage() {
                 </div>
               );
             })()}
-          </div>
-        )}
         {providerId === "zed" && !!liveModelsError && (
           <p className="text-xs text-red-500 mb-3 break-words">{liveModelsError}</p>
         )}

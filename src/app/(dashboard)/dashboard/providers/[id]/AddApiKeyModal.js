@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { planBulkAdd } from "@/shared/utils/bulkAdd";
+import { useNotificationStore } from "@/store/notificationStore";
 
 const BULK_PLACEHOLDER = `name1|sk-key1\nname2|sk-key2\nsk-key-only-auto-named`;
 
@@ -63,7 +64,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
 
   const [mode, setMode] = useState("single"); // "single" | "bulk"
   const [bulkText, setBulkText] = useState("");
-  const [bulkResult, setBulkResult] = useState(null); // { success, failed }
+  const addNotification = useNotificationStore((s) => s.addNotification);
 
   const buildProviderSpecificData = () => {
     if (isOllamaLocal && formData.ollamaHostUrl.trim()) {
@@ -215,8 +216,14 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
       }
     }
     setSaving(false);
-    setBulkResult({ success, failed });
+    addNotification({
+      type: failed === 0 ? "success" : success > 0 ? "info" : "error",
+      title: "Bulk Add Selesai",
+      message: `${success} berhasil ditambahkan${failed > 0 ? `, ${failed} gagal` : ""}`,
+      duration: 5000,
+    });
     if (success > 0 && onBulkDone) onBulkDone();
+    if (success > 0) onClose();
   };
 
   if (!provider) return null;
@@ -249,11 +256,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
-            {bulkResult && (
-              <div className={`text-sm font-medium ${bulkResult.failed > 0 ? "text-yellow-400" : "text-green-400"}`}>
-                ✓ {bulkResult.success} added{bulkResult.failed > 0 ? `, ✗ ${bulkResult.failed} failed` : ""}
-              </div>
-            )}
             <div className="flex gap-2">
               <Button onClick={handleBulkSubmit} fullWidth disabled={saving || !bulkText.trim()}>
                 {saving ? "Adding..." : "Add All Keys"}

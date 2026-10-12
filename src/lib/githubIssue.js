@@ -51,7 +51,7 @@ export async function reportDeadModel(model, errorMsg) {
   const createRes = await fetch(`https://api.github.com/repos/${repo}/issues`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ title, body, labels: [label] }),
+    body: JSON.stringify({ title, body }),
     signal: AbortSignal.timeout(10000),
   });
 

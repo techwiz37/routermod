@@ -1625,6 +1625,82 @@ export default function ProfilePage() {
           </div>
         </Card>
 
+        {/* GitHub Issue Bot Settings */}
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-[#ff1a53]/10 text-[#ff1a53] shrink-0">
+              <span className="material-symbols-outlined text-[20px]">bug_report</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-semibold">GitHub Issue Bot</h3>
+          </div>
+          <p className="text-xs sm:text-sm text-text-muted mb-4">
+            Auto-buat issue di repo GitHub kamu kalau ada model yang gagal tes (model deprecated / tidak bisa dipakai).
+          </p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setGithubLoading(true);
+              setGithubStatus({ type: "", message: "" });
+              try {
+                const res = await fetch("/api/settings", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    githubToken: githubForm.githubToken.trim(),
+                    githubRepo: githubForm.githubRepo.trim(),
+                  }),
+                });
+                if (res.ok) {
+                  setGithubStatus({ type: "success", message: "Tersimpan." });
+                } else {
+                  setGithubStatus({ type: "error", message: "Gagal menyimpan." });
+                }
+              } catch {
+                setGithubStatus({ type: "error", message: "Gagal menyimpan." });
+              } finally {
+                setGithubLoading(false);
+              }
+            }}
+            className="flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-2">
+              <label className="font-medium text-sm sm:text-base">GitHub Token</label>
+              <Input
+                type="password"
+                placeholder="ghp_xxxxxxxxxxxx"
+                value={githubForm.githubToken}
+                onChange={(e) => setGithubForm((p) => ({ ...p, githubToken: e.target.value }))}
+                disabled={githubLoading}
+              />
+              <p className="text-xs text-text-muted">
+                Token dengan scope <code>repo</code>. Buat di GitHub &rarr; Settings &rarr; Developer settings &rarr; Personal access tokens.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="font-medium text-sm sm:text-base">Repo</label>
+              <Input
+                placeholder="username/repo-name"
+                value={githubForm.githubRepo}
+                onChange={(e) => setGithubForm((p) => ({ ...p, githubRepo: e.target.value }))}
+                disabled={githubLoading}
+              />
+              <p className="text-xs text-text-muted">
+                Format: <code>owner/repo</code>. Issue akan dibuat di repo ini saat model gagal tes.
+              </p>
+            </div>
+            {githubStatus.message && (
+              <p className={`text-xs sm:text-sm ${githubStatus.type === "error" ? "text-red-500" : "text-green-500"}`}>
+                {githubStatus.message}
+              </p>
+            )}
+            <div className="pt-2 border-t border-border/50">
+              <Button type="submit" variant="primary" loading={githubLoading} className="w-full sm:w-auto">
+                Simpan
+              </Button>
+            </div>
+          </form>
+        </Card>
+
         {/* Account actions */}
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
