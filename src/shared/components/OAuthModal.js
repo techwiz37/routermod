@@ -70,12 +70,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const [placeholderUrl, setPlaceholderUrl] = useState("/callback?code=...");
   const callbackProcessedRef = useRef(false);
 
-  // Detect if running on localhost (client-side only)
+  // Treat any same-origin access (localhost or public domain) as "trusted" so
+  // popup postMessage works — the popup's origin equals window.location.origin.
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setIsLocalhost(
-        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-      );
+      setIsLocalhost(true); // always popup-capable when same-origin
       setPlaceholderUrl(`${window.location.origin}/callback?code=...`);
     }
   }, []);
@@ -358,15 +357,16 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         return;
       }
 
-      // Authorization code flow - build redirect URI (some providers require fixed ports)
-      const appPort = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+      // Authorization code flow - build redirect URI
+      // Use current origin so OAuth provider redirects back to the same host
+      // (works for localhost AND public domain access via tunnel/reverse-proxy)
       let redirectUri;
       if (provider === "codex") {
         redirectUri = "http://localhost:1455/auth/callback";
       } else if (provider === "xai") {
         redirectUri = "http://127.0.0.1:56121/callback";
       } else {
-        redirectUri = `http://localhost:${appPort}/callback`;
+        redirectUri = `${window.location.origin}/callback`;
       }
 
       // Build authorize URL first to get codeVerifier/state for codex server-side mode
