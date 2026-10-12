@@ -5,6 +5,42 @@ import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
+// Translate raw error messages (English technical → Indonesian user-friendly)
+function friendlyError(msg) {
+  if (!msg) return "Terjadi kesalahan yang tidak diketahui.";
+  const m = String(msg);
+  if (/fetch failed|network|ETIMEDOUT|ECONNREFUSED|ENOTFOUND/i.test(m))
+    return "Gagal terhubung ke server. Periksa koneksi internet dan coba lagi.";
+  if (/timeout/i.test(m))
+    return "Waktu koneksi habis. Silakan coba lagi.";
+  if (/unauthorized|401/i.test(m))
+    return "Token atau kredensial tidak valid. Pastikan kamu sudah login dengan benar.";
+  if (/forbidden|403/i.test(m))
+    return "Akses ditolak. Akun tidak memiliki izin untuk tindakan ini.";
+  if (/not found|404/i.test(m))
+    return "Endpoint tidak ditemukan. Provider mungkin belum dikonfigurasi.";
+  if (/invalid.*token|token.*invalid|token.*expired|expired.*token/i.test(m))
+    return "Token tidak valid atau sudah kedaluwarsa. Silakan hubungkan ulang.";
+  if (/invalid.*code|code.*invalid/i.test(m))
+    return "Kode otorisasi tidak valid atau sudah digunakan.";
+  if (/popup.*blocked|blocked.*popup/i.test(m))
+    return "Popup diblokir oleh browser. Izinkan popup untuk situs ini lalu coba lagi.";
+  if (/cancelled|canceled|cancel/i.test(m))
+    return "Proses dibatalkan.";
+  if (/No authorization URL/i.test(m))
+    return "Provider tidak mengembalikan URL otorisasi. Periksa konfigurasi provider.";
+  if (/Authentication failed/i.test(m))
+    return "Autentikasi gagal. Pastikan akun kamu aktif dan coba lagi.";
+  if (/invalid_grant/i.test(m))
+    return "Kode otorisasi tidak valid atau sudah kedaluwarsa. Silakan mulai ulang proses login.";
+  if (/invalid_client/i.test(m))
+    return "Konfigurasi client tidak valid. Periksa Client ID dan Client Secret.";
+  if (/access_denied/i.test(m))
+    return "Akses ditolak oleh provider. Pastikan kamu menyetujui izin yang diminta.";
+  // Return original if no pattern matched, but strip stack traces
+  return m.split("\n")[0];
+}
+
 // Providers using the dynamic-port local callback proxy.
 // Browser OAuth: popup → auto callback → auto exchange → poll-status.
 const PROXY_OAUTH_PROVIDERS = new Set(["trae", "windsurf", "zed"]);
@@ -106,8 +142,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setStep("success");
       onSuccessRef.current?.();
     } catch (err) {
-      setError(err.message);
-      setStep("error");
+      setError(friendlyError(err.message));      setStep("error");
     }
   }, [authData, provider, oauthMeta]);
 
@@ -125,8 +160,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setStep("success");
       onSuccessRef.current?.();
     } catch (err) {
-      setError(err.message);
-      setStep("error");
+      setError(friendlyError(err.message));      setStep("error");
     }
   }, [authData]);
 
@@ -182,14 +216,13 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
           interval = Math.min(interval + 5, 30);
         }
       } catch (err) {
-        setError(err.message);
-        setStep("error");
+        setError(friendlyError(err.message));        setStep("error");
         setPolling(false);
         return;
       }
     }
 
-    setError("Authorization timeout");
+    setError("Waktu otorisasi habis. Silakan coba lagi.");
     setStep("error");
     setPolling(false);
   }, [provider]);
@@ -468,8 +501,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         }
       }
     } catch (err) {
-      setError(err.message);
-      setStep("error");
+      setError(friendlyError(err.message));      setStep("error");
     }
   };
 
@@ -553,7 +585,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         }
         if (data.status === "error") {
           callbackProcessedRef.current = true;
-          setError(data.error || "Authentication failed");
+          setError(friendlyError(data.error) || "Autentikasi gagal. Silakan coba lagi.");
           setStep("error");
           return;
         }
@@ -562,7 +594,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       }
       if (attempts >= MAX_ATTEMPTS) {
         callbackProcessedRef.current = true;
-        setError("Authentication timeout");
+        setError("Waktu autentikasi habis. Silakan coba lagi.");
         setStep("error");
         return;
       }
@@ -585,7 +617,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
       if (callbackError) {
         callbackProcessedRef.current = true;
-        setError(errorDescription || callbackError);
+        setError(friendlyError(errorDescription || callbackError));
         setStep("error");
         return;
       }
@@ -736,8 +768,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
       await exchangeTokens(token || code, state);
     } catch (err) {
-      setError(err.message);
-      setStep("error");
+      setError(friendlyError(err.message));      setStep("error");
     }
   };
 
@@ -979,14 +1010,14 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             <div className="size-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <span className="material-symbols-outlined text-3xl text-red-600">error</span>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Connection Failed</h3>
+            <h3 className="text-lg font-semibold mb-2">Koneksi Gagal</h3>
             <p className="text-sm text-red-600 mb-4">{error}</p>
             <div className="flex gap-2">
               <Button onClick={startOAuthFlow} variant="secondary" fullWidth>
-                Try Again
+                Coba Lagi
               </Button>
               <Button onClick={handleClose} variant="ghost" fullWidth>
-                Cancel
+                Batal
               </Button>
             </div>
           </div>
