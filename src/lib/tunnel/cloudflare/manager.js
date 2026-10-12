@@ -1,9 +1,13 @@
-import { loadState, saveState, generateShortId, writeGate } from "../shared/state.js";
+import { loadState, saveState, writeGate } from "../shared/state.js";
 import { spawnQuickTunnel, killCloudflared, isCloudflaredRunning, setUnexpectedExitHandler } from "./cloudflared.js";
 import { clearPid } from "./pid.js";
 import { probeUrlAlive } from "./healthCheck.js";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { createSubdomain, deleteSubdomain, generateSubdomainSlug } from "./cfDns.js";
+import { enableReverseProxy, disableReverseProxy, getPublicIpv4 } from "../reverseProxy/index.js";
+
+const IS_WIN = process.platform === "win32";
+const PUBLIC_DOMAIN = process.env.CF_PUBLIC_DOMAIN || "toolwiz.id";
 
 const svc = {
   cancelToken: { cancelled: false },
@@ -12,9 +16,9 @@ const svc = {
   activeLocalPort: null,
 };
 
-export function getTunnelService() { return svc; }
-export function isTunnelManuallyDisabled() { return svc.cancelToken.cancelled; }
-export function isTunnelReconnecting() { return svc.spawnInProgress; }
+export function getTunnelService()          { return svc; }
+export function isTunnelManuallyDisabled()  { return svc.cancelToken.cancelled; }
+export function isTunnelReconnecting()      { return svc.spawnInProgress; }
 
 let onUnexpectedExit = null;
 export function setTunnelUnexpectedExitCallback(cb) { onUnexpectedExit = cb; }
@@ -24,74 +28,96 @@ function throwIfCancelled(token) {
 }
 
 export async function enableTunnel(localPort = parseInt(process.env.PORT || "1945", 10)) {
-  console.log(`[Tunnel] enable start (port=${localPort})`);
-  svc.cancelToken = { cancelled: false };
+  console.log(`[Tunnel] enable start (port=${localPort}, platform=${process.platform})`);
+  svc.cancelToken    = { cancelled: false };
   svc.activeLocalPort = localPort;
   svc.spawnInProgress = true;
   const token = svc.cancelToken;
 
   try {
-    // Reuse if still alive
-    if (isCloudflaredRunning()) {
-      const existing = loadState();
-      if (existing?.tunnelUrl && existing?.publicUrl) {
-        const [directOk, publicOk] = await Promise.all([
-          probeUrlAlive(existing.tunnelUrl),
-          probeUrlAlive(existing.publicUrl),
-        ]);
-        if (directOk && publicOk) {
-          console.log(`[Tunnel] already running, reuse: ${existing.publicUrl}`);
-          return {
-            success: true,
-            tunnelUrl: existing.tunnelUrl,
-            publicUrl: existing.publicUrl,
-            slug: existing.slug,
-            alreadyRunning: true,
-          };
-        }
-        // Stale — unregister old slug before respawn
-        if (existing.slug) {
-          await deleteSubdomain(existing.slug, existing.cfRecordId).catch(() => {});
-        }
-        console.log(`[Tunnel] stale (direct=${directOk} public=${publicOk}), respawn`);
+    const existing = loadState();
+
+    // ── Reuse check: cloudflared running + public URL still alive (Windows) ──
+    if (IS_WIN && isCloudflaredRunning() && existing?.tunnelUrl && existing?.publicUrl) {
+      const [directOk, publicOk] = await Promise.all([
+        probeUrlAlive(existing.tunnelUrl),
+        probeUrlAlive(existing.publicUrl),
+      ]);
+      if (directOk && publicOk) {
+        console.log(`[Tunnel] already running, reuse: ${existing.publicUrl}`);
+        writeGate({ tunnelActive: true });
+        return { success: true, tunnelUrl: existing.tunnelUrl, publicUrl: existing.publicUrl, slug: existing.slug, alreadyRunning: true };
+      }
+      console.log(`[Tunnel] stale tunnel (direct=${directOk} public=${publicOk}), respawn`);
+    }
+
+    // ── Slug: REUSE if state has one, generate only when none ──────────────
+    // Slug is cleared only by disableTunnel() — restart keeps it.
+    const slug   = existing?.slug || generateSubdomainSlug();
+    const domain = `${slug}.${PUBLIC_DOMAIN}`;
+    console.log(`[Tunnel] slug=${slug} (${existing?.slug ? "reused" : "new"})`);
+
+    // ── Public IP (Linux only) ──────────────────────────────────────────────
+    let publicIp = null;
+    if (!IS_WIN) {
+      try {
+        publicIp = await getPublicIpv4();
+        console.log(`[Tunnel] VPS public IP: ${publicIp}`);
+      } catch (e) {
+        console.warn(`[Tunnel] Could not detect public IP: ${e.message}`);
       }
     }
 
-    killCloudflared(localPort);
-    console.log("[Tunnel] killed existing cloudflared");
-    throwIfCancelled(token);
+    // ── Cloudflared tunnel (Windows only) ──────────────────────────────────
+    let tunnelUrl = existing?.tunnelUrl || `http://127.0.0.1:${localPort}`;
 
-    // Generate new slug each enable (fresh subdomain)
-    const slug = generateSubdomainSlug();
+    if (IS_WIN) {
+      if (IS_WIN) killCloudflared(localPort);
+      throwIfCancelled(token);
 
-    const onUrlUpdate = async (url) => {
-      if (token.cancelled) return;
-      console.log(`[Tunnel] url updated: ${url}`);
-      // Save direct URL immediately; publicUrl provisioned after spawn completes
-      saveState({ slug, tunnelUrl: url, publicUrl: null });
-      await updateSettings({ tunnelEnabled: true, tunnelUrl: url });
-    };
+      const onUrlUpdate = async (url) => {
+        if (token.cancelled) return;
+        console.log(`[Tunnel] cloudflared url: ${url}`);
+        saveState({ slug, tunnelUrl: url, publicUrl: existing?.publicUrl || null, cfRecordId: existing?.cfRecordId || null });
+        await updateSettings({ tunnelEnabled: true, tunnelUrl: url });
+      };
 
-    setUnexpectedExitHandler(() => {
-      console.warn("[Tunnel] cloudflared exited unexpectedly, scheduling respawn");
-      if (onUnexpectedExit) onUnexpectedExit();
-    });
+      setUnexpectedExitHandler(() => {
+        console.warn("[Tunnel] cloudflared exited unexpectedly, scheduling respawn");
+        if (onUnexpectedExit) onUnexpectedExit();
+      });
 
-    const { tunnelUrl } = await spawnQuickTunnel(localPort, onUrlUpdate);
-    console.log(`[Tunnel] spawned: ${tunnelUrl}`);
-    throwIfCancelled(token);
+      const spawned = await spawnQuickTunnel(localPort, onUrlUpdate);
+      tunnelUrl = spawned.tunnelUrl;
+      console.log(`[Tunnel] cloudflared spawned: ${tunnelUrl}`);
+      throwIfCancelled(token);
+    } else {
+      console.log(`[Tunnel] Linux mode — using Nginx directly (no cloudflared)`);
+    }
 
-    // Extract hostname from cloudflared URL for CNAME target
-    // Provision CF Worker KV: slug -> tunnelUrl (full URL)
-    let publicUrl = tunnelUrl; // fallback to direct URL if CF fails
-    let cfRecordId = null;
+    // ── Reverse proxy (Nginx / Caddy) ───────────────────────────────────────
+    let revProxyIp = null;
     try {
-      const cf = await createSubdomain(slug, tunnelUrl);
-      publicUrl = cf.publicUrl;
-      cfRecordId = cf.recordId;
-      console.log(`[Tunnel] CF domain created: ${publicUrl} (record ${cfRecordId})`);
+      const result = await enableReverseProxy({ slug, domain });
+      revProxyIp = result.publicIp;
+      console.log(`[Tunnel] reverse proxy enabled (${IS_WIN ? "caddy" : "nginx"})`);
     } catch (e) {
-      console.warn(`[Tunnel] CF subdomain failed, using direct URL: ${e.message}`);
+      console.warn(`[Tunnel] reverse proxy setup failed: ${e.message}`);
+    }
+
+    // ── CF DNS record ───────────────────────────────────────────────────────
+    // createSubdomain handles UPSERT (PUT on Linux if record already exists)
+    let publicUrl   = `https://${domain}`;
+    let cfRecordId  = existing?.cfRecordId || null;
+    try {
+      const cf = await createSubdomain(slug, tunnelUrl, revProxyIp || publicIp);
+      publicUrl  = cf.publicUrl;
+      cfRecordId = cf.recordId || cfRecordId;
+      console.log(`[Tunnel] CF DNS upserted: ${publicUrl} (record ${cfRecordId})`);
+    } catch (e) {
+      console.warn(`[Tunnel] CF DNS failed: ${e.message}`);
+      // Keep publicUrl from existing state if available
+      if (existing?.publicUrl) publicUrl = existing.publicUrl;
     }
 
     saveState({ slug, tunnelUrl, publicUrl, cfRecordId });
@@ -111,43 +137,54 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
 }
 
 export async function disableTunnel() {
-  console.log("[Tunnel] disable");
+  console.log("[Tunnel] disable — will clear slug so next enable generates new one");
   svc.cancelToken.cancelled = true;
   setUnexpectedExitHandler(null);
 
-  try { killCloudflared(svc.activeLocalPort); } catch (e) { console.warn(`[Tunnel] kill warn: ${e.message}`); }
-  clearPid();
+  if (IS_WIN) {
+    try { killCloudflared(svc.activeLocalPort); } catch (e) { console.warn(`[Tunnel] kill warn: ${e.message}`); }
+    clearPid();
+  }
 
-  // Unregister from CF: delete KV + DNS A record
   const state = loadState();
   if (state?.slug) {
-    await deleteSubdomain(state.slug, state.cfRecordId).catch((e) => console.warn("[Tunnel] CF unregister warn:", e.message));
+    await Promise.allSettled([
+      deleteSubdomain(state.slug, state.cfRecordId),
+      disableReverseProxy({ slug: state.slug }),
+    ]);
   }
-  if (state) saveState({ slug: state.slug, tunnelUrl: null, publicUrl: null, cfRecordId: null });
+
+  // Clear slug so next enable() gets a fresh one
+  saveState({ slug: null, tunnelUrl: null, publicUrl: null, cfRecordId: null });
   writeGate({ tunnelActive: false });
 
   await updateSettings({ tunnelEnabled: false, tunnelUrl: "" });
-  svc.spawnInProgress = false;
-  svc.activeLocalPort = null;
+  svc.spawnInProgress  = false;
+  svc.activeLocalPort  = null;
   return { success: true };
 }
 
 export async function getTunnelStatus() {
-  const settings = await getSettings();
+  const settings       = await getSettings();
   const settingsEnabled = settings.tunnelEnabled === true;
-  const state = loadState();
-  const slug = state?.slug || "";
-  const publicUrl = state?.publicUrl || "";
-  const tunnelUrl = state?.tunnelUrl || "";
+  const state          = loadState();
+  const slug           = state?.slug || "";
+  const publicUrl      = state?.publicUrl || "";
+  const tunnelUrl      = state?.tunnelUrl || "";
 
-  const running = settingsEnabled ? isCloudflaredRunning() : false;
+  let running = false;
+  if (settingsEnabled) {
+    if (IS_WIN) {
+      running = isCloudflaredRunning();
+    } else {
+      try {
+        const { default: fs } = await import("fs");
+        running = !!slug && fs.existsSync(`/etc/nginx/sites-enabled/routermod-${slug}.conf`);
+      } catch {
+        running = !!slug && !!publicUrl;
+      }
+    }
+  }
 
-  return {
-    enabled: settingsEnabled && running,
-    settingsEnabled,
-    tunnelUrl,
-    publicUrl,
-    slug,
-    running,
-  };
+  return { enabled: settingsEnabled && running, settingsEnabled, tunnelUrl, publicUrl, slug, running };
 }

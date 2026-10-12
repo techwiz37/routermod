@@ -23,11 +23,18 @@ function isTunnelHost(host) {
 }
 
 // Read gate.json synchronously — fast, no DB, works in proxy context
-// gate.json written by: manager.js (enable/disable) + settings PATCH
+// Uses same path logic as src/lib/dataDir.js to stay consistent across platforms
 function readGateSync() {
   try {
-    const appData = process.env.APPDATA || (process.env.HOME + "/AppData/Roaming");
-    const gateFile = path.join(appData, "routermod", "tunnel", "gate.json");
+    let dataDir;
+    if (process.platform === "win32") {
+      dataDir = process.env.APPDATA
+        ? require("path").join(process.env.APPDATA, "routermod")
+        : path.join(process.env.HOME || "C:/Users/Administrator", "AppData", "Roaming", "routermod");
+    } else {
+      dataDir = path.join(process.env.HOME || "/root", ".routermod");
+    }
+    const gateFile = path.join(dataDir, "tunnel", "gate.json");
     if (!fs.existsSync(gateFile)) return { tunnelActive: false, dashboardAccess: true };
     return JSON.parse(fs.readFileSync(gateFile, "utf8"));
   } catch {

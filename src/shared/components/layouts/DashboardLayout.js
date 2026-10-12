@@ -7,6 +7,81 @@ import Sidebar from "../Sidebar";
 import Header from "../Header";
 import PageLoadBadge from "../PageLoadBadge";
 
+const TG_URL = "https://t.me/techwizdisc";
+const WA_URL = "https://chat.whatsapp.com/J40Gf92ksaT4Uma02CIMo3?s=cl&p=a&mlu=4&ilr=4";
+const SESSION_KEY = "rmod_community_dismissed";
+
+function CommunityPopup({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-surface border-2 border-border rounded-xl shadow-[4px_6px_0px_var(--color-border)] animate-in fade-in zoom-in-95 duration-150 z-10 overflow-hidden">
+        {/* Header stripe */}
+        <div className="bg-[#ff1a53] px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-white text-[20px]">groups</span>
+            <span className="font-mono font-bold text-white text-sm uppercase tracking-wider">Komunitas RouterMod</span>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+
+        <div className="p-5 flex flex-col gap-4">
+          <p className="text-sm text-text-muted leading-relaxed">
+            Bergabung ke komunitas diskusi RouterMod — tanya, sharing config, update fitur, dan bantu sesama user.
+          </p>
+
+          <div className="flex flex-col gap-2.5">
+            {/* Telegram */}
+            <a
+              href={TG_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-[#229ED9] bg-[#229ED9]/10 hover:bg-[#229ED9]/20 transition-colors shadow-[2px_2px_0px_#229ED960]"
+            >
+              <svg viewBox="0 0 24 24" className="size-5 shrink-0 fill-[#229ED9]">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+              </svg>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[#229ED9]">Telegram</p>
+                <p className="text-[11px] text-text-muted truncate">t.me/techwizdisc</p>
+              </div>
+              <span className="material-symbols-outlined text-[16px] text-[#229ED9] ml-auto shrink-0">open_in_new</span>
+            </a>
+
+            {/* WhatsApp */}
+            <a
+              href={WA_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 transition-colors shadow-[2px_2px_0px_#25D36660]"
+            >
+              <svg viewBox="0 0 24 24" className="size-5 shrink-0 fill-[#25D366]">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[#25D366]">WhatsApp</p>
+                <p className="text-[11px] text-text-muted truncate">Grup Diskusi RouterMod</p>
+              </div>
+              <span className="material-symbols-outlined text-[16px] text-[#25D366] ml-auto shrink-0">open_in_new</span>
+            </a>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="text-[11px] text-text-muted hover:text-text-main transition-colors text-center"
+          >
+            Lewati, jangan tampilkan lagi sesi ini
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getToastStyle(type) {
   if (type === "success") {
     return {
@@ -34,9 +109,24 @@ function getToastStyle(type) {
 
 export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showCommunity, setShowCommunity] = useState(false);
   const pathname = usePathname();
   const notifications = useNotificationStore((state) => state.notifications);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
+
+  // Show community popup once per session
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!sessionStorage.getItem(SESSION_KEY)) {
+      const t = setTimeout(() => setShowCommunity(true), 1200);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  function dismissCommunity() {
+    sessionStorage.setItem(SESSION_KEY, "1");
+    setShowCommunity(false);
+  }
 
   // Preload heavy usage charts in background when browser is idle
   useEffect(() => {
@@ -64,6 +154,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
       <PageLoadBadge />
+      {showCommunity && <CommunityPopup onClose={dismissCommunity} />}
       <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
         {notifications.map((n) => {
           const style = getToastStyle(n.type);
