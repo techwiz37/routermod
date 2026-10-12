@@ -264,11 +264,9 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     setSelectedModels(new Set(access.allow));
   }, [access.allow.join(",")]);
 
-  // Load models whenever restricted becomes true (or key changes while restricted)
-  useEffect(() => {
-    if (!access.restricted) return;
+  const loadModels = useCallback(() => {
     setLoading(true);
-    Promise.all([fetch("/api/models"), fetch("/api/providers")])
+    return Promise.all([fetch("/api/models"), fetch("/api/providers")])
       .then(async ([mr, pr]) => {
         const models = (await mr.json()).models || [];
         const connections = pr.ok ? ((await pr.json()).connections || []) : [];
@@ -283,7 +281,12 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [access.restricted, apiKey.id]);
+  }, []);
+
+  // Load if already restricted on mount / key change
+  useEffect(() => {
+    if (access.restricted) loadModels();
+  }, [apiKey.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleModel = useCallback((id, on) => {
     setSelectedModels(prev => {
@@ -297,6 +300,8 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   const handleToggleRestrict = (checked) => {
     if (checked) {
+      // Pre-fetch models immediately so list is ready when confirm dialog closes
+      loadModels();
       onRequestRestrict();
     } else {
       onChange({ restricted: false, allow: [...selectedModels] });
