@@ -155,6 +155,20 @@ export async function createProviderConnection(data) {
       : all.length;
 
     let existing = null;
+    // Deduplicate apikey connections by actual key value — regardless of name.
+    // Covers both single-add (same key, different name) and bulk paste (same
+    // line repeated N times). Runs a targeted SQL scan only when the caller
+    // provides a non-empty apiKey so free/ollama providers are unaffected.
+    if (data.authType === "apikey" && data.apiKey) {
+      const dupRow = db.get(
+        `SELECT * FROM providerConnections WHERE provider = ? AND authType = ? AND json_extract(data, '$.apiKey') = ?`,
+        [data.provider, "apikey", data.apiKey]
+      );
+      if (dupRow) {
+        result = rowToConn(dupRow);
+        return; // silent skip — same key already stored
+      }
+    }
     if (data.authType === "oauth" && data.email) {
       const incomingUsername = data.providerSpecificData?.username;
       const incomingWs = data.providerSpecificData?.chatgptAccountId;

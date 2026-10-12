@@ -64,6 +64,8 @@ export function planBulkAdd(lines, existingNames, opts = {}) {
 
   const safeExisting = Array.isArray(existingNames) ? existingNames : [];
   const used = new Set(safeExisting.map((n) => (typeof n === "string" ? n.toLowerCase() : "")));
+  // Track apiKey values seen in this batch to deduplicate repeated lines
+  const seenKeys = new Set();
 
   const out = [];
   for (const raw of lines) {
@@ -72,6 +74,11 @@ export function planBulkAdd(lines, existingNames, opts = {}) {
 
     const parsed = parseLine(line, { isCloudflareAi });
     if (!parsed || !parsed.apiKey) continue;
+
+    // Skip duplicate apiKey values within this batch
+    const keyNorm = parsed.apiKey.trim();
+    if (seenKeys.has(keyNorm)) continue;
+    seenKeys.add(keyNorm);
 
     const base = parsed.baseName;
 
