@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getProviderConnections } from "@/models";
 import { getUsageStats } from "@/lib/usageDb";
-import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { AI_PROVIDERS, FREE_PROVIDERS } from "@/shared/constants/providers";
+
+const FREE_PROVIDER_IDS = new Set(Object.keys(FREE_PROVIDERS));
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +23,12 @@ export async function GET() {
       const pid = conn.provider || "unknown";
       if (!providerMap[pid]) {
         const provMeta = AI_PROVIDERS[pid] || {};
+        const isFree = FREE_PROVIDER_IDS.has(pid) || !!(provMeta.noAuth);
         providerMap[pid] = {
           provider: pid,
           name: provMeta.name || pid,
           icon: provMeta.icon || pid,
+          isFree,
           totalAccounts: 0,
           activeAccounts: 0,
           failedAccounts: 0,
@@ -47,11 +51,13 @@ export async function GET() {
     // Also include providers that have token usage in stats even if no current accounts configured
     for (const [pid, pUsage] of Object.entries(byProviderUsage)) {
       if (!providerMap[pid]) {
-        const provMeta = AI_PROVIDERS[pid] || {};
+        const provMeta2 = AI_PROVIDERS[pid] || {};
+        const isFree2 = FREE_PROVIDER_IDS.has(pid) || !!(provMeta2.noAuth);
         providerMap[pid] = {
           provider: pid,
-          name: provMeta.name || pid,
-          icon: provMeta.icon || pid,
+          name: provMeta2.name || pid,
+          icon: provMeta2.icon || pid,
+          isFree: isFree2,
           totalAccounts: 0,
           activeAccounts: 0,
           failedAccounts: 0,

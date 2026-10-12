@@ -348,7 +348,7 @@ export default function DashboardProviderOverview() {
               <tbody className="divide-y-2 divide-border">
                 {providers.map((p) => {
                   const iconSrc = getProviderIconSrc(p.provider);
-                  const isOnline = p.activeAccounts > 0;
+                  const isOnline = p.isFree || p.activeAccounts > 0;
                   return (
                     <tr
                       key={p.provider}
@@ -371,8 +371,11 @@ export default function DashboardProviderOverview() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-bold text-text-main text-xs sm:text-sm truncate">
-                              {p.name}
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-text-main text-xs sm:text-sm truncate">{p.name}</span>
+                              {p.isFree && (
+                                <span className="shrink-0 px-1 py-0 rounded text-[9px] font-black uppercase bg-amber-400/20 text-amber-500 border border-amber-400/30">FREE</span>
+                              )}
                             </div>
                             <div className="text-[9.5px] text-text-muted uppercase truncate">
                               {p.provider}
@@ -394,9 +397,13 @@ export default function DashboardProviderOverview() {
                         )}
                       </td>
                       <td className="py-2.5 sm:py-3 px-2 sm:px-3 text-center">
-                        <span className="font-bold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded border border-[#10b981]/30">
-                          {p.activeAccounts}
-                        </span>
+                        {p.isFree ? (
+                          <span className="font-bold text-amber-500 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/30 text-base leading-none" title="Unlimited">&#8734;</span>
+                        ) : (
+                          <span className="font-bold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded border border-[#10b981]/30">
+                            {p.activeAccounts}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 sm:py-3 px-2 sm:px-3 text-center">
                         {p.failedAccounts > 0 ? (
