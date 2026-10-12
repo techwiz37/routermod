@@ -52,18 +52,38 @@ export async function POST(request) {
   }
 }
 
-// PATCH /api/models/custom - Rename (update name) of existing custom model
+// PATCH /api/models/custom - Rename (update name) or re-ID (change id) of existing custom model
 export async function PATCH(request) {
   try {
-    const { providerAlias, id, type, name } = await request.json();
-    if (!providerAlias || !id || !name?.trim()) {
-      return NextResponse.json({ error: "providerAlias, id, and name required" }, { status: 400 });
+    const { providerAlias, id, newId, type, name } = await request.json();
+    if (!providerAlias || !id) {
+      return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
-    await addCustomModel({ providerAlias, id, type: type || "llm", name: name.trim() });
+    const resolvedType = type || "llm";
+
+    if (newId && newId.trim() && newId.trim() !== id) {
+      // Re-ID: delete old, insert new preserving name
+      const oldModels = await getCustomModels();
+      const old = oldModels.find((m) => m.providerAlias === providerAlias && m.id === id && m.type === resolvedType);
+      await deleteCustomModel({ providerAlias, id, type: resolvedType });
+      await addCustomModel({
+        providerAlias,
+        id: newId.trim(),
+        type: resolvedType,
+        name: (name?.trim() || old?.name || newId.trim()),
+        ...(old?.caps ? { caps: old.caps } : {}),
+        ...(old?.transport ? { transport: old.transport } : {}),
+      });
+    } else if (name?.trim()) {
+      // Name-only update
+      await addCustomModel({ providerAlias, id, type: resolvedType, name: name.trim() });
+    } else {
+      return NextResponse.json({ error: "name or newId required" }, { status: 400 });
+    }
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Error renaming custom model:", error);
-    return NextResponse.json({ error: "Failed to rename model" }, { status: 500 });
+    console.log("Error updating custom model:", error);
+    return NextResponse.json({ error: "Failed to update model" }, { status: 500 });
   }
 }
 

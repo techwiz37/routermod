@@ -2,47 +2,105 @@ import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import { CapacityBadges } from "@/shared/components";
 
+/**
+ * Edit popover — appears below the row when pencil is clicked.
+ * Fields shown depend on model type:
+ *   built-in  → Prefix (alias key) + Name (display)
+ *   custom    → Model ID + Name (display)
+ */
+function EditPopover({ model, fullModel, alias, isCustom, onSave, onClose }) {
+  // Extract current prefix from alias or fullModel
+  const currentPrefix = alias || fullModel.split("/").pop();
+  const currentName   = model.name || model.id;
+
+  const [prefix, setPrefix]   = useState(currentPrefix);
+  const [name,   setName]     = useState(currentName);
+  const [modelId, setModelId] = useState(model.id);
+  const firstRef = useRef(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  function handleSave(e) {
+    e.preventDefault();
+    onSave({ prefix: prefix.trim(), name: name.trim(), modelId: modelId.trim() });
+  }
+
+  return (
+    <form
+      onSubmit={handleSave}
+      className="mt-2 flex flex-col gap-2 rounded-lg border-2 border-border bg-surface p-3 shadow-[3px_3px_0px_var(--color-border)]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {isCustom ? (
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Model ID</span>
+          <input
+            ref={firstRef}
+            value={modelId}
+            onChange={(e) => setModelId(e.target.value)}
+            className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+            placeholder="e.g. gpt-4o-mini"
+          />
+        </label>
+      ) : (
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Prefix (alias)</span>
+          <input
+            ref={firstRef}
+            value={prefix}
+            onChange={(e) => setPrefix(e.target.value)}
+            className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+            placeholder="e.g. gemini-3.8-high"
+          />
+        </label>
+      )}
+
+      <label className="flex flex-col gap-0.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Display Name</span>
+        <input
+          ref={isCustom ? firstRef : null}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+          placeholder="e.g. Gemini 3.8 High"
+        />
+      </label>
+
+      <div className="flex items-center gap-1.5 justify-end pt-0.5">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-2.5 py-1 rounded border border-border text-[11px] text-text-muted hover:bg-surface-2 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-2.5 py-1 rounded border-2 border-primary bg-primary text-[11px] font-bold text-white hover:bg-primary-hover transition-colors shadow-[1.5px_1.5px_0px_var(--color-border)]"
+        >
+          Save
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function ModelRow({
   model, fullModel, alias, copied, onCopy,
   testStatus, isCustom, isFree,
-  onDeleteAlias, onTest, isTesting, onDisable, onRename,
+  onDeleteAlias, onTest, isTesting,
+  onDisable, onEdit,
   caps, thinkingSuffix,
 }) {
   const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState("");
-  const inputRef = useRef(null);
 
-  const borderColor = testStatus === "ok"
-    ? "border-green-500/40"
-    : testStatus === "error"
-    ? "border-red-500/40"
+  const borderColor = testStatus === "ok"  ? "border-green-500/40"
+    : testStatus === "error" ? "border-red-500/40"
     : "border-border";
-
   const iconColor = testStatus === "ok" ? "#22c55e"
     : testStatus === "error" ? "#ef4444"
     : undefined;
-
-  function startEdit() {
-    setDraftName(model.name || model.id);
-    setEditing(true);
-  }
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  function commitEdit() {
-    const trimmed = draftName.trim();
-    if (trimmed && trimmed !== (model.name || model.id) && onRename) {
-      onRename(trimmed);
-    }
-    setEditing(false);
-  }
-
-  function cancelEdit() {
-    setEditing(false);
-  }
 
   return (
     <div className={`group w-full sm:w-auto min-w-0 max-w-full rounded-lg border px-3 py-2 ${borderColor} hover:bg-sidebar/50`}>
@@ -54,123 +112,104 @@ export default function ModelRow({
           {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
         </span>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px] sm:truncate">
             {displayModel}
           </code>
-
-          {/* Name row — inline edit or static */}
-          {editing ? (
-            <div className="flex items-center gap-1 pl-1">
-              <input
-                ref={inputRef}
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitEdit();
-                  if (e.key === "Escape") cancelEdit();
-                }}
-                className="min-w-0 flex-1 rounded border border-primary/60 bg-bg px-1.5 py-0.5 font-mono text-[11px] text-text-main outline-none focus:ring-1 focus:ring-primary/40"
-                placeholder="Display name"
-              />
-              <button
-                onClick={commitEdit}
-                className="rounded p-0.5 text-emerald-500 hover:bg-emerald-500/10 transition-colors"
-                title="Save"
-              >
-                <span className="material-symbols-outlined text-[13px]">check</span>
-              </button>
-              <button
-                onClick={cancelEdit}
-                className="rounded p-0.5 text-text-muted hover:bg-sidebar transition-colors"
-                title="Cancel"
-              >
-                <span className="material-symbols-outlined text-[13px]">close</span>
-              </button>
-            </div>
-          ) : (
-            <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
-              {model.name && (
-                <span className="break-all sm:truncate text-[9px] italic text-text-muted/70">{model.name}</span>
-              )}
-              <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
-            </span>
-          )}
+          <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
+            {model.name && (
+              <span className="break-all sm:truncate text-[9px] italic text-text-muted/70">{model.name}</span>
+            )}
+            <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
+          </span>
         </div>
 
         {/* Action buttons */}
-        {!editing && (
-          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-            {/* Test */}
-            {onTest && (
-              <div className="relative shrink-0 group/btn">
-                <button
-                  onClick={onTest}
-                  disabled={isTesting}
-                  className={`rounded p-0.5 text-text-muted transition-opacity hover:bg-sidebar hover:text-primary ${isTesting ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"}`}
-                >
-                  <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-                    {isTesting ? "progress_activity" : "science"}
-                  </span>
-                </button>
-                <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                  {isTesting ? "Testing..." : "Test"}
-                </span>
-              </div>
-            )}
-
-            {/* Rename / edit name */}
-            {onRename && (
-              <div className="relative shrink-0 group/btn">
-                <button
-                  onClick={startEdit}
-                  className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-sidebar hover:text-primary sm:opacity-0 sm:group-hover:opacity-100"
-                  title="Edit display name"
-                >
-                  <span className="material-symbols-outlined text-sm">edit</span>
-                </button>
-                <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                  Rename
-                </span>
-              </div>
-            )}
-
-            {/* Copy */}
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          {/* Test */}
+          {onTest && (
             <div className="relative shrink-0 group/btn">
               <button
-                onClick={() => onCopy(displayModel, `model-${model.id}`)}
-                className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
+                onClick={onTest}
+                disabled={isTesting}
+                className={`rounded p-0.5 text-text-muted transition-opacity hover:bg-sidebar hover:text-primary ${isTesting ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"}`}
               >
-                <span className="material-symbols-outlined text-sm">
-                  {copied === `model-${model.id}` ? "check" : "content_copy"}
+                <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
+                  {isTesting ? "progress_activity" : "science"}
                 </span>
               </button>
               <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                {copied === `model-${model.id}` ? "Copied!" : "Copy"}
+                {isTesting ? "Testing..." : "Test"}
               </span>
             </div>
+          )}
 
-            {/* Delete / disable */}
-            {isCustom ? (
+          {/* Edit */}
+          {onEdit && (
+            <div className="relative shrink-0 group/btn">
               <button
-                onClick={onDeleteAlias}
-                className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
-                title="Remove custom model"
+                onClick={() => setEditing((v) => !v)}
+                className={`rounded p-0.5 transition-colors hover:bg-sidebar opacity-100 sm:opacity-0 sm:group-hover:opacity-100 ${editing ? "text-primary" : "text-text-muted hover:text-primary"}`}
+                title="Edit model"
               >
-                <span className="material-symbols-outlined text-sm">close</span>
+                <span className="material-symbols-outlined text-sm">edit</span>
               </button>
-            ) : onDisable ? (
-              <button
-                onClick={onDisable}
-                className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
-                title="Disable this model"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-              </button>
-            ) : null}
+              <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+                Edit
+              </span>
+            </div>
+          )}
+
+          {/* Copy */}
+          <div className="relative shrink-0 group/btn">
+            <button
+              onClick={() => onCopy(displayModel, `model-${model.id}`)}
+              className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {copied === `model-${model.id}` ? "check" : "content_copy"}
+              </span>
+            </button>
+            <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+              {copied === `model-${model.id}` ? "Copied!" : "Copy"}
+            </span>
           </div>
-        )}
+
+          {/* Delete / disable */}
+          {isCustom ? (
+            <button
+              onClick={onDeleteAlias}
+              className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+              title="Remove"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          ) : onDisable ? (
+            <button
+              onClick={onDisable}
+              className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+              title="Disable"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {/* Edit popover — inline below row */}
+      {editing && onEdit && (
+        <EditPopover
+          model={model}
+          fullModel={displayModel}
+          alias={alias}
+          isCustom={!!isCustom}
+          onClose={() => setEditing(false)}
+          onSave={(vals) => {
+            onEdit(vals);
+            setEditing(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -188,7 +227,7 @@ ModelRow.propTypes = {
   onTest: PropTypes.func,
   isTesting: PropTypes.bool,
   onDisable: PropTypes.func,
-  onRename: PropTypes.func,
+  onEdit: PropTypes.func,
   caps: PropTypes.object,
   thinkingSuffix: PropTypes.string,
 };

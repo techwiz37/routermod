@@ -5,10 +5,11 @@ import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 
-function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onRename, onTest, testStatus, isTesting }) {
+function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onDeleteAlias, onEdit, onTest, testStatus, isTesting }) {
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState("");
-  const inputRef = useRef(null);
+  const [draftId,   setDraftId]   = useState(modelId);
+  const [draftName, setDraftName] = useState(modelName || modelId);
+  const firstRef = useRef(null);
 
   const borderColor = testStatus === "ok" ? "border-green-500/40"
     : testStatus === "error" ? "border-red-500/40"
@@ -18,74 +19,60 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
     : undefined;
 
   function startEdit() {
-    setDraftName(modelId);
+    setDraftId(modelId);
+    setDraftName(modelName || modelId);
     setEditing(true);
   }
-  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  useEffect(() => { if (editing) firstRef.current?.focus(); }, [editing]);
 
-  function commitEdit() {
-    const trimmed = draftName.trim();
-    if (trimmed && trimmed !== modelId && onRename) onRename(trimmed);
+  function commitEdit(e) {
+    e?.preventDefault();
+    if (onEdit) onEdit({ modelId: draftId.trim(), name: draftName.trim() });
     setEditing(false);
   }
 
   return (
-    <div className={`group flex items-center gap-3 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
-      <span className="material-symbols-outlined text-base text-text-muted shrink-0" style={iconColor ? { color: iconColor } : undefined}>
-        {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{modelId}</p>
-        <div className="flex items-center gap-1 mt-1 flex-wrap">
-          <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-          {/* Copy */}
-          <div className="relative group/btn">
-            <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary">
-              <span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span>
-            </button>
-            <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-              {copied === `model-${modelId}` ? "Copied!" : "Copy"}
-            </span>
-          </div>
-          {/* Test */}
-          {onTest && (
+    <div className={`group flex flex-col gap-0 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
+      <div className="flex items-center gap-3">
+        <span className="material-symbols-outlined text-base text-text-muted shrink-0" style={iconColor ? { color: iconColor } : undefined}>
+          {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{modelName || modelId}</p>
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+            <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
+            {/* Copy */}
             <div className="relative group/btn">
-              <button onClick={onTest} disabled={isTesting} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors">
-                <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-                  {isTesting ? "progress_activity" : "science"}
-                </span>
+              <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary">
+                <span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span>
               </button>
               <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                {isTesting ? "Testing..." : "Test"}
+                {copied === `model-${modelId}` ? "Copied!" : "Copy"}
               </span>
             </div>
-          )}
-        </div>
-        {/* Inline edit row */}
-        {editing && (
-          <div className="flex items-center gap-1 mt-1.5">
-            <input
-              ref={inputRef}
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(false); }}
-              className="min-w-0 flex-1 rounded border border-primary/60 bg-bg px-1.5 py-0.5 font-mono text-[11px] text-text-main outline-none focus:ring-1 focus:ring-primary/40"
-              placeholder="Display name"
-            />
-            <button onClick={commitEdit} className="rounded p-0.5 text-emerald-500 hover:bg-emerald-500/10">
-              <span className="material-symbols-outlined text-[13px]">check</span>
-            </button>
-            <button onClick={() => setEditing(false)} className="rounded p-0.5 text-text-muted hover:bg-sidebar">
-              <span className="material-symbols-outlined text-[13px]">close</span>
-            </button>
+            {/* Test */}
+            {onTest && (
+              <div className="relative group/btn">
+                <button onClick={onTest} disabled={isTesting} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors">
+                  <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
+                    {isTesting ? "progress_activity" : "science"}
+                  </span>
+                </button>
+                <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+                  {isTesting ? "Testing..." : "Test"}
+                </span>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      {/* Action buttons */}
-      {!editing && (
+        </div>
+        {/* Action buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
-          {onRename && (
-            <button onClick={startEdit} className="p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:bg-sidebar hover:text-primary transition-all" title="Rename">
+          {onEdit && (
+            <button
+              onClick={() => editing ? setEditing(false) : startEdit()}
+              className={`p-1 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-sidebar ${editing ? "text-primary" : "text-text-muted hover:text-primary"}`}
+              title="Edit"
+            >
               <span className="material-symbols-outlined text-sm">edit</span>
             </button>
           )}
@@ -93,12 +80,48 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
             <span className="material-symbols-outlined text-sm">delete</span>
           </button>
         </div>
+      </div>
+
+      {/* Edit popover */}
+      {editing && (
+        <form
+          onSubmit={commitEdit}
+          className="mt-2 flex flex-col gap-2 rounded-lg border-2 border-border bg-surface p-3 shadow-[3px_3px_0px_var(--color-border)]"
+        >
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Model ID</span>
+            <input
+              ref={firstRef}
+              value={draftId}
+              onChange={(e) => setDraftId(e.target.value)}
+              className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+              placeholder="e.g. gpt-4o-mini"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Display Name</span>
+            <input
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+              placeholder="e.g. GPT-4o Mini"
+            />
+          </label>
+          <div className="flex items-center gap-1.5 justify-end">
+            <button type="button" onClick={() => setEditing(false)} className="px-2.5 py-1 rounded border border-border text-[11px] text-text-muted hover:bg-surface-2 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" className="px-2.5 py-1 rounded border-2 border-primary bg-primary text-[11px] font-bold text-white hover:bg-primary-hover transition-colors shadow-[1.5px_1.5px_0px_var(--color-border)]">
+              Save
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onRenameAlias, onRenameCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onEditAlias, onEditCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -226,11 +249,12 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
             <CompatibleModelRow
               key={`${source}-${providerStorageAlias}/${id}`}
               modelId={id}
+              modelName={name}
               fullModel={`${providerDisplayAlias}/${id}`}
               copied={copied}
               onCopy={onCopy}
               onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
-              onRename={(newName) => source === "custom" ? onRenameCustomModel(id, newName) : onRenameAlias(id, newName)}
+              onEdit={(vals) => source === "custom" ? onEditCustomModel?.(id, vals) : onEditAlias?.(id, vals)}
               onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
               testStatus={modelTestResults[id]}
               isTesting={testingModelId === id}
@@ -250,8 +274,8 @@ CompatibleModelsSection.propTypes = {
   copied: PropTypes.string,
   onCopy: PropTypes.func.isRequired,
   onDeleteAlias: PropTypes.func.isRequired,
-  onRenameAlias: PropTypes.func,
-  onRenameCustomModel: PropTypes.func,
+  onEditAlias: PropTypes.func,
+  onEditCustomModel: PropTypes.func,
   onAddCustomModel: PropTypes.func.isRequired,
   onDeleteCustomModel: PropTypes.func.isRequired,
   connections: PropTypes.arrayOf(PropTypes.shape({

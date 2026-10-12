@@ -574,36 +574,41 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Rename custom model display name (PATCH upsert)
-  const handleRenameCustomModel = async (modelId, newName, type = "llm", providerAliasOverride = providerStorageAlias) => {
+  // Edit custom model: change id and/or name (PATCH)
+  const handleEditCustomModel = async (modelId, { modelId: newId, name }, type = "llm", providerAliasOverride = providerStorageAlias) => {
     try {
+      const body = { providerAlias: providerAliasOverride, id: modelId, type };
+      if (newId && newId !== modelId) body.newId = newId;
+      if (name) body.name = name;
       const res = await fetch("/api/models/custom", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, name: newName }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         await fetchCustomModels();
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
       }
     } catch (error) {
-      console.log("Error renaming custom model:", error);
+      console.log("Error editing custom model:", error);
     }
   };
 
-  // Rename built-in model alias (creates/updates the alias key)
-  const handleRenameAlias = async (modelId, newName, providerAliasOverride = providerStorageAlias) => {
+  // Edit built-in model: change alias prefix and/or name
+  const handleEditBuiltinModel = async (modelId, { prefix, name }, providerAliasOverride = providerStorageAlias) => {
     const fullModel = `${providerAliasOverride}/${modelId}`;
     const oldAlias = Object.entries(modelAliases).find(([, m]) => m === fullModel)?.[0];
+    const newAlias = (prefix || oldAlias || modelId).trim();
     try {
       const res = await fetch("/api/models/alias", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ oldAlias, newAlias: newName, model: fullModel }),
+        body: JSON.stringify({ oldAlias, newAlias, model: fullModel }),
       });
-      if (res.ok) await fetchAliases();
+      if (!res.ok) return;
+      await fetchAliases();
     } catch (error) {
-      console.log("Error renaming alias:", error);
+      console.log("Error editing builtin model alias:", error);
     }
   };
 
@@ -1193,8 +1198,8 @@ export default function ProviderDetailPage() {
           onCopy={copy}
           onSetAlias={handleSetAlias}
           onDeleteAlias={handleDeleteAlias}
-          onRenameAlias={(modelId, newName) => handleRenameAlias(modelId, newName, providerStorageAlias)}
-          onRenameCustomModel={(modelId, newName) => handleRenameCustomModel(modelId, newName, "llm", providerStorageAlias)}
+          onEditAlias={(modelId, vals) => handleEditBuiltinModel(modelId, vals, providerStorageAlias)}
+          onEditCustomModel={(modelId, vals) => handleEditCustomModel(modelId, vals, "llm", providerStorageAlias)}
           onAddCustomModel={(modelId) => handleAddCustomModel(modelId, "llm", providerStorageAlias)}
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
           connections={connections}
@@ -1238,7 +1243,7 @@ export default function ProviderDetailPage() {
                 handleDeleteAlias(model.alias);
               }
             }}
-            onRename={(newName) => handleRenameCustomModel(model.id, newName, "llm", providerStorageAlias)}
+            onEdit={(vals) => handleEditCustomModel(model.id, vals, "llm", providerStorageAlias)}
             testStatus={modelTestResults[model.id]}
             onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
             isTesting={testingModelIds.has(model.id)}
@@ -1265,7 +1270,7 @@ export default function ProviderDetailPage() {
               onCopy={copy}
               onSetAlias={(alias) => handleSetAlias(model.id, alias, providerStorageAlias)}
               onDeleteAlias={() => handleDeleteAlias(existingAlias)}
-              onRename={(newName) => handleRenameAlias(model.id, newName, providerStorageAlias)}
+              onEdit={(vals) => handleEditBuiltinModel(model.id, vals, providerStorageAlias)}
               testStatus={modelTestResults[model.id]}
               onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
               isTesting={testingModelIds.has(model.id)}
