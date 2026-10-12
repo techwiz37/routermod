@@ -64,9 +64,6 @@ const DEFAULT_SETTINGS = {
   pxpipeTimeoutMs: 15000,
   // Per-provider user header overrides applied at dispatch: { [providerId]: { headers: {..} } }
   providerOverrides: {},
-  // GitHub issue bot: auto-report dead models found during model test
-  githubToken: "",
-  githubRepo: "",
 };
 
 async function readRaw() {
