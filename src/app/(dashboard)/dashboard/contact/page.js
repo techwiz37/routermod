@@ -9,7 +9,7 @@ const CONTACTS = [
     url: "https://t.me/techwiz37",
     icon: "send",
     color: "#229ED9",
-    desc: "Quickest way to reach me",
+    desc: "Quickest to respond",
   },
   {
     platform: "Instagram",
@@ -25,7 +25,7 @@ const CONTACTS = [
     url: "https://github.com/techwiz37",
     icon: "code",
     color: "#6e40c9",
-    desc: "Code, issues & pull requests",
+    desc: "Code, issues & contributions",
   },
   {
     platform: "Email",
@@ -33,7 +33,7 @@ const CONTACTS = [
     url: "mailto:techwiz.id@gmail.com",
     icon: "mail",
     color: "#ff1a53",
-    desc: "For longer conversations",
+    desc: "For detailed discussions",
   },
 ];
 
@@ -57,14 +57,14 @@ export default function ContactPage() {
               Contact Developer
             </h1>
             <p className="text-sm text-text-muted mt-0.5">
-              Got a bug or idea? Feel free to reach out through any of these.
+              Got a bug or idea? Feel free to reach out.
             </p>
           </div>
         </div>
       </Card>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      {/* Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {CONTACTS.map((c) => (
           <a
             key={c.platform}
@@ -74,32 +74,30 @@ export default function ContactPage() {
             className="group block"
           >
             <Card className="h-full flex flex-col gap-3 p-4 border-2 border-border shadow-[3px_3px_0px_var(--color-border)] group-hover:-translate-y-0.5 group-hover:shadow-[4px_5px_0px_var(--color-border)] active:translate-y-0 transition-all cursor-pointer select-none">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between">
                 <div
-                  className="size-10 rounded-xl border-2 border-border flex items-center justify-center shadow-[2px_2px_0_var(--color-border)] transition-transform group-hover:scale-105"
+                  className="size-10 rounded-xl border-2 border-border flex items-center justify-center shadow-[2px_2px_0_var(--color-border)]"
                   style={{ background: `${c.color}18` }}
                 >
                   <span className="material-symbols-outlined text-[20px]" style={{ color: c.color }}>
                     {c.icon}
                   </span>
                 </div>
-                <span className="material-symbols-outlined text-[15px] text-text-muted group-hover:text-primary transition-colors">
+                <span className="material-symbols-outlined text-[15px] text-text-muted group-hover:text-primary transition-colors mt-0.5">
                   arrow_outward
                 </span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] text-text-muted font-mono uppercase tracking-widest leading-none mb-1">
-                  {c.platform}
-                </p>
+              <div>
+                <p className="text-[10px] text-text-muted font-mono uppercase tracking-widest mb-1">{c.platform}</p>
                 <p className="text-sm font-bold text-text-main truncate">{c.handle}</p>
-                <p className="text-xs text-text-muted mt-1 leading-snug">{c.desc}</p>
+                <p className="text-xs text-text-muted mt-1">{c.desc}</p>
               </div>
             </Card>
           </a>
         ))}
       </div>
 
-      <p className="text-xs text-text-muted text-center pb-2">
+      <p className="text-xs text-text-muted text-center">
         RouterMod — made with ❤️ by <span className="font-mono font-bold">techwiz37</span>
       </p>
 
