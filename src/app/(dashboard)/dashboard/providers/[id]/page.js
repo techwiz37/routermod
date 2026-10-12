@@ -1193,7 +1193,7 @@ export default function ProviderDetailPage() {
     </Modal>
   );
 
-  const handleTestModel = async (modelId) => {
+  const handleTestModel = async (modelId, silent = false) => {
     if (testingModelIds.has(modelId)) return;
     setTestingModelIds((prev) => new Set(prev).add(modelId));
     try {
@@ -1206,7 +1206,7 @@ export default function ProviderDetailPage() {
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
       if (data.ok) {
         setModelsTestError("");
-        addNotification({
+        if (!silent) addNotification({
           type: "success",
           title: "Test Sukses",
           message: `${modelId} berhasil merespon (${data.latencyMs || data.latency || 0}ms)`,
@@ -1215,7 +1215,7 @@ export default function ProviderDetailPage() {
       } else {
         const errMsg = data.error || "Model tidak merespon";
         setModelsTestError(errMsg);
-        addNotification({
+        if (!silent) addNotification({
           type: "error",
           title: "Test Gagal",
           message: `${modelId}: ${errMsg}`,
@@ -1225,7 +1225,7 @@ export default function ProviderDetailPage() {
     } catch (err) {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
       setModelsTestError("Network error");
-      addNotification({
+      if (!silent) addNotification({
         type: "error",
         title: "Test Gagal",
         message: `${modelId}: Network error`,
@@ -1243,27 +1243,54 @@ export default function ProviderDetailPage() {
       return;
     }
 
-    const allModelIds = (() => {
-      if (isCompatible) return [];
-      return [
-        ...models,
-        ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-      ]
-        .filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
-        .filter((m) => !disabledModelIds.includes(m.id))
-        .map((m) => m.id);
-    })();
+    if (isCompatible) return;
+
+    // Include custom models + built-in + kilo free, same as renderModelsSection
+    const customModelRows = getProviderCustomModelRows({
+      customModels,
+      modelAliases,
+      providerAlias: providerStorageAlias,
+      builtInModels: models,
+      type: "llm",
+    });
+    const builtInIds = [
+      ...models,
+      ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+    ]
+      .filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
+      .filter((m) => !disabledModelIds.includes(m.id))
+      .map((m) => m.id);
+
+    const customIds = customModelRows.map((m) => m.id);
+    // deduplicate: custom first, then built-in not already in custom
+    const customIdSet = new Set(customIds);
+    const allModelIds = [...customIds, ...builtInIds.filter((id) => !customIdSet.has(id))];
 
     if (!allModelIds.length) return;
 
     stopTestAllRef.current = false;
     setTestAllRunning(true);
     setTestAllStopping(false);
+    // reset previous results
+    setModelTestResults({});
 
     for (const modelId of allModelIds) {
       if (stopTestAllRef.current) break;
-      await handleTestModel(modelId);
+      await handleTestModel(modelId, true); // silent=true: no toast per model
     }
+
+    // summary toast
+    const results = await new Promise((resolve) => {
+      setModelTestResults((prev) => { resolve(prev); return prev; });
+    });
+    const pass = Object.values(results).filter((v) => v === "ok").length;
+    const fail = Object.values(results).filter((v) => v === "error").length;
+    addNotification({
+      type: pass > 0 && fail === 0 ? "success" : fail > 0 && pass === 0 ? "error" : "info",
+      title: "Test Selesai",
+      message: `${pass} model OK · ${fail} model gagal · dari ${allModelIds.length} total`,
+      duration: 8000,
+    });
 
     setTestAllRunning(false);
     setTestAllStopping(false);
@@ -1913,11 +1940,23 @@ export default function ProviderDetailPage() {
             )}
           </div>
           {!isCompatible && (connections.length > 0 || isFreeNoAuth) && (() => {
-            const allIds = [
+            const customRows = getProviderCustomModelRows({
+              customModels, modelAliases, providerAlias: providerStorageAlias, builtInModels: models, type: "llm",
+            });
+            const builtInIds = [
               ...models,
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-            ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
-            const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
+            ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
+              .filter((m) => !disabledModelIds.includes(m.id))
+              .map((m) => m.id);
+            const customIdSet = new Set(customRows.map((m) => m.id));
+            const activeIds = [...customRows.map((m) => m.id), ...builtInIds.filter((id) => !customIdSet.has(id))];
+            const disabledBuiltIn = [
+              ...models,
+              ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+            ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
+              .filter((m) => disabledModelIds.includes(m.id))
+              .map((m) => m.id);
             return (
               <div className="flex flex-wrap gap-2">
                 {activeIds.length > 0 && (
@@ -1931,7 +1970,7 @@ export default function ProviderDetailPage() {
                     {testAllRunning ? (testAllStopping ? "Menghentikan..." : "Stop Test") : `Test Semua (${activeIds.length})`}
                   </Button>
                 )}
-                {disabledModelIds.length > 0 && (
+                {disabledBuiltIn.length > 0 && (
                   <Button size="sm" variant="secondary" icon="restart_alt" onClick={handleEnableAll}>
                     Active All
                   </Button>
@@ -1978,12 +2017,17 @@ export default function ProviderDetailPage() {
           <p className="text-xs text-red-500 mb-3 break-words">{liveModelsError}</p>
         )}
         {testAllRunning && (() => {
-          const allIds = [
+          const customRows2 = getProviderCustomModelRows({
+            customModels, modelAliases, providerAlias: providerStorageAlias, builtInModels: models, type: "llm",
+          });
+          const builtInIds2 = [
             ...models,
             ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
           ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
             .filter((m) => !disabledModelIds.includes(m.id))
             .map((m) => m.id);
+          const customIdSet2 = new Set(customRows2.map((m) => m.id));
+          const allIds = [...customRows2.map((m) => m.id), ...builtInIds2.filter((id) => !customIdSet2.has(id))];
           const doneCount = allIds.filter((id) => modelTestResults[id] === "ok" || modelTestResults[id] === "error").length;
           const passCount = allIds.filter((id) => modelTestResults[id] === "ok").length;
           const failCount = allIds.filter((id) => modelTestResults[id] === "error").length;
