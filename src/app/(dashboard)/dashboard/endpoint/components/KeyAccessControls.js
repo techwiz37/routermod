@@ -252,20 +252,26 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [providerGroups, setProviderGroups] = useState([]);
 
-  // Sync selected from external allow list
+  // Reset when switching keys
+  useEffect(() => {
+    setAllModels([]);
+    setProviderGroups([]);
+    setSelectedModels(new Set(access.allow));
+  }, [apiKey.id]);
+
+  // Sync allow list when parent updates
   useEffect(() => {
     setSelectedModels(new Set(access.allow));
   }, [access.allow.join(",")]);
 
-  // Load models when restricted — only providers with active connections
+  // Load models whenever restricted becomes true (or key changes while restricted)
   useEffect(() => {
-    if (!access.restricted || allModels.length) return;
+    if (!access.restricted) return;
     setLoading(true);
     Promise.all([fetch("/api/models"), fetch("/api/providers")])
       .then(async ([mr, pr]) => {
         const models = (await mr.json()).models || [];
         const connections = pr.ok ? ((await pr.json()).connections || []) : [];
-        // providers that have at least one active connection
         const activeProviders = new Set(
           connections
             .filter(c => c.isActive !== false && c.testStatus !== "unavailable")
@@ -277,7 +283,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [access.restricted]);
+  }, [access.restricted, apiKey.id]);
 
   const handleToggleModel = useCallback((id, on) => {
     setSelectedModels(prev => {
