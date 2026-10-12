@@ -91,7 +91,43 @@ export default function ProviderDetailPage() {
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
   const [importingClineModels, setImportingClineModels] = useState(false);
-  const { copied, copy } = useCopyToClipboard();
+  const [testAllRunning, setTestAllRunning] = useState(false);
+  const [testAllStopping, setTestAllStopping] = useState(false);
+  const stopTestAllRef = useRef(false);
+
+  const handleTestAllModels = async () => {
+    if (testAllRunning) {
+      stopTestAllRef.current = true;
+      setTestAllStopping(true);
+      return;
+    }
+
+    const allModelIds = (() => {
+      if (isCompatible) return [];
+      return [
+        ...models,
+        ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+      ]
+        .filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
+        .filter((m) => !disabledModelIds.includes(m.id))
+        .map((m) => m.id);
+    })();
+
+    if (!allModelIds.length) return;
+
+    stopTestAllRef.current = false;
+    setTestAllRunning(true);
+    setTestAllStopping(false);
+
+    for (const modelId of allModelIds) {
+      if (stopTestAllRef.current) break;
+      await handleTestModel(modelId);
+    }
+
+    setTestAllRunning(false);
+    setTestAllStopping(false);
+    stopTestAllRef.current = false;
+  };
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
 
@@ -1875,14 +1911,25 @@ export default function ProviderDetailPage() {
               </select>
             )}
           </div>
-          {!isCompatible && (() => {
+          {!isCompatible && (connections.length > 0 || isFreeNoAuth) && (() => {
             const allIds = [
               ...models,
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
             ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
             const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
             return (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {activeIds.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant={testAllRunning ? "danger" : "secondary"}
+                    icon={testAllRunning ? (testAllStopping ? "progress_activity" : "stop") : "science"}
+                    onClick={handleTestAllModels}
+                    disabled={testAllStopping}
+                  >
+                    {testAllRunning ? (testAllStopping ? "Menghentikan..." : "Stop Test") : `Test Semua (${activeIds.length})`}
+                  </Button>
+                )}
                 {disabledModelIds.length > 0 && (
                   <Button size="sm" variant="secondary" icon="restart_alt" onClick={handleEnableAll}>
                     Active All
@@ -1929,6 +1976,37 @@ export default function ProviderDetailPage() {
         {providerId === "zed" && !!liveModelsError && (
           <p className="text-xs text-red-500 mb-3 break-words">{liveModelsError}</p>
         )}
+        {testAllRunning && (() => {
+          const allIds = [
+            ...models,
+            ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+          ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
+            .filter((m) => !disabledModelIds.includes(m.id))
+            .map((m) => m.id);
+          const doneCount = allIds.filter((id) => modelTestResults[id] === "ok" || modelTestResults[id] === "error").length;
+          const passCount = allIds.filter((id) => modelTestResults[id] === "ok").length;
+          const failCount = allIds.filter((id) => modelTestResults[id] === "error").length;
+          const pct = allIds.length > 0 ? Math.round((doneCount / allIds.length) * 100) : 0;
+          return (
+            <div className="mb-3 rounded-lg border-2 border-border bg-surface-2 p-3 shadow-[2px_2px_0_var(--color-border)]">
+              <div className="flex items-center justify-between text-xs font-bold mb-2">
+                <span className="text-text-muted uppercase tracking-wider">Testing Models...</span>
+                <span className="font-mono">{doneCount}/{allIds.length} ({pct}%)</span>
+              </div>
+              <div className="h-2 w-full rounded-full border border-border bg-surface overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <div className="flex gap-3 mt-2 text-[11px] font-mono">
+                <span className="text-emerald-500">✓ {passCount} sukses</span>
+                <span className="text-red-500">✗ {failCount} gagal</span>
+                <span className="text-text-muted">{allIds.length - doneCount} menunggu</span>
+              </div>
+            </div>
+          );
+        })()}
         {renderModelsSection()}
       </Card>
 
