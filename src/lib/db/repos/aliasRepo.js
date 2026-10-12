@@ -4,7 +4,8 @@ import { makeKv } from "../helpers/kvStore.js";
 
 const aliasKv = makeKv("modelAliases");
 const customKv = makeKv("customModels");
-const mitmKv = makeKv("mitmAlias");
+const mitmKv   = makeKv("mitmAlias");
+const nameKv   = makeKv("modelNames"); // key=providerAlias/modelId, value=display name
 
 // modelAliases: key=alias, value=modelString
 export async function getModelAliases() {
@@ -52,6 +53,20 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
 
 export async function deleteCustomModel({ providerAlias, id, type = "llm" }) {
   await customKv.remove(customKey(providerAlias, id, type));
+}
+
+// modelNames: display name override for any model (built-in or custom)
+// key = "providerAlias/modelId", value = display name string
+export async function getModelNames() {
+  return await nameKv.getAll();
+}
+
+export async function setModelName(providerAlias, modelId, name) {
+  await nameKv.set(`${providerAlias}/${modelId}`, name);
+}
+
+export async function deleteModelName(providerAlias, modelId) {
+  await nameKv.remove(`${providerAlias}/${modelId}`);
 }
 
 // mitmAlias: key=toolName, value=mappings object

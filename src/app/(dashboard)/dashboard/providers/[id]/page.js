@@ -57,6 +57,7 @@ export default function ProviderDetailPage() {
   const [showBulkProxyModal, setShowBulkProxyModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [modelAliases, setModelAliases] = useState({});
+  const [modelNames, setModelNames] = useState({});
   const [customModels, setCustomModels] = useState([]);
   const [headerImgError, setHeaderImgError] = useState(false);
   const [modelTestResults, setModelTestResults] = useState({});
@@ -293,6 +294,16 @@ export default function ProviderDetailPage() {
     }
   }, []);
 
+  const fetchModelNames = useCallback(async () => {
+    try {
+      const res = await fetch("/api/models/name");
+      const data = await res.json();
+      if (res.ok) setModelNames(data.names || {});
+    } catch (error) {
+      console.log("Error fetching model names:", error);
+    }
+  }, []);
+
   // Fetch free models from Kilo API for kilocode provider
   useEffect(() => {
     if (providerId !== "kilocode") return;
@@ -467,8 +478,9 @@ export default function ProviderDetailPage() {
     fetchConnections();
     fetchAliases();
     fetchCustomModels();
+    fetchModelNames();
     fetchDisabledModels();
-  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels]);
+  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchModelNames, fetchDisabledModels]);
 
   // Live per-connection catalogs (cursor, zed): the static registry carries
   // no usable list, so resolve from the active connection. Fires only when
@@ -594,21 +606,29 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Edit built-in model: set alias key (prefix/modelId) from popover
-  const handleEditBuiltinModel = async (modelId, { aliasKey }, providerAliasOverride = providerStorageAlias) => {
+  // Edit built-in model: set alias key (prefix/modelId) + optional display name
+  const handleEditBuiltinModel = async (modelId, { aliasKey, name }, providerAliasOverride = providerStorageAlias) => {
     const fullModel = `${providerAliasOverride}/${modelId}`;
     const oldAlias = Object.entries(modelAliases).find(([, m]) => m === fullModel)?.[0];
     const newAlias = aliasKey || modelId;
     try {
-      const res = await fetch("/api/models/alias", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ oldAlias, newAlias, model: fullModel }),
-      });
-      if (!res.ok) return;
-      await fetchAliases();
+      await Promise.all([
+        fetch("/api/models/alias", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ oldAlias, newAlias, model: fullModel }),
+        }),
+        name?.trim()
+          ? fetch("/api/models/name", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ providerAlias: providerAliasOverride, modelId, name: name.trim() }),
+            })
+          : Promise.resolve(),
+      ]);
+      await Promise.all([fetchAliases(), fetchModelNames()]);
     } catch (error) {
-      console.log("Error editing builtin model alias:", error);
+      console.log("Error editing builtin model:", error);
     }
   };
 
@@ -1264,7 +1284,7 @@ export default function ProviderDetailPage() {
           return (
             <ModelRow
               key={model.id}
-              model={model}
+              model={{ ...model, name: modelNames[`${providerStorageAlias}/${model.id}`] || model.name }}
               fullModel={`${providerDisplayAlias}/${model.id}`}
               alias={existingAlias}
               copied={copied}

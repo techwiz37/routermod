@@ -56,19 +56,15 @@ function EditPopover({ model, alias, isCustom, providerAlias, onSave, onClose })
         />
       </label>
 
-      {isCustom && (
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Display Name</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-            placeholder="e.g. Gemini 3.8 High"
-          />
-        </label>
-      )}
-
-      {/* Preview */}
+      <label className="flex flex-col gap-0.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Display Name</span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+          placeholder={isCustom ? "e.g. Gemini 3.8 High" : "e.g. Claude Sonnet 4.6"}
+        />
+      </label>
       {previewAlias && (
         <p className="font-mono text-[10px] text-text-muted">
           alias: <span className="text-primary">{previewAlias}</span>
