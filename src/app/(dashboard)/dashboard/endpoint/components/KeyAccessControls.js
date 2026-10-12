@@ -270,12 +270,23 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       .then(async ([mr, pr]) => {
         const models = (await mr.json()).models || [];
         const connections = pr.ok ? ((await pr.json()).connections || []) : [];
-        const activeProviders = new Set(
-          connections
-            .filter(c => c.isActive !== false && c.testStatus !== "unavailable")
-            .map(c => c.provider)
-        );
-        const filtered = models.filter(m => activeProviders.has(m.provider));
+        // connections.provider = provider ID ("antigravity", "gemini-cli")
+        // AI_MODELS.provider   = provider alias ("ag", "gemini")
+        // Collect IDs + aliases so filter catches either
+        const activeSet = new Set();
+        connections
+          .filter(c => c.isActive !== false && c.testStatus !== "unavailable")
+          .forEach(c => {
+            activeSet.add(c.provider);
+            if (c.providerAlias) activeSet.add(c.providerAlias);
+          });
+        const filtered = activeSet.size > 0
+          ? models.filter(m => {
+              if (activeSet.has(m.provider)) return true;
+              const prefix = (m.routedModel || "").split("/")[0];
+              return prefix && activeSet.has(prefix);
+            })
+          : models;
         setAllModels(filtered);
         setProviderGroups(groupByProvider(filtered));
       })

@@ -70,6 +70,7 @@ export async function GET() {
       return {
         ...toProviderConnectionResponse(c),
         name,
+        providerAlias: getProviderAlias(c.provider) || c.provider,
       };
     });
 
