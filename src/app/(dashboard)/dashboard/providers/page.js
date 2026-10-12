@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import {
+  Card,
   CardSkeleton,
   Badge,
   Button,
@@ -424,15 +425,15 @@ export default function ProvidersPage() {
       <ProviderSection
         title="Custom Providers"
         subtitle="OpenAI / Anthropic Compatible"
-        actions={
-          <div className="flex items-center gap-2">
+        bottomActions={
+          <>
             <Button size="sm" icon="add" onClick={() => setShowAddAnthropicCompatibleModal(true)}>
-              Anthropic
+              Add Anthropic Compatible
             </Button>
             <Button size="sm" icon="add" onClick={() => setShowAddCompatibleModal(true)}>
-              OpenAI
+              Add OpenAI Compatible
             </Button>
-          </div>
+          </>
         }
       >
         {compatibleProviders.length === 0 && anthropicCompatibleProviders.length === 0 ? (
@@ -460,7 +461,7 @@ export default function ProvidersPage() {
       {oauthEntries.length > 0 && (
         <ProviderSection
           title="OAuth Providers"
-          actions={
+          topActions={
             <div className="flex items-center gap-2">
               <ModelAvailabilityBadge />
               <TestAllButton
@@ -493,7 +494,7 @@ export default function ProvidersPage() {
       {(freeEntries.length > 0 || freeTierEntries.length > 0) && (
         <ProviderSection
           title="Free Tier Providers"
-          actions={
+          topActions={
             <TestAllButton
               mode="free"
               testingMode={testingMode}
@@ -536,7 +537,7 @@ export default function ProvidersPage() {
       {apikeyEntries.length > 0 && (
         <ProviderSection
           title="API Key Providers"
-          actions={
+          topActions={
             <TestAllButton
               mode="apikey"
               testingMode={testingMode}
@@ -630,17 +631,22 @@ export default function ProvidersPage() {
   );
 }
 
-function ProviderSection({ title, subtitle, actions, children }) {
+function ProviderSection({ title, subtitle, topActions, bottomActions, children }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3 min-w-0">
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold text-text-main truncate">{title}</h2>
-          {subtitle && (
-            <p className="text-xs text-text-muted">{subtitle}</p>
-          )}
+      <div className="flex flex-col gap-2 min-w-0">
+        {/* Title row + inline right actions (Test All, ModelAvailability) */}
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-text-main">{title}</h2>
+            {subtitle && <p className="text-xs text-text-muted mt-0.5">{subtitle}</p>}
+          </div>
+          {topActions && <div className="flex items-center gap-2 shrink-0">{topActions}</div>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        {/* Bottom action buttons — full width on mobile */}
+        {bottomActions && (
+          <div className="flex flex-wrap gap-2">{bottomActions}</div>
+        )}
       </div>
       {children}
     </div>
@@ -648,22 +654,16 @@ function ProviderSection({ title, subtitle, actions, children }) {
 }
 
 function ProviderCarousel({ children }) {
+  const items = children
+    ? (Array.isArray(children) ? children : [children]).flat().filter(Boolean)
+    : [];
   return (
-    <div
-      className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth"
-      style={{ scrollbarWidth: "none" }}
-    >
-      <style>{`.provider-carousel::-webkit-scrollbar{display:none}`}</style>
-      {children
-        ? (Array.isArray(children) ? children : [children]).map((child, i) => (
-            <div
-              key={i}
-              className="snap-start shrink-0 w-[200px] sm:w-[220px]"
-            >
-              {child}
-            </div>
-          ))
-        : null}
+    <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {items.map((child, i) => (
+        <div key={i} className="snap-start shrink-0 w-[180px]">
+          {child}
+        </div>
+      ))}
     </div>
   );
 }
@@ -690,37 +690,23 @@ function TestAllButton({ mode, testingMode, onTest }) {
   );
 }
 
-function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
-  const { connected, error, errorCode, errorTime, allDisabled } = stats;
-  const isNoAuth = !!provider.noAuth;
-
-  const dotColors = {
-    free: "bg-green-500",
-    oauth: "bg-blue-500",
-    apikey: "bg-amber-500",
-    compatible: "bg-orange-500",
-  };
-  const dotLabels = {
-    free: "Free",
-    oauth: "OAuth",
-    apikey: "API Key",
-    compatible: "Compatible",
-  };
-
+/** Shared card shell used by both ProviderCard and ApiKeyProviderCard */
+function ProviderCardShell({ providerId, iconSrc, provider, stats, onToggle, allDisabled, children }) {
   return (
-    <Link href={`/dashboard/providers/${providerId}`} className="group block min-w-0 h-full">
-      <div
-        className={`h-full flex flex-col gap-2 p-3 rounded-xl border-2 border-border bg-surface hover:bg-surface-2 transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
-        style={{ boxShadow: "2px 2px 0 var(--color-border)" }}
+    <Link href={`/dashboard/providers/${providerId}`} className="group block h-full">
+      <Card
+        padding="xs"
+        hover
+        className={`h-full flex flex-col gap-2 ${allDisabled ? "opacity-50" : ""}`}
       >
         {/* Icon + toggle */}
         <div className="flex items-start justify-between gap-2">
           <div
             className="size-9 shrink-0 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `${provider.color?.length > 7 ? provider.color : (provider.color || "#888") + "22"}` }}
+            style={{ backgroundColor: (provider.color?.length > 7 ? provider.color : (provider.color || "#888") + "22") }}
           >
             <ProviderIcon
-              src={`/providers/${provider.id}.png`}
+              src={iconSrc}
               alt={provider.name}
               size={28}
               className="object-contain rounded max-w-[28px] max-h-[28px]"
@@ -731,30 +717,48 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
           {stats.total > 0 && (
             <div
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(!allDisabled); }}
-              className="mt-0.5"
+              className="mt-0.5 shrink-0"
             >
               <Toggle size="sm" checked={!allDisabled} onChange={() => {}} title={allDisabled ? "Enable" : "Disable"} />
             </div>
           )}
         </div>
         {/* Name + status */}
-        <div className="min-w-0">
+        <div className="min-w-0 mt-auto">
           <p className="text-sm font-bold text-text-main truncate leading-tight">{provider.name}</p>
-          <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {allDisabled ? (
-              <Badge variant="default" size="sm">Disabled</Badge>
-            ) : isNoAuth ? (
-              <Badge variant="success" size="sm" dot>Ready</Badge>
-            ) : (
-              <>
-                {getStatusDisplay(connected, error, errorCode)}
-                {errorTime && <span className="text-[10px] text-text-muted">{errorTime}</span>}
-              </>
-            )}
+          <div className="flex items-center gap-1 mt-1 flex-wrap min-w-0">
+            {children}
           </div>
         </div>
-      </div>
+      </Card>
     </Link>
+  );
+}
+
+function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
+  const { connected, error, errorCode, errorTime, allDisabled } = stats;
+  const isNoAuth = !!provider.noAuth;
+
+  return (
+    <ProviderCardShell
+      providerId={providerId}
+      iconSrc={`/providers/${provider.id}.png`}
+      provider={provider}
+      stats={stats}
+      onToggle={onToggle}
+      allDisabled={allDisabled}
+    >
+      {allDisabled ? (
+        <Badge variant="default" size="sm">Disabled</Badge>
+      ) : isNoAuth ? (
+        <Badge variant="success" size="sm" dot>Ready</Badge>
+      ) : (
+        <>
+          {getStatusDisplay(connected, error, errorCode)}
+          {errorTime && <span className="text-[10px] text-text-muted">{errorTime}</span>}
+        </>
+      )}
+    </ProviderCardShell>
   );
 }
 
@@ -785,22 +789,7 @@ function ApiKeyProviderCard({
 }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isCompatible = providerId.startsWith(OPENAI_COMPATIBLE_PREFIX);
-  const isAnthropicCompatible = providerId.startsWith(
-    ANTHROPIC_COMPATIBLE_PREFIX,
-  );
-
-  const dotColors = {
-    free: "bg-green-500",
-    oauth: "bg-blue-500",
-    apikey: "bg-amber-500",
-    compatible: "bg-orange-500",
-  };
-  const dotLabels = {
-    free: "Free",
-    oauth: "OAuth",
-    apikey: "API Key",
-    compatible: "Compatible",
-  };
+  const isAnthropicCompatible = providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
 
   const getIconPath = () => {
     if (isCompatible && provider.apiType)
@@ -812,59 +801,31 @@ function ApiKeyProviderCard({
   };
 
   return (
-    <Link href={`/dashboard/providers/${providerId}`} className="group block min-w-0 h-full">
-      <div
-        className={`h-full flex flex-col gap-2 p-3 rounded-xl border-2 border-border bg-surface hover:bg-surface-2 transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
-        style={{ boxShadow: "2px 2px 0 var(--color-border)" }}
-      >
-        {/* Icon + toggle */}
-        <div className="flex items-start justify-between gap-2">
-          <div
-            className="size-9 shrink-0 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `${provider.color?.length > 7 ? provider.color : (provider.color || "#888") + "22"}` }}
-          >
-            <ProviderIcon
-              src={getIconPath()}
-              alt={provider.name}
-              size={28}
-              className="object-contain rounded max-w-[28px] max-h-[28px]"
-              fallbackText={provider.textIcon || provider.id.slice(0, 2).toUpperCase()}
-              fallbackColor={provider.color}
-            />
-          </div>
-          {stats.total > 0 && (
-            <div
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(!allDisabled); }}
-              className="mt-0.5"
-            >
-              <Toggle size="sm" checked={!allDisabled} onChange={() => {}} title={allDisabled ? "Enable" : "Disable"} />
-            </div>
+    <ProviderCardShell
+      providerId={providerId}
+      iconSrc={getIconPath()}
+      provider={provider}
+      stats={stats}
+      onToggle={onToggle}
+      allDisabled={allDisabled}
+    >
+      {allDisabled ? (
+        <Badge variant="default" size="sm">Disabled</Badge>
+      ) : (
+        <>
+          {getStatusDisplay(connected, error, errorCode)}
+          {isCompatible && (
+            <Badge variant="default" size="sm">
+              {provider.apiType === "responses" ? "Responses" : "Chat"}
+            </Badge>
           )}
-        </div>
-        {/* Name + status */}
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-text-main truncate leading-tight">{provider.name}</p>
-          <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {allDisabled ? (
-              <Badge variant="default" size="sm">Disabled</Badge>
-            ) : (
-              <>
-                {getStatusDisplay(connected, error, errorCode)}
-                {isCompatible && (
-                  <Badge variant="default" size="sm">
-                    {provider.apiType === "responses" ? "Responses" : "Chat"}
-                  </Badge>
-                )}
-                {isAnthropicCompatible && (
-                  <Badge variant="default" size="sm">Messages</Badge>
-                )}
-                {errorTime && <span className="text-[10px] text-text-muted">{errorTime}</span>}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </Link>
+          {isAnthropicCompatible && (
+            <Badge variant="default" size="sm">Messages</Badge>
+          )}
+          {errorTime && <span className="text-[10px] text-text-muted">{errorTime}</span>}
+        </>
+      )}
+    </ProviderCardShell>
   );
 }
 
