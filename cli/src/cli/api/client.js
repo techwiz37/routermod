@@ -9,7 +9,7 @@ const { machineIdSync } = require("node-machine-id");
 // Default configuration
 const DEFAULT_CONFIG = {
   host: "localhost",
-  port: 20128,
+  port: 1945,
   protocol: "http:",
 };
 

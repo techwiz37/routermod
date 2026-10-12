@@ -1,11 +1,48 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="32" height="32" rx="6" fill="url(#gradient)"/>
-  <text x="16" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="700" fill="white" text-anchor="middle">9</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
   <defs>
-    <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#f97815"/>
-      <stop offset="1" stop-color="#c2590a"/>
+    <!-- 3D Isometric Drop Shadow -->
+    <filter id="neo-soft-shadow" x="-10%" y="-10%" width="140%" height="140%">
+      <feDropShadow dx="4" dy="5" stdDeviation="1.5" flood-color="#0f172a" flood-opacity="0.3" />
+    </filter>
+    <!-- Background Dynamic Cyber Gradients -->
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="cyber-red" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff0055"/>
+      <stop offset="100%" stop-color="#e11d48"/>
+    </linearGradient>
+    <linearGradient id="cyber-blue" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
     </linearGradient>
   </defs>
-</svg>
 
+  <!-- 3D Extrusion Shadow Layer -->
+  <rect x="14" y="14" width="96" height="96" rx="24" fill="#0f172a" opacity="0.85" />
+  
+  <!-- Outer Badge Body with Neobrutalism Smooth Edge -->
+  <rect x="10" y="10" width="96" height="96" rx="24" fill="url(#bg-grad)" stroke="#0f172a" stroke-width="4.5"/>
+  
+  <!-- Corner Tech Accent Chips -->
+  <path d="M10 34L34 10H10v24z" fill="url(#cyber-red)" opacity="0.9"/>
+  <circle cx="88" cy="28" r="4" fill="#10b981" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="100" cy="28" r="2" fill="#0f172a"/>
+
+  <!-- Futuristic Geometric "R" Construct -->
+  <!-- 1. Left Vertical Pillar with Rounded Caps & Bevel -->
+  <rect x="34" y="30" width="16" height="60" rx="5" fill="#0f172a"/>
+  <rect x="37" y="33" width="5" height="54" rx="2.5" fill="#334155" opacity="0.4"/>
+
+  <!-- 2. Smooth Top Loop -->
+  <path d="M48 30h22c11 0 19 7 19 18s-8 18-19 18H48V30z" fill="#0f172a"/>
+  <!-- Top Loop Inner Eye -->
+  <path d="M50 41h19c4.5 0 8 3 8 7s-3.5 7-8 7H50V41z" fill="url(#bg-grad)"/>
+
+  <!-- 3. Dynamic Curved 3D Kick Leg -->
+  <path d="M60 62L82 90H64L48 68h14z" fill="url(#cyber-red)" stroke="#0f172a" stroke-width="2.5" stroke-linejoin="round"/>
+  
+  <!-- Micro Floating Data Dot -->
+  <circle cx="86" cy="88" r="4.5" fill="#3b82f6" stroke="#0f172a" stroke-width="2"/>
+</svg>

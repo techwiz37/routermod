@@ -11,6 +11,13 @@ const proxyClientMaxBodySize = process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Allow tunnel/Tailscale domains to load /_next/* dev assets.
+  // Wildcard patterns match any subdomain of these tunnel providers.
+  allowedDevOrigins: [
+    "*.trycloudflare.com",
+    "*.abc-tunnel.us",
+    "*.ts.net",
+  ],
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
   // `open` must stay external. It derives its own directory from `import.meta.url`, and
@@ -59,6 +66,17 @@ const nextConfig = {
       ignored: /[\\/](node_modules|\.git|logs|\.next|\.next-cli-build|gitbook|cli|open-sse\.old|tests|docs)[\\/]/,
     };
     return config;
+  },
+  async headers() {
+    return [
+      {
+        source: "/_next/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, OPTIONS" },
+        ],
+      },
+    ];
   },
   async rewrites() {
     return [

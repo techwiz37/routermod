@@ -9,6 +9,7 @@ import { APP_CONFIG, UPDATER_CONFIG } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import useSettingsStore from "@/store/settingsStore";
+import { translate } from "@/i18n/runtime";
 import Button from "./Button";
 import { ConfirmModal } from "./Modal";
 
@@ -18,8 +19,8 @@ const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt", "syste
 const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
 
 const navItems = [
-  { href: "/dashboard/endpoint", label: "Endpoint & Key", icon: "api" },
-  { href: "/dashboard/providers", label: "Providers", icon: "dns" },
+  { href: "/dashboard/endpoint", label: "Dashboard", icon: "dns" },
+  { href: "/dashboard/providers", label: "Provider", icon: "hub" },
   // { href: "/dashboard/basic-chat", label: "Basic Chat", icon: "chat" }, // Hidden
   { href: "/dashboard/combos", label: "Combo & Vision Adapter", icon: "layers" },
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
@@ -110,25 +111,50 @@ export default function Sidebar({ onClose }) {
 
   return (
     <>
-      <aside className="flex w-72 flex-col border-r border-border-subtle bg-vibrancy backdrop-blur-xl transition-colors duration-300 min-h-full">
-        {/* Traffic lights */}
-        <div className="flex items-center gap-2 px-6 pt-5 pb-2">
-          <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
-          <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
-          <div className="w-3 h-3 rounded-full bg-[#27C93F]" />
+      <aside className="flex w-72 flex-col border-r-2 border-border bg-surface min-h-full">
+        {/* Top HUD reticle / Brand bar */}
+        <div className="flex items-center justify-between border-b-2 border-border bg-surface-2 px-4 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[#ff1a53] shadow-[1px_1px_0px_var(--color-border)]" />
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[#f59e0b] shadow-[1px_1px_0px_var(--color-border)]" />
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[#10b981] shadow-[1px_1px_0px_var(--color-border)]" />
+          </div>
+          <span className="font-mono text-[10.5px] font-extrabold uppercase tracking-widest text-[#10b981] bg-surface border-2 border-border px-2 py-0.5 rounded-md shadow-[2px_2px_0px_var(--color-border)] flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
+            PORT :1945
+          </span>
         </div>
 
         {/* Logo */}
-        <div className="px-6 py-4 flex flex-col gap-2">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex items-center justify-center size-9 rounded-[10px] bg-gradient-to-br from-brand-500 to-brand-700 shadow-[var(--shadow-warm)]">
-              <span className="material-symbols-outlined text-white text-[20px]">hub</span>
+        <div className="px-4 py-3.5 border-b-2 border-border flex flex-col gap-2 bg-surface">
+          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+            <div className="relative flex items-center justify-center shrink-0 size-10 group">
+              <svg
+                viewBox="0 0 120 120"
+                className="w-full h-full drop-shadow-[2.5px_3px_0px_var(--color-border)] transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:drop-shadow-[3px_4px_0px_var(--color-border)]"
+              >
+                <defs>
+                  <linearGradient id="sb-logo-r-red" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#ff1a53" />
+                    <stop offset="100%" stopColor="#dc2626" />
+                  </linearGradient>
+                </defs>
+                <rect x="8" y="8" width="104" height="104" rx="22" fill="#181c24" stroke="var(--color-border)" strokeWidth="4" />
+                <rect x="12" y="12" width="96" height="96" rx="18" fill="#ffffff" className="dark:fill-[#1b1f2b]" />
+                <path d="M12 36L36 12H12v24z" fill="url(#sb-logo-r-red)" />
+                <circle cx="94" cy="26" r="4.5" fill="#10b981" stroke="var(--color-border)" strokeWidth="2" />
+                <rect x="34" y="30" width="16" height="60" rx="4" fill="#181c24" className="dark:fill-white" />
+                <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" fill="#181c24" className="dark:fill-white" />
+                <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" fill="#ffffff" className="dark:fill-[#1b1f2b]" />
+                <path d="M60 62L83 90H65L48 68h14z" fill="url(#sb-logo-r-red)" stroke="var(--color-border)" strokeWidth="2" strokeLinejoin="round" />
+                <circle cx="88" cy="88" r="4.5" fill="#3b82f6" stroke="var(--color-border)" strokeWidth="2" />
+              </svg>
             </div>
             <div className="flex flex-col">
-              <h1 className="text-lg font-semibold tracking-tight text-text-main">
-                {APP_CONFIG.name}
+              <h1 className="text-sm font-black uppercase tracking-wider text-text-main font-mono flex items-center gap-1">
+                ROUTER<span className="text-[#ff1a53]">MOD</span>
               </h1>
-              <span className="text-xs text-text-muted">v{APP_CONFIG.version}</span>
+              <span className="text-[10px] font-mono font-bold text-[#ff1a53] tracking-widest">// AI INFRASTRUCTURE</span>
             </div>
           </Link>
           {updateInfo && (
@@ -165,10 +191,10 @@ export default function Sidebar({ onClose }) {
               href={item.href}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 isActive(item.href)
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_var(--color-border)]"
               )}
             >
               <span
@@ -179,7 +205,7 @@ export default function Sidebar({ onClose }) {
               >
                 {item.icon}
               </span>
-              <span className="text-[13px] font-medium">{item.label}</span>
+              <span className="text-[13px] font-medium">{translate(item.label)}</span>
             </Link>
           ))}
 
@@ -193,10 +219,10 @@ export default function Sidebar({ onClose }) {
             <button
               onClick={() => setMediaOpen((v) => !v)}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                "w-full flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 pathname.startsWith("/dashboard/media-providers")
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
               <span className="material-symbols-outlined text-[18px]">perm_media</span>
@@ -213,10 +239,10 @@ export default function Sidebar({ onClose }) {
                     href={`/dashboard/media-providers/${kind.id}`}
                     onClick={onClose}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
+                      "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                       pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
-                        ? "bg-primary/10 text-primary"
-                        : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                        ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                        : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                     )}
                   >
                     <span className="material-symbols-outlined text-[16px]">{kind.icon}</span>
@@ -228,10 +254,10 @@ export default function Sidebar({ onClose }) {
                   href={COMBINED_WEB_ITEM.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
+                    "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                     pathname.startsWith(COMBINED_WEB_ITEM.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                      ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                   )}
                 >
                   <span className="material-symbols-outlined text-[16px]">{COMBINED_WEB_ITEM.icon}</span>
@@ -246,10 +272,10 @@ export default function Sidebar({ onClose }) {
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                  "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                   isActive(item.href)
-                    ? "bg-primary/10 text-primary"
-                    : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                    ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                    : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                 )}
               >
                 <span
@@ -260,7 +286,7 @@ export default function Sidebar({ onClose }) {
                 >
                   {item.icon}
                 </span>
-                <span className="text-[13px] font-medium">{item.label}</span>
+                <span className="text-[13px] font-medium">{translate(item.label)}</span>
               </Link>
             ))}
 
@@ -273,10 +299,10 @@ export default function Sidebar({ onClose }) {
                   href={item.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                    "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                     isActive(item.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                      ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                   )}
                 >
                   <span
@@ -334,10 +360,10 @@ export default function Sidebar({ onClose }) {
               href="/dashboard/profile"
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 isActive("/dashboard/profile")
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
               <span

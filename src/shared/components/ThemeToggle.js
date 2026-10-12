@@ -8,9 +8,9 @@ export default function ThemeToggle({ className, variant = "default" }) {
 
   const variants = {
     default: cn(
-      "flex items-center justify-center size-10 rounded-full",
-      "text-text-muted hover:text-text-main",
-      "hover:bg-surface-2 transition-colors"
+      "flex items-center justify-center size-8 rounded-md border-2 border-border bg-surface-2",
+      "text-text-muted hover:text-text-main shadow-[2px_2px_0px_var(--color-border)]",
+      "hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_var(--color-border)] active:translate-y-0 transition-all cursor-pointer"
     ),
     card: cn(
       "flex items-center justify-center size-11 rounded-full",
@@ -31,7 +31,7 @@ export default function ThemeToggle({ className, variant = "default" }) {
     >
       <span
         className={cn(
-          "material-symbols-outlined text-[22px]",
+          "material-symbols-outlined text-[18px] text-[#ff1a53]",
           variant === "card" && "transition-transform duration-300 group-hover:rotate-12"
         )}
       >

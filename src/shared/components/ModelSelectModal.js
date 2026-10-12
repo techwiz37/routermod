@@ -85,9 +85,13 @@ export default function ModelSelectModal({
   closeOnSelect = true,
 }) {
   // Filter activeProviders by serviceKinds when kindFilter set (e.g. "webSearch", "webFetch")
+  // Only include enabled connections (isActive !== false) and exclude those marked failed when testing
   const filteredActiveProviders = useMemo(() => {
-    if (!kindFilter) return activeProviders;
-    return activeProviders.filter((p) => {
+    const activeOnly = (activeProviders || []).filter(
+      (p) => p && p.isActive !== false && p.testStatus !== "failed"
+    );
+    if (!kindFilter) return activeOnly;
+    return activeOnly.filter((p) => {
       const info = AI_PROVIDERS[p.provider];
       const kinds = info?.serviceKinds || ["llm"];
       return kinds.includes(kindFilter);
@@ -620,17 +624,19 @@ export default function ModelSelectModal({
                       {isPlaceholder ? (
                         <>
                           <span className="material-symbols-outlined text-[11px]">edit</span>
-                          {model.name}
+                          <span className="font-mono">{model.name}</span>
                         </>
                       ) : model.isCustom ? (
                         <>
-                          {model.name}
-                          <span className="text-[9px] opacity-60 font-normal">custom</span>
+                          <span className="font-mono">{model.name}</span>
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30">
+                            custom
+                          </span>
                           <CapacityBadges caps={getCaps(model.value)} />
                         </>
                       ) : (
                         <>
-                          {model.name}
+                          <span className="font-mono">{model.name}</span>
                           <CapacityBadges caps={getCaps(model.value)} />
                         </>
                       )}

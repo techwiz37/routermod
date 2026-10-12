@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import { DATA_DIR } from "@/lib/dataDir";
 import { getSettings } from "@/lib/localDb";
 
-const DEFAULT_PASSWORD = "123456";
+const DEFAULT_PASSWORD = "merdeka";
 const SESSION_MAX_AGE_SEC = 24 * 60 * 60;
 
 function loadJwtSecret() {

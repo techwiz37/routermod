@@ -71,23 +71,18 @@ export default function HeaderMenu({ onLogout }) {
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsOpen((v) => !v)}
-          className="flex items-center justify-center p-2 rounded-lg text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+          className="flex items-center justify-center size-8 rounded-md border-2 border-border bg-surface-2 text-text-muted hover:text-text-main shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_var(--color-border)] active:translate-y-0 transition-all cursor-pointer"
           title="Menu"
         >
-          <span className="material-symbols-outlined">grid_view</span>
+          <span className="material-symbols-outlined text-[19px]">grid_view</span>
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 top-full mt-2 w-60 bg-surface border border-black/10 dark:border-white/10 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
+          <div className="absolute right-0 top-full mt-2 w-60 bg-surface border-2 border-border rounded-xl shadow-[4px_5px_0px_var(--color-border)] z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
             <MenuItem
               icon="history"
               label="Change Log"
               onClick={() => { close(); setChangelogOpen(true); }}
-            />
-            <MenuItem
-              icon={isDark ? "light_mode" : "dark_mode"}
-              label="Theme"
-              onClick={() => { toggleTheme(); close(); }}
             />
             <MenuItem
               icon="power_settings_new"

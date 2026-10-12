@@ -1,9 +1,9 @@
 {
-  "name": "9router",
+  "name": "routermod",
   "version": "0.5.99",
-  "description": "9Router CLI - Start and manage 9Router server",
+  "description": "routermod CLI - Start and manage routermod server",
   "bin": {
-    "9router": "./cli.js"
+    "routermod": "./cli.js"
   },
   "files": [
     "cli.js",

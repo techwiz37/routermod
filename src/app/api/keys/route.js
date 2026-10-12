@@ -15,14 +15,24 @@ export async function GET() {
   }
 }
 
+function randomSuffix(len = 6) {
+  const chars = "abcdefghijklmnpqrstuvwxyz23456789";
+  let s = "";
+  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
 // POST /api/keys - Create new API key
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const { name } = body;
+    const body = await request.json().catch(() => ({}));
+    // Auto-generate name if not supplied or empty
+    const name = body?.name?.trim() || `rmod-${randomSuffix()}`;
 
-    if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    // Auto-provision guard: if this is the default key request and one already exists, return first
+    if (body?._autoProvision) {
+      const existing = await getApiKeys();
+      if (existing.length > 0) return NextResponse.json({ key: existing[0].key, name: existing[0].name, id: existing[0].id, machineId: existing[0].machineId }, { status: 200 });
     }
 
     // Always get machineId from server

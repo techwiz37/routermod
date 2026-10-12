@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useNotificationStore } from "@/store/notificationStore";
 import Sidebar from "../Sidebar";
 import Header from "../Header";
+import PageLoadBadge from "../PageLoadBadge";
 
 function getToastStyle(type) {
   if (type === "success") {
@@ -57,6 +58,7 @@ export default function DashboardLayout({ children }) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
+      <PageLoadBadge />
       <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
         {notifications.map((n) => {
           const style = getToastStyle(n.type);
@@ -109,12 +111,34 @@ export default function DashboardLayout({ children }) {
       </div>
 
       {/* Main content */}
-      <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate">
-        {/* Faint grid background */}
-        <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
+      <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate bg-[var(--color-bg)] text-[var(--color-text)]">
+        {/* Top Accent Reticle (identical to login) */}
+        <div className="fixed top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#ff1a53] to-transparent z-50 pointer-events-none opacity-80" />
+
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
-        <div className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
-          <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}>{children}</div>
+
+        <div className={`flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between ${pathname === "/dashboard/basic-chat" ? "" : "p-3 sm:p-5 lg:p-8"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
+          <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "w-full max-w-7xl mx-auto flex-1 flex flex-col"}`}>{children}</div>
+
+          {/* Unified Neobrutalism Footer */}
+          <footer className="mt-8 pt-4 pb-2 border-t-2 border-border flex flex-col items-center justify-center gap-1 font-mono text-center">
+            <div className="text-xs font-bold text-text-main flex items-center justify-center gap-2">
+              <span className="size-2 rounded-full bg-[#10b981] animate-pulse" />
+              <span>Router Mod {new Date().getFullYear()}</span>
+            </div>
+            <div className="text-[11px] font-semibold text-text-muted">
+              Developed by{" "}
+              <a
+                href="https://github.com/techwiz37"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#ff1a53] hover:underline font-bold inline-flex items-center gap-0.5"
+              >
+                Techwiz
+                <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+              </a>
+            </div>
+          </footer>
         </div>
       </main>
     </div>

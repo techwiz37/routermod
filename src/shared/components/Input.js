@@ -38,14 +38,14 @@ export default function Input({
           onChange={onChange}
           disabled={disabled}
           className={cn(
-            "w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px]",
-            "border border-transparent placeholder-text-muted/70",
-            "focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40",
+            "w-full py-2.5 px-3.5 text-sm text-text-main bg-surface rounded-lg",
+            "border-2 border-border shadow-[2px_2px_0px_var(--color-border)] placeholder-text-muted/60 font-mono",
+            "focus:outline-none focus:border-[#ff1a53] focus:shadow-[3px_3px_0px_#ff1a53]",
             "transition-all duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
             // iOS zoom fix
             "text-[16px] sm:text-sm",
             icon && "pl-10",
-            error && "ring-1 ring-red-500 focus:ring-2 focus:ring-red-500/40 border-red-500/40",
+            error && "border-red-500 shadow-[2px_2px_0px_#ef4444]",
             inputClassName
           )}
           {...props}

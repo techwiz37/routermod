@@ -9,4 +9,14 @@ const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build"
 if (typeof window === "undefined" && !isBuildPhase && !global.__appBootstrapped) {
   global.__appBootstrapped = true;
   initializeApp().catch((e) => console.error("[Bootstrap] init failed:", e.message));
+
+  // Pre-warm main routes so first tunnel/external access doesn't hit cold compile
+  setTimeout(async () => {
+    const port = process.env.PORT || "1945";
+    const base = `http://127.0.0.1:${port}`;
+    const routes = ["/login", "/dashboard", "/api/auth/status", "/api/tunnel/status"];
+    for (const r of routes) {
+      fetch(`${base}${r}`).catch(() => {});
+    }
+  }, 3000);
 }

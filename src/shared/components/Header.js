@@ -9,6 +9,7 @@ import HeaderMenu from "@/shared/components/HeaderMenu";
 import HeaderLanguage from "@/shared/components/HeaderLanguage";
 import ThemeToggle from "@/shared/components/ThemeToggle";
 import DonateModal from "@/shared/components/DonateModal";
+import Soft3DLogo from "@/shared/components/Soft3DLogo";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS } from "@/shared/constants/providers";
@@ -143,9 +144,9 @@ const getPageInfo = (pathname) => {
     };
   if (pathname.includes("/endpoint"))
     return {
-      title: "Endpoint",
-      description: "API endpoint configuration",
-      icon: "api",
+      title: "Hostname",
+      description: "Hostname & API key configuration",
+      icon: "dns",
       breadcrumbs: [],
     };
   if (pathname.includes("/profile"))
@@ -171,9 +172,9 @@ const getPageInfo = (pathname) => {
     };
   if (pathname === "/dashboard")
     return {
-      title: "Endpoint",
-      description: "API endpoint configuration",
-      icon: "api",
+      title: "Hostname",
+      description: "Hostname & API key configuration",
+      icon: "dns",
       breadcrumbs: [],
     };
   return { title: "", description: "", breadcrumbs: [] };
@@ -227,80 +228,53 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
   };
 
   return (
-    <header className="shrink-0 flex items-center justify-between gap-3 px-4 lg:px-8 pt-3 pb-2 border-b border-border-subtle bg-surface/60 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none z-20">
-      {/* Mobile menu button */}
-      <div className="flex items-center gap-3 lg:hidden shrink-0">
+    <header className="shrink-0 flex items-center justify-between gap-2.5 sm:gap-3 px-3 sm:px-4 lg:px-8 py-2.5 sm:py-3 border-b-2 border-border bg-surface/95 backdrop-blur-md z-20 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+      {/* Left side: Mobile menu + Logo brand (like login) */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {showMenuButton && (
           <button
             onClick={onMenuClick}
-            className="text-text-main hover:text-primary transition-colors"
+            className="flex lg:hidden items-center justify-center size-8 rounded-md border-2 border-border bg-surface-2 text-text-main shadow-[1.5px_1.5px_0px_var(--color-border)] hover:bg-surface active:translate-y-0.5 transition-all shrink-0 cursor-pointer"
+            aria-label="Open menu"
           >
-            <span className="material-symbols-outlined">menu</span>
+            <span className="material-symbols-outlined text-[19px]">menu</span>
           </button>
         )}
-      </div>
 
-      {/* Page title with breadcrumbs */}
-      <div className="flex flex-col min-w-0 flex-1">
-        {breadcrumbs.length > 0 ? (
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {breadcrumbs.map((crumb, index) => (
-              <div
-                key={`${crumb.label}-${crumb.href || "current"}`}
-                className={`items-center gap-1.5 sm:gap-2 min-w-0 ${
-                  index < breadcrumbs.length - 1 ? "hidden sm:flex shrink-0" : "flex flex-1"
-                }`}
-              >
-                {index > 0 && (
-                  <span className="material-symbols-outlined text-text-muted text-base hidden sm:inline">
-                    chevron_right
-                  </span>
-                )}
-                {crumb.href ? (
-                  <Link
-                    href={crumb.href}
-                    className="text-text-muted hover:text-primary transition-colors truncate"
-                  >
-                    {crumb.label}
-                  </Link>
-                ) : (
-                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                    {crumb.image && (
-                      <ProviderIcon
-                        src={crumb.image}
-                        alt={crumb.label}
-                        size={28}
-                        className="object-contain rounded max-w-[24px] max-h-[24px] sm:max-w-[28px] sm:max-h-[28px] shrink-0"
-                        fallbackText={crumb.label.slice(0, 2).toUpperCase()}
-                      />
-                    )}
-                    <h1 className="text-base lg:text-2xl font-semibold text-text-main tracking-tight truncate">
-                      {translate(crumb.label)}
-                    </h1>
-                  </div>
-                )}
-              </div>
-            ))}
+        {/* Brand with 3D R Logo (matching login page) */}
+        <Link href="/dashboard" className="flex items-center gap-2 group shrink-0">
+          <Soft3DLogo className="size-7 sm:size-8" />
+          <div className="hidden min-[380px]:flex flex-col leading-none">
+            <span className="font-mono text-xs sm:text-sm font-black tracking-wider text-text-main">
+              ROUTER<span className="text-[#ff1a53]">MOD</span>
+            </span>
+            <span className="font-mono text-[8px] sm:text-[9px] font-bold text-[#ff1a53] tracking-widest">
+              // :1945
+            </span>
           </div>
-        ) : title ? (
-          <div>
-            <div className="flex items-center gap-2">
-              {icon && (
-                <span className="material-symbols-outlined text-primary text-xl lg:text-2xl">
-                  {icon}
-                </span>
-              )}
-              <h1 className="text-base lg:text-2xl font-semibold tracking-tight truncate">
-                {translate(title)}
-              </h1>
+        </Link>
+
+        {/* Separator on desktop */}
+        <div className="hidden lg:block h-5 w-[2px] bg-border mx-1" />
+
+        {/* Page title / breadcrumbs (desktop or larger screen) */}
+        <div className="hidden md:flex flex-col min-w-0">
+          {breadcrumbs.length > 0 ? (
+            <div className="flex items-center gap-1.5 min-w-0">
+              {breadcrumbs.map((crumb, index) => (
+                <div key={`${crumb.label}-${crumb.href || "current"}`} className="flex items-center gap-1 min-w-0">
+                  {index > 0 && <span className="material-symbols-outlined text-text-muted text-xs">chevron_right</span>}
+                  <span className="font-mono text-xs font-bold text-text-main truncate">{translate(crumb.label)}</span>
+                </div>
+              ))}
             </div>
-            {description && (
-              <p className="hidden lg:block text-sm text-text-muted truncate">
-                {translate(description)}
-              </p>
-            )}
-          </div>
-        ) : null}
+          ) : title ? (
+            <div className="flex items-center gap-1.5">
+              {icon && <span className="material-symbols-outlined text-[#ff1a53] text-[18px]">{icon}</span>}
+              <span className="font-mono text-xs font-bold text-text-main truncate">{translate(title)}</span>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Right actions */}
@@ -320,10 +294,10 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
         <HeaderSearch />
         <button
           onClick={() => setDonateOpen(true)}
-          className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-lg border border-pink-500/30 bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors text-sm font-medium"
+          className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-md border-2 border-border bg-[#ff1a53]/15 text-[#ff1a53] shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_var(--color-border)] active:translate-y-0 transition-all text-xs font-mono font-bold uppercase cursor-pointer"
           aria-label="Donate"
         >
-          <span className="material-symbols-outlined text-[18px]">volunteer_activism</span>
+          <span className="material-symbols-outlined text-[17px]">volunteer_activism</span>
           <span className="hidden sm:inline">Donate</span>
         </button>
         <ThemeToggle />
@@ -353,7 +327,7 @@ function HeaderSearch() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        className="w-full h-8 pl-7 pr-7 rounded-lg border border-border bg-surface/60 text-sm focus:outline-none focus:border-primary/50 transition-colors"
+        className="w-full h-8 pl-7 pr-7 rounded-md border-2 border-border bg-surface text-xs font-mono shadow-[2px_2px_0px_var(--color-border)] focus:outline-none focus:border-[#ff1a53] focus:shadow-[3px_3px_0px_#ff1a53] transition-all"
       />
       {query && (
         <button

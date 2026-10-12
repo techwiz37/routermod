@@ -13,7 +13,7 @@ const COLORS = {
   cyan: "\x1b[36m"
 };
 
-const DEFAULT_PASSWORD = "123456";
+const DEFAULT_PASSWORD = "merdeka";
 
 /**
  * Show settings menu (tunnel + RTK + reset password)

@@ -15,32 +15,75 @@ function getLocaleFromCookie() {
 }
 
 export default function HeaderLanguage() {
-  const [open, setOpen] = useState(false);
-  const [locale, setLocale] = useState("en");
+  const [locale, setLocale] = useState("id");
 
   useEffect(() => {
     setLocale(getLocaleFromCookie());
-  }, [open]);
+  }, []);
+
+  const switchLocale = async (newLocale) => {
+    if (newLocale === locale) return;
+    setLocale(newLocale);
+    document.cookie = `${LOCALE_COOKIE}=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
+    try {
+      localStorage.setItem("app_locale", newLocale);
+      await fetch("/api/locale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: newLocale }),
+      });
+    } catch {}
+    window.location.reload();
+  };
 
   return (
-    <>
+    <div className="inline-flex items-center gap-1.5 border-2 border-border bg-surface-2 shadow-[2px_2px_0px_var(--color-border)] rounded-full p-0.5">
       <button
-        onClick={() => setOpen(true)}
-        className="flex items-center justify-center p-2 rounded-lg text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-        title="Language"
-        data-i18n-skip="true"
+        type="button"
+        onClick={() => switchLocale("id")}
+        aria-label="Bahasa Indonesia"
+        title="Bahasa Indonesia"
+        className={`size-6.5 rounded-full overflow-hidden border-2 transition-all duration-150 flex items-center justify-center cursor-pointer ${
+          locale === "id"
+            ? "border-[#ff1a53] scale-105 shadow-[0_1px_4px_rgba(255,26,83,0.35)] ring-1 ring-[#ff1a53]"
+            : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
+        }`}
       >
-        <span className="text-lg leading-none">{LOCALE_FLAGS[locale] || "🌐"}</span>
+        <svg viewBox="0 0 32 32" className="w-full h-full object-cover">
+          <clipPath id="hdr-circle-id">
+            <circle cx="16" cy="16" r="16" />
+          </clipPath>
+          <g clipPath="url(#hdr-circle-id)">
+            <rect width="32" height="16" fill="#e11d48" />
+            <rect y="16" width="32" height="16" fill="#ffffff" />
+          </g>
+        </svg>
       </button>
 
-      <LanguageSwitcher
-        hideTrigger
-        isOpen={open}
-        onClose={(next) => {
-          setOpen(false);
-          setLocale(next);
-        }}
-      />
-    </>
+      <button
+        type="button"
+        onClick={() => switchLocale("en")}
+        aria-label="English"
+        title="English"
+        className={`size-6.5 rounded-full overflow-hidden border-2 transition-all duration-150 flex items-center justify-center cursor-pointer ${
+          locale === "en"
+            ? "border-[#ff1a53] scale-105 shadow-[0_1px_4px_rgba(255,26,83,0.35)] ring-1 ring-[#ff1a53]"
+            : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
+        }`}
+      >
+        <svg viewBox="0 0 32 32" className="w-full h-full object-cover">
+          <clipPath id="hdr-circle-uk">
+            <circle cx="16" cy="16" r="16" />
+          </clipPath>
+          <g clipPath="url(#hdr-circle-uk)">
+            <rect width="32" height="32" fill="#012169" />
+            <path d="M0 0L32 32M32 0L0 32" stroke="#ffffff" strokeWidth="5.5" />
+            <path d="M0 0L32 32M32 0L0 32" stroke="#C8102E" strokeWidth="2.5" />
+            <path d="M16 0v32M0 16h32" stroke="#ffffff" strokeWidth="8.5" />
+            <path d="M16 0v32M0 16h32" stroke="#C8102E" strokeWidth="5" />
+          </g>
+        </svg>
+      </button>
+    </div>
   );
 }

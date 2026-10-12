@@ -8,7 +8,7 @@ import { makeBackupDir, backupFile, backupDbLite, pruneOldBackups } from "./back
 import { getAppVersion } from "./version.js";
 import { stringifyJson } from "./helpers/jsonCol.js";
 
-// Marker file: prevents re-importing legacy JSON when user wipes data.sqlite.
+// Marker file: prevents re-importing legacy JSON when user wipes routermod.sqlite.
 const MIGRATED_MARKER = path.join(DB_DIR, ".migrated-from-json");
 
 // Track per-adapter so reusing same adapter skips re-run, but new adapter (after reset) re-runs.

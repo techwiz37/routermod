@@ -1,0 +1,107 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+
+export default function PageLoadBadge() {
+  const [info, setInfo] = useState(null);
+  const [visible, setVisible] = useState(false);
+  const startRef = useRef(null);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // Record nav start time on pathname change
+    startRef.current = performance.now();
+    setInfo(null);
+    setVisible(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    // Wait until browser is truly idle (all resources loaded, JS settled)
+    let cancelled = false;
+
+    const measure = () => {
+      if (cancelled) return;
+      const ms = Math.round(performance.now() - (startRef.current ?? performance.now()));
+      const label = ms < 500 ? "fast" : ms < 1500 ? "ok" : ms < 4000 ? "slow" : "very slow";
+      const color = ms < 500 ? "#22c55e" : ms < 1500 ? "#f59e0b" : ms < 4000 ? "#f97316" : "#ef4444";
+      setInfo({ ms, label, color });
+      setVisible(true);
+    };
+
+    // Strategy: wait for window load event OR requestIdleCallback — whichever is later
+    let measured = false;
+    const done = () => {
+      if (measured) return;
+      measured = true;
+      // Small rAF delay to let paint flush before measuring
+      requestAnimationFrame(() => requestAnimationFrame(measure));
+    };
+
+    if (document.readyState === "complete") {
+      // Already loaded — wait for idle
+      if ("requestIdleCallback" in window) {
+        const id = requestIdleCallback(done, { timeout: 3000 });
+        return () => { cancelled = true; cancelIdleCallback(id); };
+      }
+      const t = setTimeout(done, 200);
+      return () => { cancelled = true; clearTimeout(t); };
+    }
+
+    window.addEventListener("load", done, { once: true });
+    // Fallback: if load never fires (SPA nav), measure after idle
+    const fallback = "requestIdleCallback" in window
+      ? (() => { const id = requestIdleCallback(done, { timeout: 5000 }); return () => cancelIdleCallback(id); })()
+      : (() => { const t = setTimeout(done, 3000); return () => clearTimeout(t); })();
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("load", done);
+      fallback();
+    };
+  }, [pathname]);
+
+  // Auto-hide after 5s
+  useEffect(() => {
+    if (!visible) return;
+    const t = setTimeout(() => setVisible(false), 5000);
+    return () => clearTimeout(t);
+  }, [visible]);
+
+  if (!info) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: "16px",
+        right: "16px",
+        zIndex: 9999,
+        transition: "opacity 0.4s, transform 0.4s",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(8px)",
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "5px 10px",
+          borderRadius: "8px",
+          border: `1.5px solid ${info.color}40`,
+          background: `color-mix(in srgb, ${info.color} 10%, var(--color-surface-2, #f4f5f8))`,
+          boxShadow: `2px 2px 0px ${info.color}30`,
+          fontFamily: "monospace",
+          fontSize: "11px",
+          color: info.color,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span style={{ fontSize: "13px" }}>⚡</span>
+        <span style={{ fontWeight: 700 }}>{info.ms}ms</span>
+        <span style={{ opacity: 0.7 }}>· {info.label}</span>
+      </div>
+    </div>
+  );
+}
