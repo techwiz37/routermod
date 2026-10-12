@@ -387,6 +387,8 @@ export default function APIPageClient({ machineId }) {
       if (res.ok) {
         setTunnelEnabled(false);
         setTunnelUrl("");
+        setTunnelPublicUrl("");
+        setTunnelReachable(false);
         setShowDisableTunnelModal(false);
         addNotification({ type: "success", title: translate("Tunnel Disabled"), message: translate("Tunnel disabled") });
       } else {
@@ -777,9 +779,10 @@ export default function APIPageClient({ machineId }) {
                   <span className="material-symbols-outlined text-[17px] sm:text-[18px]">open_in_new</span>
                 </a>
                 <button onClick={() => setShowDisableTunnelModal(true)}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Disable">
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
+                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer"
+                  title="Disable tunnel & delete domain">
+                  <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
+                  <span>Off</span>
                 </button>
               </>
 
@@ -790,9 +793,10 @@ export default function APIPageClient({ machineId }) {
                   <span className="truncate">{tunnelEverReachable ? "Reconnecting..." : "Checking domain..."}</span>
                 </div>
                 <button onClick={() => setShowDisableTunnelModal(true)}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Disable">
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
+                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer"
+                  title="Disable tunnel & delete domain">
+                  <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
+                  <span>Off</span>
                 </button>
               </>
 
@@ -803,9 +807,10 @@ export default function APIPageClient({ machineId }) {
                   <span className="truncate">{tunnelProgress || "Generating domain..."}</span>
                 </div>
                 <button onClick={() => { setTunnelLoading(false); setTunnelProgress(""); }}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Stop">
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
+                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer"
+                  title="Cancel">
+                  <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
+                  <span>Off</span>
                 </button>
               </>
 
@@ -825,8 +830,9 @@ export default function APIPageClient({ machineId }) {
                   <span className="truncate">Checking...</span>
                 </div>
                 <button onClick={() => setTunnelChecking(false)}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer">
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
+                  className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-500/10 border-2 border-red-500/40 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 text-xs font-bold uppercase transition-all shrink-0 cursor-pointer">
+                  <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
+                  <span>Off</span>
                 </button>
               </>
 
@@ -1156,7 +1162,7 @@ export default function APIPageClient({ machineId }) {
         onClose={() => !tunnelLoading && setShowDisableTunnelModal(false)}
       >
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-text-muted">The Cloudflare tunnel will be disconnected. Remote access via tunnel URL will stop working.</p>
+          <p className="text-sm text-text-muted">The Cloudflare tunnel will be disconnected and your <strong>*.toolwiz.id domain will be deleted</strong>. Enabling again will generate a new domain.</p>
           <div className="flex gap-2">
             <Button onClick={handleDisableTunnel} fullWidth disabled={tunnelLoading} variant="danger">
               {tunnelLoading ? "Disabling..." : "Disable"}
