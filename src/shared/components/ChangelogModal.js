@@ -2,45 +2,44 @@
 
 import { useEffect, useState, useRef } from "react";
 import PropTypes from "prop-types";
+import Image from "next/image";
+
+// Module-level cache — survives re-renders, cleared on page reload
+let _prefetched = null;
 
 export default function ChangelogModal({ isOpen, onClose }) {
-  const [commits, setCommits] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [commits, setCommits] = useState(_prefetched || []);
+  const [loading, setLoading] = useState(!_prefetched);
   const [error, setError] = useState("");
   const modalRef = useRef(null);
 
+  // Prefetch once on first mount regardless of open state
   useEffect(() => {
-    if (!isOpen) return;
-    setLoading(true);
-    setError("");
-
+    if (_prefetched) return;
     fetch("/api/changelog")
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => {
+        _prefetched = d.commits || [];
+        setCommits(_prefetched);
+        setLoading(false);
       })
-      .then((data) => {
-        setCommits(data.commits || []);
-      })
-      .catch((err) => {
-        setError(err.message || "Gagal memuat changelog");
-      })
-      .finally(() => setLoading(false));
-  }, [isOpen]);
+      .catch((e) => {
+        setError(String(e));
+        setLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape" && isOpen) onClose();
-    };
+    const onKey = (e) => { if (e.key === "Escape" && isOpen) onClose(); };
     if (isOpen) {
       document.body.style.overflow = "hidden";
-      document.addEventListener("keydown", handleKeyDown);
+      document.addEventListener("keydown", onKey);
     } else {
       document.body.style.overflow = "";
     }
     return () => {
       document.body.style.overflow = "";
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", onKey);
     };
   }, [isOpen, onClose]);
 
@@ -48,13 +47,8 @@ export default function ChangelogModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 md:p-8">
-      {/* Backdrop Overlay */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" onClick={onClose} />
 
-      {/* Neobrutalism 3D Modal Box */}
       <div
         ref={modalRef}
         className="relative w-full max-w-2xl bg-surface border-2 border-border rounded-xl shadow-[4px_6px_0px_var(--color-border)] animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[82vh] overflow-hidden z-10 m-auto"
@@ -77,7 +71,6 @@ export default function ChangelogModal({ isOpen, onClose }) {
               </p>
             </div>
           </div>
-
           <button
             onClick={onClose}
             className="size-8 rounded-md border-2 border-border bg-surface text-text-muted hover:text-text-main hover:bg-surface-2 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 transition-all flex items-center justify-center cursor-pointer"
@@ -87,14 +80,12 @@ export default function ChangelogModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Content Area */}
+        {/* Content */}
         <div className="p-3.5 sm:p-5 overflow-y-auto space-y-3 custom-scrollbar flex-1">
           {loading ? (
             <div className="p-8 text-center font-mono text-xs text-text-muted flex flex-col items-center justify-center gap-2">
-              <span className="material-symbols-outlined animate-spin text-[24px] text-[#ff1a53]">
-                progress_activity
-              </span>
-              <span>Memuat commit terbaru dari GitHub...</span>
+              <span className="material-symbols-outlined animate-spin text-[24px] text-[#ff1a53]">progress_activity</span>
+              <span>Memuat commit terbaru...</span>
             </div>
           ) : error ? (
             <div className="p-4 rounded-lg border-2 border-red-500/30 bg-red-500/10 text-red-500 font-mono text-xs">
@@ -102,7 +93,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
             </div>
           ) : commits.length === 0 ? (
             <div className="p-8 text-center font-mono text-xs text-text-muted">
-              Belum ada riwayat commit yang ditemukan.
+              Belum ada riwayat commit.
             </div>
           ) : (
             commits.map((c) => (
@@ -112,6 +103,22 @@ export default function ChangelogModal({ isOpen, onClose }) {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
+                    {/* Avatar */}
+                    {c.avatar ? (
+                      <Image
+                        src={c.avatar}
+                        alt={c.author}
+                        width={20}
+                        height={20}
+                        className="rounded-full border border-border"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="size-5 rounded-full bg-primary/20 border border-border flex items-center justify-center text-[9px] font-bold text-primary">
+                        {(c.author || "?")[0].toUpperCase()}
+                      </div>
+                    )}
+
                     <a
                       href={c.url}
                       target="_blank"
@@ -121,28 +128,15 @@ export default function ChangelogModal({ isOpen, onClose }) {
                       <span className="material-symbols-outlined text-[11px]">commit</span>
                       <span>{c.sha}</span>
                     </a>
-                    <span className="text-[11px] font-bold text-text-main">
-                      {c.author}
-                    </span>
+                    <span className="text-[11px] font-bold text-text-main">{c.author}</span>
                   </div>
-
                   <span className="text-[10px] text-text-muted">
-                    {c.date
-                      ? new Date(c.date).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : ""}
+                    {c.date ? new Date(c.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : ""}
                   </span>
                 </div>
 
-                {/* Commit Title */}
-                <h3 className="text-xs sm:text-sm font-bold text-text-main break-words">
-                  {c.title}
-                </h3>
+                <h3 className="text-xs sm:text-sm font-bold text-text-main break-words">{c.title}</h3>
 
-                {/* Commit Body */}
                 {c.body && (
                   <div className="mt-2 pt-2 border-t border-border text-[11px] text-text-muted whitespace-pre-wrap break-words leading-relaxed max-h-36 overflow-y-auto custom-scrollbar font-sans">
                     {c.body}
