@@ -756,147 +756,104 @@ export default function APIPageClient({ machineId }) {
             copied={copied}
             onCopy={copy}
           />
-          {/* Cloudflare Tunnel */}
+          {/* Public Domain — *.toolwiz.id subdomain auto-provisioned via CF DNS */}
           <div className="flex items-center gap-2 min-w-0">
             <span className={`text-[11px] sm:text-xs font-mono font-bold uppercase px-2 py-1.5 rounded-md shrink-0 w-[74px] sm:w-[88px] text-center border border-border shadow-[1.5px_1.5px_0px_var(--color-border)] ${
               tunnelEnabled ? "bg-[#ff1a53]/15 text-[#ff1a53]" : "bg-surface-2 text-text-muted"
-            }`}>Tunnel</span>
+            }`}>Domain</span>
+
+            {/* Active + reachable */}
             {tunnelEnabled && !tunnelLoading && tunnelReachable ? (
               <>
                 <Input value={`${tunnelPublicUrl || tunnelUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs sm:text-sm truncate" />
-                <button
-                  onClick={() => copy(`${tunnelPublicUrl || tunnelUrl}/v1`, "tunnel_url")}
+                <button onClick={() => copy(`${tunnelPublicUrl || tunnelUrl}/v1`, "domain_url")}
                   className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{copied === "tunnel_url" ? "check" : "content_copy"}</span>
+                  title="Copy URL">
+                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{copied === "domain_url" ? "check" : "content_copy"}</span>
                 </button>
-                <button
-                  onClick={() => setShowDisableTunnelModal(true)}
+                <a href={tunnelPublicUrl || tunnelUrl} target="_blank" rel="noopener noreferrer"
+                  className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0"
+                  title="Open">
+                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">open_in_new</span>
+                </a>
+                <button onClick={() => setShowDisableTunnelModal(true)}
                   className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Disable Tunnel"
-                >
+                  title="Disable">
                   <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
                 </button>
               </>
+
             ) : tunnelEnabled && !tunnelLoading && !tunnelReachable ? (
               <>
                 <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-xs sm:text-sm text-amber-600 dark:text-amber-400">
                   <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                  <span className="truncate">{tunnelEverReachable ? "Tunnel reconnecting..." : "Tunnel checking..."}</span>
+                  <span className="truncate">{tunnelEverReachable ? "Reconnecting..." : "Checking domain..."}</span>
                 </div>
-                <button
-                  onClick={() => setShowDisableTunnelModal(true)}
+                <button onClick={() => setShowDisableTunnelModal(true)}
                   className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Disable Tunnel"
-                >
+                  title="Disable">
                   <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
                 </button>
               </>
+
             ) : tunnelLoading ? (
               <>
                 <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
                   <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                  <span className="truncate">{tunnelProgress || "Creating tunnel..."}</span>
+                  <span className="truncate">{tunnelProgress || "Generating domain..."}</span>
                 </div>
-                <button
-                  onClick={() => { setTunnelLoading(false); setTunnelProgress(""); }}
+                <button onClick={() => { setTunnelLoading(false); setTunnelProgress(""); }}
                   className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Stop"
-                >
+                  title="Stop">
                   <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
                 </button>
               </>
+
             ) : tunnelStatus?.type === "error" ? (
               <>
                 <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-red-300 dark:border-red-800 bg-red-500/5 text-xs sm:text-sm text-red-600 dark:text-red-400">
                   <span className="material-symbols-outlined text-sm shrink-0">error</span>
                   <span className="truncate">{tunnelStatus.message}</span>
                 </div>
-                <Button size="sm" icon="cloud_upload" onClick={() => setShowEnableTunnelModal(true)}>Enable</Button>
+                <Button size="sm" icon="public" onClick={() => setShowEnableTunnelModal(true)}>Generate</Button>
               </>
+
             ) : tunnelChecking ? (
               <>
                 <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
                   <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
                   <span className="truncate">Checking...</span>
                 </div>
-                <button
-                  onClick={() => setTunnelChecking(false)}
-                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer"
-                  title="Stop"
-                >
+                <button onClick={() => setTunnelChecking(false)}
+                  className="p-1.5 sm:p-2 hover:bg-red-500/10 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-red-500 transition-all shrink-0 cursor-pointer">
                   <span className="material-symbols-outlined text-[17px] sm:text-[18px]">power_settings_new</span>
                 </button>
               </>
+
             ) : (
-              <Button
-                size="sm"
-                icon="cloud_upload"
-                className="flex-1 sm:flex-initial"
-                onClick={() => {
-                  if (isLoginUnsafe) {
-                    addNotification({
-                      type: "error",
-                      title: "Security Required",
-                      message: unsafeReason,
-                    });
-                    return;
-                  }
-                  if (!requireApiKey) {
-                    addNotification({
-                      type: "warning",
-                      title: "Security Required",
-                      message: "Aktifkan \"Memerlukan kunci API\" sebelum mengaktifkan tunnel.",
-                    });
-                    return;
-                  }
-                  setShowEnableTunnelModal(true);
-                }}
-              >
-                Enable
-              </Button>
-            )}
-          </div>
-          {/* Public Domain — auto-provisioned toolwiz.id subdomain when tunnel is active */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={`text-[11px] sm:text-xs font-mono font-bold uppercase px-2 py-1.5 rounded-md shrink-0 w-[74px] sm:w-[88px] text-center border border-border shadow-[1.5px_1.5px_0px_var(--color-border)] ${
-              tunnelEnabled && tunnelPublicUrl ? "bg-[#ff1a53]/15 text-[#ff1a53]" : "bg-surface-2 text-text-muted"
-            }`}>Domain</span>
-            {tunnelEnabled && tunnelPublicUrl && tunnelReachable ? (
               <>
-                <Input value={`${tunnelPublicUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs sm:text-sm truncate" />
-                <button
-                  onClick={() => copy(`${tunnelPublicUrl}/v1`, "domain_url")}
-                  className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0 cursor-pointer"
-                  title="Copy public domain URL"
+                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-surface-2 text-xs sm:text-sm text-text-muted">
+                  <span className="material-symbols-outlined text-sm shrink-0">public</span>
+                  <span className="truncate italic">Generate a free *.toolwiz.id domain</span>
+                </div>
+                <Button
+                  size="sm"
+                  icon="public"
+                  onClick={() => {
+                    if (isLoginUnsafe) {
+                      addNotification({ type: "error", title: "Security Required", message: unsafeReason });
+                      return;
+                    }
+                    if (!requireApiKey) {
+                      addNotification({ type: "warning", title: "Security Required", message: "Aktifkan \"Memerlukan kunci API\" sebelum mengaktifkan tunnel." });
+                      return;
+                    }
+                    setShowEnableTunnelModal(true);
+                  }}
                 >
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{copied === "domain_url" ? "check" : "content_copy"}</span>
-                </button>
-                <a
-                  href={tunnelPublicUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1.5 sm:p-2 hover:bg-surface-2 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 rounded-lg text-text-muted hover:text-text-main transition-all shrink-0"
-                  title="Open in browser"
-                >
-                  <span className="material-symbols-outlined text-[17px] sm:text-[18px]">open_in_new</span>
-                </a>
+                  Generate
+                </Button>
               </>
-            ) : tunnelEnabled && tunnelLoading ? (
-              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-input text-xs sm:text-sm text-text-muted">
-                <span className="material-symbols-outlined animate-spin text-sm shrink-0">progress_activity</span>
-                <span className="truncate">Provisioning domain...</span>
-              </div>
-            ) : tunnelEnabled && !tunnelPublicUrl ? (
-              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-xs sm:text-sm text-amber-600 dark:text-amber-400">
-                <span className="material-symbols-outlined text-sm shrink-0">schedule</span>
-                <span className="truncate">Waiting for domain assignment...</span>
-              </div>
-            ) : (
-              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 rounded border border-border bg-surface-2 text-xs sm:text-sm text-text-muted">
-                <span className="material-symbols-outlined text-sm shrink-0">public</span>
-                <span className="truncate">Enable tunnel to get a public domain (*.toolwiz.id)</span>
-              </div>
             )}
           </div>
         </div>

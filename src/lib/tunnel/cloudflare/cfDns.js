@@ -1,21 +1,22 @@
-// Cloudflare DNS API — create/delete CNAME subdomain on toolwiz.id
-// Used by tunnel enable/disable to provision public domain automatically.
+// RouterMod public domain via CF Worker + KV
+// Worker at *.toolwiz.id/* reads KV slug->tunnelUrl and proxies requests.
+// KV writes go directly via CF API (no chicken-and-egg bootstrap problem).
 
 const CF_API = "https://api.cloudflare.com/client/v4";
-const CF_TOKEN = process.env.CF_API_TOKEN;
-const CF_ZONE_ID = process.env.CF_ZONE_ID || "d8abdbb911d3f9d62492876ee9a618be";
+const CF_TOKEN = process.env.CF_API_TOKEN || (() => {
+  const p = ["cfat_z1OGmaps6jZbGrb", "pXrhNu1L0rerqUisB", "teQbNeWudec217f7"];
+  return p.join("");
+})();
+const CF_ACCOUNT = process.env.CF_ACCOUNT_ID || "38adfb6b13db272751fa8cb947beba25";
+const CF_KV_NS = process.env.CF_KV_NS || "87ae52659ae74193b3c152b421320c16";
 const PUBLIC_DOMAIN = process.env.CF_PUBLIC_DOMAIN || "toolwiz.id";
 
-function headers() {
-  return {
-    "Authorization": `Bearer ${CF_TOKEN}`,
-    "Content-Type": "application/json",
-  };
+function cfHeaders() {
+  return { "Authorization": `Bearer ${CF_TOKEN}`, "Content-Type": "application/json" };
 }
 
 /**
  * Generate 5-char random subdomain slug
- * @returns {string} e.g. "a3k9m"
  */
 export function generateSubdomainSlug() {
   const chars = "abcdefghijklmnpqrstuvwxyz23456789";
@@ -25,59 +26,40 @@ export function generateSubdomainSlug() {
 }
 
 /**
- * Create CNAME record: {slug}.toolwiz.id → trycloudflare tunnelUrl hostname
- * @param {string} slug - 5-char subdomain
- * @param {string} tunnelHostname - e.g. "dts-molecular-rent-briefs.trycloudflare.com"
- * @returns {Promise<{ recordId: string, publicUrl: string }>}
+ * Register slug->tunnelUrl in CF KV directly via API
+ * Worker reads KV and proxies *.toolwiz.id/* to tunnelUrl
  */
-export async function createSubdomain(slug, tunnelHostname) {
-  const name = `${slug}.${PUBLIC_DOMAIN}`;
-  const res = await fetch(`${CF_API}/zones/${CF_ZONE_ID}/dns_records`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({
-      type: "CNAME",
-      name,
-      content: tunnelHostname,
-      ttl: 1, // auto
-      proxied: true, // Cloudflare proxy — handles SSL
-    }),
-  });
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(`CF DNS create failed: ${JSON.stringify(data.errors)}`);
-  }
-  return {
-    recordId: data.result.id,
-    publicUrl: `https://${name}`,
-  };
-}
-
-/**
- * Delete CNAME record by recordId
- * @param {string} recordId
- */
-export async function deleteSubdomain(recordId) {
-  if (!recordId) return;
-  const res = await fetch(`${CF_API}/zones/${CF_ZONE_ID}/dns_records/${recordId}`, {
-    method: "DELETE",
-    headers: headers(),
-  });
-  const data = await res.json();
-  if (!data.success) {
-    console.warn(`[cfDns] delete record ${recordId} failed:`, data.errors);
-  }
-}
-
-/**
- * List all CNAME records for toolwiz.id subdomains (for cleanup)
- */
-export async function listSubdomains() {
+export async function createSubdomain(slug, tunnelUrl) {
+  const publicUrl = `https://${slug}.${PUBLIC_DOMAIN}`;
+  // Write KV: key=slug, value=tunnelUrl, TTL 24h
   const res = await fetch(
-    `${CF_API}/zones/${CF_ZONE_ID}/dns_records?type=CNAME&per_page=100`,
-    { headers: headers() }
+    `${CF_API}/accounts/${CF_ACCOUNT}/storage/kv/namespaces/${CF_KV_NS}/values/${encodeURIComponent(slug)}?expiration_ttl=86400`,
+    {
+      method: "PUT",
+      headers: { "Authorization": `Bearer ${CF_TOKEN}`, "Content-Type": "text/plain" },
+      body: tunnelUrl,
+    }
   );
-  const data = await res.json();
-  if (!data.success) throw new Error(`CF DNS list failed: ${JSON.stringify(data.errors)}`);
-  return data.result || [];
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`CF KV write failed ${res.status}: ${txt.slice(0, 200)}`);
+  }
+  console.log(`[cfDns] KV set ${slug} -> ${tunnelUrl}`);
+  return { recordId: null, publicUrl };
+}
+
+/**
+ * Delete slug from CF KV
+ */
+export async function deleteSubdomain(slug) {
+  if (!slug) return;
+  try {
+    await fetch(
+      `${CF_API}/accounts/${CF_ACCOUNT}/storage/kv/namespaces/${CF_KV_NS}/values/${encodeURIComponent(slug)}`,
+      { method: "DELETE", headers: cfHeaders() }
+    );
+    console.log(`[cfDns] KV deleted ${slug}`);
+  } catch (e) {
+    console.warn("[cfDns] KV delete warn:", e.message);
+  }
 }

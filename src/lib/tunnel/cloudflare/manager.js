@@ -49,9 +49,9 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
             alreadyRunning: true,
           };
         }
-        // Stale — cleanup old CF record before respawn
-        if (existing.cfRecordId) {
-          await deleteSubdomain(existing.cfRecordId).catch(() => {});
+        // Stale — unregister old slug before respawn
+        if (existing.slug) {
+          await deleteSubdomain(existing.slug).catch(() => {});
         }
         console.log(`[Tunnel] stale (direct=${directOk} public=${publicOk}), respawn`);
       }
@@ -68,7 +68,7 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
       if (token.cancelled) return;
       console.log(`[Tunnel] url updated: ${url}`);
       // Save direct URL immediately; publicUrl provisioned after spawn completes
-      saveState({ slug, tunnelUrl: url, publicUrl: null, cfRecordId: null });
+      saveState({ slug, tunnelUrl: url, publicUrl: null });
       await updateSettings({ tunnelEnabled: true, tunnelUrl: url });
     };
 
@@ -82,21 +82,17 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
     throwIfCancelled(token);
 
     // Extract hostname from cloudflared URL for CNAME target
-    const tunnelHostname = new URL(tunnelUrl).hostname;
-
-    // Provision CF subdomain: {slug}.toolwiz.id → tunnelHostname
-    let cfRecordId = null;
+    // Provision CF Worker KV: slug -> tunnelUrl (full URL)
     let publicUrl = tunnelUrl; // fallback to direct URL if CF fails
     try {
-      const cf = await createSubdomain(slug, tunnelHostname);
-      cfRecordId = cf.recordId;
+      const cf = await createSubdomain(slug, tunnelUrl);
       publicUrl = cf.publicUrl;
-      console.log(`[Tunnel] CF subdomain created: ${publicUrl} (record ${cfRecordId})`);
+      console.log(`[Tunnel] CF domain created: ${publicUrl}`);
     } catch (e) {
       console.warn(`[Tunnel] CF subdomain failed, using direct URL: ${e.message}`);
     }
 
-    saveState({ slug, tunnelUrl, publicUrl, cfRecordId });
+    saveState({ slug, tunnelUrl, publicUrl });
     await updateSettings({ tunnelEnabled: true, tunnelUrl });
     console.log(`[Tunnel] enable success — publicUrl=${publicUrl}`);
 
@@ -119,12 +115,12 @@ export async function disableTunnel() {
   try { killCloudflared(svc.activeLocalPort); } catch (e) { console.warn(`[Tunnel] kill warn: ${e.message}`); }
   clearPid();
 
-  // Delete CF DNS record
+  // Unregister from CF Worker KV
   const state = loadState();
-  if (state?.cfRecordId) {
-    await deleteSubdomain(state.cfRecordId).catch((e) => console.warn("[Tunnel] CF DNS delete warn:", e.message));
+  if (state?.slug) {
+    await deleteSubdomain(state.slug).catch((e) => console.warn("[Tunnel] CF unregister warn:", e.message));
   }
-  if (state) saveState({ slug: state.slug, tunnelUrl: null, publicUrl: null, cfRecordId: null });
+  if (state) saveState({ slug: state.slug, tunnelUrl: null, publicUrl: null });
 
   await updateSettings({ tunnelEnabled: false, tunnelUrl: "" });
   svc.spawnInProgress = false;

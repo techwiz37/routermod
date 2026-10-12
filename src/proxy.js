@@ -20,14 +20,23 @@ function isTunnelHost(host) {
   return TUNNEL_HOST_RE.some((re) => re.test(hostname));
 }
 
-// Read tunnel state directly from DB — no HTTP roundtrip, no auth needed
+// Read tunnel state from JSON state file — works in proxy sandbox
 async function isTunnelActive() {
   try {
-    const { getSettings } = await import("@/lib/localDb");
-    const settings = await getSettings();
-    return settings?.tunnelEnabled === true;
-  } catch {
-    return null; // unknown — fail open
+    // Dynamic imports of builtins work in Next.js proxy Node runtime
+    const [{ default: fs }, { default: path }] = await Promise.all([
+      import("node:fs"),
+      import("node:path"),
+    ]);
+    const appData = process.env.APPDATA || process.env.HOME + "/AppData/Roaming";
+    const stateFile = path.join(appData, "routermod", "tunnel", "state.json");
+    if (!fs.existsSync(stateFile)) return false;
+    const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    // Disabled = tunnelUrl cleared to null
+    return !!(state?.tunnelUrl);
+  } catch (e) {
+    console.warn("[proxy-gate] isTunnelActive error:", e?.message);
+    return null; // fail open
   }
 }
 
