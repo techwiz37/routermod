@@ -95,40 +95,6 @@ export default function ProviderDetailPage() {
   const [testAllStopping, setTestAllStopping] = useState(false);
   const stopTestAllRef = useRef(false);
 
-  const handleTestAllModels = async () => {
-    if (testAllRunning) {
-      stopTestAllRef.current = true;
-      setTestAllStopping(true);
-      return;
-    }
-
-    const allModelIds = (() => {
-      if (isCompatible) return [];
-      return [
-        ...models,
-        ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-      ]
-        .filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
-        .filter((m) => !disabledModelIds.includes(m.id))
-        .map((m) => m.id);
-    })();
-
-    if (!allModelIds.length) return;
-
-    stopTestAllRef.current = false;
-    setTestAllRunning(true);
-    setTestAllStopping(false);
-
-    for (const modelId of allModelIds) {
-      if (stopTestAllRef.current) break;
-      await handleTestModel(modelId);
-    }
-
-    setTestAllRunning(false);
-    setTestAllStopping(false);
-    stopTestAllRef.current = false;
-  };
-
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
 
   const openOAuthConnection = () => {
@@ -1267,6 +1233,40 @@ export default function ProviderDetailPage() {
     } finally {
       setTestingModelIds((prev) => { const n = new Set(prev); n.delete(modelId); return n; });
     }
+  };
+
+  const handleTestAllModels = async () => {
+    if (testAllRunning) {
+      stopTestAllRef.current = true;
+      setTestAllStopping(true);
+      return;
+    }
+
+    const allModelIds = (() => {
+      if (isCompatible) return [];
+      return [
+        ...models,
+        ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+      ]
+        .filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
+        .filter((m) => !disabledModelIds.includes(m.id))
+        .map((m) => m.id);
+    })();
+
+    if (!allModelIds.length) return;
+
+    stopTestAllRef.current = false;
+    setTestAllRunning(true);
+    setTestAllStopping(false);
+
+    for (const modelId of allModelIds) {
+      if (stopTestAllRef.current) break;
+      await handleTestModel(modelId);
+    }
+
+    setTestAllRunning(false);
+    setTestAllStopping(false);
+    stopTestAllRef.current = false;
   };
 
   const renderModelsSection = () => {
