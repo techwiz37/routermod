@@ -1,4 +1,3 @@
-import { Orbitron, Chakra_Petch, JetBrains_Mono, Inter } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import "material-symbols/outlined.css";
 import "./globals.css";
@@ -11,28 +10,12 @@ import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
 // Hook console immediately at module load time (server-side only, runs once)
 initConsoleLogCapture();
 
-const orbitron = Orbitron({
-  subsets: ["latin"],
-  weight: ["700", "800", "900"],
-  variable: "--font-terminator",
-});
-
-const chakraPetch = Chakra_Petch({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-ui",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-mono",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
+// Fonts injected via <link> at runtime — avoids next/font/google network fetch during build.
+// CSS variables are set in globals.css @import block below.
+const orbitron      = { variable: "--font-terminator" };
+const chakraPetch   = { variable: "--font-ui" };
+const jetbrainsMono = { variable: "--font-mono" };
+const inter         = { variable: "--font-inter" };
 
 export const metadata = {
   title: "RouterMod - AI Infrastructure Management",
@@ -50,9 +33,14 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Apply persisted theme before first paint so a reload does not flash the
-            default (light) theme before the client store hydrates. Mirrors the
-            zustand-persist "theme" key and the `dark` class applyTheme() sets. */}
+        {/* Google Fonts loaded at runtime (not build-time) */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+        {/* Apply persisted theme before first paint */}
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
