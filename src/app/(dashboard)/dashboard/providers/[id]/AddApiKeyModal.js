@@ -60,6 +60,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
 
   const [mode, setMode] = useState("single"); // "single" | "bulk"
   const [bulkText, setBulkText] = useState("");
+  const [bulkProgress, setBulkProgress] = useState(null); // {done, total, success, failed}
   const addNotification = useNotificationStore((s) => s.addNotification);
 
   const buildProviderSpecificData = () => {
@@ -162,13 +163,19 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     if (!lines.length) return;
     const plan = planBulkAdd(lines, existingNames, { isCloudflareAi });
     if (!plan.length) return;
+
     setSaving(true);
-    setBulkResult(null);
+    setBulkProgress({ done: 0, total: plan.length, success: 0, failed: 0 });
+
     let success = 0;
     let failed = 0;
-    for (const entry of plan) {
-      try {
-        let isValid = false;
+
+    // Validate + save in parallel with concurrency cap of 5
+    const CONCURRENCY = 5;
+    let idx = 0;
+    const runNext = async () => {
+      while (idx < plan.length) {
+        const entry = plan[idx++];
         try {
           const vres = await fetch("/api/providers/validate", {
             method: "POST",
@@ -176,29 +183,32 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             body: JSON.stringify({ provider, apiKey: entry.apiKey }),
           });
           const vdata = await vres.json().catch(() => ({}));
-          isValid = !!vdata.valid;
+          const isValid = !!vdata.valid;
+
+          const res = await fetch("/api/providers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider,
+              apiKey: entry.apiKey,
+              name: entry.name,
+              priority: 1,
+              testStatus: isValid ? "active" : "unknown",
+              ...(entry.providerSpecificData ? { providerSpecificData: entry.providerSpecificData } : {}),
+            }),
+          });
+          if (res.ok) success++; else failed++;
         } catch {
-          isValid = false;
+          failed++;
         }
-        const res = await fetch("/api/providers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider,
-            apiKey: entry.apiKey,
-            name: entry.name,
-            priority: 1,
-            testStatus: isValid ? "active" : "unknown",
-            ...(entry.providerSpecificData ? { providerSpecificData: entry.providerSpecificData } : {}),
-          }),
-        });
-        if (res.ok) success++;
-        else failed++;
-      } catch {
-        failed++;
+        setBulkProgress((p) => ({ ...p, done: p.done + 1, success, failed }));
       }
-    }
+    };
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, runNext));
+
     setSaving(false);
+    setBulkProgress(null);
     addNotification({
       type: failed === 0 ? "success" : success > 0 ? "info" : "error",
       title: "Bulk Add Selesai",
@@ -241,10 +251,27 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             />
             <div className="flex gap-2">
               <Button onClick={handleBulkSubmit} fullWidth disabled={saving || !bulkText.trim()}>
-                {saving ? "Adding..." : "Add All Keys"}
+                {saving ? `Memproses ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? "..."}...` : "Add All Keys"}
               </Button>
               <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
             </div>
+            {bulkProgress && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between text-[11px] font-mono font-bold text-[var(--color-text-muted)]">
+                  <span>{bulkProgress.done}/{bulkProgress.total} diproses</span>
+                  <span className="flex gap-3">
+                    <span className="text-[#10b981]">✓ {bulkProgress.success}</span>
+                    {bulkProgress.failed > 0 && <span className="text-[#ef4444]">✗ {bulkProgress.failed}</span>}
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)] overflow-hidden">
+                  <div
+                    className="h-full bg-[#ff1a53] transition-all duration-200"
+                    style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
