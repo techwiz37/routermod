@@ -266,29 +266,11 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   const loadModels = useCallback(() => {
     setLoading(true);
-    return Promise.all([fetch("/api/models"), fetch("/api/providers")])
-      .then(async ([mr, pr]) => {
-        const models = (await mr.json()).models || [];
-        const connections = pr.ok ? ((await pr.json()).connections || []) : [];
-        // connections.provider = provider ID ("antigravity", "gemini-cli")
-        // AI_MODELS.provider   = provider alias ("ag", "gemini")
-        // Collect IDs + aliases so filter catches either
-        const activeSet = new Set();
-        connections
-          .filter(c => c.isActive !== false && c.testStatus !== "unavailable")
-          .forEach(c => {
-            activeSet.add(c.provider);
-            if (c.providerAlias) activeSet.add(c.providerAlias);
-          });
-        const filtered = activeSet.size > 0
-          ? models.filter(m => {
-              if (activeSet.has(m.provider)) return true;
-              const prefix = (m.routedModel || "").split("/")[0];
-              return prefix && activeSet.has(prefix);
-            })
-          : models;
-        setAllModels(filtered);
-        setProviderGroups(groupByProvider(filtered));
+    return fetch("/api/models?activeOnly=true")
+      .then(async (r) => {
+        const models = (await r.json()).models || [];
+        setAllModels(models);
+        setProviderGroups(groupByProvider(models));
       })
       .catch(() => {})
       .finally(() => setLoading(false));

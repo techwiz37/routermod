@@ -1,18 +1,37 @@
 import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias, getCustomModels } from "@/models";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
+import { getProviderConnections } from "@/lib/db/repos/connectionsRepo";
 import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
-// GET /api/models - Get models with aliases
-export async function GET() {
+// GET /api/models?activeOnly=true - filter to providers with active connections
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get("activeOnly") === "true";
+
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
 
+    // Build set of active provider aliases when requested
+    let activeAliasSet = null;
+    if (activeOnly) {
+      const conns = await getProviderConnections({ isActive: true });
+      activeAliasSet = new Set();
+      for (const c of conns) {
+        if (c.testStatus === "unavailable") continue;
+        // provider field = provider ID; add both ID and alias
+        activeAliasSet.add(c.provider);
+        const alias = getProviderAlias(c.provider);
+        if (alias) activeAliasSet.add(alias);
+      }
+    }
+
     const models = AI_MODELS
       .filter((m) => {
+        if (activeAliasSet && !activeAliasSet.has(m.provider)) return false;
         const alias = getProviderAlias(m.provider) || m.provider;
         const list = disabled[alias] || disabled[m.provider] || [];
         return !list.includes(m.model);
@@ -41,6 +60,7 @@ export async function GET() {
     const seenFull = new Set(models.map((m) => m.fullModel));
     const customModels = (await getCustomModels()).filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
+      if (activeAliasSet && !activeAliasSet.has(m.providerAlias)) return false;
       return !seenFull.has(`${m.providerAlias}/${m.id}`);
     });
     for (const m of customModels) {
