@@ -2,9 +2,24 @@ import { NextResponse } from "next/server";
 import { getProviderConnections, updateProviderConnection } from "@/lib/db/index.js";
 import { pingModelByKind } from "@/app/api/models/test/ping.js";
 import { AI_MODELS } from "@/shared/constants/config.js";
-import { getProviderAlias } from "@/shared/constants/providers.js";
+import { getProviderAlias, AI_PROVIDERS } from "@/shared/constants/providers.js";
 
 export const dynamic = "force-dynamic";
+
+async function pingViaValidateUrl(provider, apiKey) {
+  const p = AI_PROVIDERS[provider];
+  const validateUrl = p?.transport?.validateUrl || p?.validateUrl;
+  if (!validateUrl || !apiKey) return null;
+  const t0 = Date.now();
+  const res = await fetch(validateUrl, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(10000),
+  });
+  const latencyMs = Date.now() - t0;
+  if (res.ok) return { ok: true, latencyMs };
+  const body = await res.text().catch(() => "");
+  return { ok: false, latencyMs, error: `HTTP ${res.status}: ${body.slice(0, 120)}` };
+}
 
 export async function GET(request) {
   try {
@@ -49,18 +64,26 @@ export async function POST(request) {
     const alias = getProviderAlias(provider) || provider;
     const providerModels = AI_MODELS.filter(m => m.provider === provider || m.provider === alias);
     const firstModel = providerModels.find(m => !m.kind || m.kind === "llm");
-    if (!firstModel) {
-      return NextResponse.json({ ok: false, error: "No LLM model found for provider" });
-    }
 
-    const modelStr = `${getProviderAlias(firstModel.provider) || firstModel.provider}/${firstModel.model}`;
+    const connections = await getProviderConnections({ provider: connectionId ? undefined : provider, isActive: true });
+    const conn = connections.find(c => c.id === connectionId) || connections[0];
+    const apiKey = conn?.apiKey || conn?.data?.apiKey;
 
     const t0 = Date.now();
     let result;
-    try {
-      result = await pingModelByKind(modelStr, "llm");
-    } catch (e) {
-      result = { ok: false, error: e.message, latencyMs: Date.now() - t0 };
+
+    if (firstModel) {
+      const modelStr = `${getProviderAlias(firstModel.provider) || firstModel.provider}/${firstModel.model}`;
+      try {
+        result = await pingModelByKind(modelStr, "llm");
+      } catch (e) {
+        result = { ok: false, error: e.message, latencyMs: Date.now() - t0 };
+      }
+    } else {
+      result = await pingViaValidateUrl(provider, apiKey);
+      if (!result) {
+        return NextResponse.json({ ok: false, error: "No LLM model or validateUrl found for provider" });
+      }
     }
 
     const update = {
@@ -82,7 +105,7 @@ export async function POST(request) {
       ok: result.ok,
       latencyMs: result.latencyMs,
       error: result.error || null,
-      model: modelStr,
+      model: firstModel ? `${getProviderAlias(firstModel.provider) || firstModel.provider}/${firstModel.model}` : `${provider}/validateUrl`,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -1,9 +1,9 @@
 
 import * as log from "../utils/logger.js";
 
-const INTERVAL_MS = 5 * 60 * 1000;   // 5 minutes
-const INITIAL_DELAY_MS = 60 * 1000;  // 1 minute after boot (let token refresh go first)
-const INTER_CONNECTION_DELAY_MS = 3000; // 3s between connections to avoid thundering herd
+const INTERVAL_MS = 5 * 60 * 1000;
+const INITIAL_DELAY_MS = 60 * 1000;
+const INTER_CONNECTION_DELAY_MS = 3000;
 
 let started = false;
 let intervalHandle = null;
@@ -25,6 +25,25 @@ function classifyError(lastError = "") {
   return "other";
 }
 
+async function pingViaValidateUrl(provider, apiKey, PROVIDERS) {
+  const p = PROVIDERS[provider];
+  const validateUrl = p?.transport?.validateUrl || p?.validateUrl;
+  if (!validateUrl || !apiKey) return { ok: false, error: "No validateUrl or apiKey" };
+  try {
+    const t0 = Date.now();
+    const res = await fetch(validateUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    const latencyMs = Date.now() - t0;
+    if (res.ok) return { ok: true, latencyMs };
+    const body = await res.text().catch(() => "");
+    return { ok: false, latencyMs, error: `HTTP ${res.status}: ${body.slice(0, 120)}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 async function runTick() {
   if (tickRunning) return;
   tickRunning = true;
@@ -33,7 +52,7 @@ async function runTick() {
     const { updateProviderConnection } = await import("../../lib/db/repos/connectionsRepo.js");
     const { pingModelByKind } = await import("../../app/api/models/test/ping.js");
     const { AI_MODELS } = await import("../../shared/constants/config.js");
-    const { getProviderAlias } = await import("../../shared/constants/providers.js");
+    const { getProviderAlias, AI_PROVIDERS } = await import("../../shared/constants/providers.js");
 
     const allConnections = await getProviderConnections({ isActive: true });
     log.info("BG_HEALTH", `Starting health check tick for ${allConnections.length} connections`);
@@ -47,16 +66,27 @@ async function runTick() {
 
         const providerModels = AI_MODELS.filter(m => m.provider === provider || m.provider === alias);
         const firstModel = providerModels.find(m => !m.kind || m.kind === "llm");
-        if (!firstModel) continue; // skip providers with no LLM model (image-only etc)
-
-        const modelStr = `${getProviderAlias(firstModel.provider) || firstModel.provider}/${firstModel.model}`;
 
         const t0 = Date.now();
         let result;
-        try {
-          result = await pingModelByKind(modelStr, "llm");
-        } catch (e) {
-          result = { ok: false, error: e.message, latencyMs: Date.now() - t0 };
+
+        if (firstModel) {
+          const modelStr = `${getProviderAlias(firstModel.provider) || firstModel.provider}/${firstModel.model}`;
+          try {
+            result = await pingModelByKind(modelStr, "llm");
+          } catch (e) {
+            result = { ok: false, error: e.message, latencyMs: Date.now() - t0 };
+          }
+        } else {
+          const apiKey = conn.apiKey || conn.data?.apiKey;
+          result = await pingViaValidateUrl(provider, apiKey, AI_PROVIDERS);
+          if (result.ok === false && !result.error?.includes("No validate")) {
+            log.debug("BG_HEALTH", `fallback ping for ${provider}: ${result.error?.slice(0, 80)}`);
+          }
+          if (result.ok === false && result.error === "No validateUrl or apiKey") {
+            await new Promise(r => setTimeout(r, INTER_CONNECTION_DELAY_MS));
+            continue;
+          }
         }
 
         const update = {
