@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
@@ -83,6 +84,7 @@ function getLocale() {
 }
 
 export default function DashboardProviderOverview() {
+  const router = useRouter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [locale, setLocale] = useState("id");
@@ -352,7 +354,8 @@ export default function DashboardProviderOverview() {
                   return (
                     <tr
                       key={p.provider}
-                      className="hover:bg-surface-2/40 transition-colors"
+                      onClick={() => router.push(`/dashboard/providers/${p.provider}`)}
+                      className="hover:bg-surface-2/40 transition-colors cursor-pointer"
                     >
                       <td className="py-2.5 sm:py-3 px-3 sm:px-5">
                         <div className="flex items-center gap-2 sm:gap-3">

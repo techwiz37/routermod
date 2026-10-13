@@ -18,9 +18,21 @@ export async function GET(request) {
     let activeAliasSet = null;
     if (activeOnly) {
       const conns = await getProviderConnections({ isActive: true });
+      const now = Date.now();
       activeAliasSet = new Set();
       for (const c of conns) {
-        if (c.testStatus === "unavailable") continue;
+        // Mirror dashboard effectiveStatus:
+        // "unavailable" + active future modelLock  → still in cooldown     → skip
+        // "unavailable" + no future modelLock       → cooldown expired, treat as active → include
+        // "error"                                   → permanent failure     → skip
+        if (c.testStatus === "error") continue;
+        if (c.testStatus === "unavailable") {
+          const hasFutureLock = Object.entries(c).some(([k, v]) =>
+            k.startsWith("modelLock_") && v && new Date(v).getTime() > now
+          );
+          if (hasFutureLock) continue; // still in rate-limit cooldown → exclude
+          // expired cooldown → include (same as dashboard "active")
+        }
         activeAliasSet.add(c.provider);
         const alias = getProviderAlias(c.provider);
         if (alias) activeAliasSet.add(alias);
