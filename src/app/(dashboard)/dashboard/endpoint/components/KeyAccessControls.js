@@ -464,7 +464,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
                   <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-[var(--color-border)]/40 bg-[var(--color-surface-2)]">
                     <span className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--color-text-muted)]">
-                      geser → · klik toggle utk pilih · klik 🧪 utk test
+                      scroll → · toggle to pick · flask icon to test
                     </span>
                   </div>
 
@@ -497,7 +497,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                           >
                             <span
                               className="relative shrink-0 rounded-full border-2 transition-all"
-                              style={{ width: 30, height: 18, background: on ? "var(--color-primary)" : "var(--color-surface-2)", borderColor: on ? "var(--color-primary)" : "var(--color-border)" }}
+                              style={{ width: 30, height: 18, background: on ? "var(--color-primary)" : "var(--color-surface-3)", borderColor: on ? "var(--color-primary)" : "var(--color-border)" }}
                             >
                               <span className={`absolute top-0.5 size-3 rounded-full bg-white shadow transition-transform duration-200 ${on ? "translate-x-3" : "translate-x-0.5"}`} />
                             </span>
@@ -520,11 +520,11 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                               onClick={() => handleTestModel(id, m.name || m.model)}
                               disabled={busy}
                               title="Test model"
-                              className="flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all hover:-translate-y-px active:translate-y-0 disabled:opacity-50 shadow-[1.5px_1.5px_0_var(--color-border)]"
+                              className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all hover:-translate-y-px active:translate-y-0 disabled:opacity-50 shadow-[1.5px_1.5px_0_var(--color-border)]"
                             >
                               {busy
                                 ? <span className="material-symbols-outlined text-[14px] animate-spin text-[var(--color-primary)]">progress_activity</span>
-                                : <span className="material-symbols-outlined text-[14px] text-[var(--color-text-muted)] group-hover:text-white">science</span>
+                                : <span className="material-symbols-outlined text-[14px] text-[var(--color-primary)] group-hover:text-white">science</span>
                               }
                             </button>
                           </div>

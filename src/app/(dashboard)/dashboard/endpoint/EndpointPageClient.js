@@ -905,18 +905,18 @@ export default function APIPageClient({ machineId }) {
                 {/* Meta */}
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <p className="text-xs text-text-muted">
-                    Created {new Date(key.createdAt).toLocaleDateString()}
+                    {translate("Created")} {new Date(key.createdAt).toLocaleDateString()}
                   </p>
                   {key.isActive === false && (
-                    <span className="text-xs text-[var(--color-warning)]">· Paused</span>
+                    <span className="text-xs text-[var(--color-warning)]">· {translate("Paused")}</span>
                   )}
                 </div>
                 <KeyAccessControls
                   apiKey={key}
                   onChange={(access) => handleUpdateKeyAccess(key.id, access)}
                   onRequestRestrict={() => setConfirmState({
-                    title: "Restrict API Key",
-                    message: `Restrict API key "${key.name}"?\n\nIt will only be able to call the combos and models you add. Until you add one, it can call nothing.`,
+                    title: translate("Restrict API Key"),
+                    message: `${translate("Restrict API key")} "${key.name}"?\n\n${translate("It will only be able to call the combos and models you add. Until you add one, it can call nothing.")}`,
                     onConfirm: async () => {
                       setConfirmState(null);
                       handleUpdateKeyAccess(key.id, { restricted: true, allow: key.access?.allow || [] });

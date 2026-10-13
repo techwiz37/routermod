@@ -4,6 +4,7 @@ import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLock
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getAntigravityQuotaCache, getAntigravityModelQuota } from "./antigravityQuota.js";
+import { REFRESH_REJECTED_PREFIX } from "./tokenRefresh.js";
 import * as log from "../utils/logger.js";
 
 let selectionMutex = Promise.resolve();
@@ -232,10 +233,18 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   const reason = typeof errorText === "string" ? errorText.slice(0, 200) : "Provider error";
   const lockUpdate = buildModelLockUpdate(githubResetAtMs ? null : model, cooldownMs);
 
+  // Keep a permanent refresh-rejection reason (e.g. invalid_grant / account
+  // deleted) instead of overwriting it with a generic "[401]: HTTP 401" from
+  // this request — the refresh reason explains WHY the 401 keeps happening.
+  const keepRefreshReason =
+    (Number(status) === 401 || Number(status) === 403) &&
+    typeof conn?.lastError === "string" &&
+    conn.lastError.startsWith(REFRESH_REJECTED_PREFIX);
+
   await updateProviderConnection(connectionId, {
     ...lockUpdate,
     testStatus: "unavailable",
-    lastError: reason,
+    lastError: keepRefreshReason ? conn.lastError : reason,
     errorCode: status,
     lastErrorAt: new Date().toISOString(),
     backoffLevel: newBackoffLevel ?? backoffLevel

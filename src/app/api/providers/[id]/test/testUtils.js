@@ -21,6 +21,7 @@ import {
   KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
+import { REFRESH_REJECTED_PREFIX } from "@/sse/services/tokenRefresh.js";
 
 const OAUTH_TEST_CONFIG = {
   claude: { checkExpiry: true, refreshable: true },
@@ -230,7 +231,19 @@ async function refreshOAuthToken(connection) {
           refresh_token: refreshToken,
         }),
       });
-      if (!response.ok) return null;
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        let code = `HTTP ${response.status}`;
+        let desc = "";
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed?.error) code = parsed.error;
+          if (parsed?.error_description) desc = parsed.error_description;
+        } catch {}
+        // No accessToken → caller must check tokens?.accessToken.
+        // `reason` carries the upstream explanation (e.g. "Account has been deleted").
+        return { reason: desc ? `${desc} (${code})` : code };
+      }
       const data = await response.json();
       return { accessToken: data.access_token, expiresIn: data.expires_in, refreshToken: data.refresh_token || refreshToken };
     }
@@ -330,12 +343,16 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
   const tokenExpired = isTokenExpired(connection);
   if (config.refreshable && tokenExpired && connection.refreshToken) {
     const tokens = await refreshOAuthToken(connection);
-    if (tokens) {
+    if (tokens?.accessToken) {
       accessToken = tokens.accessToken;
       refreshed = true;
       newTokens = tokens;
     } else {
-      return { valid: false, error: "Token expired and refresh failed", refreshed: false };
+      return {
+        valid: false,
+        error: tokens?.reason ? `${REFRESH_REJECTED_PREFIX}: ${tokens.reason}` : "Token expired and refresh failed",
+        refreshed: false,
+      };
     }
   }
 
@@ -356,7 +373,11 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
         if (retry.valid) return { valid: true, error: null, refreshed: true, newTokens: tokens };
         return { valid: false, error: retry.error, refreshed: true, newTokens: tokens };
       }
-      return { valid: false, error: "Token invalid or revoked", refreshed: false };
+      return {
+        valid: false,
+        error: tokens?.reason ? `${REFRESH_REJECTED_PREFIX}: ${tokens.reason}` : "Token invalid or revoked",
+        refreshed: false,
+      };
     }
 
     return { valid: false, error: initial.error, refreshed };
@@ -378,7 +399,11 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
 
     const tokens = await refreshOAuthToken(connection);
     if (!tokens?.accessToken) {
-      return { valid: false, error: "Token invalid or revoked", refreshed: false };
+      return {
+        valid: false,
+        error: tokens?.reason ? `${REFRESH_REJECTED_PREFIX}: ${tokens.reason}` : "Token invalid or revoked",
+        refreshed: false,
+      };
     }
 
     refreshed = true;
@@ -410,7 +435,7 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
 
     if (res.status === 401 && config.refreshable && !refreshed && connection.refreshToken) {
       const tokens = await refreshOAuthToken(connection);
-      if (tokens) {
+      if (tokens?.accessToken) {
         const retryUrl = config.buildUrl ? config.buildUrl(tokens.accessToken) : testUrl;
         const retryHeaders = config.noAuth
           ? { ...config.extraHeaders }
@@ -430,7 +455,11 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
           };
         }
       }
-      return { valid: false, error: "Token invalid or revoked", refreshed: false };
+      return {
+        valid: false,
+        error: tokens?.reason ? `${REFRESH_REJECTED_PREFIX}: ${tokens.reason}` : "Token invalid or revoked",
+        refreshed: false,
+      };
     }
 
     return { valid: false, error: classified.error, refreshed };

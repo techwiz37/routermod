@@ -19,7 +19,8 @@ import {
   formatProviderCredentials as _formatProviderCredentials,
   getAllAccessTokens as _getAllAccessTokens,
   refreshKiroToken as _refreshKiroToken,
-  getRefreshLeadMs as _getRefreshLeadMs
+  getRefreshLeadMs as _getRefreshLeadMs,
+  isUnrecoverableRefreshError,
 } from "open-sse/services/tokenRefresh.js";
 import {
   refreshProviderCredentials as _refreshProviderCredentials,
@@ -27,6 +28,11 @@ import {
 } from "open-sse/services/oauthCredentialManager.js";
 
 export const TOKEN_EXPIRY_BUFFER_MS = BUFFER_MS;
+
+// Marker prefix written to connections whose refresh token was permanently
+// rejected upstream (invalid_grant, account deleted, ...). auth.js preserves
+// this lastError so a later generic "[401]: HTTP 401" doesn't overwrite it.
+export const REFRESH_REJECTED_PREFIX = "Refresh token ditolak";
 
 
 export const refreshAccessToken = (provider, refreshToken, credentials) =>
@@ -205,6 +211,33 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
     });
 
     const newCreds = await _refreshProviderCredentials(provider, creds, log);
+
+    if (isUnrecoverableRefreshError(newCreds)) {
+      // Permanent rejection (invalid_grant / account deleted): persist a clear,
+      // human-readable reason on the connection instead of failing silently,
+      // so the dashboard doesn't just show a cryptic "HTTP 401".
+      const reason = [newCreds.code, newCreds.description].filter(Boolean).join(": ") || newCreds.error;
+      log.warn("TOKEN_REFRESH", "Refresh token permanently rejected", {
+        connectionId: creds.connectionId,
+        provider,
+        reason,
+      });
+      if (creds.connectionId) {
+        try {
+          await updateProviderConnection(creds.connectionId, {
+            testStatus: "error",
+            lastError: `${REFRESH_REJECTED_PREFIX}: ${reason}`,
+            lastErrorAt: new Date().toISOString(),
+          });
+        } catch (err) {
+          log.debug("TOKEN_REFRESH", "Failed to persist refresh rejection", {
+            connectionId: creds.connectionId,
+            error: err?.message ?? String(err),
+          });
+        }
+      }
+    }
+
     if (newCreds?.accessToken || newCreds?.apiKey || newCreds?.copilotToken) {
       const mergedCreds = {
         ...newCreds,

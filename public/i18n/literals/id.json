@@ -1152,7 +1152,7 @@
   "Test all Free provider connections": "Uji semua koneksi penyedia Gratis",
   "Test all OAuth connections": "Uji semua koneksi OAuth",
   "Test connection": "Uji koneksi",
-  "Test model": "Uji model",
+  "Test model": "Test model",
   "Test proxy": "Uji proxy",
   "Test proxy URL": "Uji URL Proxy",
   "Testing...": "Menguji...",
@@ -1414,5 +1414,8 @@
   "No models selected yet — this key cannot call anything.": "Belum ada model dipilih — kunci ini nggak bisa dipakai.",
   "Testing…": "Lagi ngetes…",
   "models": "model",
-  "model": "model"
+  "model": "model",
+  "Restrict API Key": "Batasin API Key",
+  "Restrict API key": "Batasin API key",
+  "It will only be able to call the combos and models you add. Until you add one, it can call nothing.": "Kunci ini cuma bisa manggil combo & model yang kamu pilih. Belum pilih satupun ya nggak bisa apa-apa."
 }
