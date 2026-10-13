@@ -36,45 +36,8 @@ const systemItems = [
   { href: "/dashboard/skills", label: "Skills", icon: "extension" },
 ];
 
-const QRIS_URL = "https://i.ibb.co.com/W4qvH7Rx/Whats-App-Image-2026-10-13-at-01-24-30.jpg";
-
-function DonateModal({ onClose }) {
-  return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xs bg-[var(--color-surface)] border-2 border-[var(--color-border)] rounded-xl shadow-[5px_7px_0px_var(--color-border)] z-10 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--color-border)] bg-[var(--color-surface-2)]">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-[#ff1a53]">favorite</span>
-            <span className="font-mono font-black text-sm uppercase tracking-wider text-[var(--color-text-main)]">Donasi QRIS</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] hover:bg-[var(--color-surface-2)] shadow-[1.5px_1.5px_0_var(--color-border)] transition-all active:translate-y-px"
-            aria-label="Tutup"
-          >
-            <span className="material-symbols-outlined text-[16px]">close</span>
-          </button>
-        </div>
-        <div className="p-4 flex flex-col items-center gap-3">
-          <p className="text-xs text-[var(--color-text-muted)] text-center leading-relaxed">
-            Kalau RouterMod bermanfaat, traktir developer kopi ☕ via QRIS di bawah ini.
-          </p>
-          <img
-            src={QRIS_URL}
-            alt="QRIS Donasi RouterMod"
-            className="w-full rounded-lg border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)]"
-          />
-          <p className="text-[10px] text-[var(--color-text-muted)] font-mono text-center">Scan dengan aplikasi dompet digital apapun</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Sidebar({ onClose }) {
   const pathname = usePathname();
-  const [showDonate, setShowDonate] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
@@ -363,14 +326,6 @@ export default function Sidebar({ onClose }) {
               <span className="text-[13px] font-medium">Contact Developer</span>
             </Link>
 
-            <button
-              onClick={() => setShowDonate(true)}
-              className="flex items-center gap-3 px-3 py-1 rounded-lg transition-all group w-full text-text-muted hover:bg-surface-2 hover:text-text-main"
-            >
-              <span className="material-symbols-outlined text-[18px] text-[#ff1a53] group-hover:scale-110 transition-transform">favorite</span>
-              <span className="text-[13px] font-medium">Donasi</span>
-            </button>
-
             {/* Settings */}
             <Link
               href="/dashboard/profile"
@@ -397,8 +352,6 @@ export default function Sidebar({ onClose }) {
 
       </aside>
 
-
-      {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
 
       {/* Update Confirmation Modal */}
       <ConfirmModal
