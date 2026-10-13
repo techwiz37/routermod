@@ -47,7 +47,7 @@ export async function GET() {
     }
 
     for (const [pid, pUsage] of Object.entries(byProviderUsage)) {
-      if (!providerMap[pid]) {
+      if (!providerMap[pid] && pUsage.requests > 0) {
         const provMeta2 = AI_PROVIDERS[pid] || {};
         const isFree2 = FREE_PROVIDER_IDS.has(pid) || !!(provMeta2.noAuth);
         providerMap[pid] = {
