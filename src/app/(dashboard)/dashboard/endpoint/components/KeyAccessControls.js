@@ -8,7 +8,7 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { getProviderByAlias } from "@/shared/constants/providers";
 import { useNotificationStore } from "@/store/notificationStore";
-import { getCurrentLocale } from "@/i18n/runtime";
+import { getCurrentLocale, translate } from "@/i18n/runtime";
 
 const TOAST_TEXT = {
   id: {
@@ -66,7 +66,7 @@ function TestBadge({ result }) {
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-red-500 bg-red-500/10 border border-red-500/25 rounded px-1.5 py-0.5">
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[var(--color-danger)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 rounded px-1.5 py-0.5">
       <span className="material-symbols-outlined" style={{ fontSize: 11 }}>error</span>
       fail
     </span>
@@ -239,6 +239,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const [providerGroups, setProviderGroups] = useState([]);
   const [testResults, setTestResults] = useState({});
   const [activeProvider, setActiveProvider] = useState(null);
+  const [modelQuery, setModelQuery] = useState("");
   const sliderRef = useRef(null);
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, scrollLeft: 0 });
@@ -250,6 +251,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     setSelectedModels(new Set(access.allow));
     setTestResults({});
     setActiveProvider(null);
+    setModelQuery("");
   }, [apiKey.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -347,6 +349,15 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const selectedList = [...selectedModels];
   const activeGroup = providerGroups.find(g => g.provider === activeProvider) || null;
   const activeAllSelected = activeGroup ? activeGroup.models.every(m => selectedModels.has(m.routedModel || `${m.provider}/${m.model}`)) : false;
+  const modelQueryTrimmed = modelQuery.trim().toLowerCase();
+  const visibleModels = !activeGroup
+    ? []
+    : !modelQueryTrimmed
+      ? activeGroup.models
+      : activeGroup.models.filter(m => {
+          const rid = m.routedModel || `${m.provider}/${m.model}`;
+          return `${m.name || ""} ${m.model || ""} ${rid}`.toLowerCase().includes(modelQueryTrimmed);
+        });
 
   const toggleAllActive = () => {
     if (!activeGroup) return;
@@ -382,7 +393,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
         {access.restricted && selectedList.length > 0 && (
           <button
             onClick={() => setTestModalOpen(true)}
-            className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[var(--color-primary)] hover:underline"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface)] shadow-[2px_2px_0_var(--color-border)] text-[10px] font-mono font-bold text-[var(--color-primary)] hover:-translate-y-px active:translate-y-0 transition-all"
           >
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>play_circle</span>
             Test {selectedList.length} model{selectedList.length !== 1 ? "s" : ""}
@@ -437,7 +448,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                     group={group}
                     selectedModels={selectedModels}
                     active={activeProvider === group.provider}
-                    onClick={() => setActiveProvider(prev => prev === group.provider ? null : group.provider)}
+                    onClick={() => { setModelQuery(""); setActiveProvider(prev => prev === group.provider ? null : group.provider); }}
                   />
                 ))}
               </div>
@@ -455,7 +466,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                       </span>
                     </div>
                     <button
-                      onClick={() => setActiveProvider(null)}
+                      onClick={() => { setModelQuery(""); setActiveProvider(null); }}
                       className="material-symbols-outlined text-[16px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
                     >
                       close
@@ -468,6 +479,32 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                     </span>
                   </div>
 
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)]/40 bg-[var(--color-surface)]">
+                    <div className="relative flex-1 min-w-0">
+                      <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[14px] text-[var(--color-text-muted)] pointer-events-none">search</span>
+                      <input
+                        type="text"
+                        value={modelQuery}
+                        onChange={(e) => setModelQuery(e.target.value)}
+                        placeholder={translate("Search models...")}
+                        className="w-full h-7 pl-7 pr-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] text-[11px] font-mono text-[var(--color-text-main)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
+                      />
+                      {modelQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setModelQuery("")}
+                          title={translate("Clear search")}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px] leading-none text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                        >
+                          close
+                        </button>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-[9.5px] font-mono font-bold text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded px-1.5 py-0.5">
+                      {visibleModels.length}/{activeGroup.models.length}
+                    </span>
+                  </div>
+
                   <div
                     ref={modelSliderRef}
                     className="flex gap-2.5 overflow-x-auto p-3"
@@ -477,7 +514,12 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                     onMouseUp={onModelMouseUp}
                     onMouseLeave={onModelMouseUp}
                   >
-                    {activeGroup.models.map(m => {
+                    {visibleModels.length === 0 && (
+                      <span className="p-2 text-[11px] font-mono text-[var(--color-text-muted)]">
+                        {translate("No models match your filter.")}
+                      </span>
+                    )}
+                    {visibleModels.map(m => {
                       const id = m.routedModel || `${m.provider}/${m.model}`;
                       const on = selectedModels.has(id);
                       const res = testResults[id];
@@ -496,10 +538,10 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                             className="flex items-center gap-2 cursor-pointer text-left"
                           >
                             <span
-                              className="relative shrink-0 rounded-full border-2 transition-all"
-                              style={{ width: 30, height: 18, background: on ? "var(--color-primary)" : "var(--color-surface-3)", borderColor: on ? "var(--color-primary)" : "var(--color-border)" }}
+                              className="relative shrink-0 rounded-full border-2 border-[var(--color-border)] transition-all"
+                              style={{ width: 30, height: 18, background: on ? "var(--color-primary)" : "var(--color-surface-3)" }}
                             >
-                              <span className={`absolute top-0.5 size-3 rounded-full bg-white shadow transition-transform duration-200 ${on ? "translate-x-3" : "translate-x-0.5"}`} />
+                              <span className={`absolute top-0.5 size-3 rounded-full bg-white border-2 border-[var(--color-border)] shadow-sm transition-transform duration-200 ${on ? "translate-x-3" : "translate-x-0.5"}`} />
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className={`block text-[11px] font-mono truncate ${on ? "text-[var(--color-text-main)] font-bold" : "text-[var(--color-text-muted)]"}`}>
@@ -520,7 +562,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                               onClick={() => handleTestModel(id, m.name || m.model)}
                               disabled={busy}
                               title="Test model"
-                              className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all hover:-translate-y-px active:translate-y-0 disabled:opacity-50 shadow-[1.5px_1.5px_0_var(--color-border)]"
+                              className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-primary)] transition-all hover:-translate-y-px active:translate-y-0 disabled:opacity-50 shadow-[2px_2px_0_var(--color-border)]"
                             >
                               {busy
                                 ? <span className="material-symbols-outlined text-[14px] animate-spin text-[var(--color-primary)]">progress_activity</span>

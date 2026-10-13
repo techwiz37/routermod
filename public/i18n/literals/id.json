@@ -1417,5 +1417,6 @@
   "model": "model",
   "Restrict API Key": "Batasin API Key",
   "Restrict API key": "Batasin API key",
-  "It will only be able to call the combos and models you add. Until you add one, it can call nothing.": "Kunci ini cuma bisa manggil combo & model yang kamu pilih. Belum pilih satupun ya nggak bisa apa-apa."
+  "It will only be able to call the combos and models you add. Until you add one, it can call nothing.": "Kunci ini cuma bisa manggil combo & model yang kamu pilih. Belum pilih satupun ya nggak bisa apa-apa.",
+  "Search models...": "Cari model..."
 }
