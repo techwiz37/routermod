@@ -8,5 +8,9 @@ function run(cmd) {
 }
 run("pm2 stop routermod");
 run("npm run build");
+// Standalone mode requires these folders to be copied manually after every build
+run("xcopy /E /Y /I .next\\static .next\\standalone\\.next\\static");
+run("xcopy /E /Y /I public .next\\standalone\\public");
+run("xcopy /E /Y /I src .next\\standalone\\src");
 run("pm2 start routermod");
 console.log("\nDone.");
