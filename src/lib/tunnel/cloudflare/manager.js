@@ -37,7 +37,6 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
   try {
     const existing = loadState();
 
-    // ── Reuse check: cloudflared running + public URL still alive (Windows) ──
     if (IS_WIN && isCloudflaredRunning() && existing?.tunnelUrl && existing?.publicUrl) {
       const [directOk, publicOk] = await Promise.all([
         probeUrlAlive(existing.tunnelUrl),
@@ -51,13 +50,10 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
       console.log(`[Tunnel] stale tunnel (direct=${directOk} public=${publicOk}), respawn`);
     }
 
-    // ── Slug: REUSE if state has one, generate only when none ──────────────
-    // Slug is cleared only by disableTunnel() — restart keeps it.
     const slug   = existing?.slug || generateSubdomainSlug();
     const domain = `${slug}.${PUBLIC_DOMAIN}`;
     console.log(`[Tunnel] slug=${slug} (${existing?.slug ? "reused" : "new"})`);
 
-    // ── Public IP (Linux only) ──────────────────────────────────────────────
     let publicIp = null;
     if (!IS_WIN) {
       try {
@@ -68,7 +64,6 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
       }
     }
 
-    // ── Cloudflared tunnel (Windows only) ──────────────────────────────────
     let tunnelUrl = existing?.tunnelUrl || `http://127.0.0.1:${localPort}`;
 
     if (IS_WIN) {
@@ -95,7 +90,6 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
       console.log(`[Tunnel] Linux mode — using Nginx directly (no cloudflared)`);
     }
 
-    // ── Reverse proxy (Nginx / Caddy) ───────────────────────────────────────
     let revProxyIp = null;
     try {
       const result = await enableReverseProxy({ slug, domain });
@@ -105,8 +99,6 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
       console.warn(`[Tunnel] reverse proxy setup failed: ${e.message}`);
     }
 
-    // ── CF DNS record ───────────────────────────────────────────────────────
-    // createSubdomain handles UPSERT (PUT on Linux if record already exists)
     let publicUrl   = `https://${domain}`;
     let cfRecordId  = existing?.cfRecordId || null;
     try {
@@ -116,7 +108,7 @@ export async function enableTunnel(localPort = parseInt(process.env.PORT || "194
       console.log(`[Tunnel] CF DNS upserted: ${publicUrl} (record ${cfRecordId})`);
     } catch (e) {
       console.warn(`[Tunnel] CF DNS failed: ${e.message}`);
-      // Keep publicUrl from existing state if available
+
       if (existing?.publicUrl) publicUrl = existing.publicUrl;
     }
 
@@ -154,7 +146,6 @@ export async function disableTunnel() {
     ]);
   }
 
-  // Clear slug so next enable() gets a fresh one
   saveState({ slug: null, tunnelUrl: null, publicUrl: null, cfRecordId: null });
   writeGate({ tunnelActive: false });
 

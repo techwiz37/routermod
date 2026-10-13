@@ -8,7 +8,7 @@ export default function NotFound() {
 
   return (
     <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-4">
-      {/* Noise grid backdrop */}
+      {}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 opacity-[0.03] dark:opacity-[0.06]"
@@ -19,7 +19,7 @@ export default function NotFound() {
       />
 
       <div className="relative flex flex-col items-center gap-8 w-full max-w-md">
-        {/* Logo */}
+        {}
         <div className="flex items-center gap-3">
           <Soft3DLogo className="size-9" />
           <span
@@ -30,12 +30,12 @@ export default function NotFound() {
           </span>
         </div>
 
-        {/* Card */}
+        {}
         <div
           className="w-full bg-surface border-2 border-border rounded-xl p-8 text-center"
           style={{ boxShadow: "4px 4px 0 var(--color-border)" }}
         >
-          {/* 404 number */}
+          {}
           <div className="relative mb-4 select-none">
             <span
               className="block text-[96px] font-black leading-none tracking-tighter text-border/8 dark:text-border/5 pointer-events-none"
@@ -55,7 +55,7 @@ export default function NotFound() {
             </span>
           </div>
 
-          {/* Title */}
+          {}
           <h1
             className="text-xl font-bold text-text-main mb-2"
             style={{ fontFamily: "var(--font-ui, sans-serif)" }}
@@ -66,7 +66,7 @@ export default function NotFound() {
             The path you're looking for doesn't exist or has been moved.
           </p>
 
-          {/* Actions */}
+          {}
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => router.back()}
@@ -87,7 +87,7 @@ export default function NotFound() {
           </div>
         </div>
 
-        {/* Footer hint */}
+        {}
         <p className="text-xs text-text-subtle font-mono tracking-wide">
           routermod · 404
         </p>

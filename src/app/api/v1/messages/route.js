@@ -3,9 +3,7 @@ import { initTranslators } from "open-sse/translator/index.js";
 
 let initialized = false;
 
-/**
- * Initialize translators once
- */
+
 async function ensureInitialized() {
   if (!initialized) {
     await initTranslators();
@@ -13,9 +11,7 @@ async function ensureInitialized() {
   }
 }
 
-/**
- * Handle CORS preflight
- */
+
 export async function OPTIONS() {
   return new Response(null, {
     headers: {
@@ -26,9 +22,7 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * POST /v1/messages - Claude format (auto convert via handleChat)
- */
+
 export async function POST(request) {
   await ensureInitialized();
   return await handleChat(request);

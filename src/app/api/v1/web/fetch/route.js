@@ -1,8 +1,6 @@
 import { handleFetch } from "@/sse/handlers/fetch.js";
 
-/**
- * Handle CORS preflight
- */
+
 export async function OPTIONS() {
   return new Response(null, {
     headers: {
@@ -13,9 +11,7 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * POST /v1/web/fetch - Web URL fetch/extract endpoint
- */
+
 export async function POST(request) {
   return await handleFetch(request);
 }

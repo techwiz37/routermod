@@ -3,7 +3,6 @@ import { getModelNames, setModelName, deleteModelName } from "@/models";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/models/name
 export async function GET() {
   try {
     return NextResponse.json({ names: await getModelNames() });
@@ -12,7 +11,6 @@ export async function GET() {
   }
 }
 
-// PUT /api/models/name  { providerAlias, modelId, name }
 export async function PUT(request) {
   try {
     const { providerAlias, modelId, name } = await request.json();
@@ -26,7 +24,6 @@ export async function PUT(request) {
   }
 }
 
-// DELETE /api/models/name?providerAlias=x&modelId=y
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);

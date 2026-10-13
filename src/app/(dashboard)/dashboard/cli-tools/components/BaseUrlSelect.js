@@ -64,7 +64,7 @@ export default function BaseUrlSelect({
     const sync = () => {
       const presets = readPresets();
       setSavedPresets(presets);
-      // A preset saved elsewhere (e.g. on Apply) takes over the custom slot
+
       setMode((prev) => {
         if (prev !== CUSTOM_VALUE) return prev;
         const typed = stripSlash(customInputRef.current);
@@ -86,7 +86,7 @@ export default function BaseUrlSelect({
     [requiresExternalUrl, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl, cloudEnabled, cloudUrl, savedPresets, withV1]
   );
 
-  // Sync the active config URL without replacing edits unless the config itself changes.
+
   useEffect(() => {
     if (!presetsLoaded || options.length === 0) return;
     const normalizeUrl = (url) => (withV1 ? ensureV1(url) : stripSlash(url));

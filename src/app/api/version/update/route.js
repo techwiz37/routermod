@@ -10,11 +10,11 @@ export async function POST() {
   }
 
   try {
-    // Kill sibling processes (cloudflared, MITM, stray next-server) to release file locks on Windows
-    await killAppProcesses();
-  } catch { /* best effort */ }
 
-  // Schedule detached updater then exit current server process
+    await killAppProcesses();
+  } catch {  }
+
+
   spawnUpdaterAndExit();
 
   return NextResponse.json({ success: true, message: "Updater started. This app will exit shortly." });

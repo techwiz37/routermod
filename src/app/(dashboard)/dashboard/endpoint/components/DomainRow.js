@@ -2,12 +2,6 @@
 
 import { Input, Button } from "@/shared/components";
 
-/**
- * Layout:
- *   [Domain]                     ← badge label
- *   [https://xxx.toolwiz.id] [⧉] [↗] [off] ← input + buttons
- *   or: [status text]            [Generate / Off]
- */
 export default function DomainRow({
   tunnelEnabled, tunnelLoading, tunnelReachable, tunnelEverReachable,
   tunnelProgress, tunnelStatus, tunnelChecking,

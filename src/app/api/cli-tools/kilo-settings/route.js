@@ -35,8 +35,7 @@ const checkInstalled = async () => {
 const readJson = async (filePath) => {
   try {
     const content = await fs.readFile(filePath, "utf-8");
-    // Tolerate JSONC (trailing commas) and treat unparseable files as "no config"
-    // rather than throwing a 500 that the UI misreads as "tool not installed".
+
     const stripped = content.replace(/,(\s*[}\]])/g, "$1");
     return JSON.parse(stripped);
   } catch (error) {
@@ -91,13 +90,13 @@ export async function POST(request) {
     };
     await fs.writeFile(getAuthPath(), JSON.stringify(auth, null, 2));
 
-    // Best-effort: update VS Code extension settings
+
     try {
       const vscode = (await readJson(getVscodeSettingsPath())) || {};
       vscode["kilocode.customProvider"] = { name: "9Router", baseURL: normalizedBaseUrl, apiKey };
       vscode["kilocode.defaultModel"] = model;
       await fs.writeFile(getVscodeSettingsPath(), JSON.stringify(vscode, null, 2));
-    } catch { /* VS Code settings not writable */ }
+    } catch {  }
 
     return NextResponse.json({ success: true, message: "Kilo Code settings applied successfully!", authPath: getAuthPath() });
   } catch (error) {
@@ -123,7 +122,7 @@ export async function DELETE() {
         delete vscode["kilocode.defaultModel"];
         await fs.writeFile(getVscodeSettingsPath(), JSON.stringify(vscode, null, 2));
       }
-    } catch { /* ignore */ }
+    } catch {  }
 
     return NextResponse.json({ success: true, message: "9Router settings removed from Kilo Code" });
   } catch (error) {

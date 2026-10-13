@@ -17,7 +17,7 @@ function CommunityPopup({ onClose }) {
 
       <div className="relative w-full max-w-sm bg-surface border-2 border-border rounded-xl shadow-[4px_6px_0px_var(--color-border)] animate-in fade-in zoom-in-95 duration-150 z-10 overflow-hidden">
 
-        {/* Header */}
+        {}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b-2 border-border bg-surface-2">
           <div className="flex items-center gap-2.5">
             <div className="size-8 rounded-lg border-2 border-border bg-[#ff1a53]/10 shadow-[1.5px_1.5px_0_var(--color-border)] flex items-center justify-center">
@@ -37,13 +37,13 @@ function CommunityPopup({ onClose }) {
           </button>
         </div>
 
-        {/* Body */}
+        {}
         <div className="p-4 flex flex-col gap-3">
           <p className="text-xs text-text-muted leading-relaxed">
             Bergabung ke komunitas RouterMod — tanya, sharing konfigurasi, info update fitur terbaru, dan saling bantu antar pengguna.
           </p>
 
-          {/* Telegram */}
+          {}
           <a
             href={TG_URL}
             target="_blank"
@@ -60,7 +60,7 @@ function CommunityPopup({ onClose }) {
             <span className="material-symbols-outlined text-[14px] text-[#229ED9] shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">open_in_new</span>
           </a>
 
-          {/* WhatsApp */}
+          {}
           <a
             href={WA_URL}
             target="_blank"
@@ -114,7 +114,7 @@ export default function DashboardLayout({ children }) {
   const notifications = useNotificationStore((state) => state.notifications);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
 
-  // Show community popup on every dashboard visit, brief delay so page renders first
+
   useEffect(() => {
     const t = setTimeout(() => setShowCommunity(true), 800);
     return () => clearTimeout(t);
@@ -124,15 +124,15 @@ export default function DashboardLayout({ children }) {
     setShowCommunity(false);
   }
 
-  // Preload heavy usage charts in background when browser is idle
+
   useEffect(() => {
     const preload = () => {
-      // Heavy chart components
+
       import("@/shared/components/UsageStats").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/UsageChart").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/TopModelsChart").catch(() => {});
-      // Other dashboard pages — prefetch chunks so nav is instant
+
       import("@/app/(dashboard)/dashboard/providers/page").catch(() => {});
       import("@/app/(dashboard)/dashboard/combos/page").catch(() => {});
       import("@/app/(dashboard)/dashboard/endpoint/EndpointPageClient").catch(() => {});
@@ -180,7 +180,7 @@ export default function DashboardLayout({ children }) {
           );
         })}
       </div>
-      {/* Mobile sidebar overlay */}
+      {}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/20 lg:hidden"
@@ -188,12 +188,12 @@ export default function DashboardLayout({ children }) {
         />
       )}
 
-      {/* Sidebar - Desktop */}
+      {}
       <div className="hidden lg:flex">
         <Sidebar />
       </div>
 
-      {/* Sidebar - Mobile */}
+      {}
       <div
         className={`fixed inset-y-0 left-0 z-50 transform lg:hidden transition-transform duration-300 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -202,9 +202,9 @@ export default function DashboardLayout({ children }) {
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
 
-      {/* Main content */}
+      {}
       <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate bg-[var(--color-bg)] text-[var(--color-text)]">
-        {/* Top Accent Reticle (identical to login) */}
+        {}
         <div className="fixed top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#ff1a53] to-transparent z-50 pointer-events-none opacity-80" />
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
@@ -212,7 +212,7 @@ export default function DashboardLayout({ children }) {
         <div className={`flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between ${pathname === "/dashboard/basic-chat" ? "" : "p-3 sm:p-5 lg:p-8"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
           <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "w-full max-w-7xl mx-auto flex-1 flex flex-col"}`}>{children}</div>
 
-          {/* Unified Neobrutalism Footer */}
+          {}
           <footer className="mt-8 pt-4 pb-2 border-t-2 border-border flex flex-col items-center justify-center gap-1 font-mono text-center">
             <div className="text-xs font-bold text-text-main flex items-center justify-center gap-2">
               <span className="size-2 rounded-full bg-[#10b981] animate-pulse" />

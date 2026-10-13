@@ -148,9 +148,9 @@ export default function DashboardProviderOverview() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
-      {/* 4 Hero Neobrutalism Metrics Cards */}
+      {}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        {/* Active Providers */}
+        {}
         <div className="bg-surface border-2 border-border p-3.5 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1.5 sm:mb-2">
             <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
@@ -176,7 +176,7 @@ export default function DashboardProviderOverview() {
           </div>
         </div>
 
-        {/* Active Accounts */}
+        {}
         <div className="bg-surface border-2 border-border p-3.5 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1.5 sm:mb-2">
             <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
@@ -200,7 +200,7 @@ export default function DashboardProviderOverview() {
           </div>
         </div>
 
-        {/* Failed Accounts */}
+        {}
         <div className="bg-surface border-2 border-border p-3.5 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1.5 sm:mb-2">
             <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
@@ -224,7 +224,7 @@ export default function DashboardProviderOverview() {
           </div>
         </div>
 
-        {/* Lifetime Token Usage */}
+        {}
         <div className="bg-surface border-2 border-border p-3.5 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1.5 sm:mb-2">
             <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
@@ -249,9 +249,9 @@ export default function DashboardProviderOverview() {
         </div>
       </div>
 
-      {/* Provider Details Table & Status Grid */}
+      {}
       <div className="bg-surface border-2 border-border rounded-xl shadow-[3px_4px_0px_var(--color-border)] overflow-hidden">
-        {/* Header Bar */}
+        {}
         <div className="p-3.5 sm:p-5 border-b-2 border-border flex flex-wrap items-center justify-between gap-3 bg-surface-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="size-8 rounded-lg bg-[#ff1a53]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[#ff1a53] shrink-0">
@@ -268,7 +268,7 @@ export default function DashboardProviderOverview() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:items-center sm:gap-2 sm:w-auto">
-            {/* Mock data buttons */}
+            {}
             <button
               onClick={handleSeed}
               disabled={seeding}
@@ -304,7 +304,7 @@ export default function DashboardProviderOverview() {
           </div>
         </div>
 
-        {/* Content Section */}
+        {}
         {loading ? (
           <div className="p-8 text-center font-mono text-sm text-text-muted flex items-center justify-center gap-2">
             <span className="material-symbols-outlined animate-spin text-[20px] text-[#ff1a53]">

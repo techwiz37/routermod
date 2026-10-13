@@ -5,17 +5,7 @@ import PropTypes from "prop-types";
 import { Modal, Button } from "@/shared/components";
 import { translate } from "@/i18n/runtime";
 
-/**
- * Xiaomi MiMo Desktop Plan auth modal.
- *
- * Desktop Plan = Xiaomi account weekly quota (mimo-v2.6 family). Two ways in:
- *   1. Import local MiMo Desktop credentials (~/.local/share/mimocode/auth.json)
- *   2. Server-side login — no Desktop needed; picks a MiMo account cluster
- *      (cn / sgp / ams / ru / in). The account session (passToken) is captured
- *      server-side and stored per connection.
- *
- * Token Plan (cloud sk- API key) uses the standard "API Key" entry point.
- */
+
 
 const CLUSTERS = [
   { id: "cn", flag: "🇨🇳", name: "China (Mainland)", host: "mimo-server-cn" },
@@ -26,12 +16,12 @@ const CLUSTERS = [
 ];
 
 export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
-  const [phase, setPhase] = useState("detecting"); // detecting | found | not-found | importing
+  const [phase, setPhase] = useState("detecting");
   const [detectResult, setDetectResult] = useState(null);
   const [existingConnection, setExistingConnection] = useState(null);
   const [error, setError] = useState(null);
 
-  // Server-side session login
+
   const [showClusterModal, setShowClusterModal] = useState(false);
   const [sessBusy, setSessBusy] = useState(false);
   const [sessPolling, setSessPolling] = useState(false);
@@ -50,7 +40,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
 
   useEffect(() => () => stopSessionPoll(), []);
 
-  // Detect local credentials when the modal opens (non-blocking: never trap the spinner)
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -72,7 +62,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           setDetectResult(data);
           setPhase("found");
 
-          // Non-blocking: flag an already-imported account
+
           fetch("/api/providers", { signal: AbortSignal.timeout(3000) })
             .then((r) => r.json())
             .then((provData) => {
@@ -98,7 +88,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     runDetect();
   }, [isOpen]);
 
-  // Import the auto-detected local desktop credentials
+
   const handleImportLocal = async () => {
     if (!detectResult?.apiKey) return;
     setPhase("importing");
@@ -127,7 +117,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     }
   };
 
-  // Server-side login (account.xiaomi.com) for the chosen cluster
+
   const startSessionLogin = async (region) => {
     setSessBusy(true);
     setSessError(null);
@@ -188,7 +178,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     }
   };
 
-  // The server-login card, shown in both the found and not-found states
+
   const renderServerLogin = () => (
     <div className="bg-card p-3 rounded-lg border border-border flex flex-col gap-2">
       <div className="flex items-center justify-between">
@@ -227,7 +217,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   return (
     <Modal isOpen={isOpen} title={translate("Connect Xiaomi MiMo")} onClose={onClose} size="lg">
       <div className="flex flex-col gap-3.5">
-        {/* Detecting */}
+        {}
         {phase === "detecting" && (
           <div className="text-center py-6">
             <div className="size-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
@@ -239,7 +229,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           </div>
         )}
 
-        {/* Importing */}
+        {}
         {phase === "importing" && (
           <div className="text-center py-6">
             <div className="size-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
@@ -251,7 +241,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           </div>
         )}
 
-        {/* Found local desktop credentials */}
+        {}
         {phase === "found" && detectResult && (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted px-0.5">
@@ -317,7 +307,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           </div>
         )}
 
-        {/* No local desktop credentials */}
+        {}
         {phase === "not-found" && (
           <div className="flex flex-col gap-3">
             <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
@@ -342,7 +332,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           </div>
         )}
 
-        {/* Cluster selection sub-modal */}
+        {}
         {showClusterModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
             <div className="relative w-full max-w-sm bg-surface border border-border-subtle rounded-[14px] shadow-2xl p-5 flex flex-col gap-3.5 animate-in zoom-in-95 duration-150">

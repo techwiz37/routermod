@@ -5,10 +5,7 @@ import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Resolve live Cursor catalog from the first active cursor connection, if any.
- * @returns {Promise<Array<{id: string, name?: string}>|null>}
- */
+
 async function fetchCursorLiveModels() {
   try {
     const connections = await getProviderConnections();
@@ -27,10 +24,7 @@ async function fetchCursorLiveModels() {
   }
 }
 
-/**
- * @param {string} source
- * @returns {Promise<{ name: string, models: string[], exists: boolean }[]>}
- */
+
 async function resolvePresetItems(source) {
   const combos = await getCombos();
   const existingNames = (combos || []).map((c) => c.name);
@@ -46,7 +40,7 @@ function parseSource(value) {
   return value;
 }
 
-// GET /api/combos/presets?source=cursor|claude — preview items
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -71,7 +65,7 @@ export async function GET(request) {
   }
 }
 
-// POST /api/combos/presets — create missing combos for a source
+
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));

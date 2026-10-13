@@ -15,7 +15,7 @@ export async function createSqlJsAdapter(filePath) {
   const buf = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
   const db = new SQLLib.Database(buf);
   db.exec(PRAGMA_SQL);
-  // Schema is created/synced by migrate.js after adapter init
+
 
   let dirty = false;
   let saveTimer = null;
@@ -105,7 +105,7 @@ export async function createSqlJsAdapter(filePath) {
     db.close();
   }
 
-  // Flush on shutdown
+
   const flush = () => { if (dirty) try { persist(); } catch {} };
   process.on("beforeExit", flush);
   process.on("SIGINT", flush);

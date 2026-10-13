@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { createProviderConnection } from "@/models";
 
-/**
- * iFlow Cookie-Based Authentication
- * POST /api/oauth/iflow/cookie
- * Body: { cookie: "BXAuth=xxx; ..." }
- */
+
 export async function POST(request) {
   try {
     const { cookie } = await request.json();
@@ -14,7 +10,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Cookie is required" }, { status: 400 });
     }
 
-    // Normalize cookie
+
     const trimmed = cookie.trim();
     if (!trimmed.includes("BXAuth=")) {
       return NextResponse.json({ error: "Cookie must contain BXAuth field" }, { status: 400 });
@@ -25,7 +21,7 @@ export async function POST(request) {
       normalizedCookie += ";";
     }
 
-    // Step 1: GET API key info to get the name
+
     const getResponse = await fetch("https://platform.iflow.cn/api/openapi/apikey", {
       method: "GET",
       headers: {
@@ -62,7 +58,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Missing name in API key info" }, { status: 400 });
     }
 
-    // Step 2: POST to refresh API key
+
     const postResponse = await fetch("https://platform.iflow.cn/api/openapi/apikey", {
       method: "POST",
       headers: {
@@ -100,12 +96,12 @@ export async function POST(request) {
       return NextResponse.json({ error: "Missing API key in response" }, { status: 400 });
     }
 
-    // Extract only BXAuth from cookie
+
     const bxAuthMatch = normalizedCookie.match(/BXAuth=([^;]+)/);
     const bxAuth = bxAuthMatch ? bxAuthMatch[1] : "";
     const cookieToSave = bxAuth ? `BXAuth=${bxAuth};` : "";
 
-    // Save to database
+
     const connection = await createProviderConnection({
       provider: "iflow",
       authType: "cookie",
@@ -126,7 +122,7 @@ export async function POST(request) {
         id: connection.id,
         provider: connection.provider,
         email: connection.email,
-        apiKey: refreshedKey.apiKey.substring(0, 10) + "...", // masked
+        apiKey: refreshedKey.apiKey.substring(0, 10) + "...",
         expireTime: refreshedKey.expireTime,
       },
     });

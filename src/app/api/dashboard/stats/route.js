@@ -16,7 +16,6 @@ export async function GET() {
 
     const byProviderUsage = usageStats?.byProvider || {};
 
-    // Group accounts by provider
     const providerMap = {};
 
     for (const conn of connections) {
@@ -40,7 +39,7 @@ export async function GET() {
       }
 
       providerMap[pid].totalAccounts += 1;
-      // An account is counted as failed if testStatus is "failed" or "error", or isActive is false
+
       if (conn.isActive === false || conn.testStatus === "failed" || conn.testStatus === "error") {
         providerMap[pid].failedAccounts += 1;
       } else {
@@ -48,7 +47,6 @@ export async function GET() {
       }
     }
 
-    // Also include providers that have token usage in stats even if no current accounts configured
     for (const [pid, pUsage] of Object.entries(byProviderUsage)) {
       if (!providerMap[pid]) {
         const provMeta2 = AI_PROVIDERS[pid] || {};
@@ -69,7 +67,6 @@ export async function GET() {
       }
     }
 
-    // Attach token usage to each provider
     let overallTokens = 0;
     let overallRequests = 0;
     let overallActiveAccounts = 0;
@@ -95,7 +92,6 @@ export async function GET() {
       return item;
     });
 
-    // Sort by active accounts desc, then tokens desc
     providersList.sort((a, b) => {
       if (b.activeAccounts !== a.activeAccounts) return b.activeAccounts - a.activeAccounts;
       return b.tokens - a.tokens;

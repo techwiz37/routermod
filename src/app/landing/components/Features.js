@@ -1,10 +1,10 @@
 "use client";
 
 const FEATURES = [
-  { 
-    icon: "link", 
-    title: "Unified Endpoint", 
-    desc: "Access all providers via a single standard API URL.", 
+  {
+    icon: "link",
+    title: "Unified Endpoint",
+    desc: "Access all providers via a single standard API URL.",
     colors: {
       border: "hover:border-blue-500/50",
       bg: "hover:bg-blue-500/5",
@@ -13,10 +13,10 @@ const FEATURES = [
       titleHover: "group-hover:text-blue-400"
     }
   },
-  { 
-    icon: "bolt", 
-    title: "Easy Setup", 
-    desc: "Get up and running in minutes with npx command.", 
+  {
+    icon: "bolt",
+    title: "Easy Setup",
+    desc: "Get up and running in minutes with npx command.",
     colors: {
       border: "hover:border-orange-500/50",
       bg: "hover:bg-orange-500/5",
@@ -25,10 +25,10 @@ const FEATURES = [
       titleHover: "group-hover:text-orange-400"
     }
   },
-  { 
-    icon: "shield_with_heart", 
-    title: "Model Fallback", 
-    desc: "Automatically switch providers on failure or high latency.", 
+  {
+    icon: "shield_with_heart",
+    title: "Model Fallback",
+    desc: "Automatically switch providers on failure or high latency.",
     colors: {
       border: "hover:border-rose-500/50",
       bg: "hover:bg-rose-500/5",
@@ -37,10 +37,10 @@ const FEATURES = [
       titleHover: "group-hover:text-rose-400"
     }
   },
-  { 
-    icon: "monitoring", 
-    title: "Usage Tracking", 
-    desc: "Detailed analytics and cost monitoring across all models.", 
+  {
+    icon: "monitoring",
+    title: "Usage Tracking",
+    desc: "Detailed analytics and cost monitoring across all models.",
     colors: {
       border: "hover:border-purple-500/50",
       bg: "hover:bg-purple-500/5",
@@ -49,10 +49,10 @@ const FEATURES = [
       titleHover: "group-hover:text-purple-400"
     }
   },
-  { 
-    icon: "key", 
-    title: "OAuth & API Keys", 
-    desc: "Securely manage credentials in one vault.", 
+  {
+    icon: "key",
+    title: "OAuth & API Keys",
+    desc: "Securely manage credentials in one vault.",
     colors: {
       border: "hover:border-amber-500/50",
       bg: "hover:bg-amber-500/5",
@@ -61,10 +61,10 @@ const FEATURES = [
       titleHover: "group-hover:text-amber-400"
     }
   },
-  { 
-    icon: "cloud_sync", 
-    title: "Cloud Sync", 
-    desc: "Sync your configurations across devices instantly.", 
+  {
+    icon: "cloud_sync",
+    title: "Cloud Sync",
+    desc: "Sync your configurations across devices instantly.",
     colors: {
       border: "hover:border-sky-500/50",
       bg: "hover:bg-sky-500/5",
@@ -73,10 +73,10 @@ const FEATURES = [
       titleHover: "group-hover:text-sky-400"
     }
   },
-  { 
-    icon: "terminal", 
-    title: "CLI Support", 
-    desc: "Works with Claude Code, Codex, Cline, Cursor, and more.", 
+  {
+    icon: "terminal",
+    title: "CLI Support",
+    desc: "Works with Claude Code, Codex, Cline, Cursor, and more.",
     colors: {
       border: "hover:border-emerald-500/50",
       bg: "hover:bg-emerald-500/5",
@@ -85,10 +85,10 @@ const FEATURES = [
       titleHover: "group-hover:text-emerald-400"
     }
   },
-  { 
-    icon: "dashboard", 
-    title: "Dashboard", 
-    desc: "Visual dashboard for real-time traffic analysis.", 
+  {
+    icon: "dashboard",
+    title: "Dashboard",
+    desc: "Visual dashboard for real-time traffic analysis.",
     colors: {
       border: "hover:border-fuchsia-500/50",
       bg: "hover:bg-fuchsia-500/5",
@@ -109,10 +109,10 @@ export default function Features() {
             Everything you need to manage your AI infrastructure in one place, built for scale.
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {FEATURES.map((feature) => (
-            <div 
+            <div
               key={feature.title}
               className={`p-6 rounded-xl bg-[#23180f] border border-[#3a2f27] ${feature.colors.border} ${feature.colors.bg} transition-all duration-300 group`}
             >

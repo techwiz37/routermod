@@ -1,4 +1,4 @@
-// Ensure proxyFetch is loaded to patch globalThis.fetch
+
 import "open-sse/index.js";
 
 import { getProviderConnectionById } from "@/lib/localDb";
@@ -133,7 +133,7 @@ export async function POST(request, { params }) {
       connection = refreshed.connection;
     }
 
-    // Server-generated redeem id prevents client-controlled replay
+
     const redeemRequestId = crypto.randomUUID();
     let consumeResult = await consumeCodexRateLimitResetCredit(connection.accessToken, redeemRequestId, proxyOptions);
 

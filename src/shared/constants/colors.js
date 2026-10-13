@@ -1,9 +1,8 @@
-// Claude-inspired color palette for Endpoint Proxy
-// Light theme: Warm beige/cream tones
-// Dark theme: Deep charcoal/brown tones
+
+
 
 export const COLORS = {
-  // Primary - Warm Coral/Terracotta (Claude-like)
+
   primary: {
     DEFAULT: "#D97757",
     hover: "#C56243",
@@ -11,7 +10,7 @@ export const COLORS = {
     dark: "#B0664D",
   },
 
-  // Light theme backgrounds
+
   light: {
     bg: "#FBF9F6",
     bgAlt: "#F5F1ED",
@@ -22,7 +21,7 @@ export const COLORS = {
     textMuted: "#75736E",
   },
 
-  // Dark theme backgrounds
+
   dark: {
     bg: "#191918",
     bgAlt: "#1F1F1E",
@@ -33,7 +32,7 @@ export const COLORS = {
     textMuted: "#9E9D99",
   },
 
-  // Status colors
+
   status: {
     success: "#22C55E",
     successLight: "#DCFCE7",
@@ -50,7 +49,7 @@ export const COLORS = {
   },
 };
 
-// CSS Variables mapping for Tailwind
+
 export const CSS_VARIABLES = {
   light: {
     "--color-primary": COLORS.primary.DEFAULT,

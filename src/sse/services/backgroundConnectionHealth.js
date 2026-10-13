@@ -1,13 +1,10 @@
-// Background connection health checker — runs every 5 minutes.
-// Tests each active provider connection with a real model ping.
-// Updates testStatus in DB so the UI always shows current state.
-// Fail-open: per-connection errors are swallowed.
+
 
 import * as log from "../utils/logger.js";
 
-const INTERVAL_MS = 5 * 60 * 1000;   // 5 minutes
-const INITIAL_DELAY_MS = 60 * 1000;  // 1 minute after boot (let token refresh go first)
-const INTER_CONNECTION_DELAY_MS = 3000; // 3s between connections to avoid thundering herd
+const INTERVAL_MS = 5 * 60 * 1000;
+const INITIAL_DELAY_MS = 60 * 1000;
+const INTER_CONNECTION_DELAY_MS = 3000;
 
 let started = false;
 let intervalHandle = null;
@@ -22,7 +19,6 @@ function isNonServerRuntime() {
   return false;
 }
 
-// Classify connection as invalid (bad OAuth/apikey) vs rate-limited
 function classifyError(lastError = "") {
   const err = lastError.toLowerCase();
   if (err.includes("quota") || err.includes("rate") || err.includes("429") || err.includes("limit")) return "limited";
@@ -50,10 +46,9 @@ async function runTick() {
         const provider = conn.provider;
         const alias = getProviderAlias(provider) || provider;
 
-        // Find first LLM model for this provider
         const providerModels = AI_MODELS.filter(m => m.provider === provider || m.provider === alias);
         const firstModel = providerModels.find(m => !m.kind || m.kind === "llm");
-        if (!firstModel) continue; // skip providers with no LLM model (image-only etc)
+        if (!firstModel) continue;
 
         const modelStr = `${getProviderAlias(firstModel.provider) || firstModel.provider}/${firstModel.model}`;
 

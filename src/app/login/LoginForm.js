@@ -271,13 +271,13 @@ export default function LoginForm() {
 
   return (
     <div className="min-h-screen w-full bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col justify-between selection:bg-[#ff1a53] selection:text-white relative font-sans overflow-x-hidden">
-      {/* Top Ambient Glow / Reticle */}
+      {}
       <div className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-[#ff1a53] to-transparent z-50 pointer-events-none opacity-80" />
 
-      {/* Top Navbar */}
+      {}
       <header className="w-full border-b-2 border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-md z-40 sticky top-0 shadow-[0_4px_12px_rgba(24,28,36,0.06)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* Logo brand */}
+          {}
           <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer">
             <Soft3DLogo className="size-9 sm:size-10" />
             <div className="flex flex-col leading-tight">
@@ -285,20 +285,20 @@ export default function LoginForm() {
                 ROUTER<span className="text-[#ff1a53]">MOD</span>
               </span>
               <span className="font-mono text-[9.5px] sm:text-[10px] font-bold text-[#ff1a53] tracking-widest">
-                // AI HUB :1945
+
               </span>
             </div>
           </div>
 
-          {/* Right Toolbar Controls */}
+          {}
           <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Online Pulse with 3D Depth */}
+            {}
             <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] rounded-lg text-[11px] font-mono font-bold">
               <span className="size-2 rounded-full bg-[#10b981] animate-pulse" />
               <span>{t.badgeGateway}</span>
             </div>
 
-            {/* Circular National Flags with 3D Pill */}
+            {}
             <div className="inline-flex items-center gap-1.5 border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] shadow-[2px_3px_0px_var(--color-border)] rounded-full p-1">
               <button
                 type="button"
@@ -348,7 +348,7 @@ export default function LoginForm() {
               </button>
             </div>
 
-            {/* Dark / Light Mode 3D Button */}
+            {}
             <button
               type="button"
               onClick={toggleTheme}
@@ -366,10 +366,10 @@ export default function LoginForm() {
         </div>
       </header>
 
-      {/* Main Container Section */}
+      {}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
-          {/* Left Hero & Specs Column */}
+          {}
           <div className="lg:col-span-7 flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-1 bg-[#ff1a53] text-white border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-black uppercase tracking-wider rounded-lg">
@@ -377,7 +377,7 @@ export default function LoginForm() {
               </span>
               <span className="px-2.5 py-1 bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-bold text-[#10b981] flex items-center gap-1.5 rounded-lg">
                 <span className="size-2 rounded-full bg-[#10b981] animate-pulse" />
-                STANDALONE // FAST REFRESH
+                STANDALONE
               </span>
             </div>
 
@@ -390,7 +390,7 @@ export default function LoginForm() {
               </p>
             </div>
 
-            {/* 3D Feature Cards */}
+            {}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)] hover:shadow-[4px_6px_0px_var(--color-border)] p-3.5 rounded-xl hover:-translate-y-1 transition-all">
                 <div className="flex items-center gap-1.5 mb-1.5">
@@ -435,7 +435,7 @@ export default function LoginForm() {
               </div>
             </div>
 
-            {/* Dropdown FAQ: "Apa Bedanya Dengan 9Router?" */}
+            {}
             <div className="border-2 border-[var(--color-border)] bg-[var(--color-surface)] shadow-[3px_4px_0px_var(--color-border)] rounded-xl overflow-hidden transition-all">
               <button
                 type="button"
@@ -476,7 +476,7 @@ export default function LoginForm() {
               )}
             </div>
 
-            {/* Terminal Command Bar */}
+            {}
             <div className="border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text-main)] px-4 py-2.5 shadow-[2.5px_3.5px_0px_var(--color-border)] rounded-xl font-mono text-xs flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-[#ff1a53] font-black">$</span>
@@ -489,7 +489,7 @@ export default function LoginForm() {
             </div>
           </div>
 
-          {/* Right Login Card Column */}
+          {}
           <div className="lg:col-span-5 w-full">
             <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[5px_7px_0px_var(--color-border)] p-5 sm:p-7 rounded-2xl relative transition-transform">
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#ff1a53] rounded-t-2xl" />
@@ -599,7 +599,7 @@ export default function LoginForm() {
                         )}
                       </div>
 
-                      {/* Submit 3D Button */}
+                      {}
                       <button
                         type="submit"
                         disabled={loading}
@@ -609,7 +609,7 @@ export default function LoginForm() {
                         {loading ? t.btnLoading : t.btnSubmit}
                       </button>
 
-                      {/* Password helper chip */}
+                      {}
                       <div className="mt-1 p-2 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2px_2.5px_0px_var(--color-border)] flex items-center justify-between text-[11px] font-mono rounded-lg">
                         <span className="text-[var(--color-text-muted)] font-bold">{t.defaultPwdText}</span>
                         <code className="bg-[var(--color-surface)] text-[#10b981] px-2.5 py-0.5 border border-[var(--color-border)] font-black tracking-wider text-[11px] shadow-[1px_1.5px_0px_var(--color-border)] rounded-md">
@@ -625,7 +625,7 @@ export default function LoginForm() {
         </div>
       </main>
 
-      {/* Modern Responsive Footer */}
+      {}
       <footer className="w-full border-t-2 border-[var(--color-border)] bg-[var(--color-surface)] py-3.5 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto flex flex-col items-center justify-center gap-1 font-mono text-center">
           <div className="text-xs font-bold text-[var(--color-text-main)] flex items-center justify-center gap-2">

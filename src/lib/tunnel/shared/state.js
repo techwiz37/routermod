@@ -15,7 +15,7 @@ export function ensureTunnelDir() {
 export function loadState() {
   try {
     if (fs.existsSync(STATE_FILE)) return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-  } catch { /* ignore corrupt state */ }
+  } catch {  }
   return null;
 }
 
@@ -24,14 +24,13 @@ export function saveState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-// gate.json: fast-read file for proxy.js (runs in sandbox, no DB access)
-// Shape: { tunnelActive: bool, dashboardAccess: bool }
+
 const GATE_FILE = path.join(TUNNEL_DIR, "gate.json");
 
 export function readGate() {
   try {
     if (fs.existsSync(GATE_FILE)) return JSON.parse(fs.readFileSync(GATE_FILE, "utf8"));
-  } catch { /* ignore */ }
+  } catch {  }
   return { tunnelActive: false, dashboardAccess: true };
 }
 
@@ -44,7 +43,7 @@ export function writeGate(patch) {
 export function clearState() {
   try {
     if (fs.existsSync(STATE_FILE)) fs.unlinkSync(STATE_FILE);
-  } catch { /* ignore */ }
+  } catch {  }
 }
 
 export function generateShortId() {

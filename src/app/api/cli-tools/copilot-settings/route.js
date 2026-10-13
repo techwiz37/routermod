@@ -6,7 +6,7 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 
-// Resolve chatLanguageModels.json path per OS
+
 const getConfigPath = () => {
   const home = os.homedir();
   const platform = os.platform();
@@ -22,8 +22,7 @@ const getConfigPath = () => {
 const readConfig = async () => {
   try {
     const content = await fs.readFile(getConfigPath(), "utf-8");
-    // Tolerate JSONC (trailing commas) and treat unparseable files as "no config"
-    // rather than throwing a 500 that the UI misreads as "tool not installed".
+
     const stripped = content.replace(/,(\s*[}\]])/g, "$1");
     return JSON.parse(stripped);
   } catch (error) {
@@ -41,7 +40,7 @@ const get9RouterEntry = (config) => {
   return config.find((entry) => entry.name === "9Router") || null;
 };
 
-// GET - Read current copilot config
+
 export async function GET() {
   try {
     const config = await readConfig();
@@ -61,7 +60,7 @@ export async function GET() {
   }
 }
 
-// POST - Apply 9Router config to chatLanguageModels.json
+
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, models } = await request.json();
@@ -73,13 +72,13 @@ export async function POST(request) {
     const configPath = getConfigPath();
     await fs.mkdir(path.dirname(configPath), { recursive: true });
 
-    // Read existing config array
+
     let config = [];
     try {
       const existing = await fs.readFile(configPath, "utf-8");
       const parsed = JSON.parse(existing);
       config = Array.isArray(parsed) ? parsed : [];
-    } catch { /* No existing config */ }
+    } catch {  }
 
     const endpointUrl = `${baseUrl}/chat/completions#models.ai.azure.com`;
     const keyToUse = await resolveCliApiKey(apiKey);
@@ -99,7 +98,7 @@ export async function POST(request) {
       })),
     };
 
-    // Replace existing 9Router entry or append
+
     const idx = config.findIndex((e) => e.name === "9Router");
     if (idx >= 0) {
       config[idx] = newEntry;
@@ -120,7 +119,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE - Remove 9Router entry from chatLanguageModels.json
+
 export async function DELETE() {
   try {
     const configPath = getConfigPath();

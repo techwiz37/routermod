@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 
-// Keep providers without serviceKinds (default LLM) or with "llm" in serviceKinds
+
 function isLLMProvider(id) {
   const p = AI_PROVIDERS[id];
   if (!p?.serviceKinds) return true;
@@ -15,7 +15,7 @@ import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import dynamic from "next/dynamic";
-// Lazy-load: keeps @xyflow/react and recharts out of the initial bundle
+
 const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
 const UsageChart = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/UsageChart"), { ssr: false });
 const ProviderBarChart = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart"), { ssr: false });
@@ -29,22 +29,22 @@ function timeAgo(timestamp) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// Auto-update time display every second without re-rendering parent
+
 function TimeAgo({ timestamp }) {
   const [, setTick] = useState(0);
-  
+
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   return <>{timeAgo(timestamp)}</>;
 }
 
 function RecentRequests({ requests = [] }) {
   return (
     <Card className="flex min-w-0 flex-col overflow-hidden border-2 shadow-[2.5px_2.5px_0_var(--color-border)]" padding="none" style={{ height: 480 }}>
-      {/* Header */}
+      {}
       <div className="px-4 py-3 border-b-2 border-border shrink-0 bg-surface-2 flex items-center gap-2">
         <span className="material-symbols-outlined text-[15px] text-primary">bolt</span>
         <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Live Request Feed</span>
@@ -91,9 +91,7 @@ function sortData(dataMap, pendingMap = {}, sortBy, sortOrder) {
       const totalTokens = (data.promptTokens || 0) + (data.completionTokens || 0);
       const totalCost = data.cost || 0;
       // ponytail: cost split is a token-share allocation of the (rate-accurate)
-      // server total, not a per-rate recompute. cached is a subset of prompt, so
-      // peel it out of the input share. Upgrade to a stored per-component cost
-      // breakdown if exact cached-rate cost display is needed.
+
       const cachedTokens = data.cachedTokens || 0;
       const nonCachedInput = Math.max(0, (data.promptTokens || 0) - cachedTokens);
       const inputCost = totalTokens > 0 ? nonCachedInput * (totalCost / totalTokens) : 0;
@@ -219,15 +217,14 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
 
-  // Fetch connected providers once, deduplicate by provider type
-  // Always include noAuth free providers (e.g. opencode) regardless of connections
+
   useEffect(() => {
     Promise.all([
       fetch("/api/providers").then((r) => r.ok ? r.json() : null),
       fetch("/api/provider-nodes").then((r) => r.ok ? r.json() : null),
     ])
       .then(([d, nodesData]) => {
-        // Build node name lookup for custom providers
+
         const nodeNameMap = {};
         for (const node of (nodesData?.nodes || [])) {
           nodeNameMap[node.id] = node.name;
@@ -252,9 +249,9 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       .catch(() => {});
   }, []);
 
-  // Fetch filtered stats via REST when period changes
+
   useEffect(() => {
-    // First load: show full spinner; subsequent: show subtle fetching indicator
+
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
       setLoading(true);
@@ -277,14 +274,14 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       });
   }, [period]);
 
-  // SSE connection - real-time updates for activeRequests + recentRequests only
+
   useEffect(() => {
     const es = new EventSource("/api/usage/stream");
 
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        // Always merge only real-time fields, never overwrite full stats from REST
+
         setStats((prev) => {
           if (!prev) return prev;
           return {
@@ -317,7 +314,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
-  // Compute active table data
+
   const activeTableConfig = useMemo(() => {
     if (!stats) return null;
     switch (tableView) {
@@ -445,7 +442,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
-      {/* Period selector (hidden when controlled by parent) */}
+      {}
       {!hidePeriodSelector && (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
           <div className="grid flex-1 grid-cols-6 items-center gap-1 rounded-xl border-2 border-border bg-surface-2 p-1 shadow-[2px_2px_0_var(--color-border)] sm:flex sm:flex-none">
@@ -466,10 +463,10 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         </div>
       )}
 
-      {/* Overview cards */}
+      {}
       {loading ? spinner : <OverviewCards stats={stats} />}
 
-      {/* Provider topology + Recent Requests */}
+      {}
       {loading ? spinner : (
         <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <ProviderTopology
@@ -482,10 +479,10 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         </div>
       )}
 
-      {/* Token / Cost chart - sync period */}
+      {}
       {loading ? spinner : <UsageChart period={period} />}
 
-      {/* Provider and model breakdown charts */}
+      {}
       {!loading && (stats.byProvider || stats.byModel) && (
         <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <ProviderBarChart byProvider={stats.byProvider} />
@@ -493,7 +490,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         </div>
       )}
 
-      {/* Table with dropdown selector */}
+      {}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <select

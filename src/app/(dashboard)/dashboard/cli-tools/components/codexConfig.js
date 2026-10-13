@@ -3,7 +3,7 @@ const parseTomlString = (line, key) => {
   return match ? match[2] : "";
 };
 
-// Only inspect the active provider tables so other providers cannot affect the form.
+
 export function getCurrentCodexProviderSettings(config) {
   if (typeof config !== "string") return { baseUrl: "", apiKey: "" };
 

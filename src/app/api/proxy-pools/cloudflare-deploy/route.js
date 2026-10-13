@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
 
-// Relay worker source code deployed to Cloudflare
+
 const RELAY_WORKER_CODE = `
 export default {
   async fetch(request, env, ctx) {
     const target = request.headers.get("x-relay-target");
     const relayPath = request.headers.get("x-relay-path") || "/";
-    
+
     if (!target) {
       return new Response(JSON.stringify({ error: "Missing x-relay-target header" }), {
         status: 400,
@@ -46,7 +46,7 @@ export default {
 };
 `;
 
-// POST /api/proxy-pools/cloudflare-deploy
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -58,10 +58,10 @@ export async function POST(request) {
       return NextResponse.json({ error: "Cloudflare Account ID and API Token are required" }, { status: 400 });
     }
 
-    // 1. Upload Worker Script
+
     const workerScriptUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${projectName}`;
-    
-    // Cloudflare requires multipart/form-data for worker script upload
+
+
     const formData = new FormData();
     formData.append("index.js", new Blob([RELAY_WORKER_CODE], { type: "application/javascript+module" }), "index.js");
     formData.append("metadata", new Blob([JSON.stringify({
@@ -87,7 +87,7 @@ export async function POST(request) {
       );
     }
 
-    // 2. Enable workers.dev subdomain for the script
+
     const enableSubdomainRes = await fetch(`${workerScriptUrl}/subdomain`, {
       method: "POST",
       headers: {
@@ -100,10 +100,10 @@ export async function POST(request) {
     if (!enableSubdomainRes.ok) {
       const err = await enableSubdomainRes.json().catch(() => ({}));
       console.error("Cloudflare subdomain enable error:", err);
-      // We don't fail completely here, just continue
+
     }
 
-    // 3. Get the workers.dev subdomain for the account to construct the final URL
+
     let deployUrl = "";
     const subdomainRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`, {
       method: "GET",
@@ -127,7 +127,7 @@ export async function POST(request) {
       );
     }
 
-    // Create proxy pool entry with type cloudflare
+
     const proxyPool = await createProxyPool({
       name: projectName,
       proxyUrl: deployUrl,

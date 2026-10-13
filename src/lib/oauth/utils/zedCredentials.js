@@ -10,10 +10,7 @@ const execFileAsync = promisify(execFile);
 export const ZED_DEFAULT_CREDENTIALS_URL = "https://zed.dev";
 export const ZED_KEYRING_LABEL = "zed-github-account";
 
-/**
- * Resolve the credential URL Zed uses as the keyring/keychain key.
- * Defaults to https://zed.dev; honors settings.json credentials_url → server_url.
- */
+
 export async function resolveZedCredentialsUrl() {
   const settingsPaths = getZedSettingsPaths();
   for (const settingsPath of settingsPaths) {
@@ -27,7 +24,7 @@ export async function resolveZedCredentialsUrl() {
         null;
       if (url) return url.replace(/\/+$/, "");
     } catch {
-      // try next path
+
     }
   }
   return ZED_DEFAULT_CREDENTIALS_URL;
@@ -46,7 +43,7 @@ function getZedSettingsPaths() {
   return [join(xdg, "zed", "settings.json")];
 }
 
-/** Candidate paths for Zed's global kv_store (holds system_id). */
+
 export function getZedGlobalDbPaths() {
   const home = homedir();
   const channels = ["0-global", "0-stable", "0-preview"];
@@ -64,9 +61,7 @@ export function getZedGlobalDbPaths() {
   return channels.map((c) => join(base, c, "db.sqlite"));
 }
 
-/**
- * Read system_id from Zed's local kv_store (same id the IDE sends to cloud.zed.dev).
- */
+
 export async function readZedSystemId() {
   for (const dbPath of getZedGlobalDbPaths()) {
     try {
@@ -92,7 +87,7 @@ async function queryKvStore(dbPath, key) {
       db.close();
     }
   } catch {
-    // Fall back to sqlite3 CLI when native bindings are unavailable.
+
   }
 
   try {
@@ -108,10 +103,7 @@ async function queryKvStore(dbPath, key) {
   }
 }
 
-/**
- * Read Zed IDE session credentials from the OS secret store.
- * @returns {Promise<{ found: boolean, userId?: string, accessToken?: string, systemId?: string, credentialsUrl?: string, error?: string }>}
- */
+
 export async function readZedIdeCredentials() {
   const credentialsUrl = await resolveZedCredentialsUrl();
   let pair = null;
@@ -151,8 +143,7 @@ export async function readZedIdeCredentials() {
 }
 
 async function readLinuxCredentials(credentialsUrl) {
-  // Zed (oo7): attributes url + username, label "zed-github-account".
-  // Note: secret-tool prints attribute.* lines on stderr and label/secret on stdout.
+
   try {
     const { stdout, stderr } = await execFileAsync(
       "secret-tool",
@@ -171,7 +162,7 @@ async function readLinuxCredentials(credentialsUrl) {
     if (err?.code === "ENOENT") {
       return { error: "secret-tool not found (install libsecret / secret-tools)" };
     }
-    // Some secret-tool versions exit non-zero but still print useful output.
+
     const merged = `${err?.stderr || ""}\n${err?.stdout || ""}`;
     if (merged.includes("secret =")) {
       const items = parseSecretToolSearch(merged);
@@ -207,13 +198,7 @@ async function readLinuxCredentials(credentialsUrl) {
 }
 
 function parseSecretToolSearch(stdout) {
-  // Attributes are often on stderr; callers should concatenate stderr+stdout.
-  // Format:
-  //   attribute.url = https://zed.dev
-  //   attribute.username = 123
-  //   [/60]
-  //   label = zed-github-account
-  //   secret = {...}
+
   const text = String(stdout || "");
   const username = text.match(/attribute\.username\s*=\s*(\S+)/)?.[1] || null;
   const label = text.match(/^\s*label\s*=\s*(.+)$/m)?.[1]?.trim() || null;
@@ -224,13 +209,13 @@ function parseSecretToolSearch(stdout) {
 }
 
 async function readMacCredentials(credentialsUrl) {
-  // Zed stores an internet password with kSecAttrServer = full credentials URL.
+
   const servers = unique([credentialsUrl, stripUrlScheme(credentialsUrl), "zed.dev"]);
   let lastError = null;
 
   for (const server of servers) {
     try {
-      // -g prints password to stderr as "password: \"...\""
+
       const { stdout, stderr } = await execFileAsync(
         "security",
         ["find-internet-password", "-s", server, "-g"],
@@ -258,18 +243,18 @@ async function readMacCredentials(credentialsUrl) {
 function parseSecurityPassword(text) {
   const m = String(text).match(/password:\s*"(.*)"\s*$/m);
   if (m) return unescapeSecurityPassword(m[1]);
-  // Empty password prints as "password: "
+
   if (/password:\s*$/m.test(text)) return "";
   return null;
 }
 
 function unescapeSecurityPassword(value) {
-  // security escapes \ and " in the quoted password dump
+
   return value.replace(/\\(.)/g, "$1");
 }
 
 async function readWindowsCredentials(credentialsUrl) {
-  // Zed target name: zed:url=https://zed.dev
+
   const target = `zed:url=${credentialsUrl}`;
   const script = `
 $ErrorActionPreference = 'Stop'
@@ -334,7 +319,7 @@ Write-Output $r
 }
 
 function stripUrlScheme(url) {
-  return String(url || "").replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  return String(url || "").replace(/^https?:\/\
 }
 
 function unique(arr) {

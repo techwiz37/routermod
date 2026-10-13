@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react";
 import PropTypes from "prop-types";
 import Image from "next/image";
 
-// Module-level cache — survives re-renders, cleared on page reload
 let _prefetched = null;
 
 export default function ChangelogModal({ isOpen, onClose }) {
@@ -13,7 +12,6 @@ export default function ChangelogModal({ isOpen, onClose }) {
   const [error, setError] = useState("");
   const modalRef = useRef(null);
 
-  // Prefetch once on first mount regardless of open state
   useEffect(() => {
     if (_prefetched) return;
     fetch("/api/changelog")
@@ -53,7 +51,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
         ref={modalRef}
         className="relative w-full max-w-2xl bg-surface border-2 border-border rounded-xl shadow-[4px_6px_0px_var(--color-border)] animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[82vh] overflow-hidden z-10 m-auto"
       >
-        {/* Header */}
+        {}
         <div className="flex items-center justify-between p-3.5 sm:p-4 border-b-2 border-border bg-surface-2">
           <div className="flex items-center gap-2.5">
             <div className="size-8 rounded-lg bg-[#ff1a53]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[#ff1a53]">
@@ -80,7 +78,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Content */}
+        {}
         <div className="p-3.5 sm:p-5 overflow-y-auto space-y-3 custom-scrollbar flex-1">
           {loading ? (
             <div className="p-8 text-center font-mono text-xs text-text-muted flex flex-col items-center justify-center gap-2">
@@ -103,7 +101,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
-                    {/* Avatar */}
+                    {}
                     {c.avatar ? (
                       <Image
                         src={c.avatar}
@@ -147,7 +145,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
           )}
         </div>
 
-        {/* Footer */}
+        {}
         <div className="p-3 border-t-2 border-border bg-surface-2 flex items-center justify-between font-mono text-xs">
           <a
             href="https://github.com/techwiz37/routermod/commits"

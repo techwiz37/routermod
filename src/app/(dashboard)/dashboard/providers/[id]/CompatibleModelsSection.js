@@ -42,7 +42,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
           <p className="text-sm font-medium truncate">{modelName || modelId}</p>
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-            {/* Copy */}
+            {}
             <div className="relative group/btn">
               <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary">
                 <span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span>
@@ -51,7 +51,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
                 {copied === `model-${modelId}` ? "Copied!" : "Copy"}
               </span>
             </div>
-            {/* Test */}
+            {}
             {onTest && (
               <div className="relative group/btn">
                 <button onClick={onTest} disabled={isTesting} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors">
@@ -66,7 +66,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
             )}
           </div>
         </div>
-        {/* Action buttons */}
+        {}
         <div className="flex items-center gap-0.5 shrink-0">
           {onEdit && (
             <button
@@ -83,7 +83,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
         </div>
       </div>
 
-      {/* Edit popover */}
+      {}
       {editing && (
         <form
           onSubmit={commitEdit}

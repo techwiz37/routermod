@@ -1,9 +1,8 @@
 import { pathToFileURL } from "url";
 import { getInstallInfo, libraryEntry } from "./install.js";
 
-// Module cache: pxpipe is loaded once per process ("started") and dropped on
-// "stop". In library mode start/stop govern the in-process module, not a daemon.
-let cached = null; // { module, version, loadedAt }
+
+let cached = null;
 let loadPromise = null;
 
 export function getLoadedInfo() {
@@ -24,9 +23,9 @@ async function doLoad() {
     err.code = "NOT_INSTALLED";
     throw err;
   }
-  // Cache-bust per version so Repair/upgrade takes effect without a server restart.
+
   const url = `${pathToFileURL(libraryEntry()).href}?v=${encodeURIComponent(info.version || "0")}`;
-  const mod = await import(/* webpackIgnore: true */ url);
+  const mod = await import( url);
   if (typeof mod.transformAnthropicMessages !== "function") {
     throw new Error("installed pxpipe package does not export transformAnthropicMessages");
   }
@@ -40,8 +39,7 @@ export function unloadPxpipe() {
   return wasLoaded;
 }
 
-// Transform function for the request pipeline; null when unavailable (fail-open).
-// autoLoad controls whether a cold cache triggers a load (first request warms it).
+
 export async function getTransform({ autoLoad = true } = {}) {
   try {
     if (!cached && !autoLoad) return null;
@@ -52,8 +50,7 @@ export async function getTransform({ autoLoad = true } = {}) {
   }
 }
 
-// Health self-test: run a tiny synthetic Claude request through the transformer.
-// A healthy module parses it and answers with a machine-readable reason.
+
 export async function selfTest() {
   const startedAt = Date.now();
   const { module: mod } = await loadPxpipe();

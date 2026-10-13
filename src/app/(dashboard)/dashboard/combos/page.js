@@ -10,15 +10,13 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 
-// Validate combo name: only a-z, A-Z, 0-9, -, _
+
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 
-// Capacity adapter: global fallback pools of models per input-modality capability.
-// A request needing a capability the target model/combo lacks switches straight
-// to the first enabled model here instead of erroring or dropping the data.
+
 const CAPACITY_ADAPTER_CAPS = [
   { key: "vision", label: "Vision", icon: "visibility", desc: "images (png, jpg, webp, …)" },
-  // pdf, videoInput temporarily hidden — no translator support yet for those blocks.
+
   { key: "audioInput", label: "Audio", icon: "graphic_eq", desc: "audio input" },
 ];
 const DEFAULT_FALLBACK_MODEL = "oc/mimo-v2.6-flash-free";
@@ -31,7 +29,7 @@ const EMPTY_CAPACITY_ADAPTER = {
 };
 const upgradeLegacyModel = (m) => (m === "oc/mimo-v2.5-free" ? DEFAULT_FALLBACK_MODEL : m);
 
-// Backward-compat: legacy stored form was an array of {model, enabled}.
+
 function normalizeCapEntry(entry) {
   if (Array.isArray(entry)) {
     return { enabled: true, roundRobin: false, models: entry.map((e) => upgradeLegacyModel(e?.model || e)).filter(Boolean) };
@@ -62,7 +60,7 @@ export default function CombosPage() {
   const [capacityAdapter, setCapacityAdapter] = useState(EMPTY_CAPACITY_ADAPTER);
   const { getCaps } = useModelCaps();
   const [confirmState, setConfirmState] = useState(null);
-  const [presetLoading, setPresetLoading] = useState(null); // "cursor" | "claude" | null
+  const [presetLoading, setPresetLoading] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const { copied, copy } = useCopyToClipboard();
@@ -71,7 +69,7 @@ export default function CombosPage() {
     fetchData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Drop stale selection when the combo list changes (delete / refresh).
+
   useEffect(() => {
     const alive = new Set(combos.map((c) => c.id));
     setSelectedIds((prev) => prev.filter((id) => alive.has(id)));
@@ -164,7 +162,7 @@ export default function CombosPage() {
       const providersData = await providersRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
 
-      // Only LLM combos here - webSearch/webFetch combos belong to media-providers/web
+
       if (combosRes.ok) setCombos((combosData.combos || []).filter(c => !c.kind || c.kind === "llm"));
       if (providersRes.ok) {
         setActiveProviders(providersData.connections || []);
@@ -308,13 +306,12 @@ export default function CombosPage() {
     });
   };
 
-  // Merge a per-combo strategy patch into settings.comboStrategies. Passing an empty
-  // patch (strategy back to default "fallback") drops the entry entirely.
+
   const handleSetComboStrategy = async (comboName, patch) => {
     try {
       const updated = { ...comboStrategies };
       const next = { ...(updated[comboName] || {}), ...patch };
-      // Prune to keep settings clean: default fallback with no extras = no entry.
+
       if (!next.fallbackStrategy || next.fallbackStrategy === "fallback") {
         delete updated[comboName];
       } else {
@@ -362,7 +359,7 @@ export default function CombosPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
-      {/* Header */}
+      {}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm text-text-muted mt-1">
@@ -409,7 +406,7 @@ export default function CombosPage() {
         </div>
       </div>
 
-      {/* Combos List */}
+      {}
       {combos.length === 0 ? (
         <Card>
           <div className="text-center py-12">
@@ -425,7 +422,7 @@ export default function CombosPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          {/* Selection toolbar */}
+          {}
           <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-black/5 bg-black/[0.015] px-3 py-2 dark:border-white/5 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
             <label className="flex cursor-pointer items-center gap-2 text-xs text-text-muted hover:text-primary select-none">
               <input
@@ -509,7 +506,7 @@ export default function CombosPage() {
         </div>
       )}
 
-      {/* Capacity Adapter */}
+      {}
       <CapacityAdapterSection
         capacityAdapter={capacityAdapter}
         onChange={handleSetCapacityAdapter}
@@ -517,7 +514,7 @@ export default function CombosPage() {
         getCaps={getCaps}
       />
 
-      {/* Create Modal - Use key to force remount and reset state */}
+      {}
       {showCreateModal && (
         <ComboFormModal
           key="create"
@@ -539,7 +536,7 @@ export default function CombosPage() {
         />
       )}
 
-      {/* Confirm (delete / generate presets) */}
+      {}
       <ConfirmModal
         isOpen={!!confirmState}
         onClose={() => !confirmState?.loading && setConfirmState(null)}
@@ -568,9 +565,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
   const current = strategy.fallbackStrategy || "fallback";
   const judge = strategy.judgeModel || "";
   const isFusion = current === "fusion";
-  // The synced catalog is server-only, so resolving here would fall back to the
-  // generic patterns and under-report the limits. getCaps carries the server's
-  // answer for /api/models.
+
   const comboCaps = aggregateComboCapabilities(combo.models, comboByName, getCaps);
 
   return (
@@ -618,7 +613,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                 <span>max {fmtK(comboCaps.maxOutput)}</span>
               </div>
             )}
-            {/* Fusion: judge picker (Auto = first model) */}
+            {}
             {isFusion && (
               <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                 <span className="text-[11px] font-medium text-text-muted">Judge</span>
@@ -644,9 +639,9 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
           </div>
         </div>
 
-        {/* Actions */}
+        {}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
-          {/* Strategy selector — always visible */}
+          {}
           <div className="w-full sm:w-[200px]">
             <Select
               options={STRATEGY_OPTIONS}
@@ -687,7 +682,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
         </div>
       </div>
 
-      {/* Judge model picker (single-select; combo members make natural judges too) */}
+      {}
       {showJudgeSelect && (
         <ModelSelectModal
           isOpen={showJudgeSelect}
@@ -764,7 +759,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
   return (
     <Card padding="sm" className={`group ${!enabled ? "opacity-50" : ""}`}>
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Master toggle + icon + label */}
+        {}
         <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:items-center">
           <Toggle
             checked={enabled}
@@ -782,7 +777,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
           </div>
         </div>
 
-        {/* Actions: Round-robin toggle + Add Model */}
+        {}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
           <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none">
             <Toggle
@@ -806,7 +801,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
         </div>
       </div>
 
-      {/* Model pool list/table */}
+      {}
       {models.length === 0 ? (
         <div className="mt-3 py-2 text-center text-xs text-text-muted italic">
           No models in pool (will fallback to {DEFAULT_FALLBACK_MODEL})
@@ -912,7 +907,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
-    // no transition — prevents the CSS settle animation fighting React's re-render on drop
+
     opacity: isDragging ? 0.4 : 1,
     zIndex: isDragging ? 999 : undefined,
   };
@@ -936,7 +931,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
       style={style}
       className={`group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 bg-black/[0.02] hover:bg-black/[0.04] dark:bg-white/[0.02] dark:hover:bg-white/[0.04] transition-colors ${isDragging ? "shadow-md ring-1 ring-primary/30" : ""}`}
     >
-      {/* Drag handle */}
+      {}
       <button
         {...attributes}
         {...listeners}
@@ -951,10 +946,10 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         </svg>
       </button>
 
-      {/* Index badge */}
+      {}
       <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">{index + 1}</span>
 
-      {/* Inline editable model value */}
+      {}
       {editing ? (
         <input
           autoFocus
@@ -974,7 +969,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         </div>
       )}
 
-      {/* Priority arrows */}
+      {}
       <div className="flex shrink-0 items-center gap-0.5">
         <button
           onClick={onMoveUp}
@@ -994,7 +989,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         </button>
       </div>
 
-      {/* Remove */}
+      {}
       <button
         onClick={onRemove}
         className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 transition-all"
@@ -1007,7 +1002,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
 }
 
 function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindFilter = null }) {
-  // Initialize state with combo values - key prop on parent handles reset on remount
+
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
   const [showModelSelect, setShowModelSelect] = useState(false);
@@ -1020,7 +1015,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Use stable index-based IDs so duplicates and similar names are handled correctly
+
   const modelItems = models.map((model, i) => ({ uid: `item-${i}`, model }));
 
   const handleDragEnd = (event) => {
@@ -1114,7 +1109,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
         title={isEdit ? "Edit Combo" : "Create Combo"}
       >
         <div className="flex flex-col gap-3">
-          {/* Name */}
+          {}
           <div>
             <Input
               label="Combo Name"
@@ -1128,7 +1123,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
             </p>
           </div>
 
-          {/* Models */}
+          {}
           <div>
             <label className="text-sm font-medium mb-1.5 block">Models</label>
 
@@ -1164,7 +1159,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
             </DndContext>
             )}
 
-            {/* Add Model button */}
+            {}
             <button
               onClick={() => setShowModelSelect(true)}
               className="w-full mt-2 py-2 border border-dashed border-black/10 dark:border-white/10 rounded-lg text-xs text-primary font-medium hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-1"
@@ -1174,7 +1169,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
             </button>
           </div>
 
-          {/* Actions */}
+          {}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row">
             <Button onClick={onClose} variant="ghost" fullWidth size="sm">
               Cancel
@@ -1191,7 +1186,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
         </div>
       </Modal>
 
-      {/* Model Select Modal */}
+      {}
       {showModelSelect && (
         <ModelSelectModal
           isOpen={showModelSelect}

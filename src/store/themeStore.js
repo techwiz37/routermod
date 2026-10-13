@@ -32,7 +32,7 @@ const useThemeStore = create(
   )
 );
 
-// Apply theme to document
+
 function applyTheme(theme) {
   if (typeof window === "undefined") return;
 

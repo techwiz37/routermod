@@ -23,7 +23,7 @@ export async function OPTIONS() {
 
 export async function POST(request) {
   await ensureInitialized();
-  
+
   const clonedReq = request.clone();
   let modelName = "llama3.2";
   try {

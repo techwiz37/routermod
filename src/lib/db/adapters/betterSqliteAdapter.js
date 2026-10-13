@@ -1,13 +1,13 @@
 import Database from "better-sqlite3";
 import { PRAGMA_SQL } from "../schema.js";
 
-// Periodic checkpoint to keep WAL file small (avoid huge -wal/-shm growth)
+
 const CHECKPOINT_INTERVAL_MS = 60 * 1000;
 
 export function createBetterSqliteAdapter(filePath) {
   const db = new Database(filePath);
   db.exec(PRAGMA_SQL);
-  // Schema is created/synced by migrate.js after adapter init
+
 
   const stmtCache = new Map();
 
@@ -20,7 +20,7 @@ export function createBetterSqliteAdapter(filePath) {
     return stmt;
   }
 
-  // Truncate WAL periodically so file stays small for backup/copy
+
   const checkpointTimer = setInterval(() => {
     try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch {}
   }, CHECKPOINT_INTERVAL_MS);
@@ -32,7 +32,7 @@ export function createBetterSqliteAdapter(filePath) {
     try { db.close(); } catch {}
   }
 
-  // Ensure WAL is flushed and -wal/-shm files removed on shutdown
+
   const onShutdown = () => gracefulClose();
   process.once("beforeExit", onShutdown);
   process.once("SIGINT", () => { onShutdown(); process.exit(0); });

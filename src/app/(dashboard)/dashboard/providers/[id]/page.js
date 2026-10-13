@@ -77,7 +77,7 @@ export default function ProviderDetailPage() {
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
   const [suggestedModels, setSuggestedModels] = useState([]);
   const [liveModels, setLiveModels] = useState([]);
-  // Live-catalog fetch warning/error (surfaced for zed only; cursor behavior unchanged).
+
   const [liveModelsError, setLiveModelsError] = useState(null);
   const [kiloFreeModels, setKiloFreeModels] = useState([]);
   const [disabledModelIds, setDisabledModelIds] = useState([]);
@@ -94,7 +94,7 @@ export default function ProviderDetailPage() {
   const [testAllRunning, setTestAllRunning] = useState(false);
   const [testAllStopping, setTestAllStopping] = useState(false);
   const stopTestAllRef = useRef(false);
-  const [healthSummary, setHealthSummary] = useState(null); // { unavailable: N, total: N }
+  const [healthSummary, setHealthSummary] = useState(null);
   const [deletingInvalid, setDeletingInvalid] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
@@ -112,7 +112,7 @@ export default function ProviderDetailPage() {
         return;
       }
     }
-    // Xiaomi Desktop: auto-import local credentials first, OAuth as fallback
+
     if (providerId === "xiaomi-mimo") {
       setShowXiaomiMimoModal(true);
       return;
@@ -170,7 +170,7 @@ export default function ProviderDetailPage() {
     ? liveModels
     : staticModels;
   const providerAlias = getProviderAlias(providerId);
-  
+
   const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
   const isAnthropicCompatible = isAnthropicCompatibleProvider(providerId);
   const isCompatible = isOpenAICompatible || isAnthropicCompatible;
@@ -185,15 +185,14 @@ export default function ProviderDetailPage() {
     : providerId === "kimi" ? "Kimi API Key"
     : (providerId === "qoder" || providerId === "qoder-cn") ? "PAT"
     : "API Key";
-  // Resolve suffix "(level)" for a model when a thinking level is picked and the model supports it.
+
   const resolveThinkingSuffix = (modelId) => {
     if (!thinkingMode || thinkingMode === "auto") return null;
     const levels = getThinkingLevels(providerId, modelId);
     return levels && levels.includes(thinkingMode) ? thinkingMode : null;
   };
   const providerStorageAlias = isCompatible ? providerId : providerAlias;
-  // Union of levels across this provider's reasoning models — drives the level picker options.
-  // Include custom models too (e.g. manually added gpt-5.6-sol → max).
+
   const providerThinkingLevels = (() => {
     const set = new Set();
     const seen = new Set();
@@ -278,7 +277,7 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Define callbacks BEFORE the useEffect that uses them
+
   const fetchAliases = useCallback(async () => {
     try {
       const res = await fetch("/api/models/alias");
@@ -313,7 +312,7 @@ export default function ProviderDetailPage() {
     }
   }, []);
 
-  // Fetch free models from Kilo API for kilocode provider
+
   useEffect(() => {
     if (providerId !== "kilocode") return;
     fetch("/api/providers/kilo/free-models")
@@ -341,11 +340,11 @@ export default function ProviderDetailPage() {
       if (proxyPoolsRes.ok) {
         setProxyPools(proxyPoolsData.proxyPools || []);
       }
-      // Load per-provider strategy override
+
       const override = (settingsData.providerStrategies || {})[providerId] || {};
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
-      // Load per-provider thinking config
+
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
       setThinkingMode(thinkingCfg.mode || "auto");
       const autoPingSettingsKey = AUTO_PING_SETTINGS_KEYS[providerId];
@@ -354,8 +353,7 @@ export default function ProviderDetailPage() {
       if (nodesRes.ok) {
         let node = (nodesData.nodes || []).find((entry) => entry.id === providerId) || null;
 
-        // Newly created compatible nodes can be briefly unavailable on one worker.
-        // Retry a few times before showing "Provider not found".
+
         if (!node && isCompatible) {
           for (let attempt = 0; attempt < 3; attempt += 1) {
             await new Promise((resolve) => setTimeout(resolve, 150));
@@ -431,7 +429,7 @@ export default function ProviderDetailPage() {
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
       const current = settingsData.providerStrategies || {};
 
-      // Build override: null strategy means remove override, use global
+
       const override = {};
       if (strategy) override.fallbackStrategy = strategy;
       if (strategy === "round-robin" && stickyLimit !== "") {
@@ -528,10 +526,7 @@ export default function ProviderDetailPage() {
     return () => clearInterval(refreshInterval);
   }, [fetchConnections, fetchHealthSummary, fetchAliases, fetchCustomModels, fetchModelNames, fetchDisabledModels]);
 
-  // Live per-connection catalogs (cursor, zed): the static registry carries
-  // no usable list, so resolve from the active connection. Fires only when
-  // the provider id or connection list changes — no polling, no loop.
-  // Cursor path is statement-identical to before; zed adds error surfacing.
+
   useEffect(() => {
     const isLiveCatalog = providerId === "cursor" || providerId === "zed";
     if (!isLiveCatalog) {
@@ -572,7 +567,7 @@ export default function ProviderDetailPage() {
     return () => { cancelled = true; };
   }, [providerId, connections]);
 
-  // Fetch suggested models from provider's public API (if configured)
+
   useEffect(() => {
     const fetcher = (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId])?.modelsFetcher;
     if (!fetcher) return;
@@ -611,8 +606,7 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // `transport` pins a realtime STT dispatch marker (shared whitelist
-  // STT_TRANSPORT_META); the API only honours it on type "stt" records.
+
   const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps, transport) => {
     try {
       const res = await fetch("/api/models/custom", {
@@ -632,7 +626,7 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Edit custom model: change id and/or name (PATCH)
+
   const handleEditCustomModel = async (modelId, { modelId: newId, name }, type = "llm", providerAliasOverride = providerStorageAlias) => {
     try {
       const body = { providerAlias: providerAliasOverride, id: modelId, type };
@@ -652,7 +646,7 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Edit built-in model: set alias key (prefix/modelId) + optional display name
+
   const handleEditBuiltinModel = async (modelId, { aliasKey, name }, providerAliasOverride = providerStorageAlias) => {
     const fullModel = `${providerAliasOverride}/${modelId}`;
     const oldAlias = Object.entries(modelAliases).find(([, m]) => m === fullModel)?.[0];
@@ -691,7 +685,7 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Fetch Qoder model list and automatically add to available models
+
   const handleImportQoderModels = async () => {
     if (importingQoderModels) return;
     const activeConnection = connections.find((conn) => conn.isActive !== false);
@@ -718,10 +712,9 @@ export default function ProviderDetailPage() {
       for (const model of models) {
         const modelId = model.id || model.name;
         if (!modelId) continue;
-        
-        // Qoder model ID format may be "qoder/auto", "qoder-cn/auto" or "auto",
-        // need to remove the provider prefix before storing.
-        const cleanModelId = modelId.replace(/^(qoder-cn|qoder)\//, "");
+
+
+        const cleanModelId = modelId.replace(/^(qoder-cn|qoder)\
         const alreadyExists = customModels.some(
           (entry) => entry.providerAlias === providerStorageAlias && entry.id === cleanModelId && (entry.kind || entry.type || "llm") === "llm"
         ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${cleanModelId}`);
@@ -732,7 +725,7 @@ export default function ProviderDetailPage() {
         await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias);
         importedCount += 1;
       }
-      
+
       if (importedCount === 0) {
         alert(translate("All models already exist, no new models added"));
       } else {
@@ -745,8 +738,7 @@ export default function ProviderDetailPage() {
       setImportingQoderModels(false);
     }
   };
-  // Fetch the live Cline /models catalog and add every model not yet present.
-  // Cline and ClinePass share the same catalog endpoint (api.cline.bot/api/v1/models).
+
   const handleImportClineModels = async () => {
     if (importingClineModels) return;
     const activeConnection = connections.find((conn) => conn.isActive !== false);
@@ -1000,7 +992,7 @@ export default function ProviderDetailPage() {
   };
 
   const handleSwapPriority = async (index1, index2) => {
-    // Optimistic update state
+
     const newConnections = [...connections];
     [newConnections[index1], newConnections[index2]] = [newConnections[index2], newConnections[index1]];
     setConnections(newConnections);
@@ -1284,7 +1276,7 @@ export default function ProviderDetailPage() {
 
     if (isCompatible) return;
 
-    // Include custom models + built-in + kilo free, same as renderModelsSection
+
     const customModelRows = getProviderCustomModelRows({
       customModels,
       modelAliases,
@@ -1301,7 +1293,7 @@ export default function ProviderDetailPage() {
       .map((m) => m.id);
 
     const customIds = customModelRows.map((m) => m.id);
-    // deduplicate: custom first, then built-in not already in custom
+
     const customIdSet = new Set(customIds);
     const allModelIds = [...customIds, ...builtInIds.filter((id) => !customIdSet.has(id))];
 
@@ -1310,16 +1302,16 @@ export default function ProviderDetailPage() {
     stopTestAllRef.current = false;
     setTestAllRunning(true);
     setTestAllStopping(false);
-    // reset previous results
+
     setModelTestResults({});
 
     try {
     for (const modelId of allModelIds) {
       if (stopTestAllRef.current) break;
-      await handleTestModel(modelId, true); // silent=true: no toast per model
+      await handleTestModel(modelId, true);
     }
 
-    // summary toast
+
     const results = await new Promise((resolve) => {
       setModelTestResults((prev) => { resolve(prev); return prev; });
     });
@@ -1359,8 +1351,7 @@ export default function ProviderDetailPage() {
         />
       );
     }
-    // Combine hardcoded models with Kilo free models (deduplicated)
-    // Exclude non-llm models (embedding, tts, etc.) — they have dedicated pages under media-providers
+
     const allModels = [
       ...models,
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
@@ -1378,7 +1369,7 @@ export default function ProviderDetailPage() {
 
     return (
       <div className="flex flex-wrap gap-3">
-        {/* Custom models first */}
+        {}
         {customModelRows.map((model) => (
           <ModelRow
             key={`${model.source}-${model.fullModel}`}
@@ -1436,7 +1427,7 @@ export default function ProviderDetailPage() {
           );
         })}
 
-        {/* Add model button — inline, same style as model chips */}
+        {}
         <button
           onClick={() => setShowAddCustomModel(true)}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary/40 px-3 py-2 text-xs text-primary transition-colors hover:border-primary hover:bg-primary/5 sm:w-auto"
@@ -1445,7 +1436,7 @@ export default function ProviderDetailPage() {
           Add Model
         </button>
 
-        {/* Import Qoder models button — only show for qoder/qoder-cn provider */}
+        {}
         {(providerId === "qoder" || providerId === "qoder-cn") && connections.some((conn) => conn.isActive !== false) && (
           <button
             onClick={handleImportQoderModels}
@@ -1459,7 +1450,7 @@ export default function ProviderDetailPage() {
           </button>
         )}
 
-        {/* Import Cline /models catalog button — only show for cline and clinepass providers */}
+        {}
         {(providerId === "cline" || providerId === "clinepass") && connections.some((conn) => conn.isActive !== false) && (
           <button
             onClick={handleImportClineModels}
@@ -1473,7 +1464,7 @@ export default function ProviderDetailPage() {
           </button>
         )}
 
-        {/* Suggested models from provider API — show only models not yet added */}
+        {}
         {suggestedModels.length > 0 && (() => {
           const addedFullModels = new Set([
             ...Object.values(modelAliases),
@@ -1506,7 +1497,7 @@ export default function ProviderDetailPage() {
           );
         })()}
 
-        {/* Disabled models — restorable */}
+        {}
         {disabledDisplayModels.length > 0 && (
           <div className="w-full mt-2">
             <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length}):</p>
@@ -1549,7 +1540,7 @@ export default function ProviderDetailPage() {
     );
   }
 
-  // Determine icon path: OpenAI Compatible providers use specialized icons
+
   const getHeaderIconPath = () => {
     if (isOpenAICompatible && providerInfo.apiType) {
       return providerInfo.apiType === "responses" ? "/providers/oai-r.png" : "/providers/oai-cc.png";
@@ -1562,7 +1553,7 @@ export default function ProviderDetailPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-0">
-      {/* Header */}
+      {}
       <div className="min-w-0">
         <Link
           href="/dashboard/providers"
@@ -1704,7 +1695,7 @@ export default function ProviderDetailPage() {
         </Card>
       )}
 
-      {/* Connections */}
+      {}
       {isFreeNoAuth ? (
         <NoAuthProxyCard providerId={providerId} />
       ) : (
@@ -1773,7 +1764,7 @@ export default function ProviderDetailPage() {
                   )}
                 </>
               )}
-              {/* Round Robin toggle */}
+              {}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-text-muted font-medium">Round Robin</span>
                 <Toggle
@@ -1974,10 +1965,10 @@ export default function ProviderDetailPage() {
         </Card>
       )}
 
-      {/* Per-provider user overrides (custom headers / connect timeout) */}
+      {}
       <CustomConfigCard providerId={providerId} />
 
-      {/* Models */}
+      {}
       <Card>
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -2050,7 +2041,7 @@ export default function ProviderDetailPage() {
                 ? (linkMatch[0].endsWith("/go") ? linkMatch[0] : `${linkMatch[0]}/go`)
                 : wrkMatch
                   ? `https://opencode.ai/workspace/${wrkMatch[0]}/go`
-                  : "https://opencode.ai";
+                  : "https:
 
               return (
                 <div className="mb-3">
@@ -2110,7 +2101,7 @@ export default function ProviderDetailPage() {
 
       {bulkActionModal}
 
-      {/* Modals */}
+      {}
       {providerId === "kiro" ? (
         <KiroOAuthWrapper
           isOpen={showOAuthModal}
@@ -2148,7 +2139,7 @@ export default function ProviderDetailPage() {
         />
       )}
 
-      {/* Xiaomi Desktop: auto-import local credentials modal */}
+      {}
       <XiaomiMimoAuthModal
         isOpen={showXiaomiMimoModal}
         onSuccess={handleOAuthSuccess}
@@ -2202,8 +2193,7 @@ export default function ProviderDetailPage() {
           providerAlias={providerStorageAlias}
           providerDisplayAlias={providerDisplayAlias}
           onSave={async (modelId, caps, transport) => {
-            // caps.stt is a UI-only flag; the API accepts transports only on
-            // type "stt" records, so the save derives the type from it.
+
             await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport);
             setShowAddCustomModel(false);
           }}
@@ -2234,7 +2224,7 @@ export default function ProviderDetailPage() {
         />
       )}
 
-      {/* AG Risk Confirmation Modal */}
+      {}
       <ConfirmModal
         isOpen={showAgRiskModal}
         onClose={() => setShowAgRiskModal(false)}
@@ -2246,7 +2236,7 @@ export default function ProviderDetailPage() {
         variant="danger"
       />
 
-      {/* Confirm Modal */}
+      {}
       <ConfirmModal
         isOpen={!!confirmState}
         onClose={() => setConfirmState(null)}

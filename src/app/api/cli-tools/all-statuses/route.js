@@ -43,7 +43,7 @@ const STATUS_GETTERS = {
   codewhale: codewhaleGet,
 };
 
-// Batch endpoint: gather all CLI tool statuses in one round-trip
+
 export async function GET() {
   const entries = await Promise.all(
     Object.entries(STATUS_GETTERS).map(async ([toolId, getter]) => {

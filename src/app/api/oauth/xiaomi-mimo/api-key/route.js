@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { createProviderConnection } from "@/models";
 
-/**
- * POST /api/oauth/xiaomi-mimo/api-key
- * Import a Xiaomi MiMo API key manually (or from auto-import).
- * The key is validated against the models endpoint, then stored.
- *
- * Body: { apiKey, uid?, baseUrl? }
- */
+
 export async function POST(request) {
   try {
     const { apiKey, uid, baseUrl, mimoPassToken, mimoUserId, mimoCUserId, region } = await request.json();
@@ -31,7 +25,7 @@ export async function POST(request) {
 
     const effectiveBaseUrl = (baseUrl || "https://api.xiaomimimo.com/v1").replace(/\/+$/, "");
 
-    // Validate the key against the models endpoint (skipped for session-only)
+
     let validated = false;
     let modelCount = 0;
     if (key) {
@@ -50,16 +44,16 @@ export async function POST(request) {
           validated = true;
         }
       } catch {
-        // Network error — still allow import (key may be valid but network blocked)
+
       }
     }
 
     if (key && !validated) {
-      // Soft-fail: store the key but mark as untested
+
       console.log("[xiaomi-mimo] key validation failed, storing as untested");
     }
 
-    // Dedup: same uid, same key, or same session identity+region
+
     const { getProviderConnections, updateProviderConnection } = await import("@/models");
     const normRegion = (typeof region === "string" && region) || undefined;
     const existing = (await getProviderConnections()).find(
@@ -80,7 +74,7 @@ export async function POST(request) {
           baseUrl: key ? effectiveBaseUrl : (existing.providerSpecificData?.baseUrl || effectiveBaseUrl),
           region: normRegion || existing.providerSpecificData?.region || "cn",
           authMethod: sessionOnly ? "session" : (existing.providerSpecificData?.authMethod || "api_key"),
-          // Per-account session credential — enables multi-account rotation.
+
           mimoPassToken: mimoPassToken || existing.providerSpecificData?.mimoPassToken || null,
           mimoUserId: mimoUserId || existing.providerSpecificData?.mimoUserId || null,
           mimoCUserId: mimoCUserId || existing.providerSpecificData?.mimoCUserId || null,
@@ -104,13 +98,11 @@ export async function POST(request) {
 
     const connection = await createProviderConnection({
       provider: "xiaomi-mimo",
-      // "oauth" is the official authType for imported credential connections
-      // ([action]/route.js) — the list card and filters key off it; never
-      // invent new values ("session" hid the row from the provider card).
+
       authType: sessionOnly ? "oauth" : "api_key",
       accessToken: key || null,
       refreshToken: null,
-      // API keys don't expire on a fixed schedule; use a long horizon
+
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       email: uid ? `${uid}@xiaomi` : null,
       displayName: uid ? `Xiaomi ${uid}${sessionOnly ? " (Session)" : ""}` : "Xiaomi MiMo",
@@ -121,7 +113,7 @@ export async function POST(request) {
         provider: sessionOnly ? "Session Login" : "API Key",
         region: normRegion || "cn",
         modelCount,
-        // Per-account session credential — enables multi-account rotation.
+
         mimoPassToken: mimoPassToken || null,
         mimoUserId: mimoUserId || null,
         mimoCUserId: mimoCUserId || null,

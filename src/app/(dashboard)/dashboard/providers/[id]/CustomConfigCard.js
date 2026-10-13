@@ -5,7 +5,7 @@ import PropTypes from "prop-types";
 import { Card, Badge } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 
-// Mirrors the server-side gate in /api/providers/[id]/overrides — client check is UX only
+
 const BLOCKED_HEADERS = ["host", "content-length", "content-type", "connection", "transfer-encoding", "authorization", "cookie"];
 const HEADER_NAME_RE = /^[A-Za-z0-9-]+$/;
 
@@ -23,7 +23,7 @@ export default function CustomConfigCard({ providerId }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
-        // Effective set = registry built-ins with user overrides layered on top
+
         const builtinHeaders = data.builtinHeaders || {};
         const effective = { ...builtinHeaders, ...(data.headers || {}) };
         const headerRows = Object.entries(effective).map(([name, value]) => ({ name, value }));
@@ -40,8 +40,7 @@ export default function CustomConfigCard({ providerId }) {
   };
 
   const save = useCallback(async () => {
-    // Diff-on-save: only rows differing from the registry default become overrides,
-    // so a code-side registry bump still wins for everything the user left alone.
+
     const headers = {};
     for (const r of rows.filter((r) => r.name.trim())) {
       const name = r.name.trim();
@@ -83,7 +82,7 @@ export default function CustomConfigCard({ providerId }) {
     setRows(Object.entries(builtin).map(([name, value]) => ({ name, value })));
   };
 
-  // Only render when there is something to customize: registry headers or existing overrides
+
   if (Object.keys(builtin).length === 0 && !hasOverride) return null;
 
   return (

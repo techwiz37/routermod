@@ -105,10 +105,10 @@ export default function ConsoleLogClient() {
   return (
     <div className="flex flex-col gap-4" style={{ height: "calc(100vh - 120px)" }}>
 
-      {/* Toolbar */}
+      {}
       <Card className="shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          {/* Title */}
+          {}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="size-9 rounded-lg border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-[18px] text-text-muted">terminal</span>
@@ -125,7 +125,7 @@ export default function ConsoleLogClient() {
             </div>
           </div>
 
-          {/* Search */}
+          {}
           <div className="relative flex-1 min-w-0 max-w-xs">
             <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[14px] text-text-muted pointer-events-none">search</span>
             <input
@@ -137,7 +137,7 @@ export default function ConsoleLogClient() {
             />
           </div>
 
-          {/* Actions */}
+          {}
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setAutoScroll((v) => !v)}
@@ -149,7 +149,7 @@ export default function ConsoleLogClient() {
           </div>
         </div>
 
-        {/* Filter pills */}
+        {}
         <div className="flex gap-1.5 flex-wrap mt-3 pt-3 border-t border-border/40">
           {ALL_FILTERS.map((f) => {
             const s = LEVELS[f];
@@ -173,9 +173,9 @@ export default function ConsoleLogClient() {
         </div>
       </Card>
 
-      {/* Log panel */}
+      {}
       <Card className="flex-1 min-h-0 p-0 overflow-hidden flex flex-col border-2 border-border">
-        {/* Mac-style title bar */}
+        {}
         <div className="flex items-center gap-1.5 px-4 py-2.5 border-b-2 border-border bg-surface-2 shrink-0">
           <span className="size-2.5 rounded-full bg-red-400/70" />
           <span className="size-2.5 rounded-full bg-amber-400/70" />
@@ -189,7 +189,7 @@ export default function ConsoleLogClient() {
           )}
         </div>
 
-        {/* Entries */}
+        {}
         <div
           ref={logRef}
           onScroll={handleScroll}
@@ -205,7 +205,7 @@ export default function ConsoleLogClient() {
           )}
         </div>
 
-        {/* Status bar */}
+        {}
         <div className="shrink-0 px-4 py-1.5 border-t border-border/40 bg-surface-2 flex items-center justify-between">
           <span className="text-[10px] font-mono text-text-muted">
             {filtered.length !== entries.length ? `${filtered.length} / ${entries.length}` : `${entries.length}`} lines

@@ -1,7 +1,6 @@
 import { MUSE_CONFIG } from "../constants/oauth.js";
 
-// Muse Code subscription — Meta account device code flow to auth.meta.com,
-// then mint the Model API key (LLM|…) the chat transport actually uses.
+
 const MUSE_KEY_URL = "https://api.meta.ai/muse-code/key";
 const API_VERSION = "1.0.0";
 
@@ -55,9 +54,7 @@ const muse = {
     return { ok: response.ok || pending, data };
   },
   postExchange: async (tokens) => {
-    // Mint the subscription API key; onboard:true enrolls the account on first
-    // login. The endpoint is aggressively rate-limited (429) and the device code
-    // is one-shot, so retry transient failures here instead of failing the login.
+
     let response;
     for (let attempt = 0; ; attempt++) {
       response = await fetch(MUSE_KEY_URL, {
@@ -78,7 +75,7 @@ const muse = {
 
     const text = await response.text();
     if (!response.ok) {
-      // Meta's error envelope (e.g. 403 code 4705002) carries the fix-it URL
+
       let msg = `${response.status} ${text.slice(0, 200)}`;
       try {
         const err = JSON.parse(text);
@@ -86,7 +83,7 @@ const muse = {
           msg = [err.title, err.detail].filter(Boolean).join(": ");
           if (err.action_url) msg += ` — ${err.action_url}`;
         }
-      } catch { /* non-JSON error body */ }
+      } catch {  }
       throw new Error(`Muse Code key mint failed: ${msg}`);
     }
 
@@ -112,8 +109,7 @@ const muse = {
   },
   mapTokens: (tokens, extra) => {
     const payload = extra?.key || {};
-    // Chat requests carry the minted Model API key, not the Meta account token.
-    // No expiry/refresh from Meta — a dead key means re-login.
+
     return {
       accessToken: payload.api_key,
       refreshToken: null,
@@ -121,7 +117,7 @@ const muse = {
       email: payload.user_email?.trim().toLowerCase() || undefined,
       providerSpecificData: {
         authMethod: "device_code",
-        // Kept so a future re-mint can run without another device login
+
         oauthAccessToken: tokens.access_token,
         subscriptionTier: payload.subs_tier_name || null,
       },

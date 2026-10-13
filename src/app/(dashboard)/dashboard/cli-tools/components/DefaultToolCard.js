@@ -11,23 +11,23 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
   const [copiedField, setCopiedField] = useState(null);
   const [showModelModal, setShowModelModal] = useState(false);
   const [modelValue, setModelValue] = useState("");
-  
-  // Initialize state directly with computed value - no need for useEffect
-  const [selectedApiKey, setSelectedApiKey] = useState(() => 
+
+
+  const [selectedApiKey, setSelectedApiKey] = useState(() =>
     apiKeys?.length > 0 ? apiKeys[0].key : ""
   );
 
   const replaceVars = (text) => {
-    const keyToUse = (selectedApiKey && selectedApiKey.trim()) 
-      ? selectedApiKey 
+    const keyToUse = (selectedApiKey && selectedApiKey.trim())
+      ? selectedApiKey
       : (!cloudEnabled ? "sk_9router" : "your-api-key");
-    
-    // Add /v1 suffix only if not already present (DRY - avoid duplicate)
+
+
     const normalizedBaseUrl = baseUrl || "http://localhost:20128";
-    const baseUrlWithV1 = normalizedBaseUrl.endsWith("/v1") 
-      ? normalizedBaseUrl 
+    const baseUrlWithV1 = normalizedBaseUrl.endsWith("/v1")
+      ? normalizedBaseUrl
       : `${normalizedBaseUrl}/v1`;
-    
+
     return text
       .replace(/\{\{baseUrl\}\}/g, baseUrlWithV1)
       .replace(/\{\{apiKey\}\}/g, keyToUse)
@@ -100,21 +100,21 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
 
   const renderNotes = () => {
     if (!tool.notes || tool.notes.length === 0) return null;
-    
+
     return (
       <div className="flex flex-col gap-2 mb-4">
         {tool.notes.map((note, index) => {
-          // Skip cloudCheck note if tunnel or cloud is enabled
+
           if (note.type === "cloudCheck" && (cloudEnabled || tunnelEnabled)) return null;
-          
+
           const isWarning = note.type === "warning";
           const isError = note.type === "cloudCheck" && !cloudEnabled && !tunnelEnabled;
-          
+
           let bgClass = "bg-blue-500/10 border-blue-500/30";
           let textClass = "text-blue-600 dark:text-blue-400";
           let iconClass = "text-blue-500";
           let icon = "info";
-          
+
           if (isWarning) {
             bgClass = "bg-yellow-500/10 border-yellow-500/30";
             textClass = "text-yellow-600 dark:text-yellow-400";
@@ -126,7 +126,7 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
             iconClass = "text-red-500";
             icon = "error";
           }
-          
+
           return (
             <div key={index} className={`flex items-start gap-3 p-3 rounded-lg border ${bgClass}`}>
               <span className={`material-symbols-outlined text-lg ${iconClass}`}>{icon}</span>
@@ -152,7 +152,7 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
         {renderNotes()}
         {canShowGuide() && tool.guideSteps.map((item) => (
           <div key={item.step} className="flex items-start gap-4">
-            <div 
+            <div
               className="size-8 rounded-full flex items-center justify-center shrink-0 text-sm font-semibold text-white"
               style={{ backgroundColor: tool.color }}
             >

@@ -5,8 +5,6 @@ import PropTypes from "prop-types";
 import { Toggle, Button } from "@/shared/components";
 import Modal from "@/shared/components/Modal";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
 function groupByProvider(models) {
   const map = {};
   for (const m of models) {
@@ -28,8 +26,6 @@ function providerLabel(id) {
   return labels[id] || id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-// ─── Test result badge ───────────────────────────────────────────────────────
-
 function TestBadge({ result }) {
   if (!result) return null;
   if (result === "pending")
@@ -48,8 +44,6 @@ function TestBadge({ result }) {
   );
 }
 
-// ─── Provider section ────────────────────────────────────────────────────────
-
 function ProviderSection({ group, selectedModels, onToggleModel, testResults }) {
   const allSelected = group.models.every(m => selectedModels.has(m.routedModel || `${m.provider}/${m.model}`));
   const someSelected = group.models.some(m => selectedModels.has(m.routedModel || `${m.provider}/${m.model}`));
@@ -62,7 +56,7 @@ function ProviderSection({ group, selectedModels, onToggleModel, testResults }) 
 
   return (
     <div className="border-2 border-border rounded-xl overflow-hidden shadow-[2px_2px_0_var(--color-border)]">
-      {/* Header */}
+      {}
       <div
         className="flex items-center gap-3 px-3 py-2.5 bg-surface-2 cursor-pointer select-none hover:bg-surface-3 transition-colors"
         onClick={() => setOpen(v => !v)}
@@ -74,7 +68,7 @@ function ProviderSection({ group, selectedModels, onToggleModel, testResults }) 
         <span className="text-[10px] text-text-muted tabular-nums">
           {group.models.filter(m => selectedModels.has(m.routedModel || `${m.provider}/${m.model}`)).length}/{group.models.length}
         </span>
-        {/* Select all toggle */}
+        {}
         <label
           className="flex items-center gap-1.5 cursor-pointer"
           onClick={e => { e.stopPropagation(); toggleAll(); }}
@@ -89,7 +83,7 @@ function ProviderSection({ group, selectedModels, onToggleModel, testResults }) 
         </span>
       </div>
 
-      {/* Models */}
+      {}
       {open && (
         <div className="divide-y divide-border/40">
           {group.models.map(m => {
@@ -98,7 +92,7 @@ function ProviderSection({ group, selectedModels, onToggleModel, testResults }) 
             const res = testResults?.[id];
             return (
               <div key={id} className={`flex items-center gap-3 px-3 py-2 transition-colors ${on ? "bg-primary/5" : "bg-surface"}`}>
-                {/* slider toggle */}
+                {}
                 <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0" onClick={() => onToggleModel(id, !on)}>
                   <div className={`relative w-8 h-4.5 rounded-full border-2 border-border transition-all shrink-0 ${on ? "bg-primary border-primary shadow-[0_0_0_1px_var(--color-primary)]" : "bg-surface-2"}`}
                     style={{ height: "18px", width: "32px" }}
@@ -118,8 +112,6 @@ function ProviderSection({ group, selectedModels, onToggleModel, testResults }) 
     </div>
   );
 }
-
-// ─── Test results modal ──────────────────────────────────────────────────────
 
 function TestModal({ isOpen, onClose, models, apiKeyId }) {
   const [results, setResults] = useState({});
@@ -151,7 +143,7 @@ function TestModal({ isOpen, onClose, models, apiKeyId }) {
       } catch (e) {
         setResults(prev => ({ ...prev, [modelId]: { ok: false, ms: Date.now() - t0 } }));
       }
-      // small gap between tests
+
       await new Promise(r => setTimeout(r, 300));
     }
     setRunning(false);
@@ -175,7 +167,7 @@ function TestModal({ isOpen, onClose, models, apiKeyId }) {
       size="md"
     >
       <div className="flex flex-col gap-4">
-        {/* summary bar */}
+        {}
         <div className="flex items-center gap-3 p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)]">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-mono text-text-muted">
@@ -195,7 +187,7 @@ function TestModal({ isOpen, onClose, models, apiKeyId }) {
           </div>
         </div>
 
-        {/* model list */}
+        {}
         <div className="max-h-80 overflow-y-auto flex flex-col gap-1 pr-1 custom-scrollbar">
           {models.map(id => {
             const r = results[id];
@@ -242,8 +234,6 @@ function TestModal({ isOpen, onClose, models, apiKeyId }) {
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
-
 export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict }) {
   const access = apiKey.access || { restricted: false, allow: [] };
   const [allModels, setAllModels] = useState([]);
@@ -252,14 +242,12 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [providerGroups, setProviderGroups] = useState([]);
 
-  // Reset when switching keys
   useEffect(() => {
     setAllModels([]);
     setProviderGroups([]);
     setSelectedModels(new Set(access.allow));
   }, [apiKey.id]);
 
-  // Sync allow list when parent updates
   useEffect(() => {
     setSelectedModels(new Set(access.allow));
   }, [access.allow.join(",")]);
@@ -276,7 +264,6 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       .finally(() => setLoading(false));
   }, []);
 
-  // Load if already restricted on mount / key change
   useEffect(() => {
     if (access.restricted) loadModels();
   }, [apiKey.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -285,7 +272,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     setSelectedModels(prev => {
       const next = new Set(prev);
       if (on) next.add(id); else next.delete(id);
-      // propagate immediately
+
       onChange({ restricted: true, allow: [...next] });
       return next;
     });
@@ -293,7 +280,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   const handleToggleRestrict = (checked) => {
     if (checked) {
-      // Pre-fetch models immediately so list is ready when confirm dialog closes
+
       loadModels();
       onRequestRestrict();
     } else {
@@ -305,7 +292,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   return (
     <div className="mt-3" data-testid="key-access">
-      {/* Restrict toggle */}
+      {}
       <div className="flex items-center justify-between gap-3">
         <Toggle
           size="sm"
@@ -326,7 +313,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
       {access.restricted && (
         <div className="mt-3 flex flex-col gap-2">
-          {/* warning */}
+          {}
           {selectedList.length === 0 && (
             <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
               <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>
@@ -338,7 +325,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
             <p className="text-xs text-text-muted font-mono animate-pulse">Loading models…</p>
           )}
 
-          {/* Per-provider sliders */}
+          {}
           {!loading && providerGroups.map(group => (
             <ProviderSection
               key={group.provider}
@@ -351,7 +338,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
         </div>
       )}
 
-      {/* Test popup */}
+      {}
       <TestModal
         isOpen={testModalOpen}
         onClose={() => setTestModalOpen(false)}

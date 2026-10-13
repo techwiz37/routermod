@@ -1,23 +1,13 @@
-// Pure text helpers for editing Hermes `config.yaml` / `.env` in place.
-// Kept out of route.js so they are unit-testable (tests/unit/hermes-yaml.test.js).
-//
-// Hermes YAML shapes (see https://hermes-agent.nousresearch.com/docs/user-guide/configuration):
-//   model:                      # top-level mapping block (children indented)
-//     provider: "custom"
-//     default: "provider/model"
-//   model: ""                   # fresh install ships this scalar sentinel ("not configured")
-//   delegation: { ... }         # top-level, subagent model
-//   auxiliary: { <task>: { provider, model, base_url, api_key } }
 
-// Top-level "model:" mapping block — key on its own line, indented children.
-// NOTE: does NOT match the scalar sentinel `model: ""` (no newline right after `model:`).
+
+
+
 export const MODEL_BLOCK_RE = /^model:[ \t]*\r?\n((?:[ \t]+.*\r?\n?|[ \t]*\r?\n)*)/m;
-// Single-line form: `model: ""`, `model: ''`, `model:` at EOF. Anchored without indent so
-// only the top-level key matches (`model_aliases:` never does — `:` must follow "model").
+
 export const MODEL_SCALAR_RE = /^model:[ \t]*[^\r\n]*\r?\n?/m;
-// Match top-level "delegation:" block (until next non-indented, non-empty line)
+
 export const DELEGATION_BLOCK_RE = /^delegation:[ \t]*\r?\n((?:[ \t]+.*\r?\n?|[ \t]*\r?\n)*)/m;
-// "auxiliary:" block; children are 2-space-indented role keys with 4+-space fields
+
 export const AUX_BLOCK_RE = /^auxiliary:[ \t]*\r?\n((?:(?:[ \t]+.*\r?\n?)|(?:[ \t]*\r?\n))*)/m;
 export const auxRoleRe = (role) => new RegExp(`^  ${role}:[ \\t]*\\r?\\n(?:(?:[ \\t]{4,}.*\\r?\\n?)|(?:[ \\t]*\\r?\\n))*`, "m");
 
@@ -38,8 +28,7 @@ const parseKeyValues = (body) => {
   return get;
 };
 
-// Parse current model block back to fields (best-effort, simple key:value).
-// Returns null when there is no mapping block — i.e. unset or the `model: ""` sentinel.
+
 export const parseModelBlock = (yaml) => {
   const match = yaml.match(MODEL_BLOCK_RE);
   if (!match) return null;
@@ -54,8 +43,7 @@ export const parseModelBlock = (yaml) => {
 
 export const upsertModelBlock = (yaml, newBlock) => {
   if (MODEL_BLOCK_RE.test(yaml)) return yaml.replace(MODEL_BLOCK_RE, newBlock);
-  // Scalar sentinel would otherwise survive the upsert and produce a duplicate `model:` key
-  // (last-wins in most YAML loaders → the 9router block is silently ignored).
+
   if (MODEL_SCALAR_RE.test(yaml)) return yaml.replace(MODEL_SCALAR_RE, newBlock);
   return yaml.length > 0 ? `${newBlock}\n${yaml}` : newBlock;
 };
@@ -86,7 +74,7 @@ export const removeAuxRole = (yaml, role) => {
   return yaml.replace(AUX_BLOCK_RE, `auxiliary:\n${body}`);
 };
 
-// role -> { model, provider, base_url } for every entry under "auxiliary:"
+
 export const parseAuxRoles = (yaml) => {
   const m = yaml.match(AUX_BLOCK_RE);
   if (!m) return {};
@@ -113,7 +101,7 @@ export const removeModelBlock = (yaml) => {
   return yaml;
 };
 
-// .env helpers — upsert/remove single KEY=VALUE line
+
 export const upsertEnvVar = (envText, key, value) => {
   const re = new RegExp(`^${key}=.*$`, "m");
   const line = `${key}=${value}`;
@@ -126,12 +114,11 @@ export const removeEnvVar = (envText, key) => {
   return envText.replace(re, "");
 };
 
-// Detect 9router by base_url containing localhost/127.0.0.1 or matching tunnel URL
+
 export const has9RouterConfig = (modelCfg) => {
   if (!modelCfg?.base_url) return false;
   return modelCfg.provider === "custom" && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(modelCfg.base_url);
 };
 
-// A block 9router wrote (provider "custom") regardless of endpoint — covers tunnel URLs,
-// so reset/bulk logic can find them even when base_url is not localhost.
+
 export const isCustomBlock = (cfg) => cfg?.provider === "custom";

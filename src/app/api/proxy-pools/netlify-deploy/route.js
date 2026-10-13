@@ -13,7 +13,7 @@ import {
 function sanitizeSiteName(raw) {
   const name = typeof raw === "string" ? raw.trim().toLowerCase() : "";
   if (!name) return `relay-${Date.now().toString(36)}`;
-  // Netlify site names become subdomains: lowercase alphanumerics + hyphens.
+
   const cleaned = name.replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   return cleaned || `relay-${Date.now().toString(36)}`;
 }
@@ -23,7 +23,7 @@ async function readError(res, fallback) {
   return data.message || data.error || fallback;
 }
 
-// POST /api/proxy-pools/netlify-deploy
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -39,7 +39,7 @@ export async function POST(request) {
       "Content-Type": "application/json",
     };
 
-    // 1. Create site (name → <name>.netlify.app; random if taken → 422).
+
     const siteRes = await fetch(`${NETLIFY_API}/sites`, {
       method: "POST",
       headers,
@@ -63,7 +63,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Netlify site created but no site URL returned" }, { status: 502 });
     }
 
-    // 2. Digest deploy: index.html (SHA1) + relay function bundle (SHA256).
+
     const { zip, sha256 } = buildRelayFunctionZip();
     const { content: indexContent, sha1 } = buildIndexFile();
 
@@ -89,7 +89,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Netlify deploy created but no deploy ID returned" }, { status: 502 });
     }
 
-    // 3. Upload only what Netlify asks for (dedupe via `required` lists).
+
     const requiredFiles = new Set(deploy.required || []);
     const requiredFunctions = new Set(deploy.required_functions || []);
 
@@ -124,11 +124,11 @@ export async function POST(request) {
       }
     }
 
-    // 4. Poll until the deploy is live.
+
     await pollDeployReady(deployId, netlifyToken);
     const relayUrl = buildRelayUrl(siteUrl);
 
-    // Create proxy pool entry with type netlify
+
     const proxyPool = await createProxyPool({
       name: siteName,
       proxyUrl: relayUrl,

@@ -15,9 +15,8 @@ export function getDataDir() {
   const configured = process.env.DATA_DIR;
   if (!configured) return defaultDir();
 
-  // On Windows, ignore Unix-style absolute paths (e.g. /var/lib/...) that come
-  // from a Linux-targeted .env or Docker config — they are not valid here.
-  if (process.platform === "win32" && /^\//.test(configured)) {
+
+  if (process.platform === "win32" && /^\
     console.warn(`[DATA_DIR] '${configured}' is a Unix path on Windows → fallback to default`);
     return defaultDir();
   }

@@ -6,7 +6,6 @@ import { getProviderAlias } from "@/shared/constants/providers.js";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/providers/health-check?provider=xxx  — get health summary for a provider
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -40,9 +39,6 @@ export async function GET(request) {
   }
 }
 
-// POST /api/providers/health-check  — run connection test for one connection
-// body: { connectionId, provider }
-// Tests the first available LLM model for that provider
 export async function POST(request) {
   try {
     const { connectionId, provider } = await request.json();
@@ -50,7 +46,6 @@ export async function POST(request) {
       return NextResponse.json({ error: "connectionId and provider required" }, { status: 400 });
     }
 
-    // Find first LLM model for this provider
     const alias = getProviderAlias(provider) || provider;
     const providerModels = AI_MODELS.filter(m => m.provider === provider || m.provider === alias);
     const firstModel = providerModels.find(m => !m.kind || m.kind === "llm");
@@ -68,7 +63,6 @@ export async function POST(request) {
       result = { ok: false, error: e.message, latencyMs: Date.now() - t0 };
     }
 
-    // Update connection testStatus in DB
     const update = {
       testStatus: result.ok ? "active" : "unavailable",
       lastCheckedAt: new Date().toISOString(),

@@ -2,16 +2,13 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import "material-symbols/outlined.css";
 import "./globals.css";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
-import "@/lib/network/initOutboundProxy"; // Auto-initialize outbound proxy env
-import "@/shared/services/bootstrap"; // Auto-run initializeApp (watchdog, auto-resume tunnel)
+import "@/lib/network/initOutboundProxy";
+import "@/shared/services/bootstrap";
 import { initConsoleLogCapture } from "@/lib/consoleLogBuffer";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
 
-// Hook console immediately at module load time (server-side only, runs once)
 initConsoleLogCapture();
 
-// Fonts injected via <link> at runtime — avoids next/font/google network fetch during build.
-// CSS variables are set in globals.css @import block below.
 const orbitron      = { variable: "--font-terminator" };
 const chakraPetch   = { variable: "--font-ui" };
 const jetbrainsMono = { variable: "--font-mono" };
@@ -33,14 +30,14 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Google Fonts loaded at runtime (not build-time) */}
+        {}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        {/* Apply persisted theme before first paint */}
+        {}
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{

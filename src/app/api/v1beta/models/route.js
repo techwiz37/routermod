@@ -1,8 +1,6 @@
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 
-/**
- * Handle CORS preflight
- */
+
 export async function OPTIONS() {
   return new Response(null, {
     headers: {
@@ -13,10 +11,7 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * GET /v1beta/models - Gemini compatible models list
- * Returns models in Gemini API format
- */
+
 export async function GET() {
   try {
     const models = [];
@@ -34,7 +29,7 @@ export async function GET() {
         outputTokenLimit: 8192,
       });
     }
-    
+
     for (const [provider, providerModels] of Object.entries(PROVIDER_MODELS)) {
       for (const model of providerModels) {
         addModel({

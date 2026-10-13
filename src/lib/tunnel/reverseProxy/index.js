@@ -1,14 +1,3 @@
-/**
- * src/lib/tunnel/reverseProxy/index.js
- *
- * Auto-configure a local reverse proxy for the public domain.
- *
- * Linux  → Nginx (apt install if missing, write site config, reload)
- * Windows → Caddy (download if missing, write Caddyfile, start/reload)
- *
- * Called after CF DNS record is created so `slug.toolwiz.id` points here.
- * On disable: remove site config + reload.
- */
 
 import { execSync, exec } from "child_process";
 import fs from "fs";
@@ -19,8 +8,6 @@ import { DATA_DIR } from "@/lib/dataDir.js";
 
 const IS_WIN = process.platform === "win32";
 const APP_PORT = parseInt(process.env.PORT || "1945", 10);
-
-// ─── paths ───────────────────────────────────────────────────────────────────
 
 const PROXY_DIR   = path.join(DATA_DIR, "proxy");
 const CADDY_BIN   = IS_WIN ? path.join(PROXY_DIR, "caddy.exe") : "caddy";
@@ -33,8 +20,6 @@ const NGINX_CONF  = (slug) => `/etc/nginx/sites-enabled/routermod-${slug}.conf`;
 function ensureProxyDir() {
   if (!fs.existsSync(PROXY_DIR)) fs.mkdirSync(PROXY_DIR, { recursive: true });
 }
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function run(cmd, opts = {}) {
   return execSync(cmd, { encoding: "utf-8", stdio: "pipe", ...opts }).trim();
@@ -65,10 +50,8 @@ function downloadFile(url, dest) {
   });
 }
 
-// ─── VPS IP detection ─────────────────────────────────────────────────────────
-
 export async function getPublicIpv4() {
-  // Try multiple services in parallel, first wins
+
   const services = [
     "https://api4.ipify.org",
     "https://ipv4.icanhazip.com",
@@ -86,8 +69,6 @@ export async function getPublicIpv4() {
   if (!first) throw new Error("Could not detect public IPv4");
   return first.value;
 }
-
-// ─── Linux / Nginx ────────────────────────────────────────────────────────────
 
 function isNginxInstalled() {
   try { run("nginx -v"); return true; } catch { return false; }
@@ -140,8 +121,6 @@ async function disableNginx(slug) {
   }
 }
 
-// ─── Windows / Caddy ──────────────────────────────────────────────────────────
-
 function isCaddyInstalled() {
   try { run(`"${CADDY_BIN}" version`); return true; } catch { return false; }
 }
@@ -180,7 +159,7 @@ async function enableCaddy(slug, domain) {
   fs.writeFileSync(CADDYFILE, caddyfileContent(slug, domain));
   console.log("[reverseProxy] wrote Caddyfile", CADDYFILE);
   stopOldCaddy();
-  // Start caddy in background, detached
+
   const child = require("child_process").spawn(
     CADDY_BIN,
     ["run", "--config", CADDYFILE, "--adapter", "caddyfile"],
@@ -197,13 +176,6 @@ async function disableCaddy() {
   console.log("[reverseProxy] caddy stopped, Caddyfile removed");
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-/**
- * enableReverseProxy({ slug, domain })
- * Returns { publicIp } on Linux (used for CF DNS A record IP).
- * On Windows returns null (CF DNS uses dummy IP, CF proxied → Caddy handles TLS).
- */
 export async function enableReverseProxy({ slug, domain }) {
   if (IS_WIN) {
     await enableCaddy(slug, domain);

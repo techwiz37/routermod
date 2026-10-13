@@ -41,7 +41,7 @@ export default function ContactPage() {
   return (
     <div className="flex flex-col gap-5">
 
-      {/* Header */}
+      {}
       <Card>
         <div className="flex items-center gap-4">
           <div
@@ -63,7 +63,7 @@ export default function ContactPage() {
         </div>
       </Card>
 
-      {/* Cards */}
+      {}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {CONTACTS.map((c) => (
           <a

@@ -15,7 +15,7 @@ const PROVIDER_NAME = "9router";
 const getDeepSeekDir = () => path.join(os.homedir(), ".deepseek");
 const getDeepSeekConfigPath = () => path.join(getDeepSeekDir(), "config.toml");
 
-// Simple TOML parser for key = "value" and [section] patterns
+
 const parseToml = (content) => {
     const result = {};
     let currentSection = result;
@@ -23,10 +23,10 @@ const parseToml = (content) => {
     const lines = content.split(/\r?\n/);
     for (const line of lines) {
         const trimmed = line.trim();
-        // Skip empty lines and comments
+
         if (!trimmed || trimmed.startsWith("#")) continue;
 
-        // Section header: [section] or [section.subsection]
+
         const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/);
         if (sectionMatch) {
             const sectionName = sectionMatch[1];
@@ -35,7 +35,7 @@ const parseToml = (content) => {
             continue;
         }
 
-        // Key = "value" or key = value
+
         const keyValueMatch = trimmed.match(/^(\w+)\s*=\s*"([^"]*)"$/);
         if (keyValueMatch) {
             currentSection[keyValueMatch[1]] = keyValueMatch[2];

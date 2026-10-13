@@ -15,7 +15,7 @@ if (!global._consoleLogBufferState) {
 
 const state = global._consoleLogBufferState;
 
-// Ensure emitter exists (handles hot reload with stale global)
+
 if (!state.emitter) {
   state.emitter = new EventEmitter();
   state.emitter.setMaxListeners(50);
@@ -46,7 +46,7 @@ function toLogLine(level, args) {
   return `${prefix} ${args.map(formatArg).join(" ")}`;
 }
 
-// Strip ANSI escape codes so terminal colors don't bleed into UI
+
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
 function stripAnsi(str) {

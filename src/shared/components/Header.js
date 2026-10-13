@@ -19,7 +19,7 @@ import { translate } from "@/i18n/runtime";
 const getPageInfo = (pathname) => {
   if (!pathname) return { title: "", description: "", breadcrumbs: [] };
 
-  // Media provider detail: /dashboard/media-providers/[kind]/[id]
+
   const mediaDetailMatch = pathname.match(/\/media-providers\/([^/]+)\/([^/]+)$/);
   if (mediaDetailMatch) {
     const kindId = mediaDetailMatch[1];
@@ -37,7 +37,7 @@ const getPageInfo = (pathname) => {
     };
   }
 
-  // Media provider kind: /dashboard/media-providers/[kind]
+
   const mediaKindMatch = pathname.match(/\/media-providers\/([^/]+)$/);
   if (mediaKindMatch) {
     const kindId = mediaKindMatch[1];
@@ -50,7 +50,7 @@ const getPageInfo = (pathname) => {
     };
   }
 
-  // Provider detail page: /dashboard/providers/[id]
+
   const providerMatch = pathname.match(/\/providers\/([^/]+)$/);
   if (providerMatch) {
     const providerId = providerMatch[1];
@@ -186,7 +186,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
   const [loginMethod, setLoginMethod] = useState("");
   const [donateOpen, setDonateOpen] = useState(false);
 
-  // Memoize page info to prevent unnecessary recalculations
+
   const pageInfo = useMemo(() => getPageInfo(pathname), [pathname]);
   const { title, description, icon, breadcrumbs } = pageInfo;
 
@@ -229,7 +229,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
 
   return (
     <header className="shrink-0 flex items-center justify-between gap-2.5 sm:gap-3 px-3 sm:px-4 lg:px-8 py-2.5 sm:py-3 border-b-2 border-border bg-surface/95 backdrop-blur-md z-20 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-      {/* Left side: Mobile menu + Logo brand (like login) */}
+      {}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {showMenuButton && (
           <button
@@ -241,7 +241,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
           </button>
         )}
 
-        {/* Brand with 3D R Logo (matching login page) */}
+        {}
         <Link href="/dashboard" className="flex items-center gap-2 group shrink-0">
           <Soft3DLogo className="size-7 sm:size-8" />
           <div className="hidden min-[380px]:flex flex-col leading-none">
@@ -249,15 +249,15 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
               ROUTER<span className="text-[#ff1a53]">MOD</span>
             </span>
             <span className="font-mono text-[8px] sm:text-[9px] font-bold text-[#ff1a53] tracking-widest">
-              // :1945
+
             </span>
           </div>
         </Link>
 
-        {/* Separator on desktop */}
+        {}
         <div className="hidden lg:block h-5 w-[2px] bg-border mx-1" />
 
-        {/* Page title / breadcrumbs (desktop or larger screen) */}
+        {}
         <div className="hidden md:flex flex-col min-w-0">
           {breadcrumbs.length > 0 ? (
             <div className="flex items-center gap-1.5 min-w-0">
@@ -277,7 +277,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
         </div>
       </div>
 
-      {/* Right actions */}
+      {}
       <div className="flex items-center gap-1 shrink-0">
         {displayName && (loginMethod === "OIDC" || loginMethod === "SAML") && (
           <div

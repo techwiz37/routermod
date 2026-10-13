@@ -15,12 +15,7 @@ import * as log from "../utils/logger.js";
 import { checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
 
-/**
- * Handle System One (Jev) decision requests for the Next.js server.
- * Follows the same auth + account-fallback pattern as handleEmbeddings.
- *
- * @param {Request} request
- */
+
 export async function handleSystemone(request) {
   let body;
   try {
@@ -35,7 +30,7 @@ export async function handleSystemone(request) {
 
   log.request("POST", `${url.pathname} | ${modelStr}`);
 
-  // Log API key (masked)
+
   const apiKey = extractApiKey(request);
   if (apiKey) {
     log.debug("AUTH", `API Key: ${log.maskKey(apiKey)}`);
@@ -43,7 +38,7 @@ export async function handleSystemone(request) {
     log.debug("AUTH", "No API key provided (local mode)");
   }
 
-  // Enforce API key if enabled in settings
+
   const settings = await getSettings();
   if (settings.requireApiKey) {
     if (!apiKey) {
@@ -76,7 +71,7 @@ export async function handleSystemone(request) {
 
   const { provider, model } = modelInfo;
 
-  // Per-key access control: checked before any credential lookup.
+
   const keyAccessDenied = await enforceKeyAccessResolved(await getKeyAccessContext(request), modelStr, provider, model);
   if (keyAccessDenied) return keyAccessDenied;
 
@@ -86,7 +81,7 @@ export async function handleSystemone(request) {
     log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
   }
 
-  // Credential + fallback loop (mirrors handleEmbeddings)
+
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
@@ -94,7 +89,7 @@ export async function handleSystemone(request) {
   while (true) {
     const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
 
-    // All accounts unavailable
+
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
         const errorMsg = lastError || credentials.lastError || "Unavailable";

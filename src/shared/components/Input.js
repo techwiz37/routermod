@@ -42,7 +42,7 @@ export default function Input({
             "border-2 border-border shadow-[2px_2px_0px_var(--color-border)] placeholder-text-muted/60 font-mono",
             "focus:outline-none focus:border-[#ff1a53] focus:shadow-[3px_3px_0px_#ff1a53]",
             "transition-all duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
-            // iOS zoom fix
+
             "text-[16px] sm:text-sm",
             icon && "pl-10",
             error && "border-red-500 shadow-[2px_2px_0px_#ef4444]",

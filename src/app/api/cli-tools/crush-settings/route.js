@@ -98,7 +98,7 @@ export async function POST(request) {
       const raw = await fs.readFile(configPath, "utf-8");
       existing = JSON.parse(raw);
     } catch {
-      /* No existing config */
+
     }
 
     if (!existing.providers) existing.providers = {};

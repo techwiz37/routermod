@@ -3,7 +3,7 @@ import { getDisabledModels, disableModels, enableModels } from "@/lib/disabledMo
 
 export const dynamic = "force-dynamic";
 
-// GET /api/models/disabled?providerAlias=xxx
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -17,7 +17,7 @@ export async function GET(request) {
   }
 }
 
-// POST /api/models/disabled  body: { providerAlias, ids: [...] }
+
 export async function POST(request) {
   try {
     const { providerAlias, ids } = await request.json();
@@ -32,7 +32,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE /api/models/disabled?providerAlias=xxx[&id=yyy]
+
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
