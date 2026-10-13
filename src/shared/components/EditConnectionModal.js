@@ -38,7 +38,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         priority: connection.priority || 1,
         apiKey: "",
       });
-
+      // Load Azure-specific data if present
       if (connection.provider === "azure" && connection.providerSpecificData) {
         setAzureData({
           azureEndpoint: connection.providerSpecificData.azureEndpoint || "",
@@ -60,7 +60,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         });
         setClearAwsSessionToken(false);
       }
-
+      // Load region for providers that support it (e.g. xiaomi-tokenplan)
       const providerCfg = AI_PROVIDERS?.[connection.provider];
       if (providerCfg?.regions) {
         const savedRegion = connection.providerSpecificData?.region || providerCfg.defaultRegion || providerCfg.regions[0]?.id || "";
@@ -80,13 +80,14 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
     : false;
   const providerRegions = connection ? (AI_PROVIDERS?.[connection.provider]?.regions || null) : null;
 
-
+  // Build providerSpecificData for region-aware providers
   const buildRegionSpecificData = () => {
     if (providerRegions && region) return { ...((connection?.providerSpecificData) || {}), region };
     return undefined;
   };
 
-
+  // The server keeps a saved session token when this password field is blank. Other empty
+  // fields still clear their saved values so a profile can be switched to static keys.
   const buildAwsSpecificData = () => ({
     profile: awsData.profile.trim(),
     region: awsData.region.trim(),
@@ -177,8 +178,8 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           updates.lastErrorAt = null;
         }
       }
-
-
+      
+      // Add Azure-specific data if this is an Azure connection
       if (isAzure) {
         updates.providerSpecificData = {
           azureEndpoint: azureData.azureEndpoint,
@@ -193,11 +194,11 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       if (usesAwsCredentialForm) {
         updates.providerSpecificData = buildAwsSpecificData();
       }
-
+      // Persist updated region for region-aware providers
       if (providerRegions && region) {
         updates.providerSpecificData = buildRegionSpecificData();
       }
-
+      
       await onSave(updates);
     } finally {
       setSaving(false);

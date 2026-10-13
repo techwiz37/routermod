@@ -12,9 +12,9 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 
-
+// Tunnel host patterns — CF tunnels and toolwiz.id subdomains
 const TUNNEL_HOST_RE = [/\.trycloudflare\.com$/, /\.toolwiz\.id$/];
-
+// API/LLM paths always allowed through regardless of gate
 const TUNNEL_API_RE = /^\/(api|v1|v1beta|codex|responses|systemone)(\/|$)/;
 
 function isTunnelHost(host) {
@@ -22,7 +22,8 @@ function isTunnelHost(host) {
   return TUNNEL_HOST_RE.some((re) => re.test(hostname));
 }
 
-
+// Read gate.json synchronously — fast, no DB, works in proxy context
+// Uses same path logic as src/lib/dataDir.js to stay consistent across platforms
 function readGateSync() {
   try {
     let dataDir;
@@ -37,7 +38,7 @@ function readGateSync() {
     if (!fs.existsSync(gateFile)) return { tunnelActive: false, dashboardAccess: true };
     return JSON.parse(fs.readFileSync(gateFile, "utf8"));
   } catch {
-    return null;
+    return null; // fail open
   }
 }
 
@@ -49,23 +50,23 @@ export default async function proxy(request) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") || "";
 
-
+  // Gate: requests from tunnel domain go through access control
   if (isTunnelHost(host)) {
     const isApiPath = TUNNEL_API_RE.test(pathname);
     if (!isApiPath) {
-
+      // Sync read — no await needed, instant
       const gate = readGateSync();
-
+      // gate null = fail open (gate.json missing = first run, allow)
       if (gate !== null) {
         if (!gate.tunnelActive) {
-
+          // Tunnel disabled — block all non-API paths
           return new Response(BLOCKED_HTML, {
             status: 403,
             headers: { "Content-Type": "text/html; charset=utf-8" },
           });
         }
         if (!gate.dashboardAccess) {
-
+          // Tunnel active but dashboard access disabled — block UI, allow API
           return new Response(BLOCKED_HTML_DASHBOARD, {
             status: 403,
             headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -75,18 +76,27 @@ export default async function proxy(request) {
     }
   }
 
-
+  // Xiaomi account session-login proxy (src/lib/mimoLoginSession.js).
+  // Session state (region + accumulated cookie jar) travels in the httpOnly
+  // 9r_mimo_login cookie — route handlers and this proxy run in separate
+  // bundles, so module-level maps are NOT shared. The cookie is only set by
+  // the auth-gated login/start route, and the branch below ALSO requires a
+  // valid dashboard session: a forged 9r_mimo_login cookie (client-controlled
+  // header, unsigned payload) must never turn the app into an unauthenticated
+  // forwarder. No URL-carried session — it would leak the jar via history/logs/Referer.
   const cookies = request.headers.get("cookie") || "";
   const hasSessionCookie = cookies.includes("9r_mimo_login=");
   if (hasSessionCookie && !(await isAuthenticated(request))) {
-
+    // Forged or stale session cookie without dashboard auth — drop it early.
     const res = await dashboardProxy(request);
     const headers = new Headers(res.headers);
     headers.append("Set-Cookie", "9r_mimo_login=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
   }
   if (!hasSessionCookie && /^\/(fe\/|pass)/.test(pathname) && !pathname.startsWith("/_next")) {
-
+    // Anomaly: a login-flow XHR arrived without the session — the classic
+    // cause of silent SPA "Something went wrong" 404s. Narrow to login paths
+    // so unrelated unknown routes don't spam this.
     console.log(`${new Date().toISOString().slice(11,23)} [mimo-login] no-session ${pathname} (cookie header: ${cookies ? cookies.slice(0, 80) : "<none>"})`);
   }
   if (hasSessionCookie) {
@@ -106,12 +116,12 @@ export default async function proxy(request) {
         return new Response("mimo login proxy error", { status: 502 });
       }
     } else {
-
+      // Anomaly (should not happen in a healthy flow): cookie present but unparseable.
       console.log(`${new Date().toISOString().slice(11,23)} [mimo-login] session cookie undecodable — falling through (${pathname})`);
     }
   }
 
-
+  // Cookie present but expired/invalid — clear it on the way past.
   if (hasSessionCookie) {
     const res = await dashboardProxy(request);
     const headers = new Headers(res.headers);

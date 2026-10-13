@@ -10,18 +10,18 @@ const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key
 export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, onSave, onClose }) {
   const [modelId, setModelId] = useState("");
   const [caps, setCaps] = useState(defaultCaps);
-  const [testStatus, setTestStatus] = useState(null);
+  const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
   const [testError, setTestError] = useState("");
   const [saving, setSaving] = useState(false);
-
+  // Realtime dispatch marker for the transport select; "" = provider default REST.
   const [transport, setTransport] = useState("");
 
-
+  // Reset state when modal opens
   useEffect(() => {
     if (isOpen) { setModelId(""); setCaps(defaultCaps()); setTransport(""); setTestStatus(null); setTestError(""); }
   }, [isOpen]);
 
-
+  // Strip provider's own alias prefix (e.g. "cc/model" -> "model" for cc provider)
   const stripAlias = (id) => {
     const prefix = `${providerAlias}/`;
     return id.startsWith(prefix) ? id.slice(prefix.length) : id;
@@ -52,7 +52,8 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
     if (!cleanId || saving) return;
     setSaving(true);
     try {
-
+      // caps.stt is UI-only; the parent save flow derives the model type from
+      // it and forwards the pinned transport (null unless the caller picked one).
       await onSave(cleanId, caps, caps.stt ? transport : null);
     } finally {
       setSaving(false);
@@ -109,7 +110,10 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
           </div>
         </div>
 
-        {}
+        {/* STT is a model TYPE, not a chat capability: the save flow turns this
+            flag into type "stt" (the API honours a transport only on stt
+            records). The select pins the realtime dispatch marker persisted
+            with the model; the whitelist is the shared STT_TRANSPORT_META. */}
         <div>
           <Toggle
             checked={!!caps.stt}
@@ -132,7 +136,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
           )}
         </div>
 
-        {}
+        {/* Test result */}
         {testStatus === "ok" && (
           <div className="flex items-center gap-2 text-sm text-green-600">
             <span className="material-symbols-outlined text-base">check_circle</span>

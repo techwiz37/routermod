@@ -49,7 +49,7 @@ const has9RouterInYml = (content) => {
   return content.includes("9router:") || content.includes("localhost:20128");
 };
 
-
+// Build standard 9Router provider block for models.yml
 const buildOmpProviderYaml = (baseUrl, apiKey) => {
   const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
   const key = apiKey || "";
@@ -108,7 +108,7 @@ export async function POST(request) {
     let ymlContent = await readModelsYml();
     const providerBlock = buildOmpProviderYaml(baseUrl, resolvedKey);
 
-
+    // Remove existing 9router provider if present
     const regex = new RegExp(`\\s*${PROVIDER_ID}:[\\s\\S]*?(?=\\n\\s*\\w+:|$)`, "g");
     ymlContent = ymlContent.replace(regex, "");
 
@@ -122,14 +122,14 @@ export async function POST(request) {
 
     await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
 
-
+    // Best-effort update to agent.db if better-sqlite3 or node:sqlite is present
     try {
       let Database;
       try {
         const mod = await import("better-sqlite3");
         Database = mod.default || mod;
       } catch {
-
+        // fallback ignored
       }
       if (Database) {
         const dbPath = getOmpDbPath();
@@ -147,7 +147,7 @@ export async function POST(request) {
         db.close();
       }
     } catch {
-
+      // Non-critical: models.yml is primary
     }
 
     return NextResponse.json({

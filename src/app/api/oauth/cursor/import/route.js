@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { CursorService } from "@/lib/oauth/services/cursor";
 import { createProviderConnection } from "@/models";
 
-
+/**
+ * POST /api/oauth/cursor/import
+ * Import and validate access token from Cursor IDE's local SQLite database
+ *
+ * Request body:
+ * - accessToken: string - Access token from cursorAuth/accessToken
+ * - machineId: string - Machine ID from storage.serviceMachineId
+ */
 export async function POST(request) {
   try {
     const { accessToken, machineId } = await request.json();
@@ -23,21 +30,21 @@ export async function POST(request) {
 
     const cursorService = new CursorService();
 
-
+    // Validate token by making API call
     const tokenData = await cursorService.validateImportToken(
       accessToken.trim(),
       machineId.trim()
     );
 
-
+    // Try to extract user info from token
     const userInfo = cursorService.extractUserInfo(tokenData.accessToken);
 
-
+    // Save to database
     const connection = await createProviderConnection({
       provider: "cursor",
       authType: "oauth",
       accessToken: tokenData.accessToken,
-      refreshToken: null,
+      refreshToken: null, // Cursor doesn't have public refresh endpoint
       expiresAt: new Date(Date.now() + tokenData.expiresIn * 1000).toISOString(),
       email: userInfo?.email || null,
       providerSpecificData: {
@@ -63,7 +70,10 @@ export async function POST(request) {
   }
 }
 
-
+/**
+ * GET /api/oauth/cursor/import
+ * Get instructions for importing Cursor token
+ */
 export async function GET() {
   const cursorService = new CursorService();
   const instructions = cursorService.getTokenStorageInstructions();

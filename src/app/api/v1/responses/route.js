@@ -20,7 +20,10 @@ export async function OPTIONS() {
   });
 }
 
-
+/**
+ * POST /v1/responses - OpenAI Responses API format
+ * Now handled by translator pattern (openai-responses format auto-detected)
+ */
 export async function POST(request) {
   await ensureInitialized();
   return await handleChat(request);

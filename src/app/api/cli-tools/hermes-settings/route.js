@@ -30,7 +30,9 @@ const execAsync = promisify(exec);
 const PROVIDER_NAME = "9router";
 const API_KEY_ENV = "OPENAI_API_KEY";
 
-
+// Profile comes from ?profile= on GET (all-statuses calls GET() with no argument at all,
+// so every reader must tolerate a missing request) and from the JSON body on POST/DELETE.
+// POST/DELETE fall back to the query string — callers reach for either.
 const getQueryParam = (request, key) => {
   if (!request) return null;
   try {
@@ -65,13 +67,15 @@ const readTextFile = async (file) => {
 const readConfigYaml = (home) => readTextFile(home.configPath);
 const readEnvFile = (home) => readTextFile(home.envPath);
 
-
+// Named profile homes are created by `hermes profile create` — never by us: a directory
+// without identity files is not a profile, and we must not fabricate one.
 const writeHomeConfig = async (home, yaml) => {
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
   await fs.writeFile(home.configPath, yaml);
 };
 
-
+// Only ever upserts the OPENAI_API_KEY line — per-profile .env files also carry bot tokens
+// and messaging-channel credentials that must stay untouched.
 const writeHomeEnv = async (home, apiKey) => {
   if (!apiKey) return;
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
@@ -125,7 +129,9 @@ export async function GET(request) {
   }
 }
 
-
+// Endpoint + API key across every profile: refresh the 9router blocks each profile already
+// has (models stay per-profile), and wire up profiles that have no main model yet using the
+// model chosen in this request. Profiles on another provider are reported, never rewritten.
 const applyToAllProfiles = async ({ normalizedBaseUrl, apiKey, model }) => {
   const profiles = await listProfiles();
   const results = [];
@@ -182,7 +188,8 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { baseUrl, apiKey, model, selections } = body;
-
+    // selections: [{role, model}] — "default" plus any auxiliary/delegation slots.
+    // Legacy callers (CLI quick setup) send a bare `model` → treat as default role.
     const sel = Array.isArray(selections) && selections.some((s) => s?.role && s?.model)
       ? selections.filter((s) => s?.role && s?.model)
       : model ? [{ role: "default", model }] : [];
@@ -197,14 +204,14 @@ export async function POST(request) {
       return await applyToAllProfiles({ normalizedBaseUrl, apiKey, model: defaultSel.model });
     }
 
-
+    // Profile target: JSON body first, then ?profile= — callers reach for either.
     const { home, error } = resolveHome(body.profile ?? getProfileParam(request));
     if (error) return NextResponse.json({ error }, { status: 400 });
     if (!home.isDefault && !(await dirExists(home.dir))) {
       return NextResponse.json({ error: `Hermes profile "${home.name}" not found` }, { status: 404 });
     }
 
-
+    // Update config.yaml — upsert each role block, keep everything else
     let newYaml = await readConfigYaml(home);
     for (const { role, model: roleModel } of sel) {
       if (role === "default") {
@@ -217,7 +224,7 @@ export async function POST(request) {
     }
     await writeHomeConfig(home, newYaml);
 
-
+    // Update .env — upsert OPENAI_API_KEY only when caller provides one
     await writeHomeEnv(home, apiKey);
 
     return NextResponse.json({
@@ -239,7 +246,7 @@ export async function DELETE(request) {
       try {
         body = await request.json();
       } catch {
-        body = null;
+        body = null; // CLI reset sends an empty body → default profile
       }
     }
 
@@ -259,7 +266,8 @@ export async function DELETE(request) {
       throw readError;
     }
 
-
+    // Only drop blocks 9router wrote (custom provider) — a model/delegation/aux block owned
+    // by another provider is this profile's own configuration and must survive a reset.
     const removed = { model: false, delegation: false, auxiliary: [] };
     const kept = [];
 

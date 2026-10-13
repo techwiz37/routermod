@@ -1,15 +1,28 @@
 import { QODER_CONFIG } from "../constants/oauth.js";
 
-
+/**
+ * Build a Qoder device-code provider for a region. `config` is the registry
+ * oauth block (see open-sse/providers/registry/qoder.js / qoder-cn.js), which
+ * carries the region's login/deviceToken/userInfo URLs. The device flow is
+ * identical across regions — only the hosts differ.
+ */
 export function createQoderProvider(config) {
   return {
     config,
     flowType: "device_code",
-
+    // Qoder uses a custom device flow: PKCE + nonce + machine_id are generated
+    // locally, the user lands on qoder.com[-cn]/device/selectAccounts in the
+    // browser, and we poll the region's deviceToken endpoint until a `dt-...`
+    // token appears.
     requestDeviceCode: async (cfg) => {
       const { QoderService } = await import("@/lib/oauth/services/qoder");
       const flow = new QoderService(cfg).initiateDeviceFlow();
-
+      // Match the device_code shape the rest of the OAuthModal expects
+      // (device_code, user_code, verification_uri[_complete], interval).
+      // The poll endpoint identifies us by nonce+verifier, not by a
+      // server-issued device_code, so we plumb our own values through:
+      //   device_code   = nonce  (modal forwards as deviceCode on poll)
+      //   codeVerifier  = our PKCE verifier (route forwards as codeVerifier)
       return {
         device_code: flow.nonce,
         user_code: flow.nonce.slice(0, 8).toUpperCase(),
@@ -45,9 +58,13 @@ export function createQoderProvider(config) {
       if (result.status === "pending") {
         return { ok: false, data: { error: "authorization_pending" } };
       }
-
+      // Best-effort profile lookup so we have a name/email to display.
       const userInfo = await svc.fetchUserInfo(result.accessToken);
-
+      // expireTime is a Unix-ms timestamp from QoderService.parseExpiry,
+      // which already falls back to "now + 30 days" when the upstream
+      // omits expiry. Floor to a sane minimum (1 day) so a stale or
+      // skewed upstream timestamp doesn't truncate the stored token below
+      // something useful.
       const minSeconds = 24 * 60 * 60;
       const remainingSeconds = Math.floor((result.expireTime - Date.now()) / 1000);
       const expiresIn = Math.max(minSeconds, remainingSeconds);
@@ -69,7 +86,10 @@ export function createQoderProvider(config) {
       const rawEmail = (tokens._qoderEmail || "").trim();
       const displayName = (tokens._qoderName || "").trim() || null;
       const userId = tokens._qoderUserId || "";
-
+      // Dedup in createProviderConnection requires a non-empty email. When
+      // fetchUserInfo silently fails (returns ""), fall back to a stable
+      // synthetic identifier derived from userId so re-logins update the
+      // existing row instead of accumulating "Account N" duplicates.
       const email = rawEmail || (userId ? `qoder-user-${userId}` : null);
       return {
         accessToken: tokens.access_token,

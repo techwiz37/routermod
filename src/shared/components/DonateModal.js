@@ -34,7 +34,7 @@ export default function DonateModal({ isOpen, onClose }) {
         ref={modalRef}
         className="relative w-full max-w-xs bg-surface border-2 border-border rounded-xl shadow-[4px_6px_0px_var(--color-border)] animate-in fade-in zoom-in-95 duration-150 z-10 overflow-hidden"
       >
-        {}
+        {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b-2 border-border bg-surface-2">
           <div className="flex items-center gap-2.5">
             <div className="size-8 rounded-lg border-2 border-border bg-[#ff1a53]/10 shadow-[1.5px_1.5px_0_var(--color-border)] flex items-center justify-center">
@@ -54,7 +54,7 @@ export default function DonateModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {}
+        {/* QRIS */}
         <div className="p-4 flex flex-col items-center gap-3">
           <div className="border-2 border-border rounded-lg overflow-hidden shadow-[2px_2px_0px_var(--color-border)] bg-white">
             <img

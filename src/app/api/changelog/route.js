@@ -3,16 +3,17 @@ import { execSync } from "child_process";
 
 export const dynamic = "force-dynamic";
 
+// In-memory cache — survives hot reload in dev, resets on process restart
 let _cache = null;
 let _cacheAt = 0;
-const TTL = 5 * 60 * 1000;
+const TTL = 5 * 60 * 1000; // 5 min
 
 async function fetchFromGitHub() {
   const res = await fetch(
     "https://api.github.com/repos/techwiz37/routermod/commits?per_page=7",
     {
       headers: { "User-Agent": "RouterMod", Accept: "application/vnd.github.v3+json" },
-
+      // bypass Next.js fetch cache — we handle caching ourselves
       cache: "no-store",
     }
   );

@@ -10,14 +10,14 @@ export default function PageLoadBadge() {
   const pathname = usePathname();
 
   useEffect(() => {
-
+    // Record nav start time on pathname change
     startRef.current = performance.now();
     setInfo(null);
     setVisible(false);
   }, [pathname]);
 
   useEffect(() => {
-
+    // Wait until browser is truly idle (all resources loaded, JS settled)
     let cancelled = false;
 
     const measure = () => {
@@ -29,16 +29,17 @@ export default function PageLoadBadge() {
       setVisible(true);
     };
 
+    // Strategy: wait for window load event OR requestIdleCallback — whichever is later
     let measured = false;
     const done = () => {
       if (measured) return;
       measured = true;
-
+      // Small rAF delay to let paint flush before measuring
       requestAnimationFrame(() => requestAnimationFrame(measure));
     };
 
     if (document.readyState === "complete") {
-
+      // Already loaded — wait for idle
       if ("requestIdleCallback" in window) {
         const id = requestIdleCallback(done, { timeout: 3000 });
         return () => { cancelled = true; cancelIdleCallback(id); };
@@ -48,7 +49,7 @@ export default function PageLoadBadge() {
     }
 
     window.addEventListener("load", done, { once: true });
-
+    // Fallback: if load never fires (SPA nav), measure after idle
     const fallback = "requestIdleCallback" in window
       ? (() => { const id = requestIdleCallback(done, { timeout: 5000 }); return () => cancelIdleCallback(id); })()
       : (() => { const t = setTimeout(done, 3000); return () => clearTimeout(t); })();
@@ -60,6 +61,7 @@ export default function PageLoadBadge() {
     };
   }, [pathname]);
 
+  // Auto-hide after 5s
   useEffect(() => {
     if (!visible) return;
     const t = setTimeout(() => setVisible(false), 5000);

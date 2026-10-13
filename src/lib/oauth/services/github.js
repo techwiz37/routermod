@@ -2,13 +2,18 @@ import { OAuthService } from "./oauth.js";
 import { GITHUB_CONFIG } from "../constants/oauth.js";
 import { spinner as createSpinner } from "../utils/ui.js";
 
-
+/**
+ * GitHub Copilot OAuth Service
+ * Uses Device Code Flow for authentication
+ */
 export class GitHubService extends OAuthService {
   constructor() {
     super(GITHUB_CONFIG);
   }
 
-
+  /**
+   * Get device code for GitHub authentication
+   */
   async getDeviceCode() {
     const response = await fetch(`${GITHUB_CONFIG.deviceCodeUrl}`, {
       method: "POST",
@@ -30,15 +35,17 @@ export class GitHubService extends OAuthService {
     return await response.json();
   }
 
-
+  /**
+   * Poll for access token using device code
+   */
   async pollAccessToken(deviceCode, verificationUri, userCode, interval = 5000) {
     const spinner = createSpinner("Waiting for GitHub authentication...").start();
-
-
+    
+    // Show user code and verification URL
     console.log(`\nPlease visit: ${verificationUri}`);
     console.log(`Enter code: ${userCode}\n`);
-
-
+    
+    // Open browser automatically
     try {
       const open = (await import("open")).default;
       await open(verificationUri);
@@ -46,7 +53,7 @@ export class GitHubService extends OAuthService {
       console.log("Could not open browser automatically. Please visit the URL above manually.");
     }
 
-
+    // Poll for access token
     while (true) {
       await new Promise(resolve => setTimeout(resolve, interval));
 
@@ -73,10 +80,10 @@ export class GitHubService extends OAuthService {
           scope: data.scope,
         };
       } else if (data.error === "authorization_pending") {
-
+        // Continue polling
         continue;
       } else if (data.error === "slow_down") {
-
+        // Increase polling interval
         interval += 5000;
         continue;
       } else if (data.error === "expired_token") {
@@ -92,11 +99,13 @@ export class GitHubService extends OAuthService {
     }
   }
 
-
+  /**
+   * Get Copilot token using GitHub access token
+   */
   async getCopilotToken(accessToken) {
     const response = await fetch(`${GITHUB_CONFIG.copilotTokenUrl}`, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`, // GitHub API typically uses Bearer
         Accept: "application/json",
         "X-GitHub-Api-Version": GITHUB_CONFIG.apiVersion,
         "User-Agent": GITHUB_CONFIG.userAgent,
@@ -111,11 +120,13 @@ export class GitHubService extends OAuthService {
     return await response.json();
   }
 
-
+  /**
+   * Get user info using GitHub access token
+   */
   async getUserInfo(accessToken) {
     const response = await fetch(`${GITHUB_CONFIG.userInfoUrl}`, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`, // GitHub API typically uses Bearer
         Accept: "application/json",
         "X-GitHub-Api-Version": GITHUB_CONFIG.apiVersion,
         "User-Agent": GITHUB_CONFIG.userAgent,
@@ -130,31 +141,33 @@ export class GitHubService extends OAuthService {
     return await response.json();
   }
 
-
+  /**
+   * Complete GitHub Copilot authentication flow
+   */
   async authenticate() {
     try {
-
+      // Get device code
       const deviceResponse = await this.getDeviceCode();
-
-
+      
+      // Poll for access token
       const tokenResponse = await this.pollAccessToken(
-        deviceResponse.device_code,
-        deviceResponse.verification_uri,
+        deviceResponse.device_code, 
+        deviceResponse.verification_uri, 
         deviceResponse.user_code
       );
-
-
+      
+      // Get Copilot token
       const copilotToken = await this.getCopilotToken(tokenResponse.access_token);
-
-
+      
+      // Get user info
       const userInfo = await this.getUserInfo(tokenResponse.access_token);
-
+      
       console.log(`\n✅ Successfully authenticated as ${userInfo.login}`);
-
+      
       return {
         accessToken: tokenResponse.access_token,
         copilotToken: copilotToken.token,
-        refreshToken: null,
+        refreshToken: null, // GitHub device flow doesn't return refresh token
         expiresIn: copilotToken.expires_at,
         userInfo: {
           id: userInfo.id,
@@ -169,16 +182,18 @@ export class GitHubService extends OAuthService {
     }
   }
 
-
+  /**
+   * Connect to server with GitHub credentials
+   */
   async connect() {
     try {
-
+      // Authenticate with GitHub
       const authResult = await this.authenticate();
-
-
+      
+      // Send credentials to server
       const { server, token, userId } = await import("../config/index.js").then(m => m.getServerCredentials());
       const spinner = (await import("../utils/ui.js")).spinner("Connecting to server...").start();
-
+      
       const response = await fetch(`${server}/api/cli/providers/github`, {
         method: "POST",
         headers: {
@@ -193,12 +208,12 @@ export class GitHubService extends OAuthService {
           copilotTokenInfo: authResult.copilotTokenInfo,
         }),
       });
-
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to connect to server");
       }
-
+      
       spinner.succeed("GitHub Copilot connected successfully!");
       console.log(`\nConnected as: ${authResult.userInfo.login}`);
     } catch (error) {

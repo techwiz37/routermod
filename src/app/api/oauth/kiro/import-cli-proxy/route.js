@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createProviderConnection } from "@/models";
 import { normalizeKiroExternalIdpAuth } from "@/lib/oauth/kiroExternalIdp";
 
-
+/**
+ * POST /api/oauth/kiro/import-cli-proxy
+ * Import Kiro CLIProxyAPI auth JSON for Microsoft external_idp accounts.
+ */
 export async function POST(request) {
   try {
     const body = await request.json();

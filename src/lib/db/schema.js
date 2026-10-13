@@ -1,5 +1,8 @@
-
-
+// ⚠️ AGENT/DEV: Bump this by +1 EVERY TIME you change the schema below
+// (add/remove/alter a table, column, or index in TABLES). It drives the
+// pre-change safety backup in migrate.js: when the stored version is lower,
+// one lightweight DB backup is taken before applying schema changes. Forgetting
+// to bump only skips that backup — it does NOT break the additive auto-sync.
 export const SCHEMA_VERSION = 2;
 
 export const PRAGMA_SQL = `
@@ -12,7 +15,9 @@ PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
 `;
 
-
+// Declarative current schema. Used by syncSchemaFromTables() to
+// auto-add missing tables/columns/indexes after versioned migrations.
+// For destructive changes (drop/rename/type-change), write a migration file.
 export const TABLES = {
   _meta: {
     columns: {
@@ -78,7 +83,8 @@ export const TABLES = {
       machineId: "TEXT",
       isActive: "INTEGER DEFAULT 1",
       createdAt: "TEXT NOT NULL",
-
+      // Per-key access control. Additive columns, picked up by
+      // syncSchemaFromTables() on boot; existing rows read as unrestricted (0).
       accessRestricted: "INTEGER DEFAULT 0",
       accessAllow: "TEXT",
     },

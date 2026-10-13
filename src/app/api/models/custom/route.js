@@ -4,7 +4,7 @@ import { CAPACITY_META, isSttTransport } from "@/shared/constants/models";
 
 export const dynamic = "force-dynamic";
 
-
+// Whitelist capability keys to boolean values — ignore anything else
 function sanitizeCaps(caps) {
   if (!caps || typeof caps !== "object") return null;
   const clean = {};
@@ -14,13 +14,17 @@ function sanitizeCaps(caps) {
   return Object.keys(clean).length ? clean : null;
 }
 
-
+// Accepted STT transport markers live in the shared whitelist
+// (src/shared/constants/models STT_TRANSPORT_META) — the dashboard transport
+// select and this validator must agree on one set, so neither owns a copy.
+// Unknown or mistyped values are silently dropped, the same policy
+// sanitizeCaps applies to capability keys.
 function sanitizeTransport(transport, type) {
   if (type !== "stt" || !isSttTransport(transport)) return null;
   return transport.trim();
 }
 
-
+// GET /api/models/custom - List all custom models
 export async function GET() {
   try {
     const models = await getCustomModels();
@@ -31,7 +35,7 @@ export async function GET() {
   }
 }
 
-
+// POST /api/models/custom - Add custom model
 export async function POST(request) {
   try {
     const { providerAlias, id, type, name, caps, transport } = await request.json();
@@ -48,7 +52,7 @@ export async function POST(request) {
   }
 }
 
-
+// PATCH /api/models/custom - Rename (update name) or re-ID (change id) of existing custom model
 export async function PATCH(request) {
   try {
     const { providerAlias, id, newId, type, name } = await request.json();
@@ -58,7 +62,7 @@ export async function PATCH(request) {
     const resolvedType = type || "llm";
 
     if (newId && newId.trim() && newId.trim() !== id) {
-
+      // Re-ID: delete old, insert new preserving name
       const oldModels = await getCustomModels();
       const old = oldModels.find((m) => m.providerAlias === providerAlias && m.id === id && m.type === resolvedType);
       await deleteCustomModel({ providerAlias, id, type: resolvedType });
@@ -71,7 +75,7 @@ export async function PATCH(request) {
         ...(old?.transport ? { transport: old.transport } : {}),
       });
     } else if (name?.trim()) {
-
+      // Name-only update
       await addCustomModel({ providerAlias, id, type: resolvedType, name: name.trim() });
     } else {
       return NextResponse.json({ error: "name or newId required" }, { status: 400 });
@@ -83,7 +87,7 @@ export async function PATCH(request) {
   }
 }
 
-
+// DELETE /api/models/custom?providerAlias=xxx&id=yyy&type=zzz
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);

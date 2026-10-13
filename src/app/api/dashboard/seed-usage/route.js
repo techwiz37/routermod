@@ -42,9 +42,13 @@ export async function DELETE() {
     const { getAdapter } = await import("@/lib/db/driver");
     const db = await getAdapter();
 
+    // Delete mock rows from usageHistory
     const res = db.run(`DELETE FROM usageHistory WHERE meta LIKE '%"_mock":true%'`);
     const deleted = res?.changes ?? 0;
 
+    // Rebuild usageDaily from remaining rows (simplest: delete all daily rows then re-agg won't scale,
+    // so just nuke daily rows that only had mock data — full rebuild done on next real request)
+    // For now: delete the daily rows for dates that no longer have any history rows
     db.run(`
       DELETE FROM usageDaily WHERE dateKey NOT IN (
         SELECT DISTINCT substr(timestamp, 1, 10) FROM usageHistory

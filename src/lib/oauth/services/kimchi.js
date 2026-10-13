@@ -1,10 +1,19 @@
-
-
+// Kimchi browser-login service.
+//
+// Ports Kimchi CLI's authenticateViaBrowser (src/cli-auth/index.ts) onto
+// 9Router's shared startLocalServer util (same one xai/antigravity use).
+// Simpler than those: the token arrives directly on the callback query
+// string — no authorization-code exchange, no PKCE.
+//
+// In-flight logins are held in `sessions` keyed by state. The OAuthModal
+// device_code flow starts one via requestDeviceCode(); pollToken() peeks
+// at the resolved token; the generic [provider]/[action] route calls
+// createProviderConnection with the real token.
 import { randomBytes } from "node:crypto";
 import { startLocalServer } from "../utils/server.js";
 import { KIMCHI_CONFIG } from "../constants/oauth.js";
 
-const sessions = new Map();
+const sessions = new Map(); // state -> { result, close, timeout, done, resolved }
 const SESSION_TTL_MS = 5 * 60 * 1000;
 
 export function buildKimchiAuthUrl(callbackUrl, state) {
@@ -16,7 +25,8 @@ export function generateState() {
   return randomBytes(32).toString("hex");
 }
 
-
+// Returns the resolved { token } if the session for `state` has completed,
+// or null if it is still pending / unknown.
 export function getResolvedSession(state) {
   const s = sessions.get(state);
   if (!s || !s.done || !s.resolved) return null;
@@ -42,14 +52,16 @@ export class KimchiService {
 
     sessions.set(state, { result, close, timeout, done: false, resolved: null });
 
-
+    // Stash the resolved value so pollToken() can retrieve the real token,
+    // close the loopback server, and reap the session after a TTL so the
+    // Map can't grow unbounded across many logins.
     result.then((r) => {
       const s = sessions.get(state);
       if (!s) return;
       s.done = true;
       s.resolved = r;
       clearTimeout(s.timeout);
-      try { s.close(); } catch {  }
+      try { s.close(); } catch { /* already closed */ }
       setTimeout(() => sessions.delete(state), SESSION_TTL_MS).unref?.();
     });
 
@@ -90,7 +102,9 @@ export class KimchiService {
     }
   }
 
-
+  // Validate a token against Kimchi's supported-providers endpoint.
+  // 200 → valid; 401/403 → invalid; anything else (incl. network/timeout)
+  // → fail-open valid so a flaky validation never blocks a good login.
   async validateToken(token) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
@@ -106,7 +120,7 @@ export class KimchiService {
       });
       status = res.status;
     } catch {
-
+      // Network error / abort → fail-open
       return { valid: true };
     } finally {
       clearTimeout(timer);

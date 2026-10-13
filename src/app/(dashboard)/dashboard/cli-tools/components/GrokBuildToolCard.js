@@ -90,7 +90,7 @@ export default function GrokBuildToolCard({
   const [selectedApiKey, setSelectedApiKey] = useState(apiKeys?.[0]?.key || "");
   const [selectedModel, setSelectedModel] = useState(initialModel);
   const [subagentModels, setSubagentModels] = useState(initialSubagents);
-  const [modelTarget, setModelTarget] = useState(null);
+  const [modelTarget, setModelTarget] = useState(null); // "main" or subagent type
   const [modelAliases, setModelAliases] = useState({});
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
   const [customBaseUrl, setCustomBaseUrl] = useState("");
@@ -186,7 +186,7 @@ export default function GrokBuildToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-
+        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Main and subagent models applied successfully!" });
         checkStatus();
@@ -291,7 +291,7 @@ export default function GrokBuildToolCard({
                 <span className="material-symbols-outlined text-yellow-500">warning</span>
                 <div className="flex-1">
                   <p className="font-medium text-yellow-600 dark:text-yellow-400">Grok Build not detected locally</p>
-                  <code className="block mt-2 p-2 bg-black/20 rounded text-xs font-mono">curl -fsSL https:
+                  <code className="block mt-2 p-2 bg-black/20 rounded text-xs font-mono">curl -fsSL https://x.ai/cli/install.sh | bash</code>
                 </div>
               </div>
               <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="w-full sm:w-auto"><span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>Manual Config</Button>

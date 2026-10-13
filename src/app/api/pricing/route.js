@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getPricing, updatePricing, resetPricing, resetAllPricing } from "@/lib/localDb.js";
 import { getDefaultPricing } from "open-sse/providers/pricing.js";
 
-
+/**
+ * GET /api/pricing
+ * Get current pricing configuration (merged user + defaults)
+ */
 export async function GET() {
   try {
     const pricing = await getPricing();
@@ -16,12 +19,16 @@ export async function GET() {
   }
 }
 
-
+/**
+ * PATCH /api/pricing
+ * Update pricing configuration
+ * Body: { provider: { model: { input: number, output: number, cached: number, ... } } }
+ */
 export async function PATCH(request) {
   try {
     const body = await request.json();
 
-
+    // Validate body structure
     if (typeof body !== "object" || body === null) {
       return NextResponse.json(
         { error: "Invalid pricing data format" },
@@ -29,7 +36,7 @@ export async function PATCH(request) {
       );
     }
 
-
+    // Validate pricing structure
     for (const [provider, models] of Object.entries(body)) {
       if (typeof models !== "object" || models === null) {
         return NextResponse.json(
@@ -46,7 +53,7 @@ export async function PATCH(request) {
           );
         }
 
-
+        // Validate pricing fields
         const validFields = ["input", "output", "cached", "reasoning", "cache_creation"];
         for (const [key, value] of Object.entries(pricing)) {
           if (!validFields.includes(key)) {
@@ -76,7 +83,11 @@ export async function PATCH(request) {
   }
 }
 
-
+/**
+ * DELETE /api/pricing
+ * Reset pricing to defaults
+ * Query params: ?provider=xxx&model=yyy (optional)
+ */
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -84,13 +95,13 @@ export async function DELETE(request) {
     const model = searchParams.get("model");
 
     if (provider && model) {
-
+      // Reset specific model
       await resetPricing(provider, model);
     } else if (provider) {
-
+      // Reset entire provider
       await resetPricing(provider);
     } else {
-
+      // Reset all pricing
       await resetAllPricing();
     }
 
@@ -105,7 +116,10 @@ export async function DELETE(request) {
   }
 }
 
-
+/**
+ * GET /api/pricing/defaults
+ * Get default pricing configuration
+ */
 export async function GET_DEFAULTS() {
   try {
     const defaultPricing = getDefaultPricing();

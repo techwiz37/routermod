@@ -5,7 +5,10 @@ import { Card, Button, Badge, Input } from "@/shared/components";
 
 const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
 
-
+/**
+ * Shared MITM infrastructure card — manages SSL cert + server start/stop.
+ * DNS per-tool is handled separately in MitmToolCard.
+ */
 export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -21,7 +24,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
   const serverIsWindows = status?.isWin === true;
   const canRunWithoutPassword = serverIsWindows || status?.hasCachedPassword || status?.needsSudoPassword === false;
   const isAdmin = status?.isAdmin !== false;
-
+  // No privilege: not admin/root AND (Win OR no cached sudo password)
   const noPrivilege = !isAdmin && (serverIsWindows || (!status?.hasCachedPassword && status?.needsSudoPassword !== false));
 
   const fetchStatus = useCallback(async () => {
@@ -48,7 +51,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
 
   const handleAction = (action) => {
     setActionError(null);
-
+    // Wait for status to load before deciding whether to show sudo modal
     if (!status) return;
     if (canRunWithoutPassword) {
       doAction(action, "");
@@ -132,7 +135,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
     <>
       <Card padding="sm" className="border-primary/20 bg-primary/5">
         <div className="flex flex-col gap-3">
-          {}
+          {/* Header */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="material-symbols-outlined text-primary text-[20px]">security</span>
@@ -159,7 +162,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             </div>
           </div>
 
-          {}
+          {/* Purpose & How it works */}
           <div className="px-2 py-2 rounded-lg bg-surface/50 border border-border/50 flex flex-col gap-2">
             <p className="text-[11px] text-text-muted leading-relaxed">
               <span className="font-medium text-text-main">Purpose:</span> Use Antigravity IDE & GitHub Copilot → with ANY provider/model from 9Router
@@ -169,7 +172,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             </p>
           </div>
 
-          {}
+          {/* Base URL + API Key — same row pattern as Claude Code / cli-tools */}
           <div className="flex flex-col gap-2">
             <div className="grid gap-1 sm:grid-cols-[8rem_auto_1fr] sm:items-center sm:gap-2">
               <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">9Router Base URL</span>
@@ -206,7 +209,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             )}
           </div>
 
-          {}
+          {/* Action buttons */}
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center" data-i18n-skip="true">
             {status?.certExists && !status?.certTrusted && (
               <button
@@ -243,7 +246,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             )}
           </div>
 
-          {}
+          {/* Action error */}
           {actionError && (
             <div className="flex items-start gap-2 px-2 py-1.5 rounded text-xs bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
               <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">error</span>
@@ -251,7 +254,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             </div>
           )}
 
-          {}
+          {/* Windows admin warning */}
           {serverIsWindows && !isAdmin && (
             <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs bg-red-500/10 text-red-600 border border-red-500/20">
               <span className="material-symbols-outlined text-[14px]">shield_lock</span>
@@ -261,7 +264,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
         </div>
       </Card>
 
-      {}
+      {/* Password Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="mx-4 flex w-full max-w-sm flex-col gap-4 rounded-xl border border-border bg-surface p-5 shadow-xl sm:p-6">
@@ -295,7 +298,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
         </div>
       )}
 
-      {}
+      {/* Port 443 Conflict Modal */}
       {port443Conflict && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="mx-4 flex w-full max-w-md flex-col gap-4 rounded-xl border border-border bg-surface p-5 shadow-xl sm:p-6">

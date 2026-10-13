@@ -1,5 +1,6 @@
 "use client";
 
+/** Reusable status alert — Neobrutalism style */
 export default function StatusAlert({ status, className = "" }) {
   const map = {
     success: {
@@ -37,7 +38,7 @@ export default function StatusAlert({ status, className = "" }) {
   const renderMessage = (msg) => {
     const parts = msg.split(/(https?:\/\/[^\s]+)/g);
     return parts.map((part, i) =>
-      /^https?:\/\
+      /^https?:\/\//.test(part)
         ? <a key={i} href={part} target="_blank" rel="noreferrer" className="underline font-semibold hover:opacity-80">{part}</a>
         : part
     );

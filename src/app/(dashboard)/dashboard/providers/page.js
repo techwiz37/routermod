@@ -93,7 +93,7 @@ function getConnectionErrorTag(connection) {
   return "ERR";
 }
 
-
+// keep OPENAI_COMPATIBLE_PREFIX used in ApiKeyProviderCard
 
 export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
@@ -208,7 +208,8 @@ export default function ProvidersPage() {
   const matchStatus = (stats, isNoAuth) =>
     matchesStatusFilter(statusFilter, stats, isNoAuth);
 
-
+  // Toggle all connections for a provider on/off. authType may be a single
+  // string or an array (kiro counts oauth + api_key/apikey together).
   const handleToggleProvider = async (providerId, authType, newActive) => {
     const authTypes = Array.isArray(authType) ? authType : [authType];
     const matches = (c) =>
@@ -278,11 +279,15 @@ export default function ProvidersPage() {
       (p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")),
     );
 
-
+  // Dual-auth providers (oauth + apikey) store API keys as authType "apikey"
+  // (and sometimes "api_key"). Card stats must count both so totals match detail.
+  // kiro has no authModes in registry but accepts both (headless uses "api_key").
   const dualAuthTypes = (info, key) => {
     if (key === "kiro") return ["oauth", "apikey", "api_key"];
     const modes = info?.authModes;
-
+    // Free-tier and API-key providers default to supporting apikey even when the
+    // registry entry omits authModes (e.g. cloudflare-ai, byteplus, ollama,
+    // vertex) — otherwise their apikey connections are invisible on the grid card.
     if (!Array.isArray(modes)) {
       return key in FREE_TIER_PROVIDERS || key in APIKEY_PROVIDERS
         ? ["oauth", "apikey", "api_key"]
@@ -309,7 +314,9 @@ export default function ProvidersPage() {
         matchStatus(getProviderStats(key, dualAuthTypes(info, key)), info.noAuth),
     )
     .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
-
+  // Free Tier cards may be oauth-only (e.g. kimchi) or dual-auth, so count via
+  // dualAuthTypes per provider instead of a fixed "apikey" — otherwise oauth
+  // connections are invisible here (mismatch with the detail page).
   const freeTierEntries = Object.entries(FREE_TIER_PROVIDERS)
     .filter(
       ([key, info]) =>
@@ -329,7 +336,7 @@ export default function ProvidersPage() {
       if (ca !== cb) return ca - cb;
       return (a.name || "").localeCompare(b.name || "");
     });
-
+  // API Key: connected providers first, then alphabetical by name
   const apikeyEntries = Object.entries(APIKEY_PROVIDERS)
     .filter(
       ([key, info]) =>
@@ -366,9 +373,9 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
-      {}
+      {/* Search + filter — inline, left-aligned */}
       <div className="flex items-center gap-2">
-        {}
+        {/* Search input */}
         <div className="relative flex-1 max-w-xs">
           <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[15px] text-text-muted pointer-events-none">
             search
@@ -382,7 +389,7 @@ export default function ProvidersPage() {
             style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}
           />
         </div>
-        {}
+        {/* Status filter */}
         <div className="relative">
           <select
             value={statusFilter}
@@ -414,7 +421,7 @@ export default function ProvidersPage() {
         </div>
       )}
 
-      {}
+      {/* Custom Providers */}
       <ProviderSection
         title="Custom Providers"
         subtitle="OpenAI / Anthropic Compatible"
@@ -450,7 +457,7 @@ export default function ProvidersPage() {
         )}
       </ProviderSection>
 
-      {}
+      {/* OAuth Providers */}
       {oauthEntries.length > 0 && (
         <ProviderSection
           title="OAuth Providers"
@@ -483,7 +490,7 @@ export default function ProvidersPage() {
         </ProviderSection>
       )}
 
-      {}
+      {/* Free Tier Providers */}
       {(freeEntries.length > 0 || freeTierEntries.length > 0) && (
         <ProviderSection
           title="Free Tier Providers"
@@ -526,7 +533,7 @@ export default function ProvidersPage() {
         </ProviderSection>
       )}
 
-      {}
+      {/* API Key Providers */}
       {apikeyEntries.length > 0 && (
         <ProviderSection
           title="API Key Providers"
@@ -553,8 +560,26 @@ export default function ProvidersPage() {
         </ProviderSection>
       )}
 
-      {}
-      {}
+      {/* Web Cookie Providers — use browser subscription cookie instead of API key */}
+      {/* <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            Web Cookie Providers{" "}
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Object.entries(WEB_COOKIE_PROVIDERS).map(([key, info]) => (
+            <ApiKeyProviderCard
+              key={key}
+              providerId={key}
+              provider={info}
+              stats={getProviderStats(key, "apikey")}
+              authType="apikey"
+              onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+            />
+          ))}
+        </div>
+      </div> */}
 
       <AddCompatibleModal
         variant="openai"
@@ -575,7 +600,7 @@ export default function ProvidersPage() {
         }}
       />
 
-      {}
+      {/* Test Results Modal */}
       {testResults && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-[6vh] sm:pt-[10vh]"
@@ -610,7 +635,7 @@ function ProviderSection({ title, subtitle, topActions, bottomActions, children 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 min-w-0">
-        {}
+        {/* Title row + inline right actions (Test All, ModelAvailability) */}
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-text-main">{title}</h2>
@@ -618,7 +643,7 @@ function ProviderSection({ title, subtitle, topActions, bottomActions, children 
           </div>
           {topActions && <div className="flex items-center gap-2 shrink-0">{topActions}</div>}
         </div>
-        {}
+        {/* Bottom action buttons — full width on mobile */}
         {bottomActions && (
           <div className="flex flex-wrap gap-2">{bottomActions}</div>
         )}
@@ -665,7 +690,7 @@ function TestAllButton({ mode, testingMode, onTest }) {
   );
 }
 
-
+/** Shared card shell used by both ProviderCard and ApiKeyProviderCard */
 function ProviderCardShell({ providerId, iconSrc, provider, stats, onToggle, allDisabled, children }) {
   return (
     <Link href={`/dashboard/providers/${providerId}`} className="group block h-full">
@@ -674,7 +699,7 @@ function ProviderCardShell({ providerId, iconSrc, provider, stats, onToggle, all
         hover
         className={`h-full flex flex-col gap-2 ${allDisabled ? "opacity-50" : ""}`}
       >
-        {}
+        {/* Icon + toggle */}
         <div className="flex items-start justify-between gap-2">
           <div
             className="size-9 shrink-0 rounded-lg flex items-center justify-center"
@@ -698,7 +723,7 @@ function ProviderCardShell({ providerId, iconSrc, provider, stats, onToggle, all
             </div>
           )}
         </div>
-        {}
+        {/* Name + status */}
         <div className="min-w-0 mt-auto">
           <p className="text-sm font-bold text-text-main truncate leading-tight">{provider.name}</p>
           <div className="flex items-center gap-1 mt-1 flex-wrap min-w-0">

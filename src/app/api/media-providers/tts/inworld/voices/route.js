@@ -3,7 +3,10 @@ import { getProviderConnections } from "@/lib/localDb";
 
 const langNames = new Intl.DisplayNames(["en"], { type: "language" });
 
-
+/**
+ * GET /api/media-providers/tts/inworld/voices[?lang=en]
+ * Returns { languages, byLang } grouped by language code (same shape as edge-tts/elevenlabs)
+ */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -25,7 +28,7 @@ export async function GET(request) {
 
     const byLang = {};
     for (const v of voices) {
-
+      // Each voice has `languages: ["en", "es", ...]`
       const langs = Array.isArray(v.languages) && v.languages.length ? v.languages : ["en"];
       for (const code of langs) {
         if (!byLang[code]) {

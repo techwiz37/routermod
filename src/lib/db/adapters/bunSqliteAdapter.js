@@ -1,11 +1,11 @@
-
-
+// Bun runtime adapter — uses built-in bun:sqlite (native, fastest under Bun).
+// Loaded only when process.versions.bun is present.
 import { PRAGMA_SQL } from "../schema.js";
 
 const CHECKPOINT_INTERVAL_MS = 60 * 1000;
 
 export async function createBunSqliteAdapter(filePath) {
-
+  // Dynamic import — only resolves under Bun runtime
   const { Database } = await import("bun:sqlite");
   const db = new Database(filePath, { create: true });
   db.exec(PRAGMA_SQL);
@@ -49,7 +49,7 @@ export async function createBunSqliteAdapter(filePath) {
     },
     exec(sql) { return db.exec(sql); },
     transaction(fn) {
-
+      // bun:sqlite has db.transaction() API (similar to better-sqlite3)
       const tx = db.transaction(fn);
       return tx();
     },

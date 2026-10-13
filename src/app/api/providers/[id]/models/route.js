@@ -17,7 +17,7 @@ import codexProvider from "open-sse/providers/registry/codex.js";
 
 const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 
-
+// Model discovery must identify as the same Codex CLI version as inference.
 const CODEX_MODELS_URL = `https://chatgpt.com/backend-api/codex/models?client_version=${codexProvider.transport.cliVersion}`;
 
 const parseOpenAIStyleModels = (data) => {
@@ -85,7 +85,8 @@ const getStaticProviderModels = (providerId) =>
     name: model.name || model.id,
   }));
 
-
+// Generic custom resolver for OAuth providers that need refresh-on-401 + token persist.
+// Receives a `fetchFn(token)` and returns parsed models or throws.
 const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => async (connection) => {
   const { accessToken, refreshToken } = connection;
   if (!accessToken) {
@@ -123,7 +124,9 @@ const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => asyn
   return { models: [], warning };
 };
 
-
+// Qoder shares one resolver across intl (qoder) and CN (qoder-cn); the
+// credentials carry the connection's provider so qoderModels picks the right
+// region's catalog endpoint, and the ids keep the provider prefix.
 function buildQoderModelsResolver(providerId) {
   return {
     customResolver: async (connection) => {
@@ -142,7 +145,8 @@ function buildQoderModelsResolver(providerId) {
         if (result?.models?.length) {
           return {
             models: result.models.map((m) => ({
-
+              // Use the canonical "<providerId>/<key>" id so the dashboard
+              // surfaces the same identifier the chat router expects.
               id: `${providerId}/${m.id}`,
               name: m.name,
               contextLength: m.contextLength,
@@ -163,7 +167,7 @@ function buildQoderModelsResolver(providerId) {
   };
 }
 
-
+// Provider models endpoints configuration
 const PROVIDER_MODELS_CONFIG = {
   "muse": {
     url: "https://api.meta.ai/v1/models",
@@ -187,7 +191,7 @@ const PROVIDER_MODELS_CONFIG = {
     url: "https://generativelanguage.googleapis.com/v1beta/models",
     method: "GET",
     headers: { "Content-Type": "application/json" },
-    authQuery: "key",
+    authQuery: "key", // Use query param for API key
     parseResponse: (data) => data.models || []
   },
   codex: {
@@ -229,10 +233,10 @@ const PROVIDER_MODELS_CONFIG = {
     authPrefix: "Bearer ",
     parseResponse: (data) => {
       if (!data?.data) return [];
-
+      // Filter out embeddings, non-chat models, and disabled models
       return data.data
         .filter(m => m.capabilities?.type === "chat")
-        .filter(m => m.policy?.state !== "disabled")
+        .filter(m => m.policy?.state !== "disabled") // Only return explicitly enabled models
         .map(m => ({
           id: m.id,
           name: m.name || m.id,
@@ -282,7 +286,7 @@ const PROVIDER_MODELS_CONFIG = {
   "volcengine-ark": createOpenAIModelsConfig("https://ark.cn-beijing.volces.com/api/coding/v3/models"),
   byteplus: createOpenAIModelsConfig("https://ark.ap-southeast.bytepluses.com/api/coding/v3/models"),
 
-
+  // OpenAI-compatible API key providers
   deepseek: createOpenAIModelsConfig("https://api.deepseek.com/models"),
   groq: createOpenAIModelsConfig("https://api.groq.com/openai/v1/models"),
   xai: createOpenAIModelsConfig("https://api.x.ai/v1/models"),
@@ -297,13 +301,13 @@ const PROVIDER_MODELS_CONFIG = {
   siliconflow: createOpenAIModelsConfig("https://api.siliconflow.com/v1/models"),
   hyperbolic: createOpenAIModelsConfig("https://api.hyperbolic.xyz/v1/models"),
   ollama: createOpenAIModelsConfig("https://ollama.com/api/tags"),
-
+  // ollama-local: url resolved dynamically below via providerSpecificData.baseUrl
   nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
   chutes: createOpenAIModelsConfig("https://llm.chutes.ai/v1/models"),
   nvidia: createOpenAIModelsConfig("https://integrate.api.nvidia.com/v1/models"),
   assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models"),
   "vercel-ai-gateway": createOpenAIModelsConfig("https://ai-gateway.vercel.sh/v1/models"),
-
+  // OpenAI-compatible aggregators.
   tokenharbor: createOpenAIModelsConfig("https://tokenharbor.ai/v1/models"),
   dahl: createOpenAIModelsConfig("https://inference.dahl.global/v1/models"),
   atria: createOpenAIModelsConfig("https://api.atria-asi.ai/v1/models"),
@@ -338,7 +342,10 @@ const PROVIDER_MODELS_CONFIG = {
       };
     },
   },
-
+  // Zed has no static catalog by design (live /models only) — same cursor
+  // direct pattern: resolve with the connection's own credentials (never
+  // exposed to the browser), return rich metadata, drop disabled entries.
+  // Empty/failure yields an explicit warning, never a silent zero list.
   zed: {
     customResolver: async (connection) => {
       try {
@@ -374,7 +381,10 @@ const PROVIDER_MODELS_CONFIG = {
     },
   },
 
-
+  // Cline/ClinePass share api.cline.bot/api/v1/models. The service layer already
+  // handles Bearer-vs-`workos:` auth and swallows failures into null, so these follow
+  // the cursor direct pattern (no refreshFn) and only differ in filtering:
+  // cline returns the whole catalog verbatim, clinepass keeps cline-pass/* only.
   cline: {
     customResolver: async (connection) => {
       const result = await resolveClineModels({
@@ -402,7 +412,7 @@ const PROVIDER_MODELS_CONFIG = {
     },
   },
 
-
+  // Custom resolvers (non-OpenAI-shaped APIs / token-refresh flows)
   kiro: {
     customResolver: async (connection) => {
       const credentials = {
@@ -517,7 +527,9 @@ const PROVIDER_MODELS_CONFIG = {
   }
 };
 
-
+/**
+ * GET /api/providers/[id]/models - Get models list from provider
+ */
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
@@ -609,7 +621,7 @@ export async function GET(request, { params }) {
       );
     }
 
-
+    // Config-driven custom resolver path (OAuth refresh, non-OpenAI shape, etc.)
     if (typeof config.customResolver === "function") {
       const result = await config.customResolver(connection);
       if (result.error) {
@@ -623,25 +635,25 @@ export async function GET(request, { params }) {
       });
     }
 
-
+    // Get auth token
     const token = connection.providerSpecificData?.copilotToken || connection.accessToken || connection.apiKey;
     if (!token) {
       return NextResponse.json({ error: "No valid token found" }, { status: 401 });
     }
 
-
+    // Build request URL
     let url = config.url;
     if (config.authQuery) {
       url += `?${config.authQuery}=${token}`;
     }
 
-
+    // Build headers
     const headers = { ...config.headers };
     if (config.authHeader && !config.authQuery) {
       headers[config.authHeader] = (config.authPrefix || "") + token;
     }
 
-
+    // Make request
     const fetchOptions = {
       method: config.method,
       headers

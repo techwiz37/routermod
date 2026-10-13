@@ -11,14 +11,18 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import * as log from "../utils/logger.js";
 
-
+// Providers requiring credentials for STT
 const CREDENTIALED_PROVIDERS = new Set(
   Object.entries(AI_PROVIDERS)
     .filter(([, p]) => p.serviceKinds?.includes("stt") && !p.noAuth && p.sttConfig?.authType !== "none")
     .map(([id]) => id)
 );
 
-
+// Custom-model transport marker: models registered through
+// /api/models/custom may pin a specialized STT transport (e.g.
+// "gemini-live"). The engine dispatches on the marker itself, so the app
+// layer only resolves it — same getModelInfo-style provider+model pairing,
+// restricted to type "stt" records.
 async function resolveCustomModelTransport(provider, model) {
   try {
     const customModels = await getCustomModels();
@@ -27,7 +31,7 @@ async function resolveCustomModelTransport(provider, model) {
       && typeof c.transport === "string" && c.transport.trim());
     return hit ? hit.transport.trim() : null;
   } catch {
-    return null;
+    return null; // DB unreadable → built-in registry marker still applies
   }
 }
 
@@ -58,7 +62,7 @@ export async function handleStt(request) {
 
   const { provider, model } = modelInfo;
 
-
+  // Per-key access control: checked before any credential lookup.
   const keyAccessDenied = await enforceKeyAccessResolved(await getKeyAccessContext(request), modelStr, provider, model);
   if (keyAccessDenied) return keyAccessDenied;
 
@@ -66,14 +70,14 @@ export async function handleStt(request) {
 
   const modelTransport = await resolveCustomModelTransport(provider, model);
 
-
+  // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
     const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");
   }
 
-
+  // Credentialed — fallback loop
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;

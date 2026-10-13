@@ -14,7 +14,7 @@ import { TtsExampleCard } from "./components/TtsExampleCard";
 import { GenericExampleCard } from "./components/GenericExampleCard";
 import { SttExampleCard } from "./components/SttExampleCard";
 
-
+// MediaProviderDetailPage
 export default function MediaProviderDetailPage() {
   const { kind, id } = useParams();
   const router = useRouter();
@@ -35,7 +35,7 @@ export default function MediaProviderDetailPage() {
   const [customLoading, setCustomLoading] = useState(isCustom);
   const [showEditModal, setShowEditModal] = useState(false);
 
-
+  // Fetch custom node info from API for custom embedding nodes
   useEffect(() => {
     if (!isCustom) return;
     let cancelled = false;
@@ -54,7 +54,7 @@ export default function MediaProviderDetailPage() {
 
   const builtInProvider = AI_PROVIDERS[id];
 
-
+  // For custom embedding nodes, build a synthetic provider object
   const provider = isCustom
     ? (customNode ? { id, name: customNode.name || "Custom Embedding", color: "#6366F1", textIcon: "CE" } : null)
     : builtInProvider;
@@ -70,7 +70,7 @@ export default function MediaProviderDetailPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      {}
+      {/* Back */}
       <div>
         <Link
           href={`/dashboard/media-providers/${kind}`}
@@ -80,7 +80,7 @@ export default function MediaProviderDetailPage() {
           {kindConfig.label}
         </Link>
 
-        {}
+        {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="size-12 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${provider.color}15` }}>
             <ProviderIcon
@@ -129,7 +129,7 @@ export default function MediaProviderDetailPage() {
         </div>
       </div>
 
-      {}
+      {/* Kind-specific notice (e.g. codex/image requires Plus) */}
       {!isCustom && provider.kindNotice?.[kind] && (
         <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/50 shadow-[2px_2px_0px_theme(colors.amber.400)]">
           <span className="material-symbols-outlined text-[17px] text-amber-500 mt-0.5 shrink-0">warning</span>
@@ -137,7 +137,7 @@ export default function MediaProviderDetailPage() {
         </div>
       )}
 
-      {}
+      {/* Provider notice text (only when there's actual text content) */}
       {!isCustom && provider.notice?.text && !provider.deprecated && (
         <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-blue-400 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/50 shadow-[2px_2px_0px_theme(colors.blue.400)]">
           <span className="material-symbols-outlined text-[17px] text-blue-500 shrink-0 mt-0.5">info</span>
@@ -155,14 +155,14 @@ export default function MediaProviderDetailPage() {
         </div>
       )}
 
-      {}
+      {/* Connections */}
       {!isCustom && provider.noAuth ? (
         <NoAuthProxyCard providerId={id} />
       ) : (
         <ConnectionsCard providerId={id} isOAuth={false} />
       )}
 
-      {}
+      {/* Models - hidden for tts/webSearch/webFetch (provider IS the model); custom uses prefix as alias */}
       {kind !== "tts" && kind !== "webSearch" && kind !== "webFetch" && (
         <ModelsCard
           providerId={id}
@@ -171,7 +171,7 @@ export default function MediaProviderDetailPage() {
         />
       )}
 
-      {}
+      {/* Provider Info — config-driven, supports searchConfig, fetchConfig, ttsConfig, embeddingConfig, systemoneConfig, searchViaChat */}
       {!isCustom && (provider.searchConfig || provider.fetchConfig || provider.ttsConfig || provider.sttConfig || provider.embeddingConfig || provider.systemoneConfig || provider.searchViaChat) && (
         <ProviderInfoCard
           config={
@@ -187,7 +187,7 @@ export default function MediaProviderDetailPage() {
         />
       )}
 
-      {}
+      {/* Example — per kind */}
       {kind === "embedding" && (
         <EmbeddingExampleCard providerId={id} customAlias={customNode?.prefix} />
       )}

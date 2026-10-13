@@ -14,11 +14,11 @@ import "@xyflow/react/dist/style.css";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 
-
+// Force-stop FE animation if a provider stays active longer than this
 const FE_ACTIVE_TIMEOUT_MS = 60000;
 const FE_ACTIVE_TICK_MS = 1000;
 
-
+// Kame + electric particles along active edges
 const KAME_PARTICLE_COUNT = 6;
 const SPARK_COUNT = 5;
 
@@ -30,7 +30,7 @@ function getProviderImageUrl(providerId) {
   return getProviderIconSrc(providerId);
 }
 
-
+// Custom provider node - rectangle with image + name
 function ProviderNode({ data }) {
   const { label, color, imageUrl, textIcon, active } = data;
   const [imgError, setImgError] = useState(false);
@@ -49,7 +49,7 @@ function ProviderNode({ data }) {
       <Handle type="target" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
       <Handle type="target" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
 
-      {}
+      {/* Provider icon */}
       <div
         className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 border border-border/50"
         style={{ backgroundColor: `${color}18` }}
@@ -72,7 +72,7 @@ function ProviderNode({ data }) {
         )}
       </div>
 
-      {}
+      {/* Provider name */}
       <span
         className="text-xs font-bold truncate"
         style={{ color: active ? color : "var(--color-text-main)" }}
@@ -80,7 +80,7 @@ function ProviderNode({ data }) {
         {label}
       </span>
 
-      {}
+      {/* Active indicator */}
       {active && (
         <span className="relative flex h-2 w-2 shrink-0">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: color }} />
@@ -95,7 +95,7 @@ ProviderNode.propTypes = {
   data: PropTypes.object.isRequired,
 };
 
-
+// Center RouterMod node — pulse/glow on card only (no expanding rings)
 function RouterNode({ data }) {
   const powering = (data.activeCount || 0) > 0;
   return (
@@ -131,7 +131,7 @@ RouterNode.propTypes = {
   data: PropTypes.object.isRequired,
 };
 
-
+// Active: electric kame beam (multi-layer stroke + sparks). Idle/last/error: solid BaseEdge.
 function TopologyEdge({
   id,
   sourceX,
@@ -169,7 +169,7 @@ function TopologyEdge({
           <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </defs>
-      {}
+      {/* Outer electric halo */}
       <path
         d={edgePath}
         fill="none"
@@ -180,7 +180,7 @@ function TopologyEdge({
         filter={`url(#${filterId})`}
         className="topology-edge-halo"
       />
-      {}
+      {/* Mid plasma */}
       <path
         d={edgePath}
         fill="none"
@@ -191,14 +191,14 @@ function TopologyEdge({
         filter={`url(#${filterId})`}
         className="topology-edge-plasma"
       />
-      {}
+      {/* Hot white core */}
       <BaseEdge
         id={id}
         path={edgePath}
         style={{ stroke: "#f8fafc", strokeWidth: 2.2, opacity: 1 }}
         className="topology-edge-kame"
       />
-      {}
+      {/* Energy orbs */}
       {Array.from({ length: KAME_PARTICLE_COUNT }, (_, i) => (
         <circle
           key={`${id}-p-${i}`}
@@ -215,7 +215,7 @@ function TopologyEdge({
           />
         </circle>
       ))}
-      {}
+      {/* Electric sparks (short-lived blink along path) */}
       {Array.from({ length: SPARK_COUNT }, (_, i) => (
         <circle
           key={`${id}-s-${i}`}
@@ -257,7 +257,7 @@ TopologyEdge.propTypes = {
 const nodeTypes = { provider: ProviderNode, router: RouterNode };
 const edgeTypes = { topology: TopologyEdge };
 
-
+// Place N nodes evenly along an ellipse around the router center.
 function buildLayout(providers, activeSet, lastSet, errorSet) {
   const nodeW = 180;
   const nodeH = 30;
@@ -267,10 +267,10 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
 
   const count = providers.length;
 
-
+  // Compute rx so arc spacing between nodes >= nodeW + nodeGap
   const minRx = ((nodeW + nodeGap) * count) / (2 * Math.PI);
   const rx = Math.max(320, minRx);
-  const ry = Math.max(200, rx * 0.55);
+  const ry = Math.max(200, rx * 0.55); // ellipse ratio ~0.55
   if (count === 0) {
     return {
       nodes: [{ id: "router", type: "router", position: { x: 0, y: 0 }, data: { activeCount: 0 }, draggable: false }],
@@ -310,12 +310,12 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
       active,
     };
 
-
+    // Distribute evenly starting from top (−π/2), clockwise
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
     const cx = rx * Math.cos(angle);
     const cy = ry * Math.sin(angle);
 
-
+    // Pick router handle closest to the node direction
     let sourceHandle, targetHandle;
     if (Math.abs(angle + Math.PI / 2) < Math.PI / 4 || Math.abs(angle - 3 * Math.PI / 2) < Math.PI / 4) {
       sourceHandle = "top"; targetHandle = "bottom";
@@ -342,7 +342,7 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
       sourceHandle,
       target: nodeId,
       targetHandle,
-
+      // Built-in animated uses stroke-dasharray (CPU-heavy); use particle beam instead
       animated: false,
       data: { active },
       style: edgeStyle(active, last, error),
@@ -353,7 +353,7 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
 }
 
 export default function ProviderTopology({ providers = [], activeRequests = [], lastProvider = "", errorProvider = "" }) {
-
+  // Serialize to stable string keys so useMemo only re-runs when values actually change
   const activeKey = useMemo(
     () => activeRequests.map((r) => r.provider?.toLowerCase()).filter(Boolean).sort().join(","),
     [activeRequests]
@@ -365,7 +365,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
   const lastSet = useMemo(() => new Set(lastKey ? [lastKey] : []), [lastKey]);
   const errorSet = useMemo(() => new Set(errorKey ? [errorKey] : []), [errorKey]);
 
-
+  // Track firstSeen per active provider; drop provider if running too long (BE stuck)
   const firstSeenRef = useRef({});
   const [tick, setTick] = useState(0);
 
@@ -401,7 +401,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
     [providers, activeSet, lastSet, errorSet]
   );
 
-
+  // Stable key — only remount when provider list changes
   const providersKey = useMemo(
     () => providers.map((p) => p.provider).sort().join(","),
     [providers]
@@ -415,7 +415,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
     setTimeout(() => instance.fitView(fitOpts), 50);
   }, []);
 
-
+  // Re-fit on container resize
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -426,7 +426,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
     return () => ro.disconnect();
   }, []);
 
-
+  // Re-fit when node count/layout changes
   useEffect(() => {
     if (rfInstance.current) {
       const id = setTimeout(() => rfInstance.current.fitView(fitOpts), 50);
@@ -441,7 +441,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
         boxShadow: "2.5px 2.5px 0 var(--color-border)",
       }}
     >
-      {}
+      {/* Grid dot pattern overlay */}
       <div className="absolute inset-0 pointer-events-none" style={{
         backgroundImage: "radial-gradient(circle, var(--color-border) 1px, transparent 1px)",
         backgroundSize: "28px 28px",

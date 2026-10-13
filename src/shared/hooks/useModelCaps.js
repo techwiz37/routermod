@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
-
-let cache = null;
+// Module cache: one /api/models fetch shared by every useModelCaps instance.
+let cache = null; // { byFull, byId } | null
 let inflight = null;
 
 function buildMaps(models) {
@@ -30,14 +30,14 @@ function loadModelCaps() {
       return cache;
     })
     .catch(() => {
-
+      // Keep null so a later mount can retry
       return { byFull: {}, byId: {} };
     })
     .finally(() => { inflight = null; });
   return inflight;
 }
 
-
+// Resolve caps from a "provider/model" string or a bare model id.
 function resolveCaps(byFull, byId, key) {
   if (!key) return null;
   if (byFull[key]) return byFull[key];
@@ -68,7 +68,7 @@ export function useModelCaps() {
     } else {
       loadModelCaps().then(sync);
     }
-
+    // Custom models change at runtime — drop the shared cache and refetch
     const invalidate = () => {
       cache = null;
       loadModelCaps().then(sync);

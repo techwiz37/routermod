@@ -64,7 +64,7 @@ export async function POST(request) {
 
     let { response } = await executor.execute({ model, body, stream, credentials });
 
-
+    // Auto-refresh token on 401/403 and retry (same as chatCore.js)
     if (response.status === 401 || response.status === 403) {
       const newCredentials = await executor.refreshCredentials(credentials, console);
       if (newCredentials?.accessToken || newCredentials?.copilotToken) {

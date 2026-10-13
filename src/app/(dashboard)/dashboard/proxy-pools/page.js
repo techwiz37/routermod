@@ -329,7 +329,7 @@ export default function ProxyPoolsPage() {
     }
   };
 
-
+  // Cleanup selectedIds when pools change
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((id) => proxyPools.some((p) => p.id === id)));
   }, [proxyPools]);
@@ -846,7 +846,7 @@ export default function ProxyPoolsPage() {
               className="w-full min-h-[180px] py-2 px-3 text-sm text-text-main bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-md focus:ring-1 focus:ring-primary/30 focus:border-primary/50 focus:outline-none transition-all"
             />
             <p className="text-xs text-text-muted mt-1">
-              Supported formats: protocol:
+              Supported formats: protocol://user:pass@host:port, host:port:user:pass
             </p>
           </div>
 
@@ -1051,7 +1051,7 @@ export default function ProxyPoolsPage() {
             <ul className="text-xs text-text-muted list-disc pl-4 space-y-0.5">
               <li>Runs on Netlify Functions with a 60-second execution limit and streaming support</li>
               <li>Free tier: 125,000 function invocations and 100GB bandwidth per month</li>
-              <li>Relay URL format: https:
+              <li>Relay URL format: https://your-site.netlify.app/.netlify/functions/relay</li>
               <li>Deploy multiple relays on different accounts for more IP diversity</li>
             </ul>
             <div className="mt-2 pt-2 border-t border-teal-500/10 text-xs text-text-muted">
@@ -1158,7 +1158,7 @@ export default function ProxyPoolsPage() {
         </div>
       </Modal>
 
-      {}
+      {/* Confirm Modal */}
       <ConfirmModal
         isOpen={!!confirmState}
         onClose={() => setConfirmState(null)}

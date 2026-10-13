@@ -23,12 +23,12 @@ export async function POST(request) {
     const { password } = await request.json();
     const settings = await getSettings();
 
-
+    // Block login via tunnel/tailscale if dashboard access is disabled
     if (isTunnelRequest(request, settings) && settings.tunnelDashboardAccess !== true) {
       return NextResponse.json({ error: "Dashboard access via tunnel is disabled" }, { status: 403 });
     }
 
-
+    // Default password is 'merdeka' if not set
     const storedHash = settings.password;
 
     if (settings.authMode === "sso" || settings.authMode === "saml" || settings.authMode === "oidc") {
@@ -45,13 +45,13 @@ export async function POST(request) {
     if (storedHash) {
       isValid = await bcrypt.compare(password, storedHash);
     } else {
-
+      // Use env var or default
       const initialPassword = process.env.INITIAL_PASSWORD || "merdeka";
       isValid = password === initialPassword;
     }
 
     if (isValid) {
-
+      // Allow remote access with default password if explicitly permitted
       const allowRemoteDefault = process.env.ALLOW_REMOTE_DEFAULT_PASSWORD === "1" || true;
       const mustChangePassword =
         !allowRemoteDefault && !storedHash && !process.env.INITIAL_PASSWORD && !isLocalRequest(request);

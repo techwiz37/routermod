@@ -28,7 +28,7 @@ export default function MitmPageClient() {
         const data = await res.json();
         setConnections(data.connections || []);
       }
-    } catch {  }
+    } catch { /* ignore */ }
   };
 
   const fetchApiKeys = async () => {
@@ -38,7 +38,7 @@ export default function MitmPageClient() {
         const data = await res.json();
         setApiKeys(data.keys || []);
       }
-    } catch {  }
+    } catch { /* ignore */ }
   };
 
   const fetchAliases = async () => {
@@ -48,7 +48,7 @@ export default function MitmPageClient() {
         const data = await res.json();
         setModelAliases(data.aliases || {});
       }
-    } catch {  }
+    } catch { /* ignore */ }
   };
 
   const fetchCloudSettings = async () => {
@@ -58,7 +58,7 @@ export default function MitmPageClient() {
         const data = await res.json();
         setCloudEnabled(data.cloudEnabled || false);
       }
-    } catch {  }
+    } catch { /* ignore */ }
   };
 
   const getActiveProviders = () => connections.filter(c => c.isActive !== false);
@@ -83,14 +83,14 @@ export default function MitmPageClient() {
         </p>
       </div>
 
-      {}
+      {/* MITM Server Card */}
       <MitmServerCard
         apiKeys={apiKeys}
         cloudEnabled={cloudEnabled}
         onStatusChange={setMitmStatus}
       />
 
-      {}
+      {/* Tool Cards */}
       <div className="grid gap-3 sm:gap-4">
         {mitmTools.map(([toolId, tool]) => (
           <MitmToolCard

@@ -44,7 +44,9 @@ import { ConfirmModal, EditConnectionModal } from "@/shared/components";
 import { USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
-
+// Maps the stored providerSpecificData.authMethod to a human label for Kiro.
+// Values come from the Kiro connect flows: builder-id/idc (device code),
+// google/github (social), imported (refresh-token paste), api_key (headless).
 const KIRO_METHOD_LABELS = {
   "builder-id": "AWS Builder ID",
   idc: "IAM Identity Center",
@@ -82,7 +84,9 @@ function getConnectionSecondaryLabel(connection) {
   return null;
 }
 
-
+// Region is stored for builder-id/idc/api_key flows; social and imported flows
+// omit it, so fall back to the region segment of the profileArn
+// (arn:aws:codewhisperer:<region>:...).
 function kiroRegion(conn) {
   const r = conn.providerSpecificData?.region;
   if (r) return r;
@@ -171,11 +175,13 @@ export default function ProviderLimits() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
-
+  // Initialize providerFilter from URL ?provider= param so the page
+  // can be bookmarked / deep-linked to a specific provider (#4217).
   const [providerFilter, _setProviderFilter] = useState(
     () => searchParams?.get("provider") || "all"
   );
-
+  // Wrapper: keeps URL in sync with the selected provider so the view can be
+  // bookmarked. Replaces the URL without adding to browser history.
   const setProviderFilter = useCallback((value) => {
     _setProviderFilter(value);
     try {
@@ -187,7 +193,7 @@ export default function ProviderLimits() {
       }
       const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
       router.replace(newUrl, { scroll: false });
-    } catch {  }
+    } catch { /* non-fatal: URL sync is best-effort */ }
   }, [pathname, router, searchParams]);
   const [providerOptions, setProviderOptions] = useState([]);
   const [accountFilter, setAccountFilter] = useState("all");
@@ -258,7 +264,7 @@ export default function ProviderLimits() {
     [accountFilter, expiringFirst, page, pageSize, providerFilter],
   );
 
-
+  // Fetch quota for a specific connection
   const fetchQuota = useCallback(async (connectionId, provider, { force = false } = {}) => {
     setLoading((prev) => ({ ...prev, [connectionId]: true }));
     setErrors((prev) => ({ ...prev, [connectionId]: null }));
@@ -274,9 +280,9 @@ export default function ProviderLimits() {
         const errorData = await response.json().catch(() => ({}));
         const errorMsg = errorData.error || response.statusText;
 
-
+        // Handle different error types gracefully
         if (response.status === 404) {
-
+          // Connection not found - skip silently
           console.warn(
             `[ProviderLimits] Connection not found for ${provider}, skipping`,
           );
@@ -284,7 +290,7 @@ export default function ProviderLimits() {
         }
 
         if (response.status === 401) {
-
+          // Auth error - show message instead of throwing
           console.warn(
             `[ProviderLimits] Auth error for ${provider}:`,
             errorMsg,
@@ -307,7 +313,7 @@ export default function ProviderLimits() {
       const data = await response.json();
       console.log(`[ProviderLimits] Got quota for ${provider}:`, data);
 
-
+      // Parse quota data using provider-specific parser
       const parsedQuotas = parseQuotaData(provider, data);
 
       const quotaEntry = {
@@ -336,7 +342,7 @@ export default function ProviderLimits() {
     }
   }, []);
 
-
+  // Refresh quota for a specific provider
   const refreshProvider = useCallback(
     async (connectionId, provider) => {
       await fetchQuota(connectionId, provider, { force: true });
@@ -377,7 +383,7 @@ export default function ProviderLimits() {
     [fetchQuota, resettingLimitId, quotaData],
   );
 
-
+  // Claude grants already arrive with the usage read; no extra fetch
   const handleViewClaudeResets = useCallback((connection, resetCredits) => {
     setResetCreditsState({ connection, loading: false, error: null, data: { kind: "claude", ...resetCredits } });
   }, []);
@@ -523,7 +529,7 @@ export default function ProviderLimits() {
     setRefreshingAll(true);
     setCountdown(60);
 
-
+    // Throttle Claude: poll its quota every Nth auto-tick (manual force bypasses)
     const tick = (tickCountRef.current += 1);
     const claudeEvery = Math.round(CLAUDE_REFRESH_INTERVAL_MS / REFRESH_INTERVAL_MS);
     const shouldFetch = (conn) =>
@@ -560,7 +566,7 @@ export default function ProviderLimits() {
       const visibleConnections = await fetchConnections(page);
       setConnectionsLoading(false);
 
-
+      // Always fetch fresh quota on mount, no cache display
       setLoading(buildLoadingState(visibleConnections));
       setErrors((prev) =>
         filterQuotaStateByConnections(prev, visibleConnections),
@@ -585,13 +591,13 @@ export default function ProviderLimits() {
     setHasHydratedAutoRefresh(true);
   }, []);
 
-
+  // Persist auto-refresh preference
   useEffect(() => {
     if (typeof window === "undefined" || !hasHydratedAutoRefresh) return;
     window.localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, String(autoRefresh));
   }, [autoRefresh, hasHydratedAutoRefresh]);
 
-
+  // Load auto-ping per-connection maps
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : {}))
@@ -700,7 +706,7 @@ export default function ProviderLimits() {
     updateQuotaVisibility(next, previous);
   }, [quotaVisibility, updateQuotaVisibility]);
 
-
+  // Auto-refresh interval
   useEffect(() => {
     if (!hasHydratedAutoRefresh || !autoRefresh) {
       if (intervalRef.current) {
@@ -714,12 +720,12 @@ export default function ProviderLimits() {
       return;
     }
 
-
+    // Main refresh interval
     intervalRef.current = setInterval(() => {
       refreshAll();
     }, REFRESH_INTERVAL_MS);
 
-
+    // Countdown interval
     countdownRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) return 60;
@@ -733,7 +739,7 @@ export default function ProviderLimits() {
     };
   }, [autoRefresh, refreshAll, hasHydratedAutoRefresh]);
 
-
+  // Pause auto-refresh when tab is hidden (Page Visibility API)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -746,7 +752,7 @@ export default function ProviderLimits() {
           countdownRef.current = null;
         }
       } else if (autoRefresh && hasHydratedAutoRefresh) {
-
+        // Resume auto-refresh when tab becomes visible
         intervalRef.current = setInterval(() => refreshAll(), REFRESH_INTERVAL_MS);
         countdownRef.current = setInterval(() => {
           setCountdown((prev) => (prev <= 1 ? 60 : prev - 1));
@@ -772,7 +778,7 @@ export default function ProviderLimits() {
     [connections, quotaData, expiringFirst, providerFilter, quotaSortMode],
   );
 
-
+  // Connection is depleted when any quota entry hit the threshold
   const isConnectionDepleted = (conn) => {
     const quotas = quotaData[conn.id]?.quotas;
     if (!quotas?.length) return false;
@@ -872,7 +878,7 @@ export default function ProviderLimits() {
 
   return (
     <div className="space-y-6">
-      {}
+      {/* Header Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center gap-1.5">
           <div className="relative">
@@ -1021,7 +1027,7 @@ export default function ProviderLimits() {
             <span className="hidden sm:inline">Expiring first</span>
           </button>
 
-          {}
+          {/* Bulk: disable depleted */}
           <button
             type="button"
             onClick={handleDisableDepleted}
@@ -1033,7 +1039,7 @@ export default function ProviderLimits() {
             <span className="hidden sm:inline">Turn off Empty</span>
           </button>
 
-          {}
+          {/* Bulk: enable available */}
           <button
             type="button"
             onClick={handleEnableAvailable}
@@ -1047,7 +1053,7 @@ export default function ProviderLimits() {
             <span className="hidden sm:inline">Turn on Available</span>
           </button>
 
-          {}
+          {/* Auto-refresh toggle */}
           <button
             onClick={() => setAutoRefresh((prev) => !prev)}
             className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"
@@ -1071,7 +1077,7 @@ export default function ProviderLimits() {
           </button>
 
 
-          {}
+          {/* Refresh all button */}
           <button
             type="button"
             onClick={() => refreshAll(true)}
@@ -1088,7 +1094,7 @@ export default function ProviderLimits() {
         </div>
       </div>
 
-      {}
+      {/* Provider cards: 2 columns, compact */}
       {expiringFirst && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
           Expiring-first currently reorders accounts inside the current page.
@@ -1102,7 +1108,7 @@ export default function ProviderLimits() {
           const isLoading = loading[conn.id];
           const error = errors[conn.id];
 
-
+          // Use table layout for all providers
           const isInactive = conn.isActive === false;
           const isCodex = conn.provider === "codex";
           const claudeReset = conn.provider === "claude" ? quota?.raw?.resetCredits : null;

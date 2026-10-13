@@ -52,8 +52,8 @@ export default function ProfilePage() {
   const oidcRedirectUri = origin ? `${origin}/api/auth/oidc/callback` : "/api/auth/oidc/callback";
   const samlAcsUrl = origin ? `${origin}/api/auth/saml/acs` : "/api/auth/saml/acs";
   const samlMetadataUrl = origin ? `${origin}/api/auth/saml/metadata` : "/api/auth/saml/metadata";
-
-
+  
+  // SAML State
   const [ssoTypeTab, setSsoTypeTab] = useState("saml");
   const [samlForm, setSamlForm] = useState({
     samlEntryPoint: "",
@@ -732,7 +732,7 @@ export default function ProfilePage() {
     }
   };
 
-
+  // Confirm password modal, then run export or import.
   const handleDbAuthConfirm = async () => {
     const { mode, password } = dbAuth;
     setDbAuth({ open: false, mode: "", password: "" });
@@ -747,7 +747,7 @@ export default function ProfilePage() {
     try {
       await fetch("/api/version/shutdown", { method: "POST" });
     } catch (e) {
-
+      // Expected to fail as server shuts down; ignore error
     }
     setIsShuttingDown(false);
     setShutdownOpen(false);
@@ -766,7 +766,7 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-        {}
+        {/* Local Mode Info */}
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div className="flex items-center gap-3 sm:gap-4">
@@ -841,7 +841,7 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {}
+        {/* Language */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
@@ -859,7 +859,7 @@ export default function ProfilePage() {
           </button>
         </Card>
 
-        {}
+        {/* Security */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="size-10 rounded-xl border-2 border-border bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
@@ -895,7 +895,13 @@ export default function ProfilePage() {
                     />
                   </div>
                 )}
-                {}
+                {/* {!settings.hasPassword && (
+                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-sm text-blue-600 dark:text-blue-400">
+                      Setting password for the first time. Leave current password empty or use default: <code className="bg-blue-500/20 px-1 rounded">merdeka</code>
+                    </p>
+                  </div>
+                )} */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-2">
                     <label className="text-xs sm:text-sm font-medium">New Password</label>
@@ -935,7 +941,7 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {}
+        {/* Single Sign-On (SSO) */}
         <Card>
           <button
             type="button"
@@ -965,7 +971,7 @@ export default function ProfilePage() {
                 Configure enterprise Single Sign-On (SSO) for dashboard access using SAML 2.0 or OIDC.
               </p>
 
-              {}
+              {/* SSO Protocol Switcher Tabs */}
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm sm:text-base">SSO Protocol</label>
                 <div className="flex p-1 rounded-lg bg-black/5 dark:bg-white/5 border border-border">
@@ -996,7 +1002,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {}
+              {/* Auth Mode selection */}
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm sm:text-base">Auth Mode</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1046,9 +1052,9 @@ export default function ProfilePage() {
               </div>
 
               {ssoTypeTab === "saml" ? (
-
+                /* SAML Configuration Panel */
                 <div className="flex flex-col gap-4 pt-2 border-t border-border/50">
-                  {}
+                  {/* IdP Setup Guidelines Banner & Collapsible Drawer */}
                   <div className="rounded-lg border border-border bg-bg/80 overflow-hidden">
                     <button
                       type="button"
@@ -1150,7 +1156,7 @@ export default function ProfilePage() {
                     )}
                   </div>
 
-                  {}
+                  {/* Quick Import Card */}
                   <div className="p-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <p className="font-medium text-sm text-text-main">1-Click IdP Metadata XML Import</p>
@@ -1330,7 +1336,7 @@ export default function ProfilePage() {
                   )}
                 </div>
               ) : (
-
+                /* OIDC Panel */
                 <div className="flex flex-col gap-4 pt-2 border-t border-border/50">
                   <div className="grid grid-cols-1 gap-4">
                     <div className="flex flex-col gap-2">
@@ -1429,7 +1435,7 @@ export default function ProfilePage() {
           )}
         </Card>
 
-        {}
+        {/* Routing Preferences */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
@@ -1452,7 +1458,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            {}
+            {/* Sticky Round Robin Limit */}
             {settings.fallbackStrategy === "round-robin" && (
               <div className="flex items-start sm:items-center justify-between gap-4 pt-2 border-t border-border/50">
                 <div className="flex-1 min-w-0">
@@ -1473,7 +1479,7 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {}
+            {/* Combo Round Robin */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">Combo Round Robin</p>
@@ -1488,7 +1494,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            {}
+            {/* Combo Sticky Round Robin Limit */}
             {settings.comboStrategy === "round-robin" && (
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div>
@@ -1520,7 +1526,7 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {}
+        {/* Network */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="size-10 rounded-xl border-2 border-border bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
@@ -1592,7 +1598,7 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {}
+        {/* Observability Settings */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="size-10 rounded-xl border-2 border-border bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
@@ -1636,7 +1642,7 @@ export default function ProfilePage() {
           </Button>
         </div>
 
-        {}
+        {/* App Info */}
         <div className="text-center text-xs text-text-muted py-2">
           <p className="font-mono">{APP_CONFIG.name} v{APP_CONFIG.version}</p>
           <p className="mt-1">{isRemoteHost ? "Remote Mode" : "Local Mode — data stored on your machine"}</p>

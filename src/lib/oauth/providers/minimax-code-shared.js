@@ -1,5 +1,26 @@
-
-
+// MiniMax Code (mcode) OAuth device flow — shared factory for the two site
+// providers (minimax-code = China, minimax-code-global = international).
+//
+// The flow is MiniMax Code's own sign-in (client mcode-public, PKCE S256),
+// but with our own tokens: ~/.minimax is never read or written, so a sign-in
+// here does not sign the CLI out and accounts can coexist. Wire shape per
+// @magpie-community/opencode-minimax-auth 0.1.1 (docs/minimax-code-proxy-plan.md):
+//
+//   1) POST {account}/oauth2/device/code
+//        client_id, scope, audience, code_challenge, code_challenge_method=S256
+//        → user_code, verification_uri(_complete), device_code (sometimes
+//          absent — MiniMax's variant polls with the user_code instead),
+//          expiry as expired_in (ms epoch or seconds) or expires_in, interval
+//          (seconds on the standard shape, milliseconds on the user-code one)
+//   2) POST {account}/oauth2/token  (one POST per poll; the dashboard drives)
+//        grant_type=urn:ietf:params:oauth:grant-type:device_code,
+//        device_code|user_code, client_id, code_verifier
+//        → {status: pending|slow_down|denied|expired} on 200, or a standard
+//          OAuth {error} body; success carries access/refresh_token + expires_in
+//
+// The framework contract (src/lib/oauth/providers/index.js pollForToken) wants
+// {ok, data} with data.access_token on success and data.error =
+// authorization_pending|slow_down while waiting.
 
 const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 const SIGN_IN_MS = 10 * 60 * 1000;
@@ -22,7 +43,9 @@ async function postForm(url, fields) {
   return { status: res.status, body };
 }
 
-
+// MiniMax states the device code's end in odd units: expired_in may be a ms
+// epoch or seconds; interval may be seconds (standard shape) or ms (user-code
+// shape). Normalize both to the units the dashboard expects.
 function normalizeDeadline(body) {
   const expiresIn = pos(body, "expires_in");
   const expiredIn = pos(body, "expired_in");
@@ -34,8 +57,8 @@ function normalizeDeadline(body) {
 function normalizeInterval(body, pollByUser) {
   const interval = pos(body, "interval");
   if (!interval) return 5;
-  if (!pollByUser) return interval;
-  return interval >= 60 ? Math.round(interval / 1000) : interval;
+  if (!pollByUser) return interval; // standard shape: seconds
+  return interval >= 60 ? Math.round(interval / 1000) : interval; // user-code shape: ms
 }
 
 export function createMinimaxCodeProvider(site) {
@@ -68,7 +91,9 @@ export function createMinimaxCodeProvider(site) {
       if (!userCode || !uri) {
         throw new Error(`MiniMax device code response unusable (HTTP ${status})`);
       }
-
+      // No device_code → MiniMax's variant: the token endpoint is polled with
+      // the user_code itself. Surface the user code as device_code (the modal
+      // threads one value through) plus a flag the poll body switches on.
       const pollByUser = !deviceCode;
       return {
         device_code: deviceCode ?? userCode,
@@ -90,7 +115,7 @@ export function createMinimaxCodeProvider(site) {
       };
       const { body } = await postForm(config.tokenUrl, fields);
 
-
+      // MiniMax's own envelope: {status: ...} on HTTP 200.
       const status = str(body, "status");
       if (status === "pending") return { ok: true, data: { error: "authorization_pending" } };
       if (status === "slow_down") return { ok: true, data: { error: "slow_down" } };
@@ -98,7 +123,7 @@ export function createMinimaxCodeProvider(site) {
       if (status === "expired" || status === "expired_token") return { ok: true, data: { error: "expired_token" } };
       if (status) return { ok: true, data: { error: `unexpected_status:${status}` } };
 
-
+      // Standard OAuth error body on the same call.
       if (str(body, "error")) return { ok: true, data: { error: str(body, "error"), error_description: str(body, "error_description") } };
 
       if (!str(body, "access_token")) return { ok: true, data: { error: "no_access_token" } };
@@ -116,7 +141,8 @@ export function createMinimaxCodeProvider(site) {
   };
 }
 
-
+// Site table shared with the registry docs — the llm/agent hosts live in the
+// registry transport; only the OAuth hosts matter here.
 export const MINIMAX_CODE_SITES = {
   cn: { account: "https://account.minimax.cn" },
   global: { account: "https://account.minimax.io" },

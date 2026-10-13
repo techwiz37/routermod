@@ -60,7 +60,7 @@ function shouldMergeProviderSpecificData(existing, incoming, hasLegacyProxy, has
   return existing !== undefined || incoming !== undefined || hasLegacyProxy || hasProxyPoolField;
 }
 
-
+// GET /api/providers/[id] - Get single connection
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
@@ -77,7 +77,7 @@ export async function GET(request, { params }) {
   }
 }
 
-
+// PUT /api/providers/[id] - Update connection
 export async function PUT(request, { params }) {
   try {
     const { id } = await params;
@@ -131,7 +131,8 @@ export async function PUT(request, { params }) {
     ) {
       const incomingProviderSpecificData = { ...(providerSpecificData || {}) };
       const isAwsCredential = usesAwsCredentialForm(existing.provider);
-
+      // The edit form cannot read the stored token back. An empty password field means
+      // keep the saved credential; null explicitly removes it.
       if (isAwsCredential && incomingProviderSpecificData.sessionToken === "") {
         delete incomingProviderSpecificData.sessionToken;
       }
@@ -167,7 +168,7 @@ export async function PUT(request, { params }) {
   }
 }
 
-
+// DELETE /api/providers/[id] - Delete connection
 export async function DELETE(request, { params }) {
   try {
     const { id } = await params;

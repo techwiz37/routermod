@@ -4,7 +4,7 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 export const dynamic = "force-dynamic";
 
-
+// GET /api/keys - List API keys
 export async function GET() {
   try {
     const keys = await getApiKeys();
@@ -22,20 +22,20 @@ function randomSuffix(len = 6) {
   return s;
 }
 
-
+// POST /api/keys - Create new API key
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
-
+    // Auto-generate name if not supplied or empty
     const name = body?.name?.trim() || `rmod-${randomSuffix()}`;
 
-
+    // Auto-provision guard: if this is the default key request and one already exists, return first
     if (body?._autoProvision) {
       const existing = await getApiKeys();
       if (existing.length > 0) return NextResponse.json({ key: existing[0].key, name: existing[0].name, id: existing[0].id, machineId: existing[0].machineId }, { status: 200 });
     }
 
-
+    // Always get machineId from server
     const machineId = await getConsistentMachineId();
     const apiKey = await createApiKey(name, machineId);
 

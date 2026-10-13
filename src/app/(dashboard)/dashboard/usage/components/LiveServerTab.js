@@ -79,7 +79,7 @@ export default function LiveServerTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      {}
+      {/* Top Banner / Actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-border bg-surface p-4 shadow-[3px_3px_0_var(--color-border)]">
         <div className="flex items-center gap-3">
           <div className="relative flex size-3 items-center justify-center">
@@ -109,9 +109,9 @@ export default function LiveServerTab() {
         </div>
       </div>
 
-      {}
+      {/* Grid of Resource Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {}
+        {/* CPU */}
         <Card className="flex flex-col justify-between p-4 space-y-4">
           <div className="flex items-start justify-between">
             <div>
@@ -132,7 +132,7 @@ export default function LiveServerTab() {
           </div>
         </Card>
 
-        {}
+        {/* RAM (Host) */}
         <Card className="flex flex-col justify-between p-4 space-y-4">
           <div className="flex items-start justify-between">
             <div>
@@ -156,7 +156,7 @@ export default function LiveServerTab() {
           </div>
         </Card>
 
-        {}
+        {/* Process App Memory (RSS) */}
         <Card className="flex flex-col justify-between p-4 space-y-4">
           <div className="flex items-start justify-between">
             <div>
@@ -180,7 +180,7 @@ export default function LiveServerTab() {
           </div>
         </Card>
 
-        {}
+        {/* Disk Storage */}
         <Card className="flex flex-col justify-between p-4 space-y-4">
           <div className="flex items-start justify-between">
             <div>
@@ -205,7 +205,7 @@ export default function LiveServerTab() {
         </Card>
       </div>
 
-      {}
+      {/* Network & Host Details Card */}
       <Card className="p-5">
         <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">Host System Information</h4>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 font-mono text-xs">

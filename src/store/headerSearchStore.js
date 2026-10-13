@@ -1,4 +1,7 @@
-
+/**
+ * Header Search Store — Zustand-based reusable search input in Header.
+ * Pages register placeholder on mount, read query, unregister on unmount.
+ */
 
 import { create } from "zustand";
 

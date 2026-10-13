@@ -3,7 +3,9 @@ import { initTranslators } from "open-sse/translator/index.js";
 
 let initialized = false;
 
-
+/**
+ * Initialize translators once
+ */
 async function ensureInitialized() {
   if (!initialized) {
     await initTranslators();
@@ -11,7 +13,9 @@ async function ensureInitialized() {
   }
 }
 
-
+/**
+ * Handle CORS preflight
+ */
 export async function OPTIONS() {
   return new Response(null, {
     headers: {
@@ -22,10 +26,10 @@ export async function OPTIONS() {
   });
 }
 
-export async function POST(request) {
-
+export async function POST(request) {  
+  // Fallback to local handling
   await ensureInitialized();
-
+  
   return await handleChat(request);
 }
 

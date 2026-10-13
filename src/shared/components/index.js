@@ -1,4 +1,4 @@
-
+// Shared Components - Export all
 export { default as Button } from "./Button";
 export { default as Input } from "./Input";
 export { default as Select } from "./Select";
@@ -39,7 +39,7 @@ export { default as Tooltip } from "./Tooltip";
 export { default as ProviderInfoCard } from "./ProviderInfoCard";
 export { default as CapacityBadges } from "./CapacityBadges";
 
-
+// Layouts
 export * from "./layouts";
 
 

@@ -12,7 +12,7 @@ import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 
-
+// Derived from providers.js: any TTS provider not noAuth requires stored credentials
 const CREDENTIALED_PROVIDERS = new Set(
   Object.entries(AI_PROVIDERS)
     .filter(([, p]) => p.serviceKinds?.includes("tts") && !p.noAuth && p.ttsConfig?.authType !== "none")
@@ -29,9 +29,9 @@ export async function handleTts(request) {
 
   const url = new URL(request.url);
   const modelStr = body.model;
-  const responseFormat = url.searchParams.get("response_format") || "mp3";
-  const language = body.language || "";
-  const style = body.style || "";
+  const responseFormat = url.searchParams.get("response_format") || "mp3"; // mp3 (default) | json
+  const language = body.language || ""; // Optional language hint (currently used by Gemini)
+  const style = body.style || ""; // Optional style/voice instructions (e.g. Xiaomi MiMo)
   log.request("POST", `${url.pathname} | ${modelStr} | format=${responseFormat}${language ? ` | lang=${language}` : ""}`);
 
   const settings = await getSettings();
@@ -45,11 +45,11 @@ export async function handleTts(request) {
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
   if (!body.input) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: input");
 
-
+  // Per-key access control: requested target, before combo expansion.
   const keyAccessDenied = await enforceKeyAccess(await getKeyAccessContext(request), modelStr);
   if (keyAccessDenied) return keyAccessDenied;
 
-
+  // Combo expansion: model may be a combo name → run fallback/round-robin across models
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
     const comboStrategies = settings.comboStrategies || {};
@@ -77,14 +77,14 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
   const { provider, model } = modelInfo;
   log.info("ROUTING", `Provider: ${provider}, Voice: ${model}`);
 
-
+  // noAuth providers — no credential needed
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
     const result = await handleTtsCore({ provider, model, input: body.input, responseFormat, language, style });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "TTS failed");
   }
 
-
+  // Credentialed providers — fallback loop (same pattern as embeddings)
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;

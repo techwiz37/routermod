@@ -325,7 +325,7 @@ export default function GenericCliToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      {}
+      {/* Header clickable */}
       <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
@@ -433,7 +433,7 @@ export default function GenericCliToolCard({
           {!checking && status?.installed && (
             <>
               <div className="flex flex-col gap-2">
-                {}
+                {/* Endpoint (selector) */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Select Endpoint</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
@@ -449,7 +449,7 @@ export default function GenericCliToolCard({
                   />
                 </div>
 
-                {}
+                {/* Current configured */}
                 {currentBaseUrl ? (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                     <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Current</span>
@@ -460,14 +460,14 @@ export default function GenericCliToolCard({
                   </div>
                 ) : null}
 
-                {}
+                {/* API Key */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">API Key</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
                   <ApiKeySelect value={selectedApiKey} onChange={setSelectedApiKey} apiKeys={apiKeys} cloudEnabled={cloudEnabled} />
                 </div>
 
-                {}
+                {/* Models selector cho Pi (multi-models) */}
                 {tool.id === "pi" && (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr] sm:items-start sm:gap-2">
                     <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm mt-1">Models</span>
@@ -530,7 +530,7 @@ export default function GenericCliToolCard({
                   </div>
                 )}
 
-                {}
+                {/* Model (1 model cho các tool khác, trừ omp) */}
                 {tool.id !== "omp" && tool.id !== "pi" && (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                     <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Model</span>
@@ -568,7 +568,7 @@ export default function GenericCliToolCard({
                 )}
               </div>
 
-              {}
+              {/* Messages */}
               {message && (
                 <div
                   className={`p-3 rounded-lg text-sm ${
@@ -581,7 +581,7 @@ export default function GenericCliToolCard({
                 </div>
               )}
 
-              {}
+              {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <div className="flex items-center gap-2">
                   <Button

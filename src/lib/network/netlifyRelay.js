@@ -1,5 +1,17 @@
-
-
+// Netlify relay helpers: relay function bundle + digest-deploy plumbing.
+//
+// Deploy model (per https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api):
+//   1. POST /api/v1/sites                                     → { id, ssl_url }
+//   2. POST /api/v1/sites/{site_id}/deploys { files, functions }
+//      → { id, required[], required_functions[] } (SHA1 for files, SHA256 for functions)
+//   3. PUT  /api/v1/deploys/{id}/files/{path}                 (only SHAs listed in `required`)
+//      PUT  /api/v1/deploys/{id}/functions/{name}?runtime=js  (only SHAs in `required_functions`)
+//   4. Poll GET /api/v1/deploys/{id} until state === "ready".
+//
+// The relay speaks the same header spec as the Vercel/Cloudflare/Deno relays
+// (x-relay-target + x-relay-path), so proxyAwareFetch needs no changes.
+// Manual digest deploys run no build step, so the function is served from its
+// default endpoint: <site>/.netlify/functions/relay.
 
 import { createHash } from "node:crypto";
 
@@ -7,7 +19,13 @@ export const NETLIFY_API = "https://api.netlify.com/api/v1";
 export const NETLIFY_FUNCTION_NAME = "relay";
 export const NETLIFY_FUNCTION_PATH = "/.netlify/functions/relay";
 
-
+// Digest-deployed functions (no build step) run on the Lambda-compatible
+// runtime, so the bundle must use exports.handler(event) with a string body,
+// not the modern export-default streaming syntax. Live-verified failure
+// modes: ESM syntax -> Runtime.UserCodeSyntaxError (502); stream body ->
+// cannot-unmarshal-object-into-Go-struct-field (502).
+// Response shape mirrors the Vercel/Cloudflare/Deno relays: relay headers
+// stripped, status/body passed through.
 export const NETLIFY_RELAY_FUNCTION_CODE = `exports.handler = async (event) => {
   const headers = {};
   for (const [k, v] of Object.entries(event.headers || {})) {
@@ -85,7 +103,9 @@ export function sha256Hex(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-
+// ─── Minimal stored (uncompressed) ZIP writer ──────────────────────────
+// No compression dependency needed: the relay bundle is ~1.5 KB. Stored
+// entries are plain CRC32 + headers, verifiable with any unzip tool.
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n += 1) {
@@ -116,10 +136,10 @@ export function buildStoredZip(files) {
     const crc = crc32(content);
 
     const local = new DataView(new ArrayBuffer(30));
-    local.setUint32(0, 0x04034b50, true);
-    local.setUint16(4, 20, true);
-    local.setUint16(6, 0x0800, true);
-    local.setUint16(8, 0, true);
+    local.setUint32(0, 0x04034b50, true); // local file header signature
+    local.setUint16(4, 20, true); // version needed
+    local.setUint16(6, 0x0800, true); // UTF-8 filename flag
+    local.setUint16(8, 0, true); // method: stored
     local.setUint32(14, crc, true);
     local.setUint32(18, content.length, true);
     local.setUint32(22, content.length, true);
@@ -127,14 +147,14 @@ export function buildStoredZip(files) {
     chunks.push(Buffer.from(local.buffer), Buffer.from(nameBytes), Buffer.from(content));
 
     const centralHeader = new DataView(new ArrayBuffer(46));
-    centralHeader.setUint32(0, 0x02014b50, true);
-    centralHeader.setUint16(8, 0x0800, true);
-    centralHeader.setUint16(10, 0, true);
+    centralHeader.setUint32(0, 0x02014b50, true); // central directory signature
+    centralHeader.setUint16(8, 0x0800, true); // UTF-8 flag
+    centralHeader.setUint16(10, 0, true); // method: stored
     centralHeader.setUint32(16, crc, true);
     centralHeader.setUint32(20, content.length, true);
     centralHeader.setUint32(24, content.length, true);
     centralHeader.setUint16(28, nameBytes.length, true);
-    centralHeader.setUint32(42, offset, true);
+    centralHeader.setUint32(42, offset, true); // local header offset
     central.push(Buffer.from(centralHeader.buffer), Buffer.from(nameBytes));
 
     offset += 30 + nameBytes.length + content.length;
@@ -143,7 +163,7 @@ export function buildStoredZip(files) {
   const centralStart = offset;
   const centralSize = central.reduce((sum, part) => sum + part.length, 0);
   const end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true);
+  end.setUint32(0, 0x06054b50, true); // end of central directory signature
   end.setUint16(8, files.length, true);
   end.setUint16(10, files.length, true);
   end.setUint32(12, centralSize, true);
@@ -152,7 +172,7 @@ export function buildStoredZip(files) {
   return Buffer.concat([...chunks, ...central, Buffer.from(end.buffer)]);
 }
 
-
+// Zipped single-file bundle Netlify expects for `runtime=js` function uploads.
 export function buildRelayFunctionZip() {
   const content = new TextEncoder().encode(NETLIFY_RELAY_FUNCTION_CODE);
   const zip = buildStoredZip([{ name: `${NETLIFY_FUNCTION_NAME}.js`, data: content }]);

@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react";
 
+// Preloader: SVG logo draw animation (stroke-dashoffset) + fade out
+// Style: neoxr.eu — logo draws itself, then screen fades away
+
 export default function AppPreloader() {
   const rootRef = useRef(null);
 
@@ -9,6 +12,7 @@ export default function AppPreloader() {
     const root = rootRef.current;
     if (!root) return;
 
+    // Theme detection before hydration
     try {
       const s = localStorage.getItem("theme");
       const t = s ? (JSON.parse(s).state || {}).theme : "system";
@@ -18,6 +22,7 @@ export default function AppPreloader() {
       root.dataset.dark = dark ? "1" : "0";
     } catch { root.dataset.dark = "0"; }
 
+    // Fade out after animation completes
     const timer = setTimeout(() => {
       root.classList.add("rpl-done");
     }, 2200);
@@ -29,11 +34,11 @@ export default function AppPreloader() {
     <div ref={rootRef} className="rpl-root" suppressHydrationWarning>
       <style>{CSS}</style>
 
-      {}
+      {/* Center stage */}
       <div className="rpl-stage">
-        {}
+        {/* Logo — same SVG as Soft3DLogo (topbar/sidebar) */}
         <div className="rpl-logo-wrap">
-          {}
+          {/* Glow behind */}
           <div className="rpl-glow" />
 
           <svg className="rpl-svg" viewBox="0 0 120 120">
@@ -44,38 +49,38 @@ export default function AppPreloader() {
               </linearGradient>
             </defs>
 
-            {}
+            {/* Card background — draws border */}
             <rect className="rpl-card-bg" x="8" y="8" width="104" height="104" rx="22" fill="#181c24" />
             <rect className="rpl-card-inner" x="12" y="12" width="96" height="96" rx="18" />
 
-            {}
+            {/* Corner triangle */}
             <path className="rpl-tri" d="M12 36L36 12H12v24z" fill="url(#rpl-grad)" />
 
-            {}
+            {/* Green dot */}
             <circle className="rpl-dot rpl-dot-g" cx="94" cy="26" r="4.5" fill="#10b981" />
 
-            {}
+            {/* R stem */}
             <rect className="rpl-stem" x="34" y="30" width="16" height="60" rx="4" />
-            {}
+            {/* R bowl outer */}
             <path className="rpl-bowl" d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" />
-            {}
+            {/* R bowl inner (cutout) */}
             <path className="rpl-bowl-inner" d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" />
 
-            {}
+            {/* R leg diagonal */}
             <path className="rpl-leg" d="M60 62L83 90H65L48 68h14z" fill="url(#rpl-grad)" />
 
-            {}
+            {/* Blue dot */}
             <circle className="rpl-dot rpl-dot-b" cx="88" cy="88" r="4.5" fill="#3b82f6" />
           </svg>
         </div>
 
-        {}
+        {/* App name */}
         <div className="rpl-name-wrap">
           <span className="rpl-name">RouterMod</span>
           <span className="rpl-tagline">AI Gateway</span>
         </div>
 
-        {}
+        {/* Loading bar */}
         <div className="rpl-bar-wrap">
           <div className="rpl-bar" />
         </div>

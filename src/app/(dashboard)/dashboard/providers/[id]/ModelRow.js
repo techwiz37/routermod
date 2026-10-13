@@ -2,8 +2,15 @@ import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import { CapacityBadges } from "@/shared/components";
 
+/**
+ * Edit popover — appears below the row when pencil is clicked.
+ *   built-in  → Prefix + Model ID (alias key = prefix/modelId → stored alias)
+ *   custom    → Prefix + Model ID (re-id) + Display Name
+ *
+ * providerAlias: current provider alias (e.g. "ag", "openai") — default prefix
+ */
 function EditPopover({ model, alias, isCustom, providerAlias, onSave, onClose }) {
-
+  // alias key may be "prefix/modelId" or plain "modelId"
   const aliasParts = alias ? alias.split("/") : [];
   const initPrefix  = aliasParts.length > 1 ? aliasParts.slice(0, -1).join("/") : (providerAlias || "");
   const initModelId = aliasParts.length > 1 ? aliasParts[aliasParts.length - 1] : (alias || model.id);
@@ -91,7 +98,7 @@ export default function ModelRow({
   caps, thinkingSuffix,
 }) {
   const rawModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
-
+  // If alias (display name) set → show name big, prefix/modelId small below
   const displayName = model.name || alias || null;
   const displayModel = rawModel;
   const [editing, setEditing] = useState(false);
@@ -114,7 +121,7 @@ export default function ModelRow({
         </span>
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {}
+          {/* Primary label: display name if set, else model path */}
           {displayName ? (
             <>
               <span className="w-fit max-w-full break-all text-xs font-semibold text-text-main sm:max-w-[360px] sm:truncate">
@@ -134,9 +141,9 @@ export default function ModelRow({
           </span>
         </div>
 
-        {}
+        {/* Action buttons */}
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-          {}
+          {/* Test */}
           {onTest && (
             <div className="relative shrink-0 group/btn">
               <button
@@ -154,7 +161,7 @@ export default function ModelRow({
             </div>
           )}
 
-          {}
+          {/* Edit */}
           {onEdit && (
             <div className="relative shrink-0 group/btn">
               <button
@@ -170,7 +177,7 @@ export default function ModelRow({
             </div>
           )}
 
-          {}
+          {/* Copy */}
           <div className="relative shrink-0 group/btn">
             <button
               onClick={() => onCopy(displayModel, `model-${model.id}`)}
@@ -185,7 +192,7 @@ export default function ModelRow({
             </span>
           </div>
 
-          {}
+          {/* Delete / disable */}
           {isCustom ? (
             <button
               onClick={onDeleteAlias}
@@ -206,7 +213,7 @@ export default function ModelRow({
         </div>
       </div>
 
-      {}
+      {/* Edit popover — inline below row */}
       {editing && onEdit && (
         <EditPopover
           model={model}

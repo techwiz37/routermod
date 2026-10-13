@@ -6,7 +6,12 @@ import {
   resolveZedOrganizationId,
 } from "open-sse/shared/zedAuth.js";
 
-
+/**
+ * POST /api/oauth/zed/import
+ * Validate + save a Zed session (typically from IDE auto-import).
+ *
+ * Body: { accessToken, userId, systemId? }
+ */
 export async function POST(request) {
   try {
     const body = await request.json();

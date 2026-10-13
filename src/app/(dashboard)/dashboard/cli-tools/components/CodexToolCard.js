@@ -142,7 +142,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     }
   };
 
-
+  // Sync only when config content changes so local form edits are retained.
   useEffect(() => {
     const config = codexStatus?.config;
     if (config) {
@@ -171,7 +171,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   const getEffectiveBaseUrl = () => {
     const url = (customBaseUrl || `${baseUrl}/v1`).replace(/\/+$/, "");
-
+    // Ensure URL ends with /v1
     return url.endsWith("/v1") ? url : `${url}/v1`;
   };
 
@@ -194,7 +194,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     setApplying(true);
     setMessage(null);
     try {
-
+      // Use sk_9router for localhost if no key, otherwise use selected key
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
         : (!cloudEnabled ? "sk_9router" : selectedApiKey);
@@ -211,7 +211,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
       });
       const data = await res.json();
       if (res.ok) {
-
+        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         checkCodexStatus();
@@ -248,7 +248,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   const handleModelSelect = (model) => {
     setSelectedModel(model.value);
-
+    // Auto-set subagent model if not set
     if (!subagentModel) {
       setSubagentModel(model.value);
     }
@@ -360,7 +360,7 @@ default_subagent_model = "${effectiveSubagentModel}"
           {!checkingCodex && codexStatus?.installed && (
             <>
               <div className="flex flex-col gap-2">
-                {}
+                {/* Endpoint (selector) */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Select Endpoint</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
@@ -376,7 +376,7 @@ default_subagent_model = "${effectiveSubagentModel}"
                   />
                 </div>
 
-                {}
+                {/* Current configured */}
                 {codexStatus?.config && (() => {
                   return currentBaseUrl ? (
                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
@@ -389,14 +389,14 @@ default_subagent_model = "${effectiveSubagentModel}"
                   ) : null;
                 })()}
 
-                {}
+                {/* API Key */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">API Key</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
                   <ApiKeySelect value={selectedApiKey} onChange={setSelectedApiKey} apiKeys={apiKeys} cloudEnabled={cloudEnabled} />
                 </div>
 
-                {}
+                {/* Model */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Model</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
@@ -407,7 +407,7 @@ default_subagent_model = "${effectiveSubagentModel}"
                   <button onClick={() => setModalOpen(true)} disabled={!activeProviders?.length} className={`w-full sm:w-auto rounded border px-2 py-2 text-xs transition-colors sm:py-1.5 whitespace-nowrap sm:shrink-0 ${activeProviders?.length ? "bg-surface border-border text-text-main hover:border-primary cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>Select Model</button>
                 </div>
 
-                {}
+                {/* Subagent Model */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Subagent Model</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
@@ -458,7 +458,7 @@ default_subagent_model = "${effectiveSubagentModel}"
                 </Button>
               </div>
 
-              {}
+              {/* Additional Models */}
               <div className="mt-4 pt-4 border-t border-border flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -474,7 +474,7 @@ default_subagent_model = "${effectiveSubagentModel}"
                   </div>
                 </div>
 
-                {}
+                {/* Quick Add Model bar */}
                 <div className="flex flex-col gap-1.5 p-2.5 bg-surface/40 border border-border rounded-lg">
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_1fr_auto_auto] sm:items-center">
                     <input
