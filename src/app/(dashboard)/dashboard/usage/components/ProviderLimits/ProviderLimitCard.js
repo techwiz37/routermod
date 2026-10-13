@@ -37,7 +37,6 @@ export default function ProviderLimitCard({
     }
   };
 
-  // Get provider info from config
   const getProviderColor = () => {
     const colors = {
       github: "#000000",
@@ -150,7 +149,6 @@ export default function ProviderLimitCard({
       {!loading && !error && !message && quotas?.length > 0 && (
         <div className="space-y-4">
           {quotas.map((quota, index) => {
-            // For Antigravity, use remainingPercentage if available, otherwise calculate
             const percentage =
               quota.remainingPercentage !== undefined
                 ? Math.round(((quota.total - quota.used) / quota.total) * 100)

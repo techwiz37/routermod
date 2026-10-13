@@ -11,9 +11,6 @@ import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
-// Auto-compact window presets (CLAUDE_CODE_AUTO_COMPACT_WINDOW, valid 100K–1M).
-// UI shows the round number; the value written is nudged down 2K to stay safely
-// under the upstream hard cap.
 const CONTEXT_OPTIONS = [
   { label: "Default", value: "" },
   { label: "200K", value: "198000" },
@@ -22,9 +19,6 @@ const CONTEXT_OPTIONS = [
   { label: "700K", value: "698000" },
 ];
 
-// Claude Code assumes a model's window is 200K unless the name carries the `[1m]`
-// marker, which is why the 1M auto-compact preset only takes effect once the
-// marker is applied.
 
 export default function ClaudeToolCard({
   tool,
@@ -61,16 +55,11 @@ export default function ClaudeToolCard({
   const [oneMContext, setOneMContext] = useState(false);
   const hasInitializedModels = useRef(false);
 
-  // Claude Code only string-matches the marker against the model name, so it
-  // applies to any id — the user decides which models are worth declaring as 1M.
-  // Stripping first keeps repeated toggles from stacking `[1m][1m]`.
   const withContextMarker = (value, enabled) => {
     const { model } = stripModelContextMarker(value);
     return enabled ? `${model}[1m]` : model;
   };
 
-  // Rewrite the mappings in place on toggle, so the inputs show what will be
-  // written without waiting for Apply.
   const handleOneMContextToggle = (enabled) => {
     setOneMContext(enabled);
     tool.defaultModels.forEach((model) => {
@@ -155,16 +144,12 @@ export default function ClaudeToolCard({
 
       tool.defaultModels.forEach((model) => {
         if (model.envKey) {
-          // Kept verbatim (marker included) so the input matches what is on disk;
-          // withContextMarker strips before appending, so re-applying cannot double it.
           const value = env[model.envKey] || model.defaultValue || "";
-          // Only sync initial values from file once
           if (value) {
             onModelMappingChange(model.alias, value);
           }
         }
       });
-      // Restore key from settings.json; ApiKeySelect matches it against saved presets
       const tokenFromFile = env.ANTHROPIC_AUTH_TOKEN;
       if (tokenFromFile) {
         setSelectedApiKey(tokenFromFile);
@@ -202,7 +187,6 @@ export default function ClaudeToolCard({
     try {
       const env = { ANTHROPIC_BASE_URL: getEffectiveBaseUrl() };
 
-      // Get key from dropdown, fallback to first key or sk_9router for localhost
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
         || (!cloudEnabled ? "sk_9router" : null);
@@ -213,8 +197,6 @@ export default function ClaudeToolCard({
 
       tool.defaultModels.forEach((model) => {
         const targetModel = modelMappings[model.alias];
-        // Written verbatim — the input may hold a marker typed by hand, and the
-        // toggle already decided the marker when it was flipped.
         if (targetModel && model.envKey) env[model.envKey] = targetModel;
       });
       if (autoCompactWindow) {
@@ -227,7 +209,6 @@ export default function ClaudeToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         setClaudeStatus(prev => ({ ...prev, hasBackup: true, settings: { ...prev?.settings, env }, exaMcpEnabled }));
@@ -273,7 +254,6 @@ export default function ClaudeToolCard({
     if (currentEditingAlias) onModelMappingChange(currentEditingAlias, model.value);
   };
 
-  // Generate settings.json content for manual copy
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey

@@ -4,10 +4,6 @@ import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
 
-/**
- * Kiro Auth Method Selection Modal
- * Auto-detects token from AWS SSO cache or allows manual import
- */
 export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [idcStartUrl, setIdcStartUrl] = useState("");
@@ -22,7 +18,6 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
   const [autoDetected, setAutoDetected] = useState(false);
   const [idcCredentials, setIdcCredentials] = useState(null);
 
-  // Auto-detect token when import method is selected
   useEffect(() => {
     if (selectedMethod !== "import" || !isOpen) return;
 
@@ -39,7 +34,6 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
         if (data.found) {
           setRefreshToken(data.refreshToken);
           setAutoDetected(true);
-          // Store IDC/organization credentials if present
           if (data.clientId && data.clientSecret) {
             setIdcCredentials({
               clientId: data.clientId,
@@ -97,7 +91,6 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
         throw new Error(data.error || "Import failed");
       }
 
-      // Success - notify parent to refresh connections
       onMethodSelect("import");
     } catch (err) {
       setError(err.message);
@@ -169,7 +162,6 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
         throw new Error(data.error || "Import failed");
       }
 
-      // Success - notify parent to refresh connections
       onMethodSelect("api-key");
     } catch (err) {
       setError(err.message);

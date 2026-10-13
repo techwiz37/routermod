@@ -37,12 +37,10 @@ const github = {
       }),
     });
 
-    // Handle response properly - if not ok, try to get error as text first
     let data;
     try {
       data = await response.json();
     } catch (e) {
-      // If response is not JSON, get as text
       const text = await response.text();
       data = { error: "invalid_response", error_description: text };
     }
@@ -53,7 +51,6 @@ const github = {
     };
   },
   postExchange: async (tokens) => {
-    // Get Copilot token using GitHub access token
     const copilotRes = await fetch(GITHUB_CONFIG.copilotTokenUrl, {
       headers: {
         Authorization: `Bearer ${tokens.access_token}`,
@@ -64,7 +61,6 @@ const github = {
     });
     const copilotToken = copilotRes.ok ? await copilotRes.json() : {};
 
-    // Get user info from GitHub
     const userRes = await fetch(GITHUB_CONFIG.userInfoUrl, {
       headers: {
         Authorization: `Bearer ${tokens.access_token}`,

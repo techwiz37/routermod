@@ -13,15 +13,12 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
   const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
   const [testError, setTestError] = useState("");
   const [saving, setSaving] = useState(false);
-  // Realtime dispatch marker for the transport select; "" = provider default REST.
   const [transport, setTransport] = useState("");
 
-  // Reset state when modal opens
   useEffect(() => {
     if (isOpen) { setModelId(""); setCaps(defaultCaps()); setTransport(""); setTestStatus(null); setTestError(""); }
   }, [isOpen]);
 
-  // Strip provider's own alias prefix (e.g. "cc/model" -> "model" for cc provider)
   const stripAlias = (id) => {
     const prefix = `${providerAlias}/`;
     return id.startsWith(prefix) ? id.slice(prefix.length) : id;
@@ -52,8 +49,6 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
     if (!cleanId || saving) return;
     setSaving(true);
     try {
-      // caps.stt is UI-only; the parent save flow derives the model type from
-      // it and forwards the pinned transport (null unless the caller picked one).
       await onSave(cleanId, caps, caps.stt ? transport : null);
     } finally {
       setSaving(false);

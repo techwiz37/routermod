@@ -9,18 +9,11 @@ function randomStr(len) {
   return s;
 }
 
-/**
- * Generate API key — format: rmod-{8chars}
- * Simple, short, readable. Validated by DB lookup only.
- */
 export function generateApiKeyWithMachine(_machineId) {
   const key = `rmod-${randomStr(8)}`;
   return { key, keyId: key };
 }
 
-/**
- * Parse API key — supports rmod- and legacy sk- formats
- */
 export function parseApiKey(apiKey) {
   if (!apiKey) return null;
   if (apiKey.startsWith("rmod-")) return { machineId: null, keyId: apiKey, isNewFormat: false };

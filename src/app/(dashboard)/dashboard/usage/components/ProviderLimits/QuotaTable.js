@@ -5,9 +5,6 @@ import { formatResetTime, getRemainingPercentage } from "./utils";
 
 const PAGE_SIZE = 10;
 
-/**
- * Format reset time display (Today, 12:00 PM)
- */
 function formatResetTimeDisplay(resetTime) {
   if (!resetTime) return null;
 
@@ -39,9 +36,6 @@ function formatResetTimeDisplay(resetTime) {
   }
 }
 
-/**
- * Get color classes based on remaining percentage
- */
 function getColorClasses(remainingPercentage) {
   if (remainingPercentage > 70) {
     return {
@@ -81,9 +75,6 @@ function sortQuotas(quotas, sortMode) {
   return quotas;
 }
 
-/**
- * Quota Table Component - Table-based display for quota data
- */
 export default function QuotaTable({
   quotas = [],
   compact = false,
@@ -157,9 +148,6 @@ export default function QuotaTable({
             : getColorClasses(quota.remaining);
           const countdown = formatResetTime(quota.resetAt);
           const resetDisplay = formatResetTimeDisplay(quota.resetAt);
-          // recurring defaults true: a missing flag means the quota
-          // refreshes at resetAt. Bonus/one-shot packs set recurring:false
-          // and their resetAt is a hard expiry, so word it as "expires".
           const recurring = quota.recurring !== false;
           const countdownLabel = recurring ? `in ${countdown}` : `expires in ${countdown}`;
 

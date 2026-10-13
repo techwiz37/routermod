@@ -1,11 +1,5 @@
 "use client";
 
-/**
- * ModelAvailabilityBadge — compact inline status indicator
- *
- * Shows green when all models are operational, or amber/red when there are
- * issues, with a hover popover for details and cooldown clearing.
- */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/shared/components";
@@ -34,7 +28,6 @@ export default function ModelAvailabilityBadge() {
         setData(json);
       }
     } catch {
-      // silent fail — will retry
     } finally {
       setLoading(false);
     }
@@ -46,7 +39,6 @@ export default function ModelAvailabilityBadge() {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  // Close popover on outside click
   useEffect(() => {
     const handleClick = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setExpanded(false);
@@ -82,7 +74,6 @@ export default function ModelAvailabilityBadge() {
   const unavailableCount = data?.unavailableCount || models.filter((m) => m.status !== "available").length;
   const isHealthy = unavailableCount === 0;
 
-  // Group unhealthy models by provider
   const byProvider = {};
   models.forEach((m) => {
     if (m.status === "available") return;

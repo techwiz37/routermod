@@ -12,12 +12,6 @@ function getRedirectUri() {
   return `http://localhost:${port}/callback`;
 }
 
-/**
- * GitLab Duo Authentication Modal
- * Supports two modes:
- * - OAuth (PKCE): requires OAuth App Client ID (and optional Client Secret)
- * - PAT: requires Personal Access Token
- */
 export default function GitLabAuthModal({ isOpen, providerInfo, onSuccess, onClose }) {
   const [mode, setMode] = useState(null); // null | "oauth" | "pat"
   const [baseUrl, setBaseUrl] = useState(GITLAB_COM);
@@ -82,7 +76,6 @@ export default function GitLabAuthModal({ isOpen, providerInfo, onSuccess, onClo
 
   if (!isOpen) return null;
 
-  // Sub-modal for OAuth PKCE flow
   if (showOAuth && oauthMeta) {
     return (
       <OAuthModal

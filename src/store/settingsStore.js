@@ -13,7 +13,6 @@ const useSettingsStore = create((set, get) => ({
 
   invalidate: () => set({ lastFetched: 0 }),
 
-  // Skips network when cache is fresh; coalesce concurrent in-flight requests
   fetchSettings: async ({ force = false } = {}) => {
     const { lastFetched, settings } = get();
     if (!force && settings && Date.now() - lastFetched < CLIENT_STORE_TTL_MS) return settings;
@@ -39,7 +38,6 @@ const useSettingsStore = create((set, get) => ({
     return inFlightSettingsPromise;
   },
 
-  // PATCH server + merge into local cache (no extra fetch needed)
   patchSettings: async (patch) => {
     try {
       const res = await fetch("/api/settings", {
@@ -49,7 +47,6 @@ const useSettingsStore = create((set, get) => ({
       });
       if (!res.ok) return null;
       const updated = await res.json();
-      // Merge, not replace: PATCH response omits GET-only fields (e.g. hasPassword)
       set({ settings: { ...get().settings, ...updated }, lastFetched: Date.now() });
       return updated;
     } catch {

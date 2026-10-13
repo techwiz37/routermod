@@ -62,14 +62,10 @@ function resolveBundledServerPath() {
   return fromCwd;
 }
 
-// Copy bundled server.js into DATA_DIR so MITM doesn't lock node_modules
-// (prevents EBUSY on `npm i -g 9router@latest` while MITM is running).
 function ensureRuntimeServer(bundledPath) {
   try {
     if (!bundledPath || !fs.existsSync(bundledPath)) return bundledPath;
 
-    // Dev mode: source file has relative requires (./logger, ./config...),
-    // only the bundled file inside node_modules is self-contained + safe to copy.
     if (!bundledPath.includes(`${path.sep}node_modules${path.sep}`)) {
       return bundledPath;
     }
@@ -77,7 +73,6 @@ function ensureRuntimeServer(bundledPath) {
     const runtimeDir = path.join(DATA_DIR, "runtime", "mitm");
     const runtimeServer = path.join(runtimeDir, "server.js");
 
-    // Skip copy if sizes match (bundle unchanged since last run)
     if (fs.existsSync(runtimeServer)) {
       try {
         if (fs.statSync(bundledPath).size === fs.statSync(runtimeServer).size) return runtimeServer;
@@ -243,9 +238,6 @@ async function loadDnsToolState() {
   }
 }
 
-/**
- * Re-apply DNS for tools previously enabled — called on app startup after MITM running.
- */
 async function restoreToolDNS(sudoPassword) {
   const state = await loadDnsToolState();
   const password = sudoPassword || getCachedPassword() || await loadEncryptedPassword();
@@ -259,10 +251,6 @@ async function restoreToolDNS(sudoPassword) {
   }
 }
 
-/**
- * Check if user has privilege to mutate hosts file.
- * Win: needs admin. Mac/Linux: root OR cached/encrypted sudo password.
- */
 async function hasDnsPrivilege() {
   if (IS_WIN) return isAdmin();
   if (isAdmin()) return true;
@@ -299,7 +287,6 @@ function getPort443Owner(sudoPassword) {
         });
       });
     } else {
-      // Only find process actually LISTENING on TCP port 443
       exec(`${LSOF_BIN} -nP -iTCP:443 -sTCP:LISTEN -t`, { windowsHide: true }, (err, stdout) => {
         if (err || !stdout?.trim()) return resolve(null);
         const pid = parseInt(stdout.trim().split("\n")[0], 10);
@@ -369,9 +356,6 @@ function pollMitmHealth(timeoutMs, port = MITM_PORT) {
   });
 }
 
-/**
- * Get full MITM status including per-tool DNS status
- */
 async function getMitmStatus() {
   let running = serverProcess !== null && !serverProcess.killed;
   let pid = serverPid;
@@ -401,8 +385,6 @@ async function getMitmStatus() {
 
 async function scheduleMitmRestart(apiKey) {
   if (mitmIsRestarting) return;
-  // Set guard synchronously before any await to prevent concurrent calls
-  // from passing the check above.
   mitmIsRestarting = true;
 
   const aliveMs = Date.now() - mitmLastStartTime;
@@ -441,14 +423,10 @@ async function scheduleMitmRestart(apiKey) {
   } catch (e) {
     err(`Restart attempt ${mitmRestartCount}/${MITM_MAX_RESTARTS} failed: ${e.message}`);
     mitmIsRestarting = false;
-    // Schedule next retry
     scheduleMitmRestart(apiKey);
   }
 }
 
-/**
- * Start MITM server only (cert + server, no DNS)
- */
 async function killPort443Owner(owner, sudoPassword) {
   if (!owner || !owner.pid) return;
   if (IS_WIN) {
@@ -490,8 +468,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
     throw new Error("MITM server is already running");
   }
 
-  // Atomically claim lock to prevent concurrent startServer across processes.
-  // O_EXCL (flag: "wx") fails with EEXIST if the file already exists.
   try {
     fs.writeFileSync(LOCK_FILE, String(process.pid), { flag: "wx" });
   } catch (e) {
@@ -531,14 +507,12 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
     }
   }
 
-  // Step 1: Generate Root CA if missing or expired
   const rootCACertPath = path.join(MITM_DIR, "rootCA.crt");
   const rootCAKeyPath = path.join(MITM_DIR, "rootCA.key");
   const certExists = fs.existsSync(rootCACertPath) && fs.existsSync(rootCAKeyPath);
 
   if (!certExists || isCertExpired(rootCACertPath)) {
     if (certExists) {
-      // Uninstall expired cert from system store before regenerating
       log("🔐 Cert expired — uninstalling old cert...");
       const password = sudoPassword || getCachedPassword() || await loadEncryptedPassword();
       try { await uninstallCert(password, rootCACertPath); } catch { /* best effort */ }
@@ -547,7 +521,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
     await generateCert();
   }
 
-  // Step 1.5: Auto-install Root CA if not trusted yet
   const { checkCertInstalled } = require("./cert/install");
   const rootCATrusted = await checkCertInstalled(rootCACertPath);
   const linuxNoSystemTrust = !IS_WIN && !IS_MAC && !isSudoAvailable();
@@ -571,8 +544,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
     log("🔐 Cert: already trusted ✅");
   }
 
-  // Step 2: Spawn server (Root CA already installed in Step 1.5)
-  // Verify server.js exists — recopy if runtime file was deleted (antivirus/cleanup)
   let effectiveServerPath = SERVER_PATH;
   if (!effectiveServerPath || !fs.existsSync(effectiveServerPath)) {
     log(`[MITM] server.js missing at ${effectiveServerPath} → recopying`);
@@ -584,7 +555,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
   const mitmRouterBase = await resolveMitmRouterBaseUrl();
   log(`🚀 Starting server... (router: ${mitmRouterBase})`);
   if (IS_WIN) {
-    // Check port 443 — ask user before killing
     const winOwner = await getPort443Owner(sudoPassword);
     if (winOwner) {
       if (forceKillPort443) {
@@ -598,8 +568,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
       }
     }
 
-    // Spawn directly — process already has admin rights
-    // cwd=tmpdir so process doesn't lock the install dir on Windows (EBUSY on update)
     serverProcess = spawn(
       process.execPath,
       [effectiveServerPath],
@@ -619,8 +587,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
 
     if (_updateSettings) await _updateSettings({ mitmCertInstalled: true }).catch(() => { });
   } else if (isSudoAvailable()) {
-    // Pass HOME explicitly so os.homedir() resolves to the unprivileged user's home
-    // instead of /root when sudo resets the environment.
     const inlineCmd = [
       `HOME=${shellQuoteSingle(os.homedir())}`,
       `ROUTER_API_KEY=${shellQuoteSingle(apiKey)}`,
@@ -636,7 +602,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
     serverProcess.stdin.write(`${sudoPassword}\n`);
     serverProcess.stdin.end();
   } else {
-    // Docker/minimal images: no sudo — same as Windows-style direct spawn
     serverProcess = spawn(process.execPath, [effectiveServerPath], {
       detached: false,
       windowsHide: true,
@@ -657,7 +622,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
     mitmLastStartTime = Date.now();
   }
 
-  // Set NODE_EXTRA_CA_CERTS so Node-based GUI apps (Electron/AG language_server) trust MITM cert
   if (IS_MAC) {
     const rootCAPath = path.join(MITM_DIR, "rootCA.crt");
     if (fs.existsSync(rootCAPath)) {
@@ -679,17 +643,14 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
   let startError = null;
   if (serverProcess) {
     serverProcess.stdout.on("data", (data) => {
-      // server.js already formats its own logs — print as-is
       process.stdout.write(data);
     });
     serverProcess.stderr.on("data", (data) => {
       const msg = data.toString().trim();
-      // Mac/Linux: filter sudo password prompt noise
       if (msg && (IS_WIN || (!msg.includes("Password:") && !msg.includes("password for")))) {
         err(msg);
         startError = msg;
       }
-      // Detect wrong/missing password — clear cache and stop retry loop
       if (!IS_WIN && (msg.includes("incorrect password") || msg.includes("no password was provided"))) {
         setCachedPassword(null);
         clearEncryptedPassword();
@@ -702,7 +663,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
       serverPid = null;
       try { fs.unlinkSync(PID_FILE); } catch { /* ignore */ }
       try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
-      // Auto-restart on unexpected exit
       if (code !== 0 && !mitmIsRestarting) scheduleMitmRestart(apiKey);
     });
   }
@@ -720,7 +680,6 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
 
   log(`✅ Server healthy (PID: ${serverPid || health.pid})`);
 
-  // Log DNS status per tool
   const dnsStatus = checkAllDNSStatus();
   for (const [tool, active] of Object.entries(dnsStatus)) {
     log(`🌐 DNS ${tool}: ${active ? "✅ active" : "❌ inactive"}`);
@@ -729,27 +688,20 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
   await saveMitmSettings(true, sudoPassword);
   if (sudoPassword) setCachedPassword(sudoPassword);
 
-  // Server is healthy — remove lock file (PID file persists as the marker)
   try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
 
   return { running: true, pid: serverPid };
   } catch (e) {
-    // Clean up lock on any failure
     try { fs.unlinkSync(LOCK_FILE); } catch { /* ignore */ }
     throw e;
   }
 }
 
-/**
- * Stop MITM server — removes ALL tool DNS entries first, then kills server
- */
 async function stopServer(sudoPassword) {
-  // Prevent auto-restart from triggering on intentional stop
   mitmIsRestarting = true;
   mitmRestartCount = 0;
   log("⏹ Stopping server...");
 
-  // Kill server process
   const proc = serverProcess;
   const pidToKill = proc && !proc.killed
     ? proc.pid
@@ -770,7 +722,6 @@ async function stopServer(sudoPassword) {
     try {
       const { isAdmin, runElevatedPowerShell, quotePs } = require("./winElevated.js");
       if (isAdmin()) {
-        // Direct fs write — bypass PowerShell to avoid parser pitfalls
         const content = fs.readFileSync(hostsFile, "utf8");
         const filtered = content.split(/\r?\n/).filter(l => !allHosts.some(h => l.includes(h))).join("\r\n");
         const next = filtered.replace(/[\r\n\s]+$/g, "") + "\r\n";
@@ -796,7 +747,6 @@ async function stopServer(sudoPassword) {
     await removeAllDNSEntries(sudoPassword);
   }
 
-  // Unset NODE_EXTRA_CA_CERTS so apps don't keep trusting stale MITM cert
   if (IS_MAC) {
     exec(`launchctl unsetenv NODE_EXTRA_CA_CERTS`, { windowsHide: true }, (e) => {
       if (e) log(`[launchctl] Failed to unset NODE_EXTRA_CA_CERTS: ${e.message}`);
@@ -817,9 +767,6 @@ async function stopServer(sudoPassword) {
   return { running: false, pid: null };
 }
 
-/**
- * Enable DNS for a specific tool (requires server running)
- */
 async function enableToolDNS(tool, sudoPassword) {
   const status = await getMitmStatus();
   if (!status.running) throw new Error("MITM server is not running. Start the server first.");
@@ -830,9 +777,6 @@ async function enableToolDNS(tool, sudoPassword) {
   return { success: true };
 }
 
-/**
- * Disable DNS for a specific tool
- */
 async function disableToolDNS(tool, sudoPassword) {
   const password = sudoPassword || getCachedPassword() || await loadEncryptedPassword();
   await removeDNSEntry(tool, password);
@@ -840,9 +784,6 @@ async function disableToolDNS(tool, sudoPassword) {
   return { success: true };
 }
 
-/**
- * Install Root CA to system trust store (standalone, no server start)
- */
 async function trustCert(sudoPassword) {
   const rootCACertPath = path.join(MITM_DIR, "rootCA.crt");
   if (!fs.existsSync(rootCACertPath)) throw new Error("Root CA not found. Start server first to generate it.");
@@ -857,7 +798,6 @@ async function trustCert(sudoPassword) {
   if (password) setCachedPassword(password);
 }
 
-// Legacy aliases for backward compatibility
 const startMitm = startServer;
 const stopMitm = stopServer;
 
@@ -868,7 +808,6 @@ module.exports = {
   enableToolDNS,
   disableToolDNS,
   trustCert,
-  // Legacy
   startMitm,
   stopMitm,
   getCachedPassword,

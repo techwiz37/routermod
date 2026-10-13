@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
 import { readZedIdeCredentials } from "@/lib/oauth/utils/zedCredentials";
 
-/**
- * GET /api/oauth/zed/auto-import
- * Read the signed-in Zed IDE session from the OS keyring/keychain.
- *
- * Linux: secret-tool (url=https://zed.dev, label zed-github-account)
- * macOS: Keychain internet password (server=https://zed.dev)
- * Windows: Credential Manager target zed:url=https://zed.dev
- *
- * Also loads system_id from Zed's local kv_store when present.
- */
 export async function GET() {
   try {
     const result = await readZedIdeCredentials();

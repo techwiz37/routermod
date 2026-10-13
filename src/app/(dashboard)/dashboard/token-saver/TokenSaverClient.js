@@ -213,7 +213,6 @@ export default function TokenSaverClient() {
     );
   };
 
-  // Poll the install log tail while a pip install/uninstall is running.
   const startLogPolling = useCallback(() => {
     setInstallLog("");
     if (logPollRef.current) clearInterval(logPollRef.current);
@@ -293,7 +292,6 @@ export default function TokenSaverClient() {
 
   const handleInstallExtras = useCallback(() => {
     if (pendingExtras.length === 0) return;
-    // Warn about the heavy ~1GB torch download before installing [ml].
     if (pendingExtras.includes("ml")) {
       setExtrasConfirm({
         title: "Install [ml]",
@@ -317,8 +315,6 @@ export default function TokenSaverClient() {
     });
   }, [removeExtraConfirmed]);
 
-  // Toggle an extra's active state (persist setting), then restart the proxy so
-  // the new --code-aware / --disable-kompress flags take effect.
   const toggleExtraActive = useCallback(async (extra, value) => {
     setExtrasActionError("");
     if (extra === "code") setCodeAware(value);
@@ -433,7 +429,6 @@ export default function TokenSaverClient() {
           setPxpipeEnabled(!!data.pxpipeEnabled);
           if (typeof data.pxpipeMinChars === "number") setPxpipeMinChars(data.pxpipeMinChars);
           refreshHeadroomStatus();
-          // PRD: run the PXPIPE health check automatically when the page opens
           refreshPxpipeStatus().then(runPxpipeHealth);
         }
       } catch {}

@@ -16,12 +16,6 @@ import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo
 import { getKeyAccessContext, enforceKeyAccessProvider } from "../services/keyAccess.js";
 import { assertPublicUrlResolved } from "@/shared/utils/ssrfGuard.js";
 
-/**
- * Handle web fetch (URL extraction) request for the SSE/Next.js server.
- * Provider IS the model. Mirrors handleEmbeddings auth + fallback flow.
- *
- * @param {Request} request
- */
 export async function handleFetch(request) {
   let body;
   try {
@@ -32,7 +26,6 @@ export async function handleFetch(request) {
   }
 
   const reqUrl = new URL(request.url);
-  // Accept either `provider` or `model` (UI sends `model` since provider IS the model for webFetch)
   const providerInput = body.provider || body.model;
   const targetUrl = body.url;
   const format = body.format;
@@ -40,7 +33,6 @@ export async function handleFetch(request) {
 
   log.request("POST", `${reqUrl.pathname} | ${providerInput}`);
 
-  // Log API key (masked)
   const apiKey = extractApiKey(request);
   if (apiKey) {
     log.debug("AUTH", `API Key: ${log.maskKey(apiKey)}`);
@@ -48,7 +40,6 @@ export async function handleFetch(request) {
     log.debug("AUTH", "No API key provided (local mode)");
   }
 
-  // Enforce API key if enabled in settings
   const settings = await getSettings();
   if (settings.requireApiKey) {
     if (!apiKey) {
@@ -72,7 +63,6 @@ export async function handleFetch(request) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: url");
   }
 
-  // Validate URL format
   try {
     new URL(targetUrl);
   } catch {
@@ -80,8 +70,6 @@ export async function handleFetch(request) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid URL format");
   }
 
-  // SSRF guard: reject internal/private/metadata targets, including
-  // hostnames that merely resolve to one (DNS lookup, not just literal checks).
   try {
     await assertPublicUrlResolved(targetUrl);
   } catch (err) {
@@ -89,12 +77,9 @@ export async function handleFetch(request) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, err.message);
   }
 
-  // Combo expansion: providerInput may be a combo name → run fallback/round-robin across providers
   const combos = await getCombos();
   const comboModels = getComboModelsFromData(providerInput, combos);
 
-  // Per-key access control: the provider IS the model here, so a
-  // restricted key needs the provider id (or the combo) on its list.
   const keyAccessDenied = await enforceKeyAccessProvider(await getKeyAccessContext(request), providerInput, comboModels);
   if (keyAccessDenied) return keyAccessDenied;
   if (comboModels) {
@@ -140,7 +125,6 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
     log.info("ROUTING", `Provider: ${providerId}`);
   }
 
-  // No-auth fetch path (kept for parity though no current fetch provider sets noAuth)
   if (resolvedProvider.noAuth) {
     log.info("AUTH", `\x1b[32m${providerId} no-auth mode\x1b[0m`);
     const result = await handleFetchCore({
@@ -160,14 +144,10 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "Fetch failed");
   }
 
-  // Credential + fallback loop
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
 
-  // Keep web-fetch failures scoped to this capability. Providers such as
-  // Ollama use the same connection for chat and fetch, so an upstream fetch
-  // failure must not take the account offline for LLM requests.
   const fetchLockKey = `webfetch:${providerId}`;
 
   while (true) {

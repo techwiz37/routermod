@@ -5,7 +5,6 @@ import PropTypes from "prop-types";
 import { Toggle, Button } from "@/shared/components";
 import Modal from "@/shared/components/Modal";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
 
 function groupByProvider(models) {
   const map = {};
@@ -28,7 +27,6 @@ function providerLabel(id) {
   return labels[id] || id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-// ─── Test result badge ───────────────────────────────────────────────────────
 
 function TestBadge({ result }) {
   if (!result) return null;
@@ -48,7 +46,6 @@ function TestBadge({ result }) {
   );
 }
 
-// ─── Provider section ────────────────────────────────────────────────────────
 
 function ProviderSection({ group, selectedModels, onToggleModel, testResults }) {
   const allSelected = group.models.every(m => selectedModels.has(m.routedModel || `${m.provider}/${m.model}`));
@@ -119,7 +116,6 @@ function ProviderSection({ group, selectedModels, onToggleModel, testResults }) 
   );
 }
 
-// ─── Test results modal ──────────────────────────────────────────────────────
 
 function TestModal({ isOpen, onClose, models, apiKeyId }) {
   const [results, setResults] = useState({});
@@ -151,7 +147,6 @@ function TestModal({ isOpen, onClose, models, apiKeyId }) {
       } catch (e) {
         setResults(prev => ({ ...prev, [modelId]: { ok: false, ms: Date.now() - t0 } }));
       }
-      // small gap between tests
       await new Promise(r => setTimeout(r, 300));
     }
     setRunning(false);
@@ -242,7 +237,6 @@ function TestModal({ isOpen, onClose, models, apiKeyId }) {
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
 
 export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict }) {
   const access = apiKey.access || { restricted: false, allow: [] };
@@ -252,14 +246,12 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [providerGroups, setProviderGroups] = useState([]);
 
-  // Reset when switching keys
   useEffect(() => {
     setAllModels([]);
     setProviderGroups([]);
     setSelectedModels(new Set(access.allow));
   }, [apiKey.id]);
 
-  // Sync allow list when parent updates
   useEffect(() => {
     setSelectedModels(new Set(access.allow));
   }, [access.allow.join(",")]);
@@ -276,7 +268,6 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       .finally(() => setLoading(false));
   }, []);
 
-  // Load if already restricted on mount / key change
   useEffect(() => {
     if (access.restricted) loadModels();
   }, [apiKey.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -285,7 +276,6 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     setSelectedModels(prev => {
       const next = new Set(prev);
       if (on) next.add(id); else next.delete(id);
-      // propagate immediately
       onChange({ restricted: true, allow: [...next] });
       return next;
     });
@@ -293,7 +283,6 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   const handleToggleRestrict = (checked) => {
     if (checked) {
-      // Pre-fetch models immediately so list is ready when confirm dialog closes
       loadModels();
       onRequestRestrict();
     } else {

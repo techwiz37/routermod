@@ -94,7 +94,6 @@ export function SttExampleCard({ providerId }) {
       if (allowedParams.includes("tag_audio_events") && tagAudioEvents) {
         fd.append("tag_audio_events", "true");
       }
-      // diarize and num_speakers are mutually exclusive upstream — only one goes out.
       if (allowedParams.includes("diarize") && diarize) {
         fd.append("diarize", "true");
       } else if (allowedParams.includes("num_speakers") && numSpeakers) {

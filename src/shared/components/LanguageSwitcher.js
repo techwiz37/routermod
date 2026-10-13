@@ -14,7 +14,6 @@ function getLocaleFromCookie() {
   return normalizeLocale(value);
 }
 
-// Locale display names and flags - will be translated by runtime i18n
 const getLocaleInfo = (locale) => {
   const locales = {
     "en": { name: "English", flag: "🇺🇸" },
@@ -76,7 +75,6 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
     setLocale(getLocaleFromCookie());
   }, []);
 
-  // Close modal when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
@@ -100,7 +98,6 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
         body: JSON.stringify({ locale: nextLocale }),
       });
       
-      // Reload translations without full page reload
       await reloadTranslations();
       setLocale(nextLocale);
       setIsOpen(false, nextLocale);

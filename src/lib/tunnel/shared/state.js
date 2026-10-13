@@ -24,8 +24,6 @@ export function saveState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-// gate.json: fast-read file for proxy.js (runs in sandbox, no DB access)
-// Shape: { tunnelActive: bool, dashboardAccess: bool }
 const GATE_FILE = path.join(TUNNEL_DIR, "gate.json");
 
 export function readGate() {

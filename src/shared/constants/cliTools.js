@@ -1,4 +1,3 @@
-// MITM Tools — IDE tools intercepted via MITM proxy
 export const MITM_TOOLS = {
   antigravity: {
     id: "antigravity",
@@ -44,10 +43,6 @@ export const MITM_TOOLS = {
     configType: "mitm",
     mitmDomain: "runtime.us-east-1.kiro.dev",
     defaultModels: [
-      // Kiro's agent/"vibe" mode sends modelId "auto" for the main turn and "simple-task"
-      // for background sub-tasks (verified via MITM request dump of generateAssistantResponse).
-      // Both need a mappable slot — otherwise getMappedModel returns null and the chat call
-      // is passed through to AWS instead of being routed to the chosen provider.
       { id: "auto", name: "Auto (Kiro Agent)", alias: "auto" },
       { id: "claude-sonnet-5", name: "Claude Sonnet 5", alias: "claude-sonnet-5" },
       { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5", alias: "claude-sonnet-4.5" },
@@ -61,23 +56,8 @@ export const MITM_TOOLS = {
       { id: "simple-task", name: "Qwen3 Coder Next", alias: "simple-task" },
     ],
   },
-  // cursor: {
-  //   id: "cursor",
-  //   name: "Cursor",
-  //   image: "/providers/cursor.png",
-  //   color: "#000000",
-  //   description: "Cursor IDE with MITM",
-  //   configType: "mitm",
-  //   mitmDomain: "api2.cursor.sh",
-  //   defaultModels: [
-  //     { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", alias: "claude-sonnet-4-5" },
-  //     { id: "claude-opus-4", name: "Claude Opus 4", alias: "claude-opus-4" },
-  //     { id: "gpt-4o", name: "GPT-4o", alias: "gpt-4o" },
-  //   ],
-  // },
 };
 
-// CLI Tools configuration
 export const CLI_TOOLS = {
   claude: {
     id: "claude",
@@ -170,11 +150,6 @@ export const CLI_TOOLS = {
     color: "#8B5CF6",
     description: "Nous Research self-improving AI agent",
     configType: "custom",
-    // Model slots Hermes supports besides the default ("model:" block).
-    // "default" is not listed — the card renders it as the main model picker.
-    // Mirrors the "auxiliary" defaults in hermes_cli/config_defaults.py (Hermes 0.21.5):
-    // web_extract/session_search no longer call an LLM (their leftover blocks are ignored,
-    // so exposing them only invites dead config), MoA slots are preset-driven and not listed.
     roles: [
       { id: "delegation", label: "Delegation (subagents)" },
       { id: "vision", label: "Vision" },
@@ -587,26 +562,8 @@ gemini extensions install https://github.com/manalkaff/opendesign
       },
     ],
   },
-  // HIDDEN: gemini-cli
-  // "gemini-cli": {
-  //   id: "gemini-cli",
-  //   name: "Gemini CLI",
-  //   icon: "terminal",
-  //   color: "#4285F4",
-  //   description: "Google Gemini CLI",
-  //   configType: "env",
-  //   envVars: {
-  //     baseUrl: "GEMINI_API_BASE_URL",
-  //     model: "GEMINI_MODEL",
-  //   },
-  //   defaultModels: [
-  //     { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", alias: "pro" },
-  //     { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", alias: "flash" },
-  //   ],
-  // },
 };
 
-// Get all provider models for mapping dropdown
 export const getProviderModelsForMapping = (providers) => {
   const result = [];
   providers.forEach(conn => {

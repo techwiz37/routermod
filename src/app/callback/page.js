@@ -3,9 +3,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-/**
- * OAuth Callback Page Content
- */
 function CallbackContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState("processing");
@@ -28,21 +25,11 @@ function CallbackContent() {
 
     let relayed = false;
 
-    // Trusted origins that may receive this callback. The OAuth code/state
-    // must only be relayed to the dashboard window we expect to be the opener
-    // (same origin) or the Codex helper that listens on a fixed loopback port.
-    // Any other origin is treated as hostile (drive-by attacker that opened
-    // the popup against the well-known redirect_uri to phish the code).
     const expectedOrigins = [
       window.location.origin, // Same origin (for most providers)
       "http://localhost:1455", // Codex specific port
     ];
 
-    // Method 1: postMessage to opener (popup mode)
-    // Send once per expected origin. The browser delivers the message only
-    // when the opener's origin matches the targetOrigin we pass — using "*"
-    // here would leak the code/state to any opener (e.g. an attacker page
-    // that opened this URL in a popup), so iterate over the allowlist.
     if (window.opener) {
       for (const origin of expectedOrigins) {
         try {
@@ -54,7 +41,6 @@ function CallbackContent() {
       }
     }
 
-    // Method 2: BroadcastChannel (same origin tabs)
     try {
       const channel = new BroadcastChannel("oauth_callback");
       channel.postMessage(callbackData);
@@ -64,7 +50,6 @@ function CallbackContent() {
       console.log("BroadcastChannel failed:", e);
     }
 
-    // Method 3: localStorage event (fallback)
     try {
       localStorage.setItem("oauth_callback", JSON.stringify({ ...callbackData, timestamp: Date.now() }));
       relayed = true;
@@ -128,10 +113,6 @@ function CallbackContent() {
   );
 }
 
-/**
- * OAuth Callback Page
- * Receives callback from OAuth providers and sends data back via multiple methods
- */
 export default function CallbackPage() {
   return (
     <Suspense fallback={

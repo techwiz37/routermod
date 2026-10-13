@@ -34,7 +34,6 @@ export default function PricingSettingsPage() {
     loadPricing();
   };
 
-  // Count total models with pricing
   const getModelCount = () => {
     if (!currentPricing) return 0;
     let count = 0;
@@ -44,7 +43,6 @@ export default function PricingSettingsPage() {
     return count;
   };
 
-  // Get providers list
   const getProviders = () => {
     if (!currentPricing) return [];
     return Object.keys(currentPricing).sort();

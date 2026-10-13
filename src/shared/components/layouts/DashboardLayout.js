@@ -114,7 +114,6 @@ export default function DashboardLayout({ children }) {
   const notifications = useNotificationStore((state) => state.notifications);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
 
-  // Show community popup on every dashboard visit, brief delay so page renders first
   useEffect(() => {
     const t = setTimeout(() => setShowCommunity(true), 800);
     return () => clearTimeout(t);
@@ -124,15 +123,12 @@ export default function DashboardLayout({ children }) {
     setShowCommunity(false);
   }
 
-  // Preload heavy usage charts in background when browser is idle
   useEffect(() => {
     const preload = () => {
-      // Heavy chart components
       import("@/shared/components/UsageStats").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/UsageChart").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart").catch(() => {});
       import("@/app/(dashboard)/dashboard/usage/components/TopModelsChart").catch(() => {});
-      // Other dashboard pages — prefetch chunks so nav is instant
       import("@/app/(dashboard)/dashboard/providers/page").catch(() => {});
       import("@/app/(dashboard)/dashboard/combos/page").catch(() => {});
       import("@/app/(dashboard)/dashboard/endpoint/EndpointPageClient").catch(() => {});

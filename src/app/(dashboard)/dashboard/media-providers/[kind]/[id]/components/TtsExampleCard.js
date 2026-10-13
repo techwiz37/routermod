@@ -12,7 +12,6 @@ import { GOOGLE_TTS_LANGUAGES } from "open-sse/config/googleTtsLanguages.js";
 import { Row } from "./exampleShared";
 
 const DEFAULT_TTS_RESPONSE_EXAMPLE = `// Audio will appear here after running.
-// Example JSON response (response_format=json):
 {
   "format": "mp3",
   "audio": "//NExAANaAIIAUAAANNNNNNNN..." // base64 encoded MP3
@@ -22,11 +21,9 @@ export function TtsExampleCard({ providerId }) {
   const providerAlias = getProviderAlias(providerId);
   const config = TTS_PROVIDER_CONFIG[providerId] || TTS_PROVIDER_CONFIG["edge-tts"];
 
-  // Voice state
   const [selectedVoice, setSelectedVoice]     = useState(config.defaultVoiceId || "");
   const [selectedVoiceName, setSelectedVoiceName] = useState("");
   const [voiceId, setVoiceId]               = useState(config.defaultVoiceId || ""); // editable voice id (elevenlabs/config providers)
-  // Voices shown below Voice row after language selected
   const [countryVoices, setCountryVoices]     = useState([]);
   const [selectedLang, setSelectedLang]       = useState("");
   const [selectedModel, setSelectedModel]     = useState(() => {
@@ -39,7 +36,6 @@ export function TtsExampleCard({ providerId }) {
     return "";
   });
 
-  // Form state
   const [input, setInput]               = useState("Hello, this is a text to speech test.");
   const [style, setStyle]               = useState(""); // style/voice instructions (e.g. MiMo voicedesign)
   const [apiKey, setApiKey]             = useState("");
@@ -54,16 +50,13 @@ export function TtsExampleCard({ providerId }) {
   const [latency, setLatency]           = useState(null);
   const { copied: copiedCurl, copy: copyCurl } = useCopyToClipboard();
 
-  // Country picker modal state
   const [modalOpen, setModalOpen]           = useState(false);
   const [languages, setLanguages]           = useState([]);
   const [modalLoading, setModalLoading]     = useState(false);
   const [modalSearch, setModalSearch]       = useState("");
   const [modalError, setModalError]         = useState("");
   const [byLang, setByLang]                 = useState({});
-  // Language hint (e.g. Gemini/MiMo): guides the spoken language without affecting voice selection
   const [languageHint, setLanguageHint]     = useState("");
-  // Number of stored provider connections (shown when no dashboard API key)
   const [connectionCount, setConnectionCount] = useState(0);
 
   useEffect(() => {
@@ -81,37 +74,29 @@ export function TtsExampleCard({ providerId }) {
       .then((d) => { if (d.publicUrl) setTunnelEndpoint(d.publicUrl); })
       .catch(() => {});
 
-    // Pre-select default voice based on provider config
     if (config.voiceSource === "hardcoded") {
       const defaultModel = config.hasModelSelector && config.modelKey
         ? (getModelsByProviderId(config.modelKey)?.[0]?.id || "")
         : "";
-      // Use per-model voices if available, else flat list
       const voices = (config.voicesPerModel && defaultModel)
         ? (getTtsVoicesForModel(providerId, defaultModel) || [])
         : getModelsByProviderId(config.voiceKey || providerId).filter((m) => getModelKind(m) === "tts");
       if (voices.length) {
         if (config.hasBrowseButton) {
-          // Google TTS: pre-select "en" (English) as default, show as single voice chip
           const defaultVoice = voices.find((v) => v.id === "en") || voices[0];
           setSelectedLang(defaultVoice.id);
           setSelectedVoice(defaultVoice.id);
           setSelectedVoiceName(defaultVoice.name);
           setCountryVoices([{ id: defaultVoice.id, name: defaultVoice.name }]);
         } else {
-          // OpenAI/OpenRouter: set voice chips directly (no language picker)
           setCountryVoices(voices);
           setSelectedVoice(voices[0].id);
           setSelectedVoiceName(voices[0].name || voices[0].id);
         }
       }
     }
-    // api-language (edge-tts, local-device, elevenlabs): NO default load, wait for user to pick language
-    // config (nvidia, hyperbolic, deepgram, huggingface, cartesia, playht, coqui, tortoise, inworld, qwen):
-    // use ttsConfig.models for model selector; voice is empty by default (backend uses provider default)
   }, [providerId]);
 
-  // Update voices when model changes (voicesPerModel providers)
   useEffect(() => {
     if (!config.voicesPerModel || !selectedModel) return;
     const voices = getTtsVoicesForModel(providerId, selectedModel) || [];
@@ -120,13 +105,11 @@ export function TtsExampleCard({ providerId }) {
       setSelectedVoice(voices[0].id);
       setSelectedVoiceName(voices[0].name || voices[0].id);
     } else {
-      // Model has no preset voices (voicedesign/voiceclone) — drop stale voice
       setSelectedVoice("");
       setSelectedVoiceName("");
     }
   }, [selectedModel]);
 
-  // Open modal — load language list
   const openModal = async () => {
     setModalOpen(true);
     setModalSearch("");
@@ -135,7 +118,6 @@ export function TtsExampleCard({ providerId }) {
     setModalLoading(true);
     try {
       if (config.voiceSource === "hardcoded") {
-        // Build languages/byLang from static providerModels data
         const voiceKey = config.voiceKey || providerId;
         const voices = getModelsByProviderId(voiceKey).filter((m) => getModelKind(m) === "tts");
         const byLangMap = {};
@@ -145,7 +127,6 @@ export function TtsExampleCard({ providerId }) {
         setByLang(byLangMap);
         setLanguages(Object.values(byLangMap).sort((a, b) => a.name.localeCompare(b.name)));
       } else {
-        // Use provider-specific apiEndpoint if available, else default to edge-tts voices API
         const url = config.apiEndpoint
           ? config.apiEndpoint
           : `/api/media-providers/tts/voices?provider=${providerId === "local-device" ? "local-device" : "edge-tts"}`;
@@ -162,13 +143,11 @@ export function TtsExampleCard({ providerId }) {
     }
   };
 
-  // Click language → close modal → show voices below
   const handlePickLanguage = (lang) => {
     setModalOpen(false);
     setSelectedLang(lang.code);
     const voices = byLang[lang.code]?.voices || [];
     setCountryVoices(voices);
-    // Auto-select first voice
     if (voices.length) {
       setSelectedVoice(voices[0].id);
       setSelectedVoiceName(voices[0].name);
@@ -184,7 +163,6 @@ export function TtsExampleCard({ providerId }) {
     : languages;
 
   const endpoint = useTunnel ? tunnelEndpoint : localEndpoint;
-  // For ElevenLabs/config-driven: prefer manual voiceId (if any), else fall back to selectedVoice
   const activeVoiceId = config.hasVoiceIdInput ? (voiceId || selectedVoice) : selectedVoice;
   const modelFull = (() => {
     if (providerId === "selfhosted-tts") {

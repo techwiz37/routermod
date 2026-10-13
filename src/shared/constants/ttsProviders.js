@@ -1,7 +1,3 @@
-/**
- * TTS Provider Configuration
- * Centralized config for TTS provider UI behavior
- */
 export const TTS_PROVIDER_CONFIG = {
   "google-tts": {
     hasLanguageDropdown: false,
@@ -54,7 +50,6 @@ export const TTS_PROVIDER_CONFIG = {
     hasBrowseButton: false,
     voiceSource: "manual", // model and voice depend on the connected server
   },
-  // ── Config-driven providers (load models from providers.js → ttsConfig.models) ──
   "nvidia": {
     hasModelSelector: true,
     hasBrowseButton: false,

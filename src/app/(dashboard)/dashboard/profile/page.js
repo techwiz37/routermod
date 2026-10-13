@@ -53,7 +53,6 @@ export default function ProfilePage() {
   const samlAcsUrl = origin ? `${origin}/api/auth/saml/acs` : "/api/auth/saml/acs";
   const samlMetadataUrl = origin ? `${origin}/api/auth/saml/metadata` : "/api/auth/saml/metadata";
   
-  // SAML State
   const [ssoTypeTab, setSsoTypeTab] = useState("saml");
   const [samlForm, setSamlForm] = useState({
     samlEntryPoint: "",
@@ -732,7 +731,6 @@ export default function ProfilePage() {
     }
   };
 
-  // Confirm password modal, then run export or import.
   const handleDbAuthConfirm = async () => {
     const { mode, password } = dbAuth;
     setDbAuth({ open: false, mode: "", password: "" });
@@ -747,7 +745,6 @@ export default function ProfilePage() {
     try {
       await fetch("/api/version/shutdown", { method: "POST" });
     } catch (e) {
-      // Expected to fail as server shuts down; ignore error
     }
     setIsShuttingDown(false);
     setShutdownOpen(false);
@@ -1052,7 +1049,6 @@ export default function ProfilePage() {
               </div>
 
               {ssoTypeTab === "saml" ? (
-                /* SAML Configuration Panel */
                 <div className="flex flex-col gap-4 pt-2 border-t border-border/50">
                   {/* IdP Setup Guidelines Banner & Collapsible Drawer */}
                   <div className="rounded-lg border border-border bg-bg/80 overflow-hidden">
@@ -1336,7 +1332,6 @@ export default function ProfilePage() {
                   )}
                 </div>
               ) : (
-                /* OIDC Panel */
                 <div className="flex flex-col gap-4 pt-2 border-t border-border/50">
                   <div className="grid grid-cols-1 gap-4">
                     <div className="flex flex-col gap-2">

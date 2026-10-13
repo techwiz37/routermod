@@ -14,7 +14,6 @@ const err = (msg) => console.error(`[${time()}] ❌ [MITM] ${msg}`);
 const DUMP_DIR = path.join(DATA_DIR, "logs", "mitm");
 if (!fs.existsSync(DUMP_DIR)) fs.mkdirSync(DUMP_DIR, { recursive: true });
 
-// Clear all files inside DUMP_DIR (called on MITM server start to avoid unbounded growth)
 function clearDumpDir() {
   try {
     if (!fs.existsSync(DUMP_DIR)) return;
@@ -35,7 +34,6 @@ function isBlacklisted(url) {
   return LOG_BLACKLIST_URL_PARTS.some(part => url.includes(part));
 }
 
-// Decode body buffer based on content-encoding header
 function decodeBody(buf, encoding) {
   if (!buf || buf.length === 0) return buf;
   try {
@@ -47,7 +45,6 @@ function decodeBody(buf, encoding) {
   return buf;
 }
 
-// Save raw request: method + url + headers + body
 function dumpRequest(req, bodyBuffer, tag = "raw") {
   if (isBlacklisted(req.url)) return null;
   try {
@@ -67,8 +64,6 @@ function dumpRequest(req, bodyBuffer, tag = "raw") {
   } catch { return null; }
 }
 
-// Buffer-based response dumper — collects chunks then decodes + writes once on end()
-// Trade-off: holds response in RAM, but enables gzip/br decoding for readable output.
 function createResponseDumper(req, tag = "raw") {
   if (isBlacklisted(req.url)) return null;
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
@@ -89,9 +84,7 @@ function createResponseDumper(req, tag = "raw") {
         const enc = headers["content-encoding"] || headers["Content-Encoding"];
         const decoded = decodeBody(raw, enc);
         const text = decoded.toString("utf8");
-        // Skip empty / trivially-empty bodies
         if (EMPTY_BODY_RE.test(text)) return;
-        // Strip content-encoding since body is now decoded
         const cleanHeaders = { ...headers };
         delete cleanHeaders["content-encoding"];
         delete cleanHeaders["Content-Encoding"];

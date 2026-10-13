@@ -6,7 +6,6 @@ import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
-// GET /api/models?activeOnly=true - filter to providers with active connections
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,14 +14,12 @@ export async function GET(request) {
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
 
-    // Build set of active provider aliases when requested
     let activeAliasSet = null;
     if (activeOnly) {
       const conns = await getProviderConnections({ isActive: true });
       activeAliasSet = new Set();
       for (const c of conns) {
         if (c.testStatus === "unavailable") continue;
-        // provider field = provider ID; add both ID and alias
         activeAliasSet.add(c.provider);
         const alias = getProviderAlias(c.provider);
         if (alias) activeAliasSet.add(alias);
@@ -56,7 +53,6 @@ export async function GET(request) {
         };
       });
 
-    // Custom models ride along; their stored caps override the name heuristic
     const seenFull = new Set(models.map((m) => m.fullModel));
     const customModels = (await getCustomModels()).filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
@@ -91,7 +87,6 @@ export async function GET(request) {
   }
 }
 
-// PUT /api/models - Update model alias
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -103,7 +98,6 @@ export async function PUT(request) {
 
     const modelAliases = await getModelAliases();
 
-    // Check if alias already exists for different model
     const existingModel = Object.entries(modelAliases).find(
       ([key, val]) => val === alias && key !== model
     );
@@ -112,7 +106,6 @@ export async function PUT(request) {
       return NextResponse.json({ error: "Alias already in use" }, { status: 400 });
     }
 
-    // Update alias
     await setModelAlias(model, alias);
 
     return NextResponse.json({ success: true, model, alias });

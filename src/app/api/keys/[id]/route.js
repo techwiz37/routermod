@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { deleteApiKey, getApiKeyById, updateApiKey } from "@/lib/localDb";
 import { validateKeyAccessInput } from "@/shared/utils/keyAccess.js";
 
-// GET /api/keys/[id] - Get single key
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
@@ -17,7 +16,6 @@ export async function GET(request, { params }) {
   }
 }
 
-// PUT /api/keys/[id] - Update key
 export async function PUT(request, { params }) {
   try {
     const { id } = await params;
@@ -46,7 +44,6 @@ export async function PUT(request, { params }) {
   }
 }
 
-// DELETE /api/keys/[id] - Delete API key
 export async function DELETE(request, { params }) {
   try {
     const { id } = await params;

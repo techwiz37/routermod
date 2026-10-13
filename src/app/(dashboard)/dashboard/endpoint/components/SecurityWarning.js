@@ -2,10 +2,6 @@
 
 import Link from "next/link";
 
-/**
- * Security warning banner — Neobrutalism style.
- * type: "warning" (default) | "error" | "info"
- */
 export default function SecurityWarning({ message, action, type = "warning" }) {
   const styles = {
     warning: {

@@ -87,7 +87,6 @@ export default function OpenClawToolCard({
           setSelectedApiKey(provider.apiKey);
         }
       }
-      // Init per-agent models from enriched agents list
       const agentList = openclawStatus.agents || [];
       const initAgentModels = {};
       agentList.forEach((agent) => {
@@ -149,7 +148,6 @@ export default function OpenClawToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         checkOpenclawStatus();

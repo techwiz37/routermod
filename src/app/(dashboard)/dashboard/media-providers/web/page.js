@@ -168,7 +168,6 @@ export default function WebProvidersPage() {
   const fetchCombos = combos.filter((c) => c.kind === "webFetch");
 
   const handleCreateCombo = async (kind) => {
-    // Generate unique default name
     const base = kind === "webSearch" ? "search-combo" : "fetch-combo";
     let name = base;
     let i = 1;

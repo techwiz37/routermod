@@ -2,8 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-// Preloader: SVG logo draw animation (stroke-dashoffset) + fade out
-// Style: neoxr.eu — logo draws itself, then screen fades away
 
 export default function AppPreloader() {
   const rootRef = useRef(null);
@@ -12,7 +10,6 @@ export default function AppPreloader() {
     const root = rootRef.current;
     if (!root) return;
 
-    // Theme detection before hydration
     try {
       const s = localStorage.getItem("theme");
       const t = s ? (JSON.parse(s).state || {}).theme : "system";
@@ -22,7 +19,6 @@ export default function AppPreloader() {
       root.dataset.dark = dark ? "1" : "0";
     } catch { root.dataset.dark = "0"; }
 
-    // Fade out after animation completes
     const timer = setTimeout(() => {
       root.classList.add("rpl-done");
     }, 2200);
@@ -114,7 +110,6 @@ const CSS = `
     pointer-events: none;
   }
 
-  /* ── stage ── */
   .rpl-stage {
     display: flex;
     flex-direction: column;
@@ -127,7 +122,6 @@ const CSS = `
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* ── logo wrap ── */
   .rpl-logo-wrap {
     position: relative;
     width: 110px;
@@ -137,7 +131,6 @@ const CSS = `
     justify-content: center;
   }
 
-  /* ── glow ── */
   .rpl-glow {
     position: absolute;
     inset: -10px;
@@ -150,7 +143,6 @@ const CSS = `
     50%       { transform: scale(1.1); opacity: 1; }
   }
 
-  /* ── SVG ── */
   .rpl-svg {
     width: 110px;
     height: 110px;
@@ -159,7 +151,6 @@ const CSS = `
     filter: drop-shadow(2.5px 3px 0px rgba(0,0,0,0.75));
   }
 
-  /* Card layers — pop in first */
   .rpl-card-bg {
     animation: rpl-popin 0.35s cubic-bezier(0.16,1,0.3,1) 0.05s both;
   }
@@ -169,12 +160,10 @@ const CSS = `
   }
   .rpl-root[data-dark="1"] .rpl-card-inner { fill: #1b1f2b; }
 
-  /* Corner triangle */
   .rpl-tri {
     animation: rpl-popin 0.3s cubic-bezier(0.16,1,0.3,1) 0.25s both;
   }
 
-  /* R stem + bowl */
   .rpl-stem, .rpl-bowl {
     fill: #181c24;
     animation: rpl-popin 0.35s cubic-bezier(0.16,1,0.3,1) 0.35s both;
@@ -182,19 +171,16 @@ const CSS = `
   .rpl-root[data-dark="1"] .rpl-stem,
   .rpl-root[data-dark="1"] .rpl-bowl { fill: #ffffff; }
 
-  /* Bowl inner cutout */
   .rpl-bowl-inner {
     fill: #ffffff;
     animation: rpl-popin 0.3s cubic-bezier(0.16,1,0.3,1) 0.4s both;
   }
   .rpl-root[data-dark="1"] .rpl-bowl-inner { fill: #1b1f2b; }
 
-  /* R leg */
   .rpl-leg {
     animation: rpl-popin 0.35s cubic-bezier(0.16,1,0.3,1) 0.5s both;
   }
 
-  /* Dots — last */
   .rpl-dot {
     animation: rpl-popin 0.3s cubic-bezier(0.16,1,0.3,1) 0.6s both;
   }
@@ -207,7 +193,6 @@ const CSS = `
     to   { opacity: 1; transform: scale(1); }
   }
 
-  /* ── name ── */
   .rpl-name-wrap {
     display: flex;
     flex-direction: column;
@@ -236,7 +221,6 @@ const CSS = `
     text-transform: uppercase;
   }
 
-  /* ── loading bar ── */
   .rpl-bar-wrap {
     width: 120px;
     height: 2px;

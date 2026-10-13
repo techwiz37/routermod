@@ -48,7 +48,6 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
     }
   }, [isExpanded]);
 
-  // Sync models from existing config
   useEffect(() => {
     if (status?.opencode?.models) {
       setSelectedModels(status.opencode.models);
@@ -57,7 +56,6 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
       setActiveModel(status.opencode.activeModel);
     }
 
-    // Parse subagent settings from agent.explorer if exists
     if (status?.config?.agent?.explorer?.model?.startsWith("9router/")) {
       setSubagentModel(status.config.agent.explorer.model.replace("9router/", ""));
     }
@@ -148,7 +146,6 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         checkStatus();

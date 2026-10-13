@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react";
 import PropTypes from "prop-types";
 import Image from "next/image";
 
-// Module-level cache — survives re-renders, cleared on page reload
 let _prefetched = null;
 
 export default function ChangelogModal({ isOpen, onClose }) {
@@ -13,7 +12,6 @@ export default function ChangelogModal({ isOpen, onClose }) {
   const [error, setError] = useState("");
   const modalRef = useRef(null);
 
-  // Prefetch once on first mount regardless of open state
   useEffect(() => {
     if (_prefetched) return;
     fetch("/api/changelog")

@@ -2,11 +2,6 @@
 
 import { Input } from "@/shared/components";
 
-/**
- * Layout:
- *   [Local]           ← badge label
- *   [http://... ] [⧉] ← input full-width + copy button beside
- */
 export default function EndpointRow({ label, url, copyId, copied, onCopy, badge, actions }) {
   return (
     <div className="flex flex-col gap-1 min-w-0">

@@ -47,12 +47,10 @@ async function normalizeProxyPoolId(proxyPoolId) {
   return { proxyPoolId: normalizedId };
 }
 
-// GET /api/providers - List all connections
 export async function GET() {
   try {
     const connections = await getProviderConnections();
 
-    // Build nodeNameMap for compatible providers (id → name)
     let nodeNameMap = {};
     try {
       const nodes = await getProviderNodes();
@@ -61,7 +59,6 @@ export async function GET() {
       }
     } catch { }
 
-    // Hide sensitive fields, enrich name for compatible providers
     const safeConnections = connections.map(c => {
       const isCompatible = isOpenAICompatibleProvider(c.provider) || isAnthropicCompatibleProvider(c.provider);
       const name = isCompatible
@@ -81,7 +78,6 @@ export async function GET() {
   }
 }
 
-// POST /api/providers - Create new connection (API Key only, OAuth via separate flow)
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -98,10 +94,7 @@ export async function POST(request) {
     }
     const proxyPoolId = proxyPoolResult.proxyPoolId;
 
-    // Validation
     const isWebCookieProvider = !!WEB_COOKIE_PROVIDERS[provider];
-    // Dual-auth providers (e.g. codebuddy-cn, xai) live under category "oauth" but also
-    // accept an API key via authModes — they aren't in APIKEY_PROVIDERS, so allow them here.
     const supportsApiKeyMode = !!AI_PROVIDERS[provider]?.authModes?.includes("apikey");
     const isValidProvider = APIKEY_PROVIDERS[provider] ||
       FREE_TIER_PROVIDERS[provider] ||
@@ -114,9 +107,6 @@ export async function POST(request) {
     if (!provider || !isValidProvider) {
       return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
     }
-    // A provider may declare a providerSpecificData field that stands in for an API key — e.g.
-    // Bedrock's `profile`, where the credential lives in the local AWS config and there is no
-    // key to paste. Without this, following such a provider's own setup notice returns 400.
     const apiKeySubstitute = AI_PROVIDERS[provider]?.apiKeyOptionalWith;
     const hasApiKeySubstitute = !!(apiKeySubstitute && body.providerSpecificData?.[apiKeySubstitute]);
     if (!apiKey && provider !== "ollama-local" && !hasApiKeySubstitute) {
@@ -129,8 +119,6 @@ export async function POST(request) {
 
     let providerSpecificData = normalizeProviderSpecificData(provider, body, body.providerSpecificData);
 
-    // Compatible LLM nodes support multiple API-key connections (key pool); runtime
-    // rotates/fails over via getProviderCredentials. Embedding nodes stay single-connection.
     if (isOpenAICompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
@@ -186,8 +174,6 @@ export async function POST(request) {
       providerSpecificData: mergedProviderSpecificData,
       isActive: true,
       testStatus: testStatus || "unknown",
-      // POST with an id is an explicit edit of that connection; without one, a
-      // name collision is refused rather than silently overwriting a key. #4311
       allowOverwrite: body.id ? true : (body.allowOverwrite === true || body.overwrite === true),
     });
 

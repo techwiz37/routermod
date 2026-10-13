@@ -51,7 +51,6 @@ export function EmbeddingExampleCard({ providerId, customAlias }) {
   const endpoint = useTunnel ? tunnelEndpoint : localEndpoint;
   const modelFull = selectedModel ? `${providerAlias}/${selectedModel}` : "";
 
-  // Build request body — include dimensions only if user provided a positive number
   const buildBody = () => {
     const body = { model: modelFull, input: input.trim() };
     const dim = Number(dimensions);
@@ -89,7 +88,6 @@ export function EmbeddingExampleCard({ providerId, customAlias }) {
     }
   };
 
-  // Compact embedding array: first 4 values + count
   const formatResultJson = (data) => {
     if (!data) return DEFAULT_RESPONSE_EXAMPLE;
     const clone = JSON.parse(JSON.stringify(data));

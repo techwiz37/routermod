@@ -3,7 +3,6 @@ import { getModelAliases, setModelAlias, deleteModelAlias } from "@/models";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/models/alias - Get all aliases
 export async function GET() {
   try {
     const aliases = await getModelAliases();
@@ -14,7 +13,6 @@ export async function GET() {
   }
 }
 
-// PUT /api/models/alias - Set model alias
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -33,7 +31,6 @@ export async function PUT(request) {
   }
 }
 
-// PATCH /api/models/alias - Rename alias key (old → new)
 export async function PATCH(request) {
   try {
     const { oldAlias, newAlias, model } = await request.json();
@@ -51,7 +48,6 @@ export async function PATCH(request) {
   }
 }
 
-// DELETE /api/models/alias?alias=xxx - Delete alias
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);

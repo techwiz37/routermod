@@ -1,9 +1,7 @@
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
 export const QUOTA_CACHE_KEY = "quotaCacheData";
 export const REFRESH_INTERVAL_MS = 60000;
-// Claude usage/quota endpoint rate-limits; poll it less often than other providers
 export const CLAUDE_REFRESH_INTERVAL_MS = 600000;
 export const DEPLETED_QUOTA_THRESHOLD = 5;
 export const AUTO_REFRESH_STORAGE_KEY = "quotaAutoRefresh";
@@ -21,7 +19,6 @@ export const QUOTA_SORT_OPTIONS = [
   { value: "remaining-desc", label: "% quota: high to low" },
 ];
 
-// ─── Pure helpers ─────────────────────────────────────────────────────────────
 export function getConnectionLabel(connection) {
   return connection.name?.trim()
     || connection.email?.trim()
@@ -36,7 +33,6 @@ export function getConnectionQuotaRemaining(connection, quotaData) {
   return Number.POSITIVE_INFINITY;
 }
 
-// Stable group-by-provider: first-seen provider order, original order within group.
 function groupByProviderStable(connections) {
   const seen = new Map();
   for (const conn of connections) {
@@ -219,11 +215,6 @@ export function setQuotaCache(connectionId, quotaEntry) {
   }
 }
 
-/**
- * Format ISO date string to countdown format (inspired by vscode-antigravity-cockpit)
- * @param {string|Date} date - ISO date string or Date object
- * @returns {string} Formatted countdown (e.g., "2d 5h 30m", "4h 40m", "15m") or "-"
- */
 export function formatResetTime(date) {
   if (!date) return "-";
 
@@ -236,7 +227,6 @@ export function formatResetTime(date) {
 
     const totalMinutes = Math.ceil(diffMs / (1000 * 60));
     
-    // < 60 minutes: show only minutes
     if (totalMinutes < 60) {
       return `${totalMinutes}m`;
     }
@@ -244,12 +234,10 @@ export function formatResetTime(date) {
     const totalHours = Math.floor(totalMinutes / 60);
     const remainingMinutes = totalMinutes % 60;
     
-    // < 24 hours: show hours and minutes
     if (totalHours < 24) {
       return `${totalHours}h ${remainingMinutes}m`;
     }
     
-    // >= 24 hours: show days, hours, and minutes
     const days = Math.floor(totalHours / 24);
     const remainingHours = totalHours % 24;
     return `${days}d ${remainingHours}h ${remainingMinutes}m`;
@@ -258,34 +246,18 @@ export function formatResetTime(date) {
   }
 }
 
-/**
- * Get Tailwind color class based on percentage
- * @param {number} percentage - Remaining percentage (0-100)
- * @returns {string} Color name: "green" | "yellow" | "red"
- */
 export function getStatusColor(percentage) {
   if (percentage > 70) return "green";
   if (percentage >= 30) return "yellow";
   return "red"; // 0-29% including 0% (out of quota) - show red
 }
 
-/**
- * Get status emoji based on percentage
- * @param {number} percentage - Remaining percentage (0-100)
- * @returns {string} Emoji: "🟢" | "🟡" | "🔴"
- */
 export function getStatusEmoji(percentage) {
   if (percentage > 70) return "🟢";
   if (percentage >= 30) return "🟡";
   return "🔴"; // 0-29% including 0% (out of quota) - show red
 }
 
-/**
- * Calculate remaining percentage
- * @param {number} used - Used amount
- * @param {number} total - Total amount
- * @returns {number} Remaining percentage (0-100)
- */
 export function calculatePercentage(used, total) {
   if (!total || total === 0) return 0;
   if (!used || used < 0) return 100;
@@ -294,11 +266,6 @@ export function calculatePercentage(used, total) {
   return Math.round(((total - used) / total) * 100);
 }
 
-/**
- * Get remaining percentage from a normalized quota row
- * @param {Object} quota - Normalized quota object
- * @returns {number} Remaining percentage (0-100)
- */
 export function getRemainingPercentage(quota) {
   if (quota?.remaining !== undefined) {
     return Math.max(0, Math.round(quota.remaining));
@@ -316,10 +283,6 @@ export function getQuotaVisibilityKey(quota) {
   return String(quota.modelKey || quota.name || "").trim();
 }
 
-/**
- * Trim hidden quota keys to only those matching currently valid quotas.
- * Stale or obsolete model keys are dropped.
- */
 export function trimHiddenQuotaKeys(hidden = [], quotas = []) {
   if (!Array.isArray(hidden) || hidden.length === 0) return [];
   const validKeys = new Set(quotas.map(getQuotaVisibilityKey).filter(Boolean));
@@ -347,12 +310,6 @@ export function getHiddenQuotaRows(provider, quotas = [], quotaVisibility = {}) 
   return quotas.filter((quota) => hidden.has(getQuotaVisibilityKey(quota)));
 }
 
-/**
- * Parse provider-specific quota structures into normalized array
- * @param {string} provider - Provider name (github, antigravity, codex, kiro, claude)
- * @param {Object} data - Raw quota data from provider
- * @returns {Array<Object>} Normalized quota objects with { name, used, total, resetAt }
- */
 export function parseQuotaData(provider, data) {
   if (!data || typeof data !== "object") return [];
 
@@ -385,13 +342,11 @@ export function parseQuotaData(provider, data) {
           const summaryModels = entries.filter(([k]) => summaryKeys.has(k));
           const otherModels = entries.filter(([k]) => !k.startsWith("gemini-") && !k.startsWith("claude-") && !k.includes("image") && !summaryKeys.has(k));
 
-          // Summary keys from retrieveUserQuotaSummary
           const hasGeminiWeekly = Boolean(data.quotas.gemini_weekly);
           const hasGeminiSession = Boolean(data.quotas.gemini_session);
           const hasClaudeWeekly = Boolean(data.quotas.claude_gpt_weekly);
           const hasClaudeSession = Boolean(data.quotas.claude_gpt_session);
 
-          // 1. Gemini Family:
           if (hasGeminiSession) {
             summaryModels.filter(([k]) => k === "gemini_session").forEach(([modelKey, quota]) => {
               normalizedQuotas.push({
@@ -407,7 +362,6 @@ export function parseQuotaData(provider, data) {
             const rep = geminiModels.reduce((min, cur) =>
               (cur[1].remainingPercentage ?? 100) < (min[1].remainingPercentage ?? 100) ? cur : min
             )[1];
-            // Only show synthesized Gemini row if its resetAt differs from weekly (i.e. it represents a separate 5h window)
             const weeklyResetAt = data.quotas.gemini_weekly?.resetAt;
             const isDuplicateOfWeekly = hasGeminiWeekly && rep.resetAt === weeklyResetAt && (rep.remainingPercentage ?? 0) === 0;
 
@@ -423,7 +377,6 @@ export function parseQuotaData(provider, data) {
             }
           }
 
-          // Show Gemini weekly row if present
           if (hasGeminiWeekly) {
             summaryModels.filter(([k]) => k === "gemini_weekly").forEach(([modelKey, quota]) => {
               normalizedQuotas.push({
@@ -437,7 +390,6 @@ export function parseQuotaData(provider, data) {
             });
           }
 
-          // 2. Claude & GPT Family:
           if (hasClaudeSession) {
             summaryModels.filter(([k]) => k === "claude_gpt_session").forEach(([modelKey, quota]) => {
               normalizedQuotas.push({
@@ -468,7 +420,6 @@ export function parseQuotaData(provider, data) {
             }
           }
 
-          // Show Claude & GPT weekly row if present
           if (hasClaudeWeekly) {
             summaryModels.filter(([k]) => k === "claude_gpt_weekly").forEach(([modelKey, quota]) => {
               normalizedQuotas.push({
@@ -482,7 +433,6 @@ export function parseQuotaData(provider, data) {
             });
           }
 
-          // 3. Standalone Image Generation Models (unique usage)
           imageModels.forEach(([modelKey, quota]) => {
             normalizedQuotas.push({
               name: quota.displayName || modelKey,
@@ -494,11 +444,6 @@ export function parseQuotaData(provider, data) {
             });
           });
 
-          // 4. Other models:
-          // In Antigravity, GPT-OSS is explicitly documented by Google as part of the "Claude and GPT models" group:
-          // ("Models within this group: Claude Opus, Claude Sonnet, GPT-OSS").
-          // When summary quotas (claude_gpt_session / claude_gpt_weekly) are present, GPT-OSS is already represented
-          // by the "Claude & GPT" family rows. We only include otherModels if no summary exists for that pool.
           if (!hasClaudeWeekly && !hasClaudeSession) {
             otherModels.forEach(([modelKey, quota]) => {
               normalizedQuotas.push({
@@ -552,14 +497,6 @@ export function parseQuotaData(provider, data) {
 
       case "qoder":
       case "qoder-cn":
-        // Qoder ships a `user` quota and (optionally) an `organization`
-        // quota, both with same shape: {total, used, remaining, unit, resetAt}.
-        // Skip an organization bucket when its total is 0 — most personal
-        // Qoder accounts won't have one and rendering "0/0" is misleading.
-        // Don't forward Qoder's `remaining` field: it's an absolute credit
-        // count, but getRemainingPercentage / QuotaTable interpret
-        // `remaining` as a 0-100 percentage and would render 348 credits
-        // as "348%". The percentage is computed from used/total instead.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([quotaType, quota]) => {
             if (quotaType === "organization" && (!quota || (Number(quota.total) || 0) === 0)) {
@@ -578,7 +515,6 @@ export function parseQuotaData(provider, data) {
 
       case "claude":
         if (data.message) {
-          // Handle error message case
           normalizedQuotas.push({
             name: "error",
             used: 0,
@@ -601,10 +537,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "vercel-ai-gateway":
-        // Vercel returns currency credit balance, not request quotas.
-        // The 'Remaining (USD)' row needs explicit remainingPercentage because
-        // its used/total values would otherwise compute the wrong direction
-        // (e.g. used=95.5 / total=100 → 4% instead of 96%).
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -620,10 +552,6 @@ export function parseQuotaData(provider, data) {
 
       case "codebuddy-cn":
       case "codebuddy-intl":
-        // CodeBuddy CN/Intl mix recurring refill packs ("Monthly"/"Weekly"/...)
-        // with one-shot bonus packs ("Bonus Pack N"). Forward `recurring`
-        // so the UI can show "Expires in" for bonus packs (whose resetAt is
-        // a hard expiry, not a refresh) instead of "Reset in".
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -638,9 +566,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "grok-cli":
-        // Grok Build credits (on-demand window + prepaid balance).
-        // Do NOT forward absolute `remaining` — getRemainingPercentage treats
-        // it as a 0–100 percentage (same as Qoder). Use remainingPercentage.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -655,7 +580,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "kimi":
-        // Weekly / Ratelimit from /v1/usages. Prefer remainingPercentage only.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -670,7 +594,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "deepseek":
-        // Credit balance — remainingPercentage only (no absolute remaining).
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -687,8 +610,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "groq":
-        // Requests/Tokens rate-limit windows from response headers — absolute
-        // used/total (calculatePercentage derives the bar), like Codex/Kiro.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -702,8 +623,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "ollama":
-        // Session (5h) / Weekly (7d) / Monthly usage % from ollama.com/api/usage.
-        // remainingPercentage only — no absolute remaining (UI treats remaining as %).
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -718,7 +637,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "zed":
-        // Edit predictions + optional hosted model_requests; unlimited uses remainingPercentage.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -735,9 +653,6 @@ export function parseQuotaData(provider, data) {
 
       case "minimax-code":
       case "minimax-code-global":
-        // Service already returns dashboard-shaped rows: a credits balance
-        // (isCreditBalance → 💰 with the amount as total) plus M Plan rate
-        // windows as 0-100 percent rows. Pass through, preserving extras.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -756,7 +671,6 @@ export function parseQuotaData(provider, data) {
         break;
 
       default:
-        // Generic fallback for unknown providers
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -785,13 +699,11 @@ export function parseQuotaData(provider, data) {
     return normalizedQuotas;
   }
 
-  // Sort quotas according to PROVIDER_MODELS order
   const modelOrder = getModelsByProviderId(provider);
   if (modelOrder.length > 0) {
     const orderMap = new Map(modelOrder.map((m, i) => [m.id, i]));
     
     normalizedQuotas.sort((a, b) => {
-      // Use modelKey for antigravity (mapped to family anchor), otherwise use name
       let keyA = a.modelKey || a.name;
       let keyB = b.modelKey || b.name;
       if (keyA === "gemini" || keyA === "gemini_session") keyA = "gemini-3.8-flash-high";

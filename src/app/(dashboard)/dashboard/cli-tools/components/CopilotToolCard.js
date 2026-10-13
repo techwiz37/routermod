@@ -43,7 +43,6 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
     }
   }, [isExpanded]);
 
-  // Pre-fill from existing config
   useEffect(() => {
     if (status?.config && Array.isArray(status.config) && selectedModels.length === 0) {
       const entry = status.config.find((e) => e.name === "9Router");
@@ -126,7 +125,6 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: data.message || "Settings applied! Reload VS Code." });
         checkStatus();

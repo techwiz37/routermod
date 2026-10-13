@@ -5,17 +5,6 @@ import PropTypes from "prop-types";
 import { Modal, Button } from "@/shared/components";
 import { translate } from "@/i18n/runtime";
 
-/**
- * Xiaomi MiMo Desktop Plan auth modal.
- *
- * Desktop Plan = Xiaomi account weekly quota (mimo-v2.6 family). Two ways in:
- *   1. Import local MiMo Desktop credentials (~/.local/share/mimocode/auth.json)
- *   2. Server-side login — no Desktop needed; picks a MiMo account cluster
- *      (cn / sgp / ams / ru / in). The account session (passToken) is captured
- *      server-side and stored per connection.
- *
- * Token Plan (cloud sk- API key) uses the standard "API Key" entry point.
- */
 
 const CLUSTERS = [
   { id: "cn", flag: "🇨🇳", name: "China (Mainland)", host: "mimo-server-cn" },
@@ -31,7 +20,6 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   const [existingConnection, setExistingConnection] = useState(null);
   const [error, setError] = useState(null);
 
-  // Server-side session login
   const [showClusterModal, setShowClusterModal] = useState(false);
   const [sessBusy, setSessBusy] = useState(false);
   const [sessPolling, setSessPolling] = useState(false);
@@ -50,7 +38,6 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
 
   useEffect(() => () => stopSessionPoll(), []);
 
-  // Detect local credentials when the modal opens (non-blocking: never trap the spinner)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -72,7 +59,6 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           setDetectResult(data);
           setPhase("found");
 
-          // Non-blocking: flag an already-imported account
           fetch("/api/providers", { signal: AbortSignal.timeout(3000) })
             .then((r) => r.json())
             .then((provData) => {
@@ -98,7 +84,6 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     runDetect();
   }, [isOpen]);
 
-  // Import the auto-detected local desktop credentials
   const handleImportLocal = async () => {
     if (!detectResult?.apiKey) return;
     setPhase("importing");
@@ -127,7 +112,6 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     }
   };
 
-  // Server-side login (account.xiaomi.com) for the chosen cluster
   const startSessionLogin = async (region) => {
     setSessBusy(true);
     setSessError(null);
@@ -188,7 +172,6 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     }
   };
 
-  // The server-login card, shown in both the found and not-found states
   const renderServerLogin = () => (
     <div className="bg-card p-3 rounded-lg border border-border flex flex-col gap-2">
       <div className="flex items-center justify-between">

@@ -7,11 +7,8 @@ import "@/shared/services/bootstrap"; // Auto-run initializeApp (watchdog, auto-
 import { initConsoleLogCapture } from "@/lib/consoleLogBuffer";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
 
-// Hook console immediately at module load time (server-side only, runs once)
 initConsoleLogCapture();
 
-// Fonts injected via <link> at runtime — avoids next/font/google network fetch during build.
-// CSS variables are set in globals.css @import block below.
 const orbitron      = { variable: "--font-terminator" };
 const chakraPetch   = { variable: "--font-ui" };
 const jetbrainsMono = { variable: "--font-mono" };

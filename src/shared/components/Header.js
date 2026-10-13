@@ -19,7 +19,6 @@ import { translate } from "@/i18n/runtime";
 const getPageInfo = (pathname) => {
   if (!pathname) return { title: "", description: "", breadcrumbs: [] };
 
-  // Media provider detail: /dashboard/media-providers/[kind]/[id]
   const mediaDetailMatch = pathname.match(/\/media-providers\/([^/]+)\/([^/]+)$/);
   if (mediaDetailMatch) {
     const kindId = mediaDetailMatch[1];
@@ -37,7 +36,6 @@ const getPageInfo = (pathname) => {
     };
   }
 
-  // Media provider kind: /dashboard/media-providers/[kind]
   const mediaKindMatch = pathname.match(/\/media-providers\/([^/]+)$/);
   if (mediaKindMatch) {
     const kindId = mediaKindMatch[1];
@@ -50,7 +48,6 @@ const getPageInfo = (pathname) => {
     };
   }
 
-  // Provider detail page: /dashboard/providers/[id]
   const providerMatch = pathname.match(/\/providers\/([^/]+)$/);
   if (providerMatch) {
     const providerId = providerMatch[1];
@@ -186,7 +183,6 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
   const [loginMethod, setLoginMethod] = useState("");
   const [donateOpen, setDonateOpen] = useState(false);
 
-  // Memoize page info to prevent unnecessary recalculations
   const pageInfo = useMemo(() => getPageInfo(pathname), [pathname]);
   const { title, description, icon, breadcrumbs } = pageInfo;
 
@@ -249,7 +245,6 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
               ROUTER<span className="text-[#ff1a53]">MOD</span>
             </span>
             <span className="font-mono text-[8px] sm:text-[9px] font-bold text-[#ff1a53] tracking-widest">
-              // :1945
             </span>
           </div>
         </Link>

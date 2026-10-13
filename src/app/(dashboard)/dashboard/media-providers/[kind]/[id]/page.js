@@ -14,7 +14,6 @@ import { TtsExampleCard } from "./components/TtsExampleCard";
 import { GenericExampleCard } from "./components/GenericExampleCard";
 import { SttExampleCard } from "./components/SttExampleCard";
 
-// MediaProviderDetailPage
 export default function MediaProviderDetailPage() {
   const { kind, id } = useParams();
   const router = useRouter();
@@ -35,7 +34,6 @@ export default function MediaProviderDetailPage() {
   const [customLoading, setCustomLoading] = useState(isCustom);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  // Fetch custom node info from API for custom embedding nodes
   useEffect(() => {
     if (!isCustom) return;
     let cancelled = false;
@@ -54,7 +52,6 @@ export default function MediaProviderDetailPage() {
 
   const builtInProvider = AI_PROVIDERS[id];
 
-  // For custom embedding nodes, build a synthetic provider object
   const provider = isCustom
     ? (customNode ? { id, name: customNode.name || "Custom Embedding", color: "#6366F1", textIcon: "CE" } : null)
     : builtInProvider;

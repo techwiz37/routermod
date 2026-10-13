@@ -329,7 +329,6 @@ export default function ProxyPoolsPage() {
     }
   };
 
-  // Cleanup selectedIds when pools change
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((id) => proxyPools.some((p) => p.id === id)));
   }, [proxyPools]);

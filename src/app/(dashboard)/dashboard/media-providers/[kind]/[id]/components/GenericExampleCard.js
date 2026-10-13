@@ -9,8 +9,6 @@ import { Row, KIND_EXAMPLE_CONFIG } from "./exampleShared";
 
 const CLOUDFLARE_TEST_IMAGE_URL = "https://pub-1fb693cb11cc46b2b2f656f51e015a2c.r2.dev/dog.png";
 const CLOUDFLARE_TEST_MASK_URL = "https://pub-1fb693cb11cc46b2b2f656f51e015a2c.r2.dev/dog-mask.png";
-// HuggingFace router edit models need a source image; reuse the public dog sample so
-// the card is runnable as-is. The router derives it from inputs, not from the Hub host.
 const HUGGINGFACE_TEST_IMAGE_URL = CLOUDFLARE_TEST_IMAGE_URL;
 
 function getImageEditDefaults(providerId, modelId) {
@@ -42,9 +40,7 @@ export function GenericExampleCard({ providerId, kind }) {
   const exConfig = KIND_EXAMPLE_CONFIG[kind];
   const safeExConfig = exConfig || {};
 
-  // Get models for this kind (e.g., type="image")
   const kindModels = getModelsByProviderId(providerId).filter((m) => getModelKind(m) === kind);
-  // Kinds that need a model identifier in the request (image/video/music/systemone)
   const KIND_NEEDS_MODEL = new Set(["image", "video", "music", "imageToText", "systemone"]);
   const needsModel = KIND_NEEDS_MODEL.has(kind);
   const allowManualModel = needsModel && kindModels.length === 0;
@@ -86,7 +82,6 @@ export function GenericExampleCard({ providerId, kind }) {
       .then((r) => r.json())
       .then((d) => { if (d.publicUrl) setTunnelEndpoint(d.publicUrl); })
       .catch(() => {});
-    // Load active connections of this provider for pinning
     fetch("/api/providers/client")
       .then((r) => r.json())
       .then((d) => {
@@ -96,12 +91,10 @@ export function GenericExampleCard({ providerId, kind }) {
       .catch(() => {});
   }, [providerId]);
 
-  // Safe to early-return now that all hooks are declared
   if (!kindConfig || !exConfig) return null;
 
   const endpoint = useTunnel ? tunnelEndpoint : localEndpoint;
   const apiPath = kindConfig.endpoint.path;
-  // webSearch/webFetch: use safeProviderAlias only. Other kinds: append model when present.
   const modelFull = !needsModel
     ? safeProviderAlias
     : (selectedModel ? `${safeProviderAlias}/${selectedModel}` : (allowManualModel ? "" : safeProviderAlias));
@@ -111,7 +104,6 @@ export function GenericExampleCard({ providerId, kind }) {
   const refImagePreviewSrc = toImagePreviewSrc(effectiveRefImage);
   const maskImagePreviewSrc = toImagePreviewSrc(effectiveMaskImage);
 
-  // Build request body with optional extra fields (only non-empty values)
   const extraBodyFromFields = Object.entries(extraValues).reduce((acc, [k, v]) => {
     if (v === "" || v === null || v === undefined) return acc;
     if (typeof v === "number" && Number.isNaN(v)) return acc;
@@ -136,7 +128,6 @@ export function GenericExampleCard({ providerId, kind }) {
     ...(supportsMask && effectiveMaskImage ? { mask_image: effectiveMaskImage } : {}),
   };
 
-  // Streaming supported for codex image (Plus/Pro accounts) — disabled when binary output requested
   const wantBinary = kind === "image" && imageOutputFormat === "binary";
   const useStreaming = kind === "image" && providerId === "codex" && !wantBinary;
   const apiPathWithQuery = `${apiPath}${wantBinary ? "?response_format=binary" : ""}`;
@@ -171,7 +162,6 @@ export function GenericExampleCard({ providerId, kind }) {
         return;
       }
       const ctype = res.headers.get("content-type") || "";
-      // Binary image response — convert to blob URL
       if (ctype.startsWith("image/")) {
         const blob = await res.blob();
         const objUrl = URL.createObjectURL(blob);
@@ -181,7 +171,6 @@ export function GenericExampleCard({ providerId, kind }) {
       }
       const isSse = ctype.includes("text/event-stream");
       if (isSse && res.body) {
-        // Parse SSE: progress / partial_image / done / error
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
@@ -225,7 +214,6 @@ export function GenericExampleCard({ providerId, kind }) {
     }
   };
 
-  // Mask large b64_json strings in JSON view to keep it readable
   const maskB64 = (obj) => {
     if (!obj || typeof obj !== "object") return obj;
     if (Array.isArray(obj)) return obj.map(maskB64);

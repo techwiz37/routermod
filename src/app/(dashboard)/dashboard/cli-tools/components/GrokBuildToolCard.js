@@ -186,7 +186,6 @@ export default function GrokBuildToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Main and subagent models applied successfully!" });
         checkStatus();

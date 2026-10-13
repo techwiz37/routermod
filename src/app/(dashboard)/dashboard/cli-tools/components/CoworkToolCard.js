@@ -82,7 +82,6 @@ export default function CoworkToolCard({
     if (status?.cowork?.baseUrl && !customBaseUrl) {
       setCustomBaseUrl(stripV1(status.cowork.baseUrl));
     }
-    // Initialize plugins: from current config, fallback to defaultPlugins
     if (Array.isArray(status?.cowork?.plugins) && status.cowork.plugins.length > 0) {
       setPlugins(status.cowork.plugins);
     } else if (plugins.length === 0 && Array.isArray(status?.defaultPlugins)) {
@@ -151,7 +150,6 @@ export default function CoworkToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied. Quit & reopen Claude Desktop to load." });
         checkStatus();

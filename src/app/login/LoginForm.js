@@ -285,7 +285,6 @@ export default function LoginForm() {
                 ROUTER<span className="text-[#ff1a53]">MOD</span>
               </span>
               <span className="font-mono text-[9.5px] sm:text-[10px] font-bold text-[#ff1a53] tracking-widest">
-                // AI HUB :1945
               </span>
             </div>
           </div>

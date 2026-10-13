@@ -83,7 +83,6 @@ export default function JcodeToolCard({
         if (provider.default_model) {
           setSelectedModel(provider.default_model);
         }
-        // Try to match API key from env file
         const envApiKey = jcodeStatus.envApiKey;
         if (envApiKey && apiKeys?.some(k => k.key === envApiKey)) {
           setSelectedApiKey(envApiKey);
@@ -143,7 +142,6 @@ export default function JcodeToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         checkJcodeStatus();

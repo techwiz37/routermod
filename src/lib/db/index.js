@@ -1,15 +1,12 @@
-// Public API barrel — all DB functions
 import { getAdapter } from "./driver.js";
 import { stringifyJson, parseJson } from "./helpers/jsonCol.js";
 import { keyAccessFromColumns, keyAccessToColumns, validateKeyAccessInput } from "@/shared/utils/keyAccess.js";
 import { KEY_ACCESS_UNRESTRICTED } from "@/shared/constants/keyAccess.js";
 
-// Settings
 export {
   getSettings, updateSettings, isCloudEnabled, getCloudUrl, exportSettings,
 } from "./repos/settingsRepo.js";
 
-// Provider connections
 export {
   getProviderConnections, getProviderConnectionById,
   createProviderConnection, updateProviderConnection,
@@ -17,30 +14,25 @@ export {
   reorderProviderConnections, cleanupProviderConnections,
 } from "./repos/connectionsRepo.js";
 
-// Provider nodes
 export {
   getProviderNodes, getProviderNodeById,
   createProviderNode, updateProviderNode, deleteProviderNode,
 } from "./repos/nodesRepo.js";
 
-// Proxy pools
 export {
   getProxyPools, getProxyPoolById,
   createProxyPool, updateProxyPool, deleteProxyPool,
 } from "./repos/proxyPoolsRepo.js";
 
-// API keys
 export {
   getApiKeys, getApiKeyById, getApiKeyByKey, createApiKey, updateApiKey, deleteApiKey, validateApiKey,
 } from "./repos/apiKeysRepo.js";
 
-// Combos
 export {
   getCombos, getComboById, getComboByName,
   createCombo, updateCombo, deleteCombo,
 } from "./repos/combosRepo.js";
 
-// Aliases (model + custom + mitm)
 export {
   getModelAliases, setModelAlias, deleteModelAlias,
   getModelNames, setModelName, deleteModelName,
@@ -48,29 +40,24 @@ export {
   getMitmAlias, setMitmAliasAll,
 } from "./repos/aliasRepo.js";
 
-// Pricing
 export {
   getPricing, getPricingForModel, updatePricing, resetPricing, resetAllPricing,
 } from "./repos/pricingRepo.js";
 
-// Disabled models
 export {
   getDisabledModels, getDisabledByProvider, disableModels, enableModels,
 } from "./repos/disabledModelsRepo.js";
 
-// Usage
 export {
   statsEmitter, trackPendingRequest, getActiveRequests,
   saveRequestUsage, getUsageHistory, getUsageStats, getChartData,
   appendRequestLog, getRecentLogs,
 } from "./repos/usageRepo.js";
 
-// Request details
 export {
   saveRequestDetail, getRequestDetails, getRequestDetailById, getDistinctProviders,
 } from "./repos/requestDetailsRepo.js";
 
-// Export/import full DB
 export async function exportDb() {
   const db = await getAdapter();
   const { exportSettings } = await import("./repos/settingsRepo.js");
@@ -103,7 +90,6 @@ export async function importDb(payload) {
   const db = await getAdapter();
 
   db.transaction(() => {
-    // Wipe all tables (keep _meta)
     db.run(`DELETE FROM settings`);
     db.run(`DELETE FROM providerConnections`);
     db.run(`DELETE FROM providerNodes`);
@@ -112,7 +98,6 @@ export async function importDb(payload) {
     db.run(`DELETE FROM combos`);
     db.run(`DELETE FROM kv WHERE scope IN ('modelAliases', 'customModels', 'mitmAlias', 'pricing')`);
 
-    // Settings
     if (payload.settings) {
       db.run(`INSERT INTO settings(id, data) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data`, [stringifyJson(payload.settings)]);
     }
@@ -139,8 +124,6 @@ export async function importDb(payload) {
       );
     }
     for (const k of payload.apiKeys || []) {
-      // Per-key access: a backup without `access` (older version) restores
-      // unrestricted, exactly as before; a malformed `access` is refused.
       let access = KEY_ACCESS_UNRESTRICTED;
       if (k.access !== undefined) {
         const checked = validateKeyAccessInput(k.access);
@@ -177,7 +160,6 @@ export async function importDb(payload) {
   return await exportDb();
 }
 
-// Eager init helper (optional)
 export async function initDb() {
   await getAdapter();
 }

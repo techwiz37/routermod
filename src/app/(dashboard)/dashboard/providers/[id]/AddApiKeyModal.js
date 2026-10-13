@@ -21,12 +21,8 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
 
   const isAzure = provider === "azure";
   const isCloudflareAi = provider === "cloudflare-ai";
-  // Capability, not identity: gating this on `provider === "bedrock"` left bedrock-xai with no
-  // way to enter a profile at all, which is the same mistake as hardcoding the API-key exemption.
   const usesAwsCredentialForm =
     AI_PROVIDERS?.[provider]?.credentialForm === "aws";
-  // Registry-declared: names the providerSpecificData field that stands in for an API key, so
-  // a provider whose credential lives outside the key field can be saved without one.
   const apiKeyOptionalWith = AI_PROVIDERS?.[provider]?.apiKeyOptionalWith || null;
   const providerRegions = AI_PROVIDERS?.[provider]?.regions || null;
   const defaultRegion = AI_PROVIDERS?.[provider]?.defaultRegion || providerRegions?.[0]?.id || "";
@@ -82,8 +78,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
       return { accountId: cloudflareData.accountId };
     }
     if (usesAwsCredentialForm) {
-      // Only send what the user filled in: an empty `profile` would otherwise select profile
-      // mode and shadow static keys, since detectCredentialMode prefers a profile.
       const data = {};
       if (bedrockData.profile.trim()) data.profile = bedrockData.profile.trim();
       if (bedrockData.region.trim()) data.region = bedrockData.region.trim();
@@ -97,13 +91,9 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     return undefined;
   };
 
-  // One place decides whether the credential requirement is met. The button's disabled state and
-  // handleSubmit's early return both read it; encoding the rule twice is what let Save look
-  // clickable while silently doing nothing for profile-only Bedrock connections.
   const apiKeySatisfied = () => {
     const psd = buildProviderSpecificData();
     if (apiKeyOptionalWith && psd?.[apiKeyOptionalWith]) return true;
-    // AWS static keys are a pair: a secret alone saves a connection that can never sign.
     if (usesAwsCredentialForm) return !!formData.apiKey && !!psd?.accessKeyId;
     return !!formData.apiKey;
   };
@@ -129,7 +119,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     if (!provider) return;
     if (!isOllamaLocal && !apiKeySatisfied()) return;
     if (!isOllamaLocal) {
-      // Non-ollama providers require a name
       if (!formData.name) return;
     }
     if (isCompatible && !formData.defaultModel.trim()) return;
@@ -171,9 +160,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
   const handleBulkSubmit = async () => {
     const lines = bulkText.split("\n");
     if (!lines.length) return;
-    // Plan collision-free names against existing connections so a generated
-    // "Key N" never matches a saved name (which the backend would upsert /
-    // overwrite instead of inserting). See bulkAdd.js for the full rationale.
     const plan = planBulkAdd(lines, existingNames, { isCloudflareAi });
     if (!plan.length) return;
     setSaving(true);
@@ -182,9 +168,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     let failed = 0;
     for (const entry of plan) {
       try {
-        // Validate each key before saving so bulk-added connections get a
-        // real status (active/unknown) like single adds, instead of a
-        // hardcoded "unknown" that never flips until a manual test.
         let isValid = false;
         try {
           const vres = await fetch("/api/providers/validate", {

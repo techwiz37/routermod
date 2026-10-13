@@ -5,12 +5,6 @@ import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
-/**
- * Zed Connect modal (Codex-style):
- * 1. Auto-import from Zed IDE keyring when a session is detected
- * 2. Browser OAuth (local proxy) with waiting spinner
- * 3. Manual paste of the callback URL
- */
 export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose }) {
   const [phase, setPhase] = useState("booting"); // booting | ide-found | browser | importing | success | error
   const [ideSession, setIdeSession] = useState(null);
@@ -137,7 +131,6 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
     }
   }, [stopOwnedProxy]);
 
-  // Open: detect IDE session (auto-import if found), always start browser flow as fallback.
   useEffect(() => {
     if (!isOpen) return;
     if (openedRef.current) return;
@@ -154,7 +147,6 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
     let cancelled = false;
 
     (async () => {
-      // Browser flow runs in parallel so paste-callback is always available.
       const browserPromise = startBrowserFlow();
 
       try {
@@ -171,12 +163,10 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
             systemId: data.systemId || "",
           };
           setIdeSession(session);
-          // Auto-import when Zed IDE session is detected.
           await importIdeSession(session);
           return;
         }
       } catch {
-        // Fall through to browser UI
       }
 
       if (cancelled || !isOpenRef.current) return;
@@ -189,7 +179,6 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
     };
   }, [isOpen, startBrowserFlow, importIdeSession]);
 
-  // Cleanup on close
   useEffect(() => {
     if (isOpen) return;
     openedRef.current = false;
@@ -200,12 +189,10 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
       try {
         popupRef.current.close();
       } catch {
-        // ignore
       }
     }
   }, [isOpen, stopOwnedProxy]);
 
-  // Poll proxy until browser OAuth completes
   useEffect(() => {
     if (!authData?.state) return;
     if (phase === "importing" || phase === "success") return;
@@ -236,7 +223,6 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
           return;
         }
       } catch {
-        // keep polling
       }
       if (attempts >= MAX_ATTEMPTS) {
         setError("Authentication timeout");

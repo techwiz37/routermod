@@ -3,8 +3,6 @@ import { getTunnelStatus, getTailscaleStatus, getDownloadStatus } from "@/lib/tu
 
 const STATUS_CACHE_TTL_MS = 3000; // coalesce rapid polls; underlying probes already cache 10s
 
-// Survive hot reload; one cache per process. Only tunnel/tailscale probes are cached —
-// download progress stays live so the enable/download UI updates smoothly.
 const statusCache = (global.__tunnelStatusCache ??= { value: null, fetchedAt: 0 });
 
 export async function GET() {

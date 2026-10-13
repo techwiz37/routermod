@@ -5,12 +5,9 @@ import { resolveProviderAlias } from "open-sse/services/model.js";
 
 export const dynamic = "force-dynamic";
 
-// Validation at the trust boundary — the UI also validates, but this is the gate.
 const MAX_HEADERS = 20;
 const MAX_HEADER_VALUE_LENGTH = 8192;
-// RFC 7230 token subset: letters, digits, hyphen (no spaces, no unicode)
 const HEADER_NAME_RE = /^[A-Za-z0-9-]+$/;
-// Request-structure / auth headers a user override must never touch
 const BLOCKED_HEADERS = new Set([
   "host",
   "content-length",
@@ -21,10 +18,6 @@ const BLOCKED_HEADERS = new Set([
   "cookie",
 ]);
 
-/**
- * Validate + normalize an override payload. Returns { override } or { error }.
- * An override with no headers is normalized to null (= delete).
- */
 function normalizeOverride({ headers }) {
   const out = {};
 
@@ -63,17 +56,11 @@ async function readOverrides() {
   return settings.providerOverrides || {};
 }
 
-/**
- * GET /api/providers/[id]/overrides — user override for this provider
- */
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
-    // URL may use an alias (gcli, cc…) — key everything by canonical registry id
     const canonical = resolveProviderAlias(id);
     const override = (await readOverrides())[canonical] || {};
-    // Built-in headers come straight from the registry transport — single source of
-    // truth, so the UI pre-fills exactly what this provider sends upstream.
     return NextResponse.json({
       headers: override.headers || {},
       builtinHeaders: PROVIDERS[canonical]?.headers || {},
@@ -84,10 +71,6 @@ export async function GET(request, { params }) {
   }
 }
 
-/**
- * PUT /api/providers/[id]/overrides — body: { headers: {name: value} }
- * Empty payload clears the override.
- */
 export async function PUT(request, { params }) {
   try {
     const { id } = await params;

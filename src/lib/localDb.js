@@ -1,5 +1,3 @@
-// Shim → re-export from new SQLite-based DB layer (src/lib/db/)
-// Kept for backward compatibility with existing imports.
 export {
   getSettings, updateSettings, isCloudEnabled, getCloudUrl,
   getProviderConnections, getProviderConnectionById,

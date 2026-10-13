@@ -2,15 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import { CapacityBadges } from "@/shared/components";
 
-/**
- * Edit popover — appears below the row when pencil is clicked.
- *   built-in  → Prefix + Model ID (alias key = prefix/modelId → stored alias)
- *   custom    → Prefix + Model ID (re-id) + Display Name
- *
- * providerAlias: current provider alias (e.g. "ag", "openai") — default prefix
- */
 function EditPopover({ model, alias, isCustom, providerAlias, onSave, onClose }) {
-  // alias key may be "prefix/modelId" or plain "modelId"
   const aliasParts = alias ? alias.split("/") : [];
   const initPrefix  = aliasParts.length > 1 ? aliasParts.slice(0, -1).join("/") : (providerAlias || "");
   const initModelId = aliasParts.length > 1 ? aliasParts[aliasParts.length - 1] : (alias || model.id);
@@ -98,7 +90,6 @@ export default function ModelRow({
   caps, thinkingSuffix,
 }) {
   const rawModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
-  // If alias (display name) set → show name big, prefix/modelId small below
   const displayName = model.name || alias || null;
   const displayModel = rawModel;
   const [editing, setEditing] = useState(false);

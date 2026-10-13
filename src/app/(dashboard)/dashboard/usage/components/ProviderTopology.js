@@ -14,11 +14,9 @@ import "@xyflow/react/dist/style.css";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 
-// Force-stop FE animation if a provider stays active longer than this
 const FE_ACTIVE_TIMEOUT_MS = 60000;
 const FE_ACTIVE_TICK_MS = 1000;
 
-// Kame + electric particles along active edges
 const KAME_PARTICLE_COUNT = 6;
 const SPARK_COUNT = 5;
 
@@ -30,7 +28,6 @@ function getProviderImageUrl(providerId) {
   return getProviderIconSrc(providerId);
 }
 
-// Custom provider node - rectangle with image + name
 function ProviderNode({ data }) {
   const { label, color, imageUrl, textIcon, active } = data;
   const [imgError, setImgError] = useState(false);
@@ -95,7 +92,6 @@ ProviderNode.propTypes = {
   data: PropTypes.object.isRequired,
 };
 
-// Center RouterMod node — pulse/glow on card only (no expanding rings)
 function RouterNode({ data }) {
   const powering = (data.activeCount || 0) > 0;
   return (
@@ -131,7 +127,6 @@ RouterNode.propTypes = {
   data: PropTypes.object.isRequired,
 };
 
-// Active: electric kame beam (multi-layer stroke + sparks). Idle/last/error: solid BaseEdge.
 function TopologyEdge({
   id,
   sourceX,
@@ -257,7 +252,6 @@ TopologyEdge.propTypes = {
 const nodeTypes = { provider: ProviderNode, router: RouterNode };
 const edgeTypes = { topology: TopologyEdge };
 
-// Place N nodes evenly along an ellipse around the router center.
 function buildLayout(providers, activeSet, lastSet, errorSet) {
   const nodeW = 180;
   const nodeH = 30;
@@ -267,7 +261,6 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
 
   const count = providers.length;
 
-  // Compute rx so arc spacing between nodes >= nodeW + nodeGap
   const minRx = ((nodeW + nodeGap) * count) / (2 * Math.PI);
   const rx = Math.max(320, minRx);
   const ry = Math.max(200, rx * 0.55); // ellipse ratio ~0.55
@@ -310,12 +303,10 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
       active,
     };
 
-    // Distribute evenly starting from top (−π/2), clockwise
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
     const cx = rx * Math.cos(angle);
     const cy = ry * Math.sin(angle);
 
-    // Pick router handle closest to the node direction
     let sourceHandle, targetHandle;
     if (Math.abs(angle + Math.PI / 2) < Math.PI / 4 || Math.abs(angle - 3 * Math.PI / 2) < Math.PI / 4) {
       sourceHandle = "top"; targetHandle = "bottom";
@@ -342,7 +333,6 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
       sourceHandle,
       target: nodeId,
       targetHandle,
-      // Built-in animated uses stroke-dasharray (CPU-heavy); use particle beam instead
       animated: false,
       data: { active },
       style: edgeStyle(active, last, error),
@@ -353,7 +343,6 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
 }
 
 export default function ProviderTopology({ providers = [], activeRequests = [], lastProvider = "", errorProvider = "" }) {
-  // Serialize to stable string keys so useMemo only re-runs when values actually change
   const activeKey = useMemo(
     () => activeRequests.map((r) => r.provider?.toLowerCase()).filter(Boolean).sort().join(","),
     [activeRequests]
@@ -365,7 +354,6 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
   const lastSet = useMemo(() => new Set(lastKey ? [lastKey] : []), [lastKey]);
   const errorSet = useMemo(() => new Set(errorKey ? [errorKey] : []), [errorKey]);
 
-  // Track firstSeen per active provider; drop provider if running too long (BE stuck)
   const firstSeenRef = useRef({});
   const [tick, setTick] = useState(0);
 
@@ -401,7 +389,6 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
     [providers, activeSet, lastSet, errorSet]
   );
 
-  // Stable key — only remount when provider list changes
   const providersKey = useMemo(
     () => providers.map((p) => p.provider).sort().join(","),
     [providers]
@@ -415,7 +402,6 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
     setTimeout(() => instance.fitView(fitOpts), 50);
   }, []);
 
-  // Re-fit on container resize
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -426,7 +412,6 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
     return () => ro.disconnect();
   }, []);
 
-  // Re-fit when node count/layout changes
   useEffect(() => {
     if (rfInstance.current) {
       const id = setTimeout(() => rfInstance.current.fitView(fitOpts), 50);

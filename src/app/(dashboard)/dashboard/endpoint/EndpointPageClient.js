@@ -37,7 +37,6 @@ export default function APIPageClient({ machineId }) {
   const [hasPassword, setHasPassword] = useState(true);
  const [tunnelDashboardAccess, setTunnelDashboardAccess] = useState(false);
 
- // Cloudflare Tunnel state
   const [tunnelChecking, setTunnelChecking] = useState(true);
   const [tunnelEnabled, setTunnelEnabled] = useState(false);
   const [tunnelReachable, setTunnelReachable] = useState(false);
@@ -49,7 +48,6 @@ export default function APIPageClient({ machineId }) {
   const [showEnableTunnelModal, setShowEnableTunnelModal] = useState(false);
   const [showDisableTunnelModal, setShowDisableTunnelModal] = useState(false);
 
-  // Tailscale state
   const [tsEnabled, setTsEnabled] = useState(false);
   const [tsReachable, setTsReachable] = useState(false);
   const [tsUrl, setTsUrl] = useState("");
@@ -67,24 +65,17 @@ export default function APIPageClient({ machineId }) {
   const [showDisableTsModal, setShowDisableTsModal] = useState(false);
   const tsLogRef = useRef(null);
 
-  // Debounce reachable=false: server may briefly return false during background refresh.
-  // Only flip UI to "reconnecting" after N consecutive misses to avoid spinner flicker.
   const tunnelMissRef = useRef(0);
   const tsMissRef = useRef(0);
-  // Browser-side reachable cache (independent of backend DNS quirks)
   const tunnelClientReachableRef = useRef(false);
   const tsClientReachableRef = useRef(false);
-  // Track whether reachable=true was ever observed in this session.
-  // Distinguishes "Checking..." (initial cold cache) from "Reconnecting..." (lost connection).
   const tunnelEverReachableRef = useRef(false);
   const tsEverReachableRef = useRef(false);
   const [tunnelEverReachable, setTunnelEverReachable] = useState(false);
   const [tsEverReachable, setTsEverReachable] = useState(false);
 
-  // API key visibility toggle state
   const [visibleKeys, setVisibleKeys] = useState(new Set());
 
-  // Client-side local/remote detection (UI hint only, not a security gate)
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined")
@@ -93,11 +84,9 @@ export default function APIPageClient({ machineId }) {
 
   const { copied, copy } = useCopyToClipboard();
 
-  // Security gate: requireLogin is respected; default password "merdeka" is accepted
   const isLoginUnsafe = !requireLogin;
   const unsafeReason = "Aktifkan \"Require login\" sebelum mengaktifkan tunnel.";
 
-  // Auto-scroll install log
   useEffect(() => {
     if (tsLogRef.current) tsLogRef.current.scrollTop = tsLogRef.current.scrollHeight;
   }, [tsInstallLog]);
@@ -107,8 +96,6 @@ export default function APIPageClient({ machineId }) {
     loadSettings();
   }, []);
 
-  // Status poll: only while degraded (not yet reachable). Stop once healthy to avoid spam.
-  // Visibility re-check: refresh once when tab becomes visible.
   useEffect(() => {
     const anyEnabled = tunnelEnabled || tsEnabled;
     if (!anyEnabled) return;
@@ -125,9 +112,6 @@ export default function APIPageClient({ machineId }) {
     };
   }, [tunnelEnabled, tsEnabled, tunnelReachable, tsReachable]);
 
-  // Browser-side periodic ping: probes tunnel/tailscale URLs directly so UI stays
-  // "reachable" even when backend DNS (1.1.1.1) hiccups on *.ts.net or *.trycloudflare.com.
-  // Adaptive: slow when healthy, fast when degraded; pause when tab hidden.
   useEffect(() => {
     const probeBoth = async () => {
       if (document.hidden) return;
@@ -158,8 +142,6 @@ export default function APIPageClient({ machineId }) {
     return () => clearInterval(id);
   }, [tunnelEnabled, tunnelUrl, tunnelPublicUrl, tsEnabled, tsUrl, tunnelReachable, tsReachable]);
 
-  // Client-side reachable only (server no longer probes; watchdog handles backend health).
-  // Miss-debounce: only flip to false after N consecutive misses.
   const updateReachable = useCallback((_unused, clientRef, missRef, setter, everRef, everSetter) => {
     const reachable = clientRef.current;
     if (reachable) {
@@ -175,7 +157,6 @@ export default function APIPageClient({ machineId }) {
     }
   }, []);
 
-  // Trust user intent (settingsEnabled): UI stays "enabled" while watchdog restarts process
   const syncTunnelStatus = async () => {
     try {
       const statusRes = await fetch("/api/tunnel/status", { cache: "no-store" });
@@ -259,7 +240,6 @@ export default function APIPageClient({ machineId }) {
       };
 
       let existing = await fetchKeys();
-      // Auto-provision a default key for first-time users so the endpoint works out of the box.
       if (existing.length === 0) {
         try {
           const createRes = await fetch("/api/keys", {
@@ -278,8 +258,6 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
-  // u2500u2500u2500 Cloudflare Tunnel handlers
-  // Ping tunnel health until reachable. Race multiple URLs (shortlink + direct) — 1 OK is enough.
   const pingTunnelHealth = async (...urls) => {
     setTunnelLoading(true);
     const targets = urls.filter(Boolean).map((u) => `${u}/api/health`);
@@ -301,7 +279,6 @@ export default function APIPageClient({ machineId }) {
         setTunnelProgress("");
         return true;
       }
-      // Every 5 pings (~10s), check if backend process still alive
       if ((Date.now() - start) % 10000 < TUNNEL_PING_INTERVAL_MS) {
         try {
           const statusRes = await fetch("/api/tunnel/status");
@@ -330,7 +307,6 @@ export default function APIPageClient({ machineId }) {
     let currentPct = 10;
     setTunnelProgress(`${translate("Creating tunnel...")} (10%)`);
 
-    // Poll download progress while enable request is pending
     let polling = true;
     const pollProgress = async () => {
       while (polling) {
@@ -402,7 +378,6 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
-  // u2500u2500u2500 Tailscale handlers
   const checkTailscaleInstalled = async () => {
     setTsInstalled(null);
     try {
@@ -470,7 +445,6 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
-  // Ping Tailscale health until reachable
   const pingTsHealth = async (url) => {
     setTsProgress("Waiting for Tailscale ready...");
     const healthUrl = `${url}/api/health`;
@@ -485,8 +459,6 @@ export default function APIPageClient({ machineId }) {
     return false;
   };
 
-  // Show inline login button instead of auto-opening popup (browsers block popups
-  // opened after async work because the user gesture is lost).
   const requestUserAuth = (url, label) => {
     setTsAuthUrl(url);
     setTsAuthLabel(label);
@@ -684,7 +656,6 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
-  // Save a key's access (restricted flag + allow list).
   const handleUpdateKeyAccess = async (id, access) => {
     try {
       const res = await fetch(`/api/keys/${id}`, {
@@ -719,7 +690,6 @@ export default function APIPageClient({ machineId }) {
 
   const [baseUrl, setBaseUrl] = useState("/v1");
 
-  // Hydration fix: Only access window on client side
   useEffect(() => {
     if (typeof window !== "undefined") {
       setBaseUrl(`${window.location.origin}/v1`);

@@ -142,7 +142,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     }
   };
 
-  // Sync only when config content changes so local form edits are retained.
   useEffect(() => {
     const config = codexStatus?.config;
     if (config) {
@@ -153,7 +152,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
       const modelMatch = config.match(/^model\s*=\s*"([^"]+)"/m);
       if (modelMatch) setSelectedModel(modelMatch[1]);
 
-      // Parse subagent settings
       const subagentModelMatch = config.match(/^default_subagent_model\s*=\s*"([^"]+)"/m);
       if (subagentModelMatch) setSubagentModel(subagentModelMatch[1]);
     }
@@ -171,7 +169,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   const getEffectiveBaseUrl = () => {
     const url = (customBaseUrl || `${baseUrl}/v1`).replace(/\/+$/, "");
-    // Ensure URL ends with /v1
     return url.endsWith("/v1") ? url : `${url}/v1`;
   };
 
@@ -194,7 +191,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     setApplying(true);
     setMessage(null);
     try {
-      // Use sk_9router for localhost if no key, otherwise use selected key
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
         : (!cloudEnabled ? "sk_9router" : selectedApiKey);
@@ -211,7 +207,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         checkCodexStatus();
@@ -248,7 +243,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   const handleModelSelect = (model) => {
     setSelectedModel(model.value);
-    // Auto-set subagent model if not set
     if (!subagentModel) {
       setSubagentModel(model.value);
     }

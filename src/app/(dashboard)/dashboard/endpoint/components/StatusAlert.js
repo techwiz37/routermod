@@ -1,6 +1,5 @@
 "use client";
 
-/** Reusable status alert — Neobrutalism style */
 export default function StatusAlert({ status, className = "" }) {
   const map = {
     success: {

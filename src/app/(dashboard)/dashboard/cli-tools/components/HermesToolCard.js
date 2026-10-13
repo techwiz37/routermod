@@ -58,7 +58,6 @@ export default function HermesToolCard({
 
   const configStatus = getConfigStatus();
 
-  // Same three-state rule as the header badge, evaluated per profile from the list payload.
   const profileStatus = (p) => {
     if (p.has9Router || (p.baseUrl && matchKnownEndpoint(p.baseUrl, { tunnelPublicUrl, tailscaleUrl }))) return "configured";
     if (p.baseUrl) return "other";
@@ -118,7 +117,6 @@ export default function HermesToolCard({
     if (hermesStatus?.installed && !hasInitializedModel.current) {
       hasInitializedModel.current = true;
       const cfg = hermesStatus.settings?.model;
-      // Always reset both: stale values from the previously selected profile must not leak in.
       setSelectedModel(cfg?.default || "");
       const initial = {};
       if (hermesStatus.settings?.delegation?.model) initial.delegation = hermesStatus.settings.delegation.model;
@@ -158,7 +156,6 @@ export default function HermesToolCard({
       } else {
         setMessage({ type: "error", text: data.error || "Failed to load Hermes settings" });
         if (res.status === 404) {
-          // Profile disappeared (e.g. deleted in another tab) — fall back to default.
           fetchProfiles();
           setActiveProfile("default");
         }
@@ -212,7 +209,6 @@ export default function HermesToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: `Settings applied to ${profileLabel(activeProfile)}!` });
         checkStatus();
@@ -227,11 +223,6 @@ export default function HermesToolCard({
     }
   };
 
-  // Endpoint + API key across every profile. Each profile keeps its own model — only
-  // profiles already routed through 9router are refreshed, the rest are reported.
-  // The endpoint field mirrors whatever the active profile currently points at, so it can
-  // hold a foreign provider URL (openrouter, ...) — propagating that to every profile would
-  // be a mistake, hence the known-endpoint guard.
   const handleApplyAll = async () => {
     const endpoint = getEffectiveBaseUrl();
     const isKnown =
