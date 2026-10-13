@@ -10,6 +10,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get("activeOnly") === "true";
+    const providerFilter = searchParams.get("provider") || null;
 
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
@@ -29,6 +30,7 @@ export async function GET(request) {
     const models = AI_MODELS
       .filter((m) => {
         if (activeAliasSet && !activeAliasSet.has(m.provider)) return false;
+        if (providerFilter && m.provider !== providerFilter && getProviderAlias(m.provider) !== providerFilter) return false;
         const alias = getProviderAlias(m.provider) || m.provider;
         const list = disabled[alias] || disabled[m.provider] || [];
         return !list.includes(m.model);
