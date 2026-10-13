@@ -175,7 +175,7 @@ export default function Sidebar({ onClose }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-2 space-y-0.5 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-4 py-2 space-y-0.5 overflow-y-auto overflow-x-clip custom-scrollbar">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -190,13 +190,13 @@ export default function Sidebar({ onClose }) {
             >
               <span
                 className={cn(
-                  "material-symbols-outlined text-[18px]",
+                  "material-symbols-outlined text-[18px] shrink-0",
                   isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
                 )}
               >
                 {item.icon}
               </span>
-              <span className="text-[13px] font-medium">{translate(item.label)}</span>
+              <span className="text-[13px] font-medium min-w-0 truncate">{translate(item.label)}</span>
             </Link>
           ))}
 
@@ -216,8 +216,8 @@ export default function Sidebar({ onClose }) {
                   : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
-              <span className="material-symbols-outlined text-[18px]">perm_media</span>
-              <span className="text-[13px] font-medium flex-1 text-left">Media Providers</span>
+              <span className="material-symbols-outlined text-[18px] shrink-0">perm_media</span>
+              <span className="text-[13px] font-medium flex-1 text-left truncate">Media Providers</span>
               <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: mediaOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
                 expand_more
               </span>
@@ -236,8 +236,8 @@ export default function Sidebar({ onClose }) {
                         : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                     )}
                   >
-                    <span className="material-symbols-outlined text-[16px]">{kind.icon}</span>
-                    <span className="text-sm">{kind.label}</span>
+                    <span className="material-symbols-outlined text-[16px] shrink-0">{kind.icon}</span>
+                    <span className="text-sm min-w-0 truncate">{kind.label}</span>
                   </Link>
                 ))}
                 <Link
@@ -251,8 +251,8 @@ export default function Sidebar({ onClose }) {
                       : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                   )}
                 >
-                  <span className="material-symbols-outlined text-[16px]">{COMBINED_WEB_ITEM.icon}</span>
-                  <span className="text-sm">{COMBINED_WEB_ITEM.label}</span>
+                  <span className="material-symbols-outlined text-[16px] shrink-0">{COMBINED_WEB_ITEM.icon}</span>
+                  <span className="text-sm min-w-0 truncate">{COMBINED_WEB_ITEM.label}</span>
                 </Link>
               </div>
             )}
@@ -271,13 +271,13 @@ export default function Sidebar({ onClose }) {
               >
                 <span
                   className={cn(
-                    "material-symbols-outlined text-[18px]",
+                    "material-symbols-outlined text-[18px] shrink-0",
                     isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
                   )}
                 >
                   {item.icon}
                 </span>
-                <span className="text-[13px] font-medium">{translate(item.label)}</span>
+                <span className="text-[13px] font-medium min-w-0 truncate">{translate(item.label)}</span>
               </Link>
             ))}
 
@@ -298,13 +298,13 @@ export default function Sidebar({ onClose }) {
                 >
                   <span
                     className={cn(
-                      "material-symbols-outlined text-[18px]",
+                      "material-symbols-outlined text-[18px] shrink-0",
                       isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
                     )}
                   >
                     {item.icon}
                   </span>
-                  <span className="text-[13px] font-medium">{item.label}</span>
+                  <span className="text-[13px] font-medium min-w-0 truncate">{item.label}</span>
                 </Link>
               ) : null;
             })}
@@ -320,10 +320,10 @@ export default function Sidebar({ onClose }) {
                   : "text-text-muted hover:bg-surface-2 hover:text-text-main"
               )}
             >
-              <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
+              <span className="material-symbols-outlined text-[18px] shrink-0 group-hover:text-primary transition-colors">
                 contact_support
               </span>
-              <span className="text-[13px] font-medium">Contact Developer</span>
+              <span className="text-[13px] font-medium min-w-0 truncate">Contact Developer</span>
             </Link>
 
             {/* Settings */}
@@ -339,13 +339,13 @@ export default function Sidebar({ onClose }) {
             >
               <span
                 className={cn(
-                  "material-symbols-outlined text-[18px]",
+                  "material-symbols-outlined text-[18px] shrink-0",
                   isActive("/dashboard/profile") ? "fill-1" : "group-hover:text-primary transition-colors"
                 )}
               >
                 settings
               </span>
-              <span className="text-[13px] font-medium">Settings</span>
+              <span className="text-[13px] font-medium min-w-0 truncate">Settings</span>
             </Link>
           </div>
         </nav>

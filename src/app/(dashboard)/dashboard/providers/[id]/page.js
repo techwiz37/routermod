@@ -29,6 +29,11 @@ import { useNotificationStore } from "@/store/notificationStore";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 
+// Connection considered invalid/dead: has a persisted error reason and a
+// non-serving status ("unavailable" = kicked by 401/403 traffic, "error" =
+// permanent refresh rejection or failed manual test).
+const isInvalidConnection = (c) => !!c.lastError && (c.testStatus === "unavailable" || c.testStatus === "error");
+
 const AUTO_PING_SETTINGS_KEYS = {
   claude: "claudeAutoPing",
   codex: "codexAutoPing",
@@ -373,7 +378,7 @@ export default function ProviderDetailPage() {
   }, [providerId]);
 
   const handleDeleteInvalid = () => {
-    const invalids = connections.filter(c => c.testStatus === "unavailable" && c.lastError);
+    const invalids = connections.filter(isInvalidConnection);
     if (!invalids.length) return;
     setConfirmState({
       title: `Delete ${invalids.length} Invalid Connection${invalids.length > 1 ? "s" : ""}`,
@@ -1706,7 +1711,7 @@ export default function ProviderDetailPage() {
                       Delete Selected ({selectedConnectionIds.length})
                     </Button>
                   )}
-                  {connections.some(c => c.testStatus === "unavailable" && c.lastError) && (
+                  {connections.some(isInvalidConnection) && (
                     <Button
                       size="sm"
                       variant="danger"
@@ -1714,7 +1719,7 @@ export default function ProviderDetailPage() {
                       onClick={handleDeleteInvalid}
                       loading={deletingInvalid}
                     >
-                      Hapus Invalid ({connections.filter(c => c.testStatus === "unavailable" && c.lastError).length})
+                      Hapus Invalid ({connections.filter(isInvalidConnection).length})
                     </Button>
                   )}
                   <Button

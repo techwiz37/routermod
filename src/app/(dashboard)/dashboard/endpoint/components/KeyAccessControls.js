@@ -562,11 +562,11 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                               onClick={() => handleTestModel(id, m.name || m.model)}
                               disabled={busy}
                               title="Test model"
-                              className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-primary)] transition-all hover:-translate-y-px active:translate-y-0 disabled:opacity-50 shadow-[2px_2px_0_var(--color-border)]"
+                              className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-primary)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 shadow-[2px_2px_0_var(--color-border)] hover:shadow-[3px_3px_0_var(--color-border)] transition-all"
                             >
                               {busy
-                                ? <span className="material-symbols-outlined text-[14px] animate-spin text-[var(--color-primary)]">progress_activity</span>
-                                : <span className="material-symbols-outlined text-[14px] text-[var(--color-primary)] group-hover:text-white">science</span>
+                                ? <span className="material-symbols-outlined text-[14px] animate-spin text-white">progress_activity</span>
+                                : <span className="material-symbols-outlined text-[14px] text-white">science</span>
                               }
                             </button>
                           </div>
