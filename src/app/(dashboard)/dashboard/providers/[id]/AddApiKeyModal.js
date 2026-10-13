@@ -260,13 +260,13 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
                 <div className="flex justify-between text-[11px] font-mono font-bold text-[var(--color-text-muted)]">
                   <span>{bulkProgress.done}/{bulkProgress.total} diproses</span>
                   <span className="flex gap-3">
-                    <span className="text-[#10b981]">✓ {bulkProgress.success}</span>
+                    <span className="text-[var(--color-success)]">✓ {bulkProgress.success}</span>
                     {bulkProgress.failed > 0 && <span className="text-[#ef4444]">✗ {bulkProgress.failed}</span>}
                   </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)] overflow-hidden">
                   <div
-                    className="h-full bg-[#ff1a53] transition-all duration-200"
+                    className="h-full bg-[var(--color-primary)] transition-all duration-200"
                     style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }}
                   />
                 </div>

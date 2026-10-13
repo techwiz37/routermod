@@ -156,8 +156,8 @@ export default function DashboardProviderOverview() {
             <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
               {t.activeProviders}
             </span>
-            <span className="size-6 sm:size-7 rounded-md bg-[#ff1a53]/15 border border-border flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-[#ff1a53]">
+            <span className="size-6 sm:size-7 rounded-md bg-[var(--color-primary)]/15 border border-border flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-[var(--color-primary)]">
                 hub
               </span>
             </span>
@@ -171,7 +171,7 @@ export default function DashboardProviderOverview() {
             </span>
           </div>
           <div className="mt-2 text-[9.5px] sm:text-[10.5px] font-mono text-text-muted flex items-center gap-1.5 truncate">
-            <span className="size-1.5 rounded-full bg-[#10b981] animate-pulse shrink-0" />
+            <span className="size-1.5 rounded-full bg-[var(--color-success)] animate-pulse shrink-0" />
             <span className="truncate">{t.connsReady}</span>
           </div>
         </div>
@@ -182,19 +182,19 @@ export default function DashboardProviderOverview() {
             <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
               {t.activeAccounts}
             </span>
-            <span className="size-6 sm:size-7 rounded-md bg-[#10b981]/15 border border-border flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-[#10b981]">
+            <span className="size-6 sm:size-7 rounded-md bg-[var(--color-success)]/15 border border-border flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-[var(--color-success)]">
                 check_circle
               </span>
             </span>
           </div>
           <div className="flex items-baseline gap-1.5 sm:gap-2">
-            <span className="font-mono text-xl sm:text-3xl font-black text-[#10b981]">
+            <span className="font-mono text-xl sm:text-3xl font-black text-[var(--color-success)]">
               {loading ? "..." : summary.totalActiveAccounts}
             </span>
             <span className="font-mono text-[10px] sm:text-xs text-text-muted">Node</span>
           </div>
-          <div className="mt-2 text-[9.5px] sm:text-[10.5px] font-mono text-[#10b981] flex items-center gap-1 truncate">
+          <div className="mt-2 text-[9.5px] sm:text-[10.5px] font-mono text-[var(--color-success)] flex items-center gap-1 truncate">
             <span className="material-symbols-outlined text-[12px] shrink-0">verified</span>
             <span className="truncate">{t.readyExec}</span>
           </div>
@@ -254,7 +254,7 @@ export default function DashboardProviderOverview() {
         {/* Header Bar */}
         <div className="p-3.5 sm:p-5 border-b-2 border-border flex flex-wrap items-center justify-between gap-3 bg-surface-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="size-8 rounded-lg bg-[#ff1a53]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[#ff1a53] shrink-0">
+            <div className="size-8 rounded-lg bg-[var(--color-primary)]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[var(--color-primary)] shrink-0">
               <span className="material-symbols-outlined text-[18px]">dns</span>
             </div>
             <div className="min-w-0">
@@ -307,7 +307,7 @@ export default function DashboardProviderOverview() {
         {/* Content Section */}
         {loading ? (
           <div className="p-8 text-center font-mono text-sm text-text-muted flex items-center justify-center gap-2">
-            <span className="material-symbols-outlined animate-spin text-[20px] text-[#ff1a53]">
+            <span className="material-symbols-outlined animate-spin text-[20px] text-[var(--color-primary)]">
               progress_activity
             </span>
             <span>{t.loading}</span>
@@ -325,7 +325,7 @@ export default function DashboardProviderOverview() {
             </p>
             <Link
               href="/dashboard/providers"
-              className="mt-2 px-4 py-2 rounded-lg border-2 border-border bg-[#ff1a53] text-white shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] active:translate-y-0 transition-all font-mono text-xs font-bold uppercase flex items-center gap-2"
+              className="mt-2 px-4 py-2 rounded-lg border-2 border-border bg-[var(--color-primary)] text-white shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] active:translate-y-0 transition-all font-mono text-xs font-bold uppercase flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
               <span>{t.btnAdd}</span>
@@ -385,8 +385,8 @@ export default function DashboardProviderOverview() {
                       </td>
                       <td className="py-2.5 sm:py-3 px-2 sm:px-3 text-center">
                         {isOnline ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border bg-[#10b981]/15 text-[#10b981] font-bold text-[10px] shadow-[1px_1px_0px_var(--color-border)]">
-                            <span className="size-1.5 rounded-full bg-[#10b981] animate-pulse" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border bg-[var(--color-success)]/15 text-[var(--color-success)] font-bold text-[10px] shadow-[1px_1px_0px_var(--color-border)]">
+                            <span className="size-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
                             {t.badgeOnline}
                           </span>
                         ) : (
@@ -400,7 +400,7 @@ export default function DashboardProviderOverview() {
                         {p.isFree ? (
                           <span className="font-bold text-amber-500 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/30 text-base leading-none" title="Unlimited">&#8734;</span>
                         ) : (
-                          <span className="font-bold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded border border-[#10b981]/30">
+                          <span className="font-bold text-[var(--color-success)] bg-[var(--color-success)]/10 px-2 py-0.5 rounded border border-[var(--color-success)]/30">
                             {p.activeAccounts}
                           </span>
                         )}
@@ -421,7 +421,7 @@ export default function DashboardProviderOverview() {
                         {fmtNum(p.completionTokens)}
                       </td>
                       <td className="py-2.5 sm:py-3 px-3 sm:px-5 text-right font-bold text-text-main">
-                        <span className="text-[#ff1a53]">{fmtNum(p.tokens)}</span>
+                        <span className="text-[var(--color-primary)]">{fmtNum(p.tokens)}</span>
                         {p.requests > 0 && (
                           <span className="block text-[9.5px] text-text-muted font-normal">
                             {fmtNum(p.requests)} reqs

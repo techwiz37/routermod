@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
@@ -8,16 +8,39 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { getProviderByAlias } from "@/shared/constants/providers";
 import { useNotificationStore } from "@/store/notificationStore";
+import { getCurrentLocale } from "@/i18n/runtime";
+
+const TOAST_TEXT = {
+  id: {
+    testDone: "Test Selesai",
+    summary: (ok, fail, total) => `${ok} sukses · ${fail} gagal dari ${total} model`,
+    testOk: "Test Sukses",
+    testFail: "Test Gagal",
+    responded: (label, ms) => `${label} merespon (${ms}ms)`,
+    noResponse: "Model tidak merespon",
+    netError: "Network error",
+  },
+  en: {
+    testDone: "Test Complete",
+    summary: (ok, fail, total) => `${ok} passed · ${fail} failed out of ${total} models`,
+    testOk: "Test Passed",
+    testFail: "Test Failed",
+    responded: (label, ms) => `${label} responded (${ms}ms)`,
+    noResponse: "Model did not respond",
+    netError: "Network error",
+  },
+};
+const tt = () => TOAST_TEXT[getCurrentLocale()] || TOAST_TEXT.id;
 
 function providerMeta(aliasOrId) {
   const p = getProviderByAlias(aliasOrId);
   const id = p?.id || aliasOrId;
   return {
     id,
-    name: p?.display?.name || aliasOrId?.toUpperCase() || "Unknown",
+    name: p?.name || aliasOrId?.toUpperCase() || "Unknown",
     iconSrc: getProviderIconSrc(id),
-    fallbackIcon: p?.display?.icon || "hub",
-    color: p?.display?.color || null,
+    fallbackIcon: p?.icon || "hub",
+    color: p?.color || null,
   };
 }
 
@@ -37,7 +60,7 @@ function TestBadge({ result }) {
     return <span className="text-[10px] font-mono text-[var(--color-text-muted)] animate-pulse">testing…</span>;
   if (result.ok)
     return (
-      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[#10b981] bg-[#10b981]/10 border border-[#10b981]/30 rounded px-1.5 py-0.5">
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[var(--color-success)] bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 rounded px-1.5 py-0.5">
         <span className="material-symbols-outlined" style={{ fontSize: 11 }}>bolt</span>
         {result.ms < 1000 ? `${result.ms}ms` : `${(result.ms / 1000).toFixed(1)}s`}
       </span>
@@ -59,7 +82,7 @@ function ProviderCard({ group, selectedModels, active, onClick }) {
       onClick={onClick}
       className={`shrink-0 w-40 text-left rounded-xl border-2 transition-all bg-[var(--color-surface)] ${
         active
-          ? "border-[#ff1a53] shadow-[3px_4px_0px_#ff1a53] -translate-y-0.5"
+          ? "border-[var(--color-primary)] shadow-[3px_4px_0px_var(--color-primary)] -translate-y-0.5"
           : "border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)]"
       }`}
     >
@@ -73,7 +96,7 @@ function ProviderCard({ group, selectedModels, active, onClick }) {
           </div>
           <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
             selectedCount > 0
-              ? "text-[#ff1a53] bg-[#ff1a53]/10 border-[#ff1a53]/30"
+              ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10 border-[var(--color-primary)]/30"
               : "text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border-[var(--color-border)]"
           }`}>
             {selectedCount}/{group.models.length}
@@ -134,8 +157,8 @@ function TestModal({ isOpen, onClose, models }) {
     if (!abortRef.current) {
       addNotification({
         type: fail === 0 ? "success" : ok === 0 ? "error" : "warning",
-        title: "Test Selesai",
-        message: `${ok} sukses · ${fail} gagal dari ${models.length} model`,
+        title: tt().testDone,
+        message: tt().summary(ok, fail, models.length),
         duration: 5000,
       });
     }
@@ -157,12 +180,12 @@ function TestModal({ isOpen, onClose, models }) {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-mono text-[var(--color-text-muted)]">Testing {models.length} model{models.length !== 1 ? "s" : ""}…</p>
             <div className="mt-1.5 h-1.5 w-full rounded-full bg-[var(--color-border)] overflow-hidden">
-              <div className="h-full rounded-full bg-[#ff1a53] transition-all duration-300" style={{ width: `${models.length ? ((ok + fail) / models.length) * 100 : 0}%` }} />
+              <div className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-300" style={{ width: `${models.length ? ((ok + fail) / models.length) * 100 : 0}%` }} />
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0 text-xs font-mono font-bold">
-            {ok > 0 && <span className="text-[#10b981]">✓ {ok}</span>}
-            {fail > 0 && <span className="text-red-500">✗ {fail}</span>}
+            {ok > 0 && <span className="text-[var(--color-success)]">âœ“ {ok}</span>}
+            {fail > 0 && <span className="text-red-500">âœ— {fail}</span>}
             {pending > 0 && <span className="text-[var(--color-text-muted)] animate-pulse">… {pending}</span>}
           </div>
         </div>
@@ -173,13 +196,13 @@ function TestModal({ isOpen, onClose, models }) {
             return (
               <div key={id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
                 r === "pending" ? "border-[var(--color-border)] bg-[var(--color-surface)] animate-pulse" :
-                r?.ok ? "border-[#10b981]/20 bg-[#10b981]/5" :
+                r?.ok ? "border-[var(--color-success)]/20 bg-[var(--color-success)]/5" :
                 r ? "border-red-500/25 bg-red-500/5" :
                 "border-[var(--color-border)] bg-[var(--color-surface)]"
               }`}>
                 <span className={`size-1.5 rounded-full shrink-0 ${
                   r === "pending" ? "bg-[var(--color-text-muted)]" :
-                  r?.ok ? "bg-[#10b981]" :
+                  r?.ok ? "bg-[var(--color-success)]" :
                   r ? "bg-red-500" : "bg-[var(--color-border)]"
                 }`} />
                 <span className="text-xs font-mono text-[var(--color-text-main)] flex-1 min-w-0 truncate">{id}</span>
@@ -277,15 +300,15 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       if (good) {
         addNotification({
           type: "success",
-          title: "Test Sukses",
-          message: `${label || id} berhasil merespon (${ms}ms)`,
+          title: tt().testOk,
+          message: tt().responded(label || id, ms),
           duration: 4000,
         });
       } else {
         addNotification({
           type: "error",
-          title: "Test Gagal",
-          message: `${label || id}: ${data.error || "Model tidak merespon"}`,
+          title: tt().testFail,
+          message: `${label || id}: ${data.error || tt().noResponse}`,
           duration: 6000,
         });
       }
@@ -293,8 +316,8 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       setTestResults(prev => ({ ...prev, [id]: { ok: false, ms: Date.now() - t0 } }));
       addNotification({
         type: "error",
-        title: "Test Gagal",
-        message: `${label || id}: ${e.message || "Network error"}`,
+        title: tt().testFail,
+        message: `${label || id}: ${e.message || tt().netError}`,
         duration: 6000,
       });
     }
@@ -331,54 +354,21 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     ids.forEach(id => handleToggleModel(id, !activeAllSelected));
   };
 
-  const autoTestAbort = useRef(false);
+  const modelSliderRef = useRef(null);
+  const modelIsDragging = useRef(false);
+  const modelDragStart = useRef({ x: 0, scrollLeft: 0 });
 
-  const runGroupTest = useCallback(async (group) => {
-    autoTestAbort.current = false;
-    const list = group.models.map(m => ({ id: m.routedModel || `${m.provider}/${m.model}`, name: m.name || m.model }));
-    let ok = 0, fail = 0;
-    for (const { id, name } of list) {
-      if (autoTestAbort.current) break;
-      setTestResults(prev => ({ ...prev, [id]: "pending" }));
-      const t0 = Date.now();
-      try {
-        const res = await fetch("/api/models/test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model: id }),
-          signal: AbortSignal.timeout(30000),
-        });
-        const data = await res.json().catch(() => ({}));
-        const good = res.ok && data.ok !== false;
-        const ms = data.latencyMs || Date.now() - t0;
-        setTestResults(prev => ({ ...prev, [id]: { ok: good, ms } }));
-        if (good) ok++; else fail++;
-      } catch {
-        fail++;
-        setTestResults(prev => ({ ...prev, [id]: { ok: false, ms: Date.now() - t0 } }));
-      }
-      await new Promise(r => setTimeout(r, 200));
-    }
-    if (!autoTestAbort.current) {
-      addNotification({
-        type: fail === 0 ? "success" : ok === 0 ? "error" : "warning",
-        title: "Test Model Selesai",
-        message: `${group.meta.name}: ${ok} sukses · ${fail} gagal dari ${list.length} model`,
-        duration: 5000,
-      });
-    }
-  }, [addNotification]);
-
-  const handleCardClick = (group) => {
-    const opening = activeProvider !== group.provider;
-    setActiveProvider(prev => prev === group.provider ? null : group.provider);
-    if (opening) {
-      autoTestAbort.current = false;
-      setTimeout(() => runGroupTest(group), 250);
-    } else {
-      autoTestAbort.current = true;
-    }
+  const onModelMouseDown = (e) => {
+    modelIsDragging.current = true;
+    modelDragStart.current = { x: e.pageX - modelSliderRef.current.offsetLeft, scrollLeft: modelSliderRef.current.scrollLeft };
   };
+  const onModelMouseMove = (e) => {
+    if (!modelIsDragging.current) return;
+    e.preventDefault();
+    const x = e.pageX - modelSliderRef.current.offsetLeft;
+    modelSliderRef.current.scrollLeft = modelDragStart.current.scrollLeft - (x - modelDragStart.current.x);
+  };
+  const onModelMouseUp = () => { modelIsDragging.current = false; };
 
   return (
     <div className="mt-3" data-testid="key-access">
@@ -392,7 +382,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
         {access.restricted && selectedList.length > 0 && (
           <button
             onClick={() => setTestModalOpen(true)}
-            className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#ff1a53] hover:underline"
+            className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[var(--color-primary)] hover:underline"
           >
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>play_circle</span>
             Test {selectedList.length} model{selectedList.length !== 1 ? "s" : ""}
@@ -405,13 +395,13 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
           {selectedList.length === 0 && (
             <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
               <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>
-              No models selected — key can call nothing.
+              No models selected yet — this key cannot call anything.
             </p>
           )}
 
           {loading && (
             <div className="flex items-center gap-2 py-3 text-xs text-[var(--color-text-muted)] font-mono animate-pulse">
-              <span className="material-symbols-outlined text-[16px] animate-spin text-[#ff1a53]">progress_activity</span>
+              <span className="material-symbols-outlined text-[16px] animate-spin text-[var(--color-primary)]">progress_activity</span>
               Loading models…
             </div>
           )}
@@ -425,7 +415,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                 {activeGroup && (
                   <button
                     onClick={toggleAllActive}
-                    className="font-mono text-[10px] font-bold text-[#ff1a53] hover:underline"
+                    className="font-mono text-[10px] font-bold text-[var(--color-primary)] hover:underline"
                   >
                     {activeAllSelected ? "Deselect all" : "Select all"} ({activeGroup.meta.name})
                   </button>
@@ -447,67 +437,94 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                     group={group}
                     selectedModels={selectedModels}
                     active={activeProvider === group.provider}
-                    onClick={() => handleCardClick(group)}
+                    onClick={() => setActiveProvider(prev => prev === group.provider ? null : group.provider)}
                   />
                 ))}
               </div>
 
               {activeGroup && (
-                <div className="rounded-xl border-2 border-[#ff1a53] bg-[var(--color-surface)] shadow-[3px_4px_0px_#ff1a53] overflow-hidden">
-                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[#ff1a53]/10 border-b-2 border-[#ff1a53]/30">
+                <div className="rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-surface)] shadow-[3px_4px_0px_var(--color-primary)] overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[var(--color-primary)]/10 border-b-2 border-[var(--color-primary)]/30">
                     <div className="flex items-center gap-2 min-w-0">
                       {activeGroup.meta.iconSrc
                         ? <ProviderIcon src={activeGroup.meta.iconSrc} alt={activeGroup.meta.name} size={16} className="object-contain shrink-0" />
-                        : <span className="material-symbols-outlined text-[15px] text-[#ff1a53] shrink-0">{activeGroup.meta.fallbackIcon}</span>
+                        : <span className="material-symbols-outlined text-[15px] text-[var(--color-primary)] shrink-0">{activeGroup.meta.fallbackIcon}</span>
                       }
-                      <span className="font-mono text-[11px] font-black text-[#ff1a53] truncate">
+                      <span className="font-mono text-[11px] font-black text-[var(--color-primary)] truncate">
                         {activeGroup.meta.name} · {activeGroup.models.length} model
                       </span>
                     </div>
                     <button
-                      onClick={() => { autoTestAbort.current = true; setActiveProvider(null); }}
-                      className="material-symbols-outlined text-[16px] text-[var(--color-text-muted)] hover:text-[#ff1a53]"
+                      onClick={() => setActiveProvider(null)}
+                      className="material-symbols-outlined text-[16px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
                     >
                       close
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[var(--color-border)]/40">
+                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-[var(--color-border)]/40 bg-[var(--color-surface-2)]">
+                    <span className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                      geser → · klik toggle utk pilih · klik 🧪 utk test
+                    </span>
+                  </div>
+
+                  <div
+                    ref={modelSliderRef}
+                    className="flex gap-2.5 overflow-x-auto p-3"
+                    style={{ scrollbarWidth: "thin", scrollbarColor: "var(--color-border) transparent", cursor: "grab" }}
+                    onMouseDown={onModelMouseDown}
+                    onMouseMove={onModelMouseMove}
+                    onMouseUp={onModelMouseUp}
+                    onMouseLeave={onModelMouseUp}
+                  >
                     {activeGroup.models.map(m => {
                       const id = m.routedModel || `${m.provider}/${m.model}`;
                       const on = selectedModels.has(id);
                       const res = testResults[id];
                       const busy = res === "pending";
                       return (
-                        <div key={id} className={`flex items-center gap-2 px-3 py-2 transition-colors ${on ? "bg-[#ff1a53]/5" : ""}`}>
+                        <div
+                          key={id}
+                          className={`shrink-0 w-48 flex flex-col gap-2 rounded-xl border-2 p-2.5 transition-all ${
+                            on
+                              ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5 shadow-[2px_3px_0px_var(--color-primary)]"
+                              : "border-[var(--color-border)] bg-[var(--color-surface)] shadow-[2px_2px_0px_var(--color-border)]"
+                          }`}
+                        >
                           <button
                             onClick={() => handleToggleModel(id, !on)}
-                            className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 text-left"
+                            className="flex items-center gap-2 cursor-pointer text-left"
                           >
                             <span
                               className="relative shrink-0 rounded-full border-2 transition-all"
-                              style={{ width: 30, height: 18, background: on ? "#ff1a53" : "var(--color-surface-2)", borderColor: on ? "#ff1a53" : "var(--color-border)" }}
+                              style={{ width: 30, height: 18, background: on ? "var(--color-primary)" : "var(--color-surface-2)", borderColor: on ? "var(--color-primary)" : "var(--color-border)" }}
                             >
                               <span className={`absolute top-0.5 size-3 rounded-full bg-white shadow transition-transform duration-200 ${on ? "translate-x-3" : "translate-x-0.5"}`} />
                             </span>
-                            <span className="min-w-0">
-                              <span className={`block text-[11.5px] font-mono truncate ${on ? "text-[var(--color-text-main)] font-bold" : "text-[var(--color-text-muted)]"}`}>
+                            <span className="min-w-0 flex-1">
+                              <span className={`block text-[11px] font-mono truncate ${on ? "text-[var(--color-text-main)] font-bold" : "text-[var(--color-text-muted)]"}`}>
                                 {m.name || m.model}
                               </span>
-                              <span className="block text-[9.5px] font-mono text-[var(--color-text-muted)] truncate">{id}</span>
+                              <span className="block text-[9px] font-mono text-[var(--color-text-muted)] truncate">{id}</span>
                             </span>
                           </button>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {res && res !== "pending" && <TestBadge result={res} />}
+
+                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-[var(--color-border)]/40">
+                            {res && res !== "pending"
+                              ? <TestBadge result={res} />
+                              : res === "pending"
+                                ? <span className="text-[10px] font-mono text-[var(--color-text-muted)] animate-pulse">testing…</span>
+                                : <span className="text-[9px] font-mono text-[var(--color-text-muted)]">not tested yet</span>
+                            }
                             <button
                               onClick={() => handleTestModel(id, m.name || m.model)}
                               disabled={busy}
                               title="Test model"
-                              className="flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] hover:border-[#ff1a53] transition-all hover:-translate-y-px active:translate-y-0 disabled:opacity-50 shadow-[1.5px_1.5px_0_var(--color-border)]"
+                              className="flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all hover:-translate-y-px active:translate-y-0 disabled:opacity-50 shadow-[1.5px_1.5px_0_var(--color-border)]"
                             >
                               {busy
-                                ? <span className="material-symbols-outlined text-[14px] animate-spin text-[#ff1a53]">progress_activity</span>
-                                : <span className="material-symbols-outlined text-[14px] text-[#ff1a53]">play_arrow</span>
+                                ? <span className="material-symbols-outlined text-[14px] animate-spin text-[var(--color-primary)]">progress_activity</span>
+                                : <span className="material-symbols-outlined text-[14px] text-[var(--color-text-muted)] group-hover:text-white">science</span>
                               }
                             </button>
                           </div>

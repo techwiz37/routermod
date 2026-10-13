@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
@@ -98,8 +98,8 @@ function RouterNode({ data }) {
     <div
       className={`relative z-[1] flex items-center justify-center px-4 py-2.5 rounded-xl border-2 min-w-[130px] ${
         powering
-          ? "topology-router-core border-[#ff1a53] bg-gradient-to-br from-[#ff1a53]/30 via-rose-400/20 to-orange-400/15"
-          : "border-[#ff1a53] bg-[#ff1a53]/5"
+          ? "topology-router-core border-[var(--color-primary)] bg-gradient-to-br from-[var(--color-primary)]/30 via-rose-400/20 to-orange-400/15"
+          : "border-[var(--color-primary)] bg-[var(--color-primary)]/5"
       }`}
       style={{ boxShadow: powering ? "0 0 20px #ff1a5340, 2px 2px 0 var(--color-border)" : "2px 2px 0 var(--color-border)" }}
     >
@@ -108,14 +108,14 @@ function RouterNode({ data }) {
       <Handle type="source" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
       <Handle type="source" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
 
-      <span className={`material-symbols-outlined text-[20px] mr-2 ${powering ? "topology-router-icon text-[#ff1a53]" : "text-[#ff1a53]"}`}>
+      <span className={`material-symbols-outlined text-[20px] mr-2 ${powering ? "topology-router-icon text-[var(--color-primary)]" : "text-[var(--color-primary)]"}`}>
         router
       </span>
-      <span className={`text-sm font-black tracking-wider uppercase ${powering ? "topology-router-label text-[#ff1a53]" : "text-[#ff1a53]"}`}>
+      <span className={`text-sm font-black tracking-wider uppercase ${powering ? "topology-router-label text-[var(--color-primary)]" : "text-[var(--color-primary)]"}`}>
         RouterMod
       </span>
       {data.activeCount > 0 && (
-        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ff1a53] text-white text-[10px] font-black topology-router-badge">
+        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[var(--color-primary)] text-white text-[10px] font-black topology-router-badge">
           {data.activeCount}
         </span>
       )}

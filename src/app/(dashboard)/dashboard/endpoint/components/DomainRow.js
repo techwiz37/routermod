@@ -17,7 +17,7 @@ export default function DomainRow({
 
   const badgeClass = `self-start text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
     tunnelEnabled
-      ? "bg-[#ff1a53]/10 text-[#ff1a53] border-[#ff1a53]/30"
+      ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] border-[var(--color-primary)]/30"
       : "bg-surface-2 text-text-muted border-border"
   }`;
 

@@ -20,12 +20,12 @@ function CommunityPopup({ onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b-2 border-border bg-surface-2">
           <div className="flex items-center gap-2.5">
-            <div className="size-8 rounded-lg border-2 border-border bg-[#ff1a53]/10 shadow-[1.5px_1.5px_0_var(--color-border)] flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px] text-[#ff1a53]">groups</span>
+            <div className="size-8 rounded-lg border-2 border-border bg-[var(--color-primary)]/10 shadow-[1.5px_1.5px_0_var(--color-border)] flex items-center justify-center">
+              <span className="material-symbols-outlined text-[18px] text-[var(--color-primary)]">groups</span>
             </div>
             <div>
-              <p className="font-mono font-bold text-text-main text-sm uppercase tracking-wider leading-tight">Komunitas RouterMod</p>
-              <p className="text-[10px] text-text-muted font-mono">Bergabung & diskusi bersama</p>
+              <p className="font-mono font-bold text-text-main text-sm uppercase tracking-wider leading-tight">RouterMod Community</p>
+              <p className="text-[10px] text-text-muted font-mono">Join &amp; hang out with us</p>
             </div>
           </div>
           <button
@@ -40,7 +40,7 @@ function CommunityPopup({ onClose }) {
         {/* Body */}
         <div className="p-4 flex flex-col gap-3">
           <p className="text-xs text-text-muted leading-relaxed">
-            Bergabung ke komunitas RouterMod — tanya, sharing konfigurasi, info update fitur terbaru, dan saling bantu antar pengguna.
+            Join the RouterMod community — ask questions, swap configs, get the latest feature news, and help each other out.
           </p>
 
           {/* Telegram */}
@@ -72,7 +72,7 @@ function CommunityPopup({ onClose }) {
             </svg>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-[#25D366] leading-tight">WhatsApp</p>
-              <p className="text-[10px] text-text-muted font-mono">Grup Diskusi RouterMod</p>
+              <p className="text-[10px] text-text-muted font-mono">RouterMod Discussion Group</p>
             </div>
             <span className="material-symbols-outlined text-[14px] text-[#25D366] shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">open_in_new</span>
           </a>
@@ -85,24 +85,24 @@ function CommunityPopup({ onClose }) {
 function getToastStyle(type) {
   if (type === "success") {
     return {
-      wrapper: "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
+      wrapper: "border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]",
       icon: "check_circle",
     };
   }
   if (type === "error") {
     return {
-      wrapper: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
+      wrapper: "border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 text-[var(--color-danger)]",
       icon: "error",
     };
   }
   if (type === "warning") {
     return {
-      wrapper: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      wrapper: "border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 text-[var(--color-warning)]",
       icon: "warning",
     };
   }
   return {
-    wrapper: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    wrapper: "border-[var(--color-info)]/30 bg-[var(--color-info)]/10 text-[var(--color-info)]",
     icon: "info",
   };
 }
@@ -201,7 +201,7 @@ export default function DashboardLayout({ children }) {
       {/* Main content */}
       <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate bg-[var(--color-bg)] text-[var(--color-text)]">
         {/* Top Accent Reticle (identical to login) */}
-        <div className="fixed top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#ff1a53] to-transparent z-50 pointer-events-none opacity-80" />
+        <div className="fixed top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent z-50 pointer-events-none opacity-80" />
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
@@ -211,7 +211,7 @@ export default function DashboardLayout({ children }) {
           {/* Unified Neobrutalism Footer */}
           <footer className="mt-8 pt-4 pb-2 border-t-2 border-border flex flex-col items-center justify-center gap-1 font-mono text-center">
             <div className="text-xs font-bold text-text-main flex items-center justify-center gap-2">
-              <span className="size-2 rounded-full bg-[#10b981] animate-pulse" />
+              <span className="size-2 rounded-full bg-[var(--color-success)] animate-pulse" />
               <span>Router Mod {new Date().getFullYear()}</span>
             </div>
             <div className="text-[11px] font-semibold text-text-muted">
@@ -220,7 +220,7 @@ export default function DashboardLayout({ children }) {
                 href="https://github.com/techwiz37"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#ff1a53] hover:underline font-bold inline-flex items-center gap-0.5"
+                className="text-[var(--color-primary)] hover:underline font-bold inline-flex items-center gap-0.5"
               >
                 Techwiz
                 <span className="material-symbols-outlined text-[12px]">open_in_new</span>

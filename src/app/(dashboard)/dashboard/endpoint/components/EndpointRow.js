@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Input } from "@/shared/components";
 
@@ -8,7 +8,7 @@ export default function EndpointRow({ label, url, copyId, copied, onCopy, badge,
       {/* Badge */}
       <span className={`self-start text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
         (badge === "CF" || badge === "TS")
-          ? "bg-[#ff1a53]/10 text-[#ff1a53] border-[#ff1a53]/30"
+          ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] border-[var(--color-primary)]/30"
           : "bg-surface-2 text-text-muted border-border"
       }`}>
         {label}

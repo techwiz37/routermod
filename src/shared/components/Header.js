@@ -242,9 +242,9 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
           <Soft3DLogo className="size-7 sm:size-8" />
           <div className="hidden min-[380px]:flex flex-col leading-none">
             <span className="font-mono text-xs sm:text-sm font-black tracking-wider text-text-main">
-              ROUTER<span className="text-[#ff1a53]">MOD</span>
+              ROUTER<span className="text-[var(--color-primary)]">MOD</span>
             </span>
-            <span className="font-mono text-[8px] sm:text-[9px] font-bold text-[#ff1a53] tracking-widest">
+            <span className="font-mono text-[8px] sm:text-[9px] font-bold text-[var(--color-primary)] tracking-widest">
             </span>
           </div>
         </Link>
@@ -265,7 +265,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
             </div>
           ) : title ? (
             <div className="flex items-center gap-1.5">
-              {icon && <span className="material-symbols-outlined text-[#ff1a53] text-[18px]">{icon}</span>}
+              {icon && <span className="material-symbols-outlined text-[var(--color-primary)] text-[18px]">{icon}</span>}
               <span className="font-mono text-xs font-bold text-text-main truncate">{translate(title)}</span>
             </div>
           ) : null}
@@ -289,7 +289,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
         <HeaderSearch />
         <button
           onClick={() => setDonateOpen(true)}
-          className="flex items-center gap-1.5 px-3 h-8 rounded-md border-2 border-border bg-[#ff1a53]/15 text-[#ff1a53] shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_var(--color-border)] active:translate-y-0 transition-all text-xs font-mono font-bold uppercase cursor-pointer"
+          className="flex items-center gap-1.5 px-3 h-8 rounded-md border-2 border-border bg-[var(--color-primary)]/15 text-[var(--color-primary)] shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_var(--color-border)] active:translate-y-0 transition-all text-xs font-mono font-bold uppercase cursor-pointer"
           aria-label="Donate"
         >
           <span className="material-symbols-outlined text-[17px]">volunteer_activism</span>
@@ -322,7 +322,7 @@ function HeaderSearch() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        className="w-full h-8 pl-7 pr-7 rounded-md border-2 border-border bg-surface text-xs font-mono shadow-[2px_2px_0px_var(--color-border)] focus:outline-none focus:border-[#ff1a53] focus:shadow-[3px_3px_0px_#ff1a53] transition-all"
+        className="w-full h-8 pl-7 pr-7 rounded-md border-2 border-border bg-surface text-xs font-mono shadow-[2px_2px_0px_var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[3px_3px_0px_var(--color-primary)] transition-all"
       />
       {query && (
         <button

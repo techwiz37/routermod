@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef } from "react";
 import PropTypes from "prop-types";
@@ -54,13 +54,13 @@ export default function ChangelogModal({ isOpen, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between p-3.5 sm:p-4 border-b-2 border-border bg-surface-2">
           <div className="flex items-center gap-2.5">
-            <div className="size-8 rounded-lg bg-[#ff1a53]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[#ff1a53]">
+            <div className="size-8 rounded-lg bg-[var(--color-primary)]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[var(--color-primary)]">
               <span className="material-symbols-outlined text-[18px]">history</span>
             </div>
             <div>
               <h2 className="font-mono text-sm sm:text-base font-bold text-text-main uppercase tracking-wider flex items-center gap-2">
                 <span>Changelog</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-border bg-surface text-[#ff1a53]">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-border bg-surface text-[var(--color-primary)]">
                   Git Live
                 </span>
               </h2>
@@ -82,7 +82,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
         <div className="p-3.5 sm:p-5 overflow-y-auto space-y-3 custom-scrollbar flex-1">
           {loading ? (
             <div className="p-8 text-center font-mono text-xs text-text-muted flex flex-col items-center justify-center gap-2">
-              <span className="material-symbols-outlined animate-spin text-[24px] text-[#ff1a53]">progress_activity</span>
+              <span className="material-symbols-outlined animate-spin text-[24px] text-[var(--color-primary)]">progress_activity</span>
               <span>Memuat commit terbaru...</span>
             </div>
           ) : error ? (
@@ -121,7 +121,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
                       href={c.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2 py-0.5 rounded bg-[#ff1a53] text-white text-[10.5px] font-bold hover:underline flex items-center gap-1 shadow-[1px_1px_0px_var(--color-border)]"
+                      className="px-2 py-0.5 rounded bg-[var(--color-primary)] text-white text-[10.5px] font-bold hover:underline flex items-center gap-1 shadow-[1px_1px_0px_var(--color-border)]"
                     >
                       <span className="material-symbols-outlined text-[11px]">commit</span>
                       <span>{c.sha}</span>
@@ -151,7 +151,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
             href="https://github.com/techwiz37/routermod/commits"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#ff1a53] hover:underline font-bold inline-flex items-center gap-1 text-[11px]"
+            className="text-[var(--color-primary)] hover:underline font-bold inline-flex items-center gap-1 text-[11px]"
           >
             <span>Buka Semua Commit di GitHub</span>
             <span className="material-symbols-outlined text-[13px]">open_in_new</span>

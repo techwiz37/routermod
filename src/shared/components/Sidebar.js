@@ -106,12 +106,12 @@ export default function Sidebar({ onClose }) {
         {/* Top HUD reticle / Brand bar */}
         <div className="flex items-center justify-between border-b-2 border-border bg-surface-2 px-4 py-2.5">
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[#ff1a53] shadow-[1px_1px_0px_var(--color-border)]" />
-            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[#f59e0b] shadow-[1px_1px_0px_var(--color-border)]" />
-            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[#10b981] shadow-[1px_1px_0px_var(--color-border)]" />
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[var(--color-primary)] shadow-[1px_1px_0px_var(--color-border)]" />
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[var(--color-warning)] shadow-[1px_1px_0px_var(--color-border)]" />
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[var(--color-success)] shadow-[1px_1px_0px_var(--color-border)]" />
           </div>
-          <span className="font-mono text-[10.5px] font-extrabold uppercase tracking-widest text-[#10b981] bg-surface border-2 border-border px-2 py-0.5 rounded-md shadow-[2px_2px_0px_var(--color-border)] flex items-center gap-1.5">
-            <span className="size-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
+          <span className="font-mono text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--color-success)] bg-surface border-2 border-border px-2 py-0.5 rounded-md shadow-[2px_2px_0px_var(--color-border)] flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-[var(--color-success)] animate-pulse"></span>
             PORT :1945
           </span>
         </div>
@@ -126,37 +126,37 @@ export default function Sidebar({ onClose }) {
               >
                 <defs>
                   <linearGradient id="sb-logo-r-red" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#ff1a53" />
+                    <stop offset="0%" stopColor="var(--color-brand-500)" />
                     <stop offset="100%" stopColor="#dc2626" />
                   </linearGradient>
                 </defs>
-                <rect x="8" y="8" width="104" height="104" rx="22" fill="#181c24" stroke="var(--color-border)" strokeWidth="4" />
-                <rect x="12" y="12" width="96" height="96" rx="18" fill="#ffffff" className="dark:fill-[#1b1f2b]" />
+                <rect x="8" y="8" width="104" height="104" rx="22" fill="var(--color-border)" stroke="var(--color-border)" strokeWidth="4" />
+                <rect x="12" y="12" width="96" height="96" rx="18" className="fill-[var(--color-surface)]" />
                 <path d="M12 36L36 12H12v24z" fill="url(#sb-logo-r-red)" />
-                <circle cx="94" cy="26" r="4.5" fill="#10b981" stroke="var(--color-border)" strokeWidth="2" />
-                <rect x="34" y="30" width="16" height="60" rx="4" fill="#181c24" className="dark:fill-white" />
-                <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" fill="#181c24" className="dark:fill-white" />
-                <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" fill="#ffffff" className="dark:fill-[#1b1f2b]" />
+                <circle cx="94" cy="26" r="4.5" fill="var(--color-success)" stroke="var(--color-border)" strokeWidth="2" />
+                <rect x="34" y="30" width="16" height="60" rx="4" className="fill-[var(--color-text-main)]" />
+                <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" className="fill-[var(--color-text-main)]" />
+                <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" className="fill-[var(--color-surface)]" />
                 <path d="M60 62L83 90H65L48 68h14z" fill="url(#sb-logo-r-red)" stroke="var(--color-border)" strokeWidth="2" strokeLinejoin="round" />
-                <circle cx="88" cy="88" r="4.5" fill="#3b82f6" stroke="var(--color-border)" strokeWidth="2" />
+                <circle cx="88" cy="88" r="4.5" fill="var(--color-info)" stroke="var(--color-border)" strokeWidth="2" />
               </svg>
             </div>
             <div className="flex flex-col">
               <h1 className="text-sm font-black uppercase tracking-wider text-text-main font-mono flex items-center gap-1">
-                ROUTER<span className="text-[#ff1a53]">MOD</span>
+                ROUTER<span className="text-[var(--color-primary)]">MOD</span>
               </h1>
-              <span className="text-[10px] font-mono font-bold text-[#ff1a53] tracking-widest">// AI INFRASTRUCTURE</span>
+              <span className="text-[10px] font-mono font-bold text-[var(--color-primary)] tracking-widest">// AI INFRASTRUCTURE</span>
             </div>
           </Link>
           {updateInfo && (
             <div className="flex flex-col gap-1.5 rounded p-1 -m-1">
-              <span className="text-xs font-semibold text-green-600 dark:text-amber-500">
+              <span className="text-xs font-semibold text-[var(--color-success)]">
                 ↑ New version available: v{updateInfo.latestVersion}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowUpdateModal(true)}
-                  className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                  className="px-2 py-1 rounded bg-[var(--color-success)] hover:opacity-90 text-white text-[11px] font-semibold transition-colors cursor-pointer"
                 >
                   Update now
                 </button>
@@ -165,7 +165,7 @@ export default function Sidebar({ onClose }) {
                   title="Copy install command"
                   className="flex-1 text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
                 >
-                  <code className="block text-[10px] text-green-600/80 dark:text-amber-400/70 font-mono truncate">
+                  <code className="block text-[10px] text-[var(--color-success)]/80 font-mono truncate">
                     {copied ? "✓ copied!" : INSTALL_CMD}
                   </code>
                 </button>
@@ -184,7 +184,7 @@ export default function Sidebar({ onClose }) {
               className={cn(
                 "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 isActive(item.href)
-                  ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
                   : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_var(--color-border)]"
               )}
             >
@@ -212,7 +212,7 @@ export default function Sidebar({ onClose }) {
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 pathname.startsWith("/dashboard/media-providers")
-                  ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
                   : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
@@ -232,7 +232,7 @@ export default function Sidebar({ onClose }) {
                     className={cn(
                       "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                       pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
-                        ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                        ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
                         : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                     )}
                   >
@@ -247,7 +247,7 @@ export default function Sidebar({ onClose }) {
                   className={cn(
                     "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                     pathname.startsWith(COMBINED_WEB_ITEM.href)
-                      ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                      ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
                       : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                   )}
                 >
@@ -265,7 +265,7 @@ export default function Sidebar({ onClose }) {
                 className={cn(
                   "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                   isActive(item.href)
-                    ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                    ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
                     : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                 )}
               >
@@ -292,7 +292,7 @@ export default function Sidebar({ onClose }) {
                   className={cn(
                     "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                     isActive(item.href)
-                      ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                      ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
                       : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                   )}
                 >
@@ -333,7 +333,7 @@ export default function Sidebar({ onClose }) {
               className={cn(
                 "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 isActive("/dashboard/profile")
-                  ? "bg-[#ff1a53] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
                   : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
@@ -380,7 +380,7 @@ export default function Sidebar({ onClose }) {
             />
           ) : (
             <div className="text-center p-8">
-              <div className="flex items-center justify-center size-16 rounded-full bg-red-500/20 text-red-500 mx-auto mb-4">
+              <div className="flex items-center justify-center size-16 rounded-full bg-[var(--color-danger)]/20 text-[var(--color-danger)] mx-auto mb-4">
                 <span className="material-symbols-outlined text-[32px]">power_off</span>
               </div>
               <h2 className="text-xl font-semibold text-white mb-2">Server Disconnected</h2>
@@ -405,7 +405,7 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
   return (
     <div className="w-full max-w-lg rounded-xl bg-neutral-900/95 border border-white/10 p-6 text-white">
       <div className="flex items-center gap-3 mb-4">
-        <div className="flex items-center justify-center size-11 rounded-full bg-amber-500/20 text-amber-400">
+        <div className="flex items-center justify-center size-11 rounded-full bg-[var(--color-warning)]/20 text-[var(--color-warning)]">
           <span className="material-symbols-outlined text-[24px]">content_copy</span>
         </div>
         <div>

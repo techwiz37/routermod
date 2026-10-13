@@ -40,7 +40,7 @@ export default function AppPreloader() {
           <svg className="rpl-svg" viewBox="0 0 120 120">
             <defs>
               <linearGradient id="rpl-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#ff1a53" />
+                <stop offset="0%" stopColor="var(--color-brand-500)" />
                 <stop offset="100%" stopColor="#dc2626" />
               </linearGradient>
             </defs>
@@ -53,7 +53,7 @@ export default function AppPreloader() {
             <path className="rpl-tri" d="M12 36L36 12H12v24z" fill="url(#rpl-grad)" />
 
             {/* Green dot */}
-            <circle className="rpl-dot rpl-dot-g" cx="94" cy="26" r="4.5" fill="#10b981" />
+            <circle className="rpl-dot rpl-dot-g" cx="94" cy="26" r="4.5" fill="var(--color-success)" />
 
             {/* R stem */}
             <rect className="rpl-stem" x="34" y="30" width="16" height="60" rx="4" />
@@ -66,7 +66,7 @@ export default function AppPreloader() {
             <path className="rpl-leg" d="M60 62L83 90H65L48 68h14z" fill="url(#rpl-grad)" />
 
             {/* Blue dot */}
-            <circle className="rpl-dot rpl-dot-b" cx="88" cy="88" r="4.5" fill="#3b82f6" />
+            <circle className="rpl-dot rpl-dot-b" cx="88" cy="88" r="4.5" fill="var(--color-info)" />
           </svg>
         </div>
 

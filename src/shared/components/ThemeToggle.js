@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useTheme } from "@/shared/hooks/useTheme";
 import { cn } from "@/shared/utils/cn";
@@ -31,7 +31,7 @@ export default function ThemeToggle({ className, variant = "default" }) {
     >
       <span
         className={cn(
-          "material-symbols-outlined text-[18px] text-[#ff1a53]",
+          "material-symbols-outlined text-[18px] text-[var(--color-primary)]",
           variant === "card" && "transition-transform duration-300 group-hover:rotate-12"
         )}
       >

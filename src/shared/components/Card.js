@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { cn } from "@/shared/utils/cn";
 
@@ -37,7 +37,7 @@ export default function Card({
         <div className="flex items-center justify-between mb-4 border-b-2 border-border pb-3">
           <div className="flex items-center gap-3">
             {icon && (
-              <div className="p-2 rounded-lg bg-surface-2 border-2 border-border shadow-[2px_2px_0px_var(--color-border)] text-[#ff1a53]">
+              <div className="p-2 rounded-lg bg-surface-2 border-2 border-border shadow-[2px_2px_0px_var(--color-border)] text-[var(--color-primary)]">
                 <span className="material-symbols-outlined text-[20px]">{icon}</span>
               </div>
             )}

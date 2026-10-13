@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { cn } from "@/shared/utils/cn";
 
 const variants = {
-  primary: "bg-[#ff1a53] hover:bg-[#e10943] text-white disabled:bg-surface-3 disabled:text-text-muted",
+  primary: "bg-[var(--color-primary)] hover:bg-[#e10943] text-white disabled:bg-surface-3 disabled:text-text-muted",
   secondary: "bg-surface-2 hover:bg-surface-3 text-text-main disabled:opacity-50",
   outline: "bg-surface text-text-main hover:bg-surface-2",
   ghost: "border-transparent shadow-none hover:bg-surface-2 hover:border-border hover:shadow-[2px_2px_0px_var(--color-border)] text-text-muted hover:text-text-main",

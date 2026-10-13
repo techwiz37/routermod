@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useTheme } from "@/shared/hooks/useTheme";
@@ -101,27 +101,27 @@ function Soft3DLogo({ className = "size-11" }) {
     <div className={`relative flex items-center justify-center shrink-0 group ${className}`}>
       <svg
         viewBox="0 0 120 120"
-        className="w-full h-full drop-shadow-[2.5px_3.5px_0px_rgba(24,28,36,0.85)] transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:drop-shadow-[3.5px_4.5px_0px_rgba(24,28,36,0.9)]"
+        className="w-full h-full drop-shadow-[2.5px_3.5px_0px_var(--color-border)] transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:drop-shadow-[3.5px_4.5px_0px_var(--color-border)]"
       >
         <defs>
           <linearGradient id="logo-r-red" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#ff1a53" />
+            <stop offset="0%" stopColor="var(--color-brand-500)" />
             <stop offset="100%" stopColor="#dc2626" />
           </linearGradient>
         </defs>
 
-        <rect x="8" y="8" width="104" height="104" rx="22" fill="#181c24" stroke="#181c24" strokeWidth="4" />
-        <rect x="12" y="12" width="96" height="96" rx="18" fill="#ffffff" className="dark:fill-[#1b1f2b]" />
+        <rect x="8" y="8" width="104" height="104" rx="22" fill="var(--color-border)" stroke="var(--color-border)" strokeWidth="4" />
+        <rect x="12" y="12" width="96" height="96" rx="18" className="fill-[var(--color-surface)]" />
 
         <path d="M12 36L36 12H12v24z" fill="url(#logo-r-red)" />
-        <circle cx="94" cy="26" r="4.5" fill="#10b981" stroke="#181c24" strokeWidth="2" />
+        <circle cx="94" cy="26" r="4.5" className="fill-[var(--color-success)]" stroke="var(--color-border)" strokeWidth="2" />
 
-        <rect x="34" y="30" width="16" height="60" rx="4" fill="#181c24" className="dark:fill-white" />
-        <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" fill="#181c24" className="dark:fill-white" />
-        <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" fill="#ffffff" className="dark:fill-[#1b1f2b]" />
+        <rect x="34" y="30" width="16" height="60" rx="4" className="fill-[var(--color-text-main)]" />
+        <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" className="fill-[var(--color-text-main)]" />
+        <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" className="fill-[var(--color-surface)]" />
 
-        <path d="M60 62L83 90H65L48 68h14z" fill="url(#logo-r-red)" stroke="#181c24" strokeWidth="2" strokeLinejoin="round" />
-        <circle cx="88" cy="88" r="4.5" fill="#3b82f6" stroke="#181c24" strokeWidth="2" />
+        <path d="M60 62L83 90H65L48 68h14z" fill="url(#logo-r-red)" stroke="var(--color-border)" strokeWidth="2" strokeLinejoin="round" />
+        <circle cx="88" cy="88" r="4.5" className="fill-[var(--color-info)]" stroke="var(--color-border)" strokeWidth="2" />
       </svg>
     </div>
   );
@@ -270,9 +270,9 @@ export default function LoginForm() {
   const passwordAvailable = authMode === "password" || authMode === "both" || (!samlAvailable && !oidcAvailable);
 
   return (
-    <div className="min-h-screen w-full bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col justify-between selection:bg-[#ff1a53] selection:text-white relative font-sans overflow-x-hidden">
+    <div className="min-h-screen w-full bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col justify-between selection:bg-[var(--color-primary)] selection:text-white relative font-sans overflow-x-hidden">
       {/* Top Ambient Glow / Reticle */}
-      <div className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-[#ff1a53] to-transparent z-50 pointer-events-none opacity-80" />
+      <div className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent z-50 pointer-events-none opacity-80" />
 
       {/* Top Navbar */}
       <header className="w-full border-b-2 border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-md z-40 sticky top-0 shadow-[0_4px_12px_rgba(24,28,36,0.06)]">
@@ -282,9 +282,9 @@ export default function LoginForm() {
             <Soft3DLogo className="size-9 sm:size-10" />
             <div className="flex flex-col leading-tight">
               <span className="font-mono text-sm sm:text-base font-black tracking-wider text-[var(--color-text-main)]">
-                ROUTER<span className="text-[#ff1a53]">MOD</span>
+                ROUTER<span className="text-[var(--color-primary)]">MOD</span>
               </span>
-              <span className="font-mono text-[9.5px] sm:text-[10px] font-bold text-[#ff1a53] tracking-widest">
+              <span className="font-mono text-[9.5px] sm:text-[10px] font-bold text-[var(--color-primary)] tracking-widest">
               </span>
             </div>
           </div>
@@ -293,7 +293,7 @@ export default function LoginForm() {
           <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Online Pulse with 3D Depth */}
             <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] rounded-lg text-[11px] font-mono font-bold">
-              <span className="size-2 rounded-full bg-[#10b981] animate-pulse" />
+              <span className="size-2 rounded-full bg-[var(--color-success)] animate-pulse" />
               <span>{t.badgeGateway}</span>
             </div>
 
@@ -306,7 +306,7 @@ export default function LoginForm() {
                 title="Bahasa Indonesia"
                 className={`size-7 rounded-full overflow-hidden border-2 transition-all duration-200 flex items-center justify-center cursor-pointer ${
                   locale === "id"
-                    ? "border-[#ff1a53] scale-110 shadow-[0_2px_6px_rgba(255,26,83,0.4)] ring-1 ring-[#ff1a53]"
+                    ? "border-[var(--color-primary)] scale-110 shadow-[0_2px_6px_rgba(255,26,83,0.4)] ring-1 ring-[var(--color-primary)]"
                     : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
                 }`}
               >
@@ -328,7 +328,7 @@ export default function LoginForm() {
                 title="English"
                 className={`size-7 rounded-full overflow-hidden border-2 transition-all duration-200 flex items-center justify-center cursor-pointer ${
                   locale === "en"
-                    ? "border-[#ff1a53] scale-110 shadow-[0_2px_6px_rgba(255,26,83,0.4)] ring-1 ring-[#ff1a53]"
+                    ? "border-[var(--color-primary)] scale-110 shadow-[0_2px_6px_rgba(255,26,83,0.4)] ring-1 ring-[var(--color-primary)]"
                     : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
                 }`}
               >
@@ -354,7 +354,7 @@ export default function LoginForm() {
               aria-label="Toggle Theme"
               className="px-2.5 py-1.5 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4.5px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1px_0px_var(--color-border)] transition-all flex items-center gap-1.5 font-mono text-xs font-bold rounded-lg cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[16px] text-[#ff1a53]">
+              <span className="material-symbols-outlined text-[16px] text-[var(--color-primary)]">
                 {isDark ? "light_mode" : "dark_mode"}
               </span>
               <span className="hidden sm:inline text-[11px]">
@@ -371,18 +371,18 @@ export default function LoginForm() {
           {/* Left Hero & Specs Column */}
           <div className="lg:col-span-7 flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-1 bg-[#ff1a53] text-white border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-black uppercase tracking-wider rounded-lg">
+              <span className="px-2.5 py-1 bg-[var(--color-primary)] text-white border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-black uppercase tracking-wider rounded-lg">
                 {t.badgeBeta}
               </span>
-              <span className="px-2.5 py-1 bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-bold text-[#10b981] flex items-center gap-1.5 rounded-lg">
-                <span className="size-2 rounded-full bg-[#10b981] animate-pulse" />
+              <span className="px-2.5 py-1 bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-bold text-[var(--color-success)] flex items-center gap-1.5 rounded-lg">
+                <span className="size-2 rounded-full bg-[var(--color-success)] animate-pulse" />
                 STANDALONE // FAST REFRESH
               </span>
             </div>
 
             <div>
               <h1 className="font-mono text-2xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-[var(--color-text-main)] leading-[1.15] mb-2.5">
-                AI GATEWAY <span className="text-[#ff1a53] underline decoration-3 underline-offset-4">{t.heroHighlight}</span>
+                AI GATEWAY <span className="text-[var(--color-primary)] underline decoration-3 underline-offset-4">{t.heroHighlight}</span>
               </h1>
               <p className="text-xs sm:text-sm md:text-base text-[var(--color-text-muted)] leading-relaxed max-w-xl">
                 {t.desc}
@@ -393,8 +393,8 @@ export default function LoginForm() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)] hover:shadow-[4px_6px_0px_var(--color-border)] p-3.5 rounded-xl hover:-translate-y-1 transition-all">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <div className="size-6 rounded-md bg-[#ff1a53]/10 border border-[#ff1a53] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[#ff1a53] text-[16px]">hub</span>
+                  <div className="size-6 rounded-md bg-[var(--color-primary)]/10 border border-[var(--color-primary)] flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[var(--color-primary)] text-[16px]">hub</span>
                   </div>
                   <span className="font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)]">
                     {t.feature1Title}
@@ -407,8 +407,8 @@ export default function LoginForm() {
 
               <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)] hover:shadow-[4px_6px_0px_var(--color-border)] p-3.5 rounded-xl hover:-translate-y-1 transition-all">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <div className="size-6 rounded-md bg-[#3b82f6]/10 border border-[#3b82f6] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[#3b82f6] text-[16px]">sync</span>
+                  <div className="size-6 rounded-md bg-[var(--color-info)]/10 border border-[var(--color-info)] flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[var(--color-info)] text-[16px]">sync</span>
                   </div>
                   <span className="font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)]">
                     {t.feature2Title}
@@ -421,8 +421,8 @@ export default function LoginForm() {
 
               <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)] hover:shadow-[4px_6px_0px_var(--color-border)] p-3.5 rounded-xl hover:-translate-y-1 transition-all">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <div className="size-6 rounded-md bg-[#10b981]/10 border border-[#10b981] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[#10b981] text-[16px]">database</span>
+                  <div className="size-6 rounded-md bg-[var(--color-success)]/10 border border-[var(--color-success)] flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[var(--color-success)] text-[16px]">database</span>
                   </div>
                   <span className="font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)]">
                     {t.feature3Title}
@@ -442,12 +442,12 @@ export default function LoginForm() {
                 className="w-full px-4 py-3 bg-[var(--color-surface-2)] flex items-center justify-between gap-3 text-left font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)] hover:bg-[var(--color-surface)] cursor-pointer transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <span className="size-5 rounded-md bg-[#ff1a53] text-white flex items-center justify-center text-[12px] font-mono">
+                  <span className="size-5 rounded-md bg-[var(--color-primary)] text-white flex items-center justify-center text-[12px] font-mono">
                     ?
                   </span>
                   <span>{t.faqTitle}</span>
                 </div>
-                <span className={`material-symbols-outlined text-[18px] text-[var(--color-text-muted)] transition-transform duration-200 ${faqOpen ? "rotate-180 text-[#ff1a53]" : ""}`}>
+                <span className={`material-symbols-outlined text-[18px] text-[var(--color-text-muted)] transition-transform duration-200 ${faqOpen ? "rotate-180 text-[var(--color-primary)]" : ""}`}>
                   expand_more
                 </span>
               </button>
@@ -465,7 +465,7 @@ export default function LoginForm() {
                       href="https://github.com/techwiz37/routermod"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#ff1a53] hover:bg-[#e11d48] text-white border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 text-xs font-mono font-bold rounded-lg transition-all"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 text-xs font-mono font-bold rounded-lg transition-all"
                     >
                       <span>{t.faqRepoBtn}</span>
                       <span className="material-symbols-outlined text-[14px]">open_in_new</span>
@@ -478,7 +478,7 @@ export default function LoginForm() {
             {/* Terminal Command Bar */}
             <div className="border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text-main)] px-4 py-2.5 shadow-[2.5px_3.5px_0px_var(--color-border)] rounded-xl font-mono text-xs flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="text-[#ff1a53] font-black">$</span>
+                <span className="text-[var(--color-primary)] font-black">$</span>
                 <span className="font-bold">npm i -g routermod</span>
                 <span className="text-[var(--color-text-muted)]">&amp;&amp; routermod</span>
               </div>
@@ -491,19 +491,19 @@ export default function LoginForm() {
           {/* Right Login Card Column */}
           <div className="lg:col-span-5 w-full">
             <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[5px_7px_0px_var(--color-border)] p-5 sm:p-7 rounded-2xl relative transition-transform">
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#ff1a53] rounded-t-2xl" />
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-[var(--color-primary)] rounded-t-2xl" />
 
               <div className="flex items-center justify-between border-b-2 border-[var(--color-border)] pb-3.5 mb-5 mt-1">
                 <div>
                   <h2 className="font-mono text-lg sm:text-xl font-black uppercase text-[var(--color-text-main)] tracking-wide flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#ff1a53] text-[22px]">key</span>
+                    <span className="material-symbols-outlined text-[var(--color-primary)] text-[22px]">key</span>
                     {mustChange ? t.changePwdTitle : t.welcomeHeader}
                   </h2>
                   <p className="text-[11px] sm:text-xs text-[var(--color-text-muted)] font-mono mt-0.5">
                     {mustChange ? t.changePwdDesc : t.welcomeSub}
                   </p>
                 </div>
-                <span className="px-2 py-0.5 bg-yellow-400/20 text-yellow-700 dark:text-yellow-300 border border-[var(--color-border)] font-mono font-black text-[9.5px] shadow-[1px_2px_0px_var(--color-border)] rounded-md">
+                <span className="px-2 py-0.5 bg-[var(--color-warning)]/15 text-[var(--color-warning)] border border-[var(--color-border)] font-mono font-black text-[9.5px] shadow-[1px_2px_0px_var(--color-border)] rounded-md">
                   AUTH
                 </span>
               </div>
@@ -521,15 +521,15 @@ export default function LoginForm() {
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
                       autoFocus
-                      className="w-full bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] p-2.5 sm:p-3 font-mono text-xs sm:text-sm shadow-[2px_3px_0px_var(--color-border)] focus:outline-none focus:border-[#ff1a53] focus:shadow-[3px_4px_0px_#ff1a53] transition-all rounded-lg"
+                      className="w-full bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] p-2.5 sm:p-3 font-mono text-xs sm:text-sm shadow-[2px_3px_0px_var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[3px_4px_0px_var(--color-primary)] transition-all rounded-lg"
                     />
                     {error && (
-                      <p className="font-mono text-xs font-bold text-[#ff1a53] mt-1 bg-red-500/10 p-2 border border-red-500 rounded-md">
+                      <p className="font-mono text-xs font-bold text-[var(--color-danger)] mt-1 bg-[var(--color-danger)]/10 p-2 border border-[var(--color-danger)] rounded-md">
                         {error}
                       </p>
                     )}
                     {successMsg && (
-                      <p className="font-mono text-xs font-bold text-[#10b981] mt-1 bg-emerald-500/10 p-2 border border-emerald-500 rounded-md">
+                      <p className="font-mono text-xs font-bold text-[var(--color-success)] mt-1 bg-[var(--color-success)]/10 p-2 border border-[var(--color-success)] rounded-md">
                         {successMsg}
                       </p>
                     )}
@@ -538,7 +538,7 @@ export default function LoginForm() {
                   <button
                     type="submit"
                     disabled={loading || !newPassword}
-                    className="w-full bg-[#ff1a53] hover:bg-[#e11d48] text-white border-2 border-[var(--color-border)] font-mono font-black text-xs sm:text-sm uppercase py-3 px-4 shadow-[3px_4px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[4px_5.5px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1px_0px_var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer rounded-lg mt-1"
+                    className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-2 border-[var(--color-border)] font-mono font-black text-xs sm:text-sm uppercase py-3 px-4 shadow-[3px_4px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[4px_5.5px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1px_0px_var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer rounded-lg mt-1"
                   >
                     <span className="material-symbols-outlined text-[16px]">verified</span>
                     {loading ? t.btnLoading : t.btnSavePwd}
@@ -582,18 +582,18 @@ export default function LoginForm() {
                           onChange={(e) => setPassword(e.target.value)}
                           required
                           autoFocus
-                          className="w-full bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] p-2.5 sm:p-3 font-mono text-xs sm:text-sm shadow-[2px_3px_0px_var(--color-border)] focus:outline-none focus:border-[#ff1a53] focus:shadow-[3px_4px_0px_#ff1a53] transition-all placeholder:text-[var(--color-text-muted)]/60 rounded-lg"
+                          className="w-full bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] p-2.5 sm:p-3 font-mono text-xs sm:text-sm shadow-[2px_3px_0px_var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[3px_4px_0px_var(--color-primary)] transition-all placeholder:text-[var(--color-text-muted)]/60 rounded-lg"
                         />
 
                         {error && (
-                          <div className="font-mono text-xs font-bold text-[#ff1a53] mt-1 bg-red-500/10 p-2 border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] rounded-md">
+                          <div className="font-mono text-xs font-bold text-[var(--color-danger)] mt-1 bg-[var(--color-danger)]/10 p-2 border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] rounded-md">
                             [!] {error}
                           </div>
                         )}
 
                         {successMsg && (
-                          <div className="font-mono text-xs font-bold text-[#10b981] mt-1 bg-emerald-500/10 p-2 border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] rounded-md">
-                            [✓] {successMsg}
+                          <div className="font-mono text-xs font-bold text-[var(--color-success)] mt-1 bg-[var(--color-success)]/10 p-2 border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] rounded-md">
+                            [âœ“] {successMsg}
                           </div>
                         )}
                       </div>
@@ -602,7 +602,7 @@ export default function LoginForm() {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-[#ff1a53] hover:bg-[#e11d48] text-white border-2 border-[var(--color-border)] font-mono font-black text-xs sm:text-sm uppercase py-3 sm:py-3.5 px-4 shadow-[3px_4.5px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[4px_6px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1.5px_0px_var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-lg mt-0.5"
+                        className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-2 border-[var(--color-border)] font-mono font-black text-xs sm:text-sm uppercase py-3 sm:py-3.5 px-4 shadow-[3px_4.5px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[4px_6px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1.5px_0px_var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-lg mt-0.5"
                       >
                         <span className="material-symbols-outlined text-[17px]">login</span>
                         {loading ? t.btnLoading : t.btnSubmit}
@@ -611,7 +611,7 @@ export default function LoginForm() {
                       {/* Password helper chip */}
                       <div className="mt-1 p-2 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2px_2.5px_0px_var(--color-border)] flex items-center justify-between text-[11px] font-mono rounded-lg">
                         <span className="text-[var(--color-text-muted)] font-bold">{t.defaultPwdText}</span>
-                        <code className="bg-[var(--color-surface)] text-[#10b981] px-2.5 py-0.5 border border-[var(--color-border)] font-black tracking-wider text-[11px] shadow-[1px_1.5px_0px_var(--color-border)] rounded-md">
+                        <code className="bg-[var(--color-surface)] text-[var(--color-success)] px-2.5 py-0.5 border border-[var(--color-border)] font-black tracking-wider text-[11px] shadow-[1px_1.5px_0px_var(--color-border)] rounded-md">
                           {t.defaultPwdVal}
                         </code>
                       </div>
@@ -628,7 +628,7 @@ export default function LoginForm() {
       <footer className="w-full border-t-2 border-[var(--color-border)] bg-[var(--color-surface)] py-3.5 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto flex flex-col items-center justify-center gap-1 font-mono text-center">
           <div className="text-xs font-bold text-[var(--color-text-main)] flex items-center justify-center gap-2">
-            <span className="size-2 rounded-full bg-[#10b981]" />
+            <span className="size-2 rounded-full bg-[var(--color-success)]" />
             <span>Router Mod {new Date().getFullYear()}</span>
           </div>
           <div className="text-[11px] font-semibold text-[var(--color-text-muted)]">
@@ -637,7 +637,7 @@ export default function LoginForm() {
               href="https://github.com/techwiz37"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#ff1a53] hover:underline font-bold inline-flex items-center gap-0.5"
+              className="text-[var(--color-primary)] hover:underline font-bold inline-flex items-center gap-0.5"
             >
               Techwiz
               <span className="material-symbols-outlined text-[12px]">open_in_new</span>

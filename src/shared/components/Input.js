@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { cn } from "@/shared/utils/cn";
 
@@ -40,7 +40,7 @@ export default function Input({
           className={cn(
             "w-full py-2.5 px-3.5 text-sm text-text-main bg-surface rounded-lg",
             "border-2 border-border shadow-[2px_2px_0px_var(--color-border)] placeholder-text-muted/60 font-mono",
-            "focus:outline-none focus:border-[#ff1a53] focus:shadow-[3px_3px_0px_#ff1a53]",
+            "focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[3px_3px_0px_var(--color-primary)]",
             "transition-all duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
             "text-[16px] sm:text-sm",
             icon && "pl-10",

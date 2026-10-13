@@ -32,7 +32,7 @@ const CONTACTS = [
     handle: "techwiz.id@gmail.com",
     url: "mailto:techwiz.id@gmail.com",
     icon: "mail",
-    color: "#ff1a53",
+    color: "var(--color-primary)",
     desc: "For detailed discussions",
   },
 ];
@@ -46,9 +46,9 @@ export default function ContactPage() {
         <div className="flex items-center gap-4">
           <div
             className="size-12 rounded-xl border-2 border-border flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]"
-            style={{ background: "#ff1a5318" }}
+            style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}
           >
-            <span className="material-symbols-outlined text-[24px]" style={{ color: "#ff1a53" }}>
+            <span className="material-symbols-outlined text-[24px]" style={{ color: "var(--color-primary)" }}>
               contact_support
             </span>
           </div>

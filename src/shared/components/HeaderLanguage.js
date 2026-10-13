@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
@@ -45,7 +45,7 @@ export default function HeaderLanguage() {
         title="Bahasa Indonesia"
         className={`size-6.5 rounded-full overflow-hidden border-2 transition-all duration-150 flex items-center justify-center cursor-pointer ${
           locale === "id"
-            ? "border-[#ff1a53] scale-105 shadow-[0_1px_4px_rgba(255,26,83,0.35)] ring-1 ring-[#ff1a53]"
+            ? "border-[var(--color-primary)] scale-105 shadow-[0_1px_4px_rgba(255,26,83,0.35)] ring-1 ring-[var(--color-primary)]"
             : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
         }`}
       >
@@ -67,7 +67,7 @@ export default function HeaderLanguage() {
         title="English"
         className={`size-6.5 rounded-full overflow-hidden border-2 transition-all duration-150 flex items-center justify-center cursor-pointer ${
           locale === "en"
-            ? "border-[#ff1a53] scale-105 shadow-[0_1px_4px_rgba(255,26,83,0.35)] ring-1 ring-[#ff1a53]"
+            ? "border-[var(--color-primary)] scale-105 shadow-[0_1px_4px_rgba(255,26,83,0.35)] ring-1 ring-[var(--color-primary)]"
             : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
         }`}
       >

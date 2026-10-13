@@ -715,7 +715,7 @@ export default function APIPageClient({ machineId }) {
       {/* Endpoint Card */}
       <Card>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#ff1a53]">dns</span>
+          <span className="material-symbols-outlined text-[var(--color-primary)]">dns</span>
           Hostname & Port
         </h2>
 
@@ -846,7 +846,7 @@ export default function APIPageClient({ machineId }) {
             {keys.map((key) => (
               <div
                 key={key.id}
-                className={`group py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
+                className={`group py-3 border-b border-[var(--color-border)]/30 last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
               >
                 {/* Top row: name + actions */}
                 <div className="flex items-center justify-between gap-2 min-w-0">
@@ -854,7 +854,7 @@ export default function APIPageClient({ machineId }) {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => toggleKeyVisibility(key.id)}
-                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
+                      className="p-1 hover:bg-[var(--color-surface-3)] rounded text-text-muted hover:text-primary transition-all"
                       title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
                     >
                       <span className="material-symbols-outlined text-[15px]">
@@ -863,7 +863,7 @@ export default function APIPageClient({ machineId }) {
                     </button>
                     <button
                       onClick={() => copy(key.key, key.id)}
-                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
+                      className="p-1 hover:bg-[var(--color-surface-3)] rounded text-text-muted hover:text-primary transition-all"
                       title="Copy key"
                     >
                       <span className="material-symbols-outlined text-[15px]">
@@ -891,7 +891,7 @@ export default function APIPageClient({ machineId }) {
                     />
                     <button
                       onClick={() => handleDeleteKey(key.id)}
-                      className="p-1.5 hover:bg-red-500/10 rounded text-red-500 transition-all"
+                      className="p-1.5 hover:bg-[var(--color-danger)]/10 rounded text-[var(--color-danger)] transition-all"
                       title="Delete key"
                     >
                       <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -908,7 +908,7 @@ export default function APIPageClient({ machineId }) {
                     Created {new Date(key.createdAt).toLocaleDateString()}
                   </p>
                   {key.isActive === false && (
-                    <span className="text-xs text-orange-500">· Paused</span>
+                    <span className="text-xs text-[var(--color-warning)]">· Paused</span>
                   )}
                 </div>
                 <KeyAccessControls
@@ -970,11 +970,11 @@ export default function APIPageClient({ machineId }) {
         onClose={() => setCreatedKey(null)}
       >
         <div className="flex flex-col gap-4">
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-2 font-medium">
+          <div className="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/40 rounded-lg p-4">
+            <p className="text-sm text-[var(--color-warning)] mb-2 font-medium">
               Save this key now!
             </p>
-            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            <p className="text-sm text-[var(--color-warning)]">
               This is the only time you will see this key. Store it securely.
             </p>
           </div>
@@ -1007,7 +1007,7 @@ export default function APIPageClient({ machineId }) {
         <div className="flex flex-col gap-3.5">
           <div className="bg-surface-2 border-2 border-border rounded-xl p-3.5 shadow-[2px_2px_0px_var(--color-border)]">
             <div className="flex items-start gap-3">
-              <div className="size-8 rounded-lg bg-[#ff1a53]/15 border border-border flex items-center justify-center text-[#ff1a53] shrink-0">
+              <div className="size-8 rounded-lg bg-[var(--color-primary)]/15 border border-border flex items-center justify-center text-[var(--color-primary)] shrink-0">
                 <span className="material-symbols-outlined text-[19px]">cloud_upload</span>
               </div>
               <div className="min-w-0">
@@ -1024,7 +1024,7 @@ export default function APIPageClient({ machineId }) {
           <div className="grid grid-cols-2 gap-2.5">
             {TUNNEL_BENEFITS.map((benefit) => (
               <div key={benefit.title} className="flex flex-col items-center text-center p-3 rounded-xl border border-border bg-surface-2/60 shadow-[1.5px_1.5px_0px_var(--color-border)]">
-                <span className="material-symbols-outlined text-[20px] text-[#ff1a53] mb-1">{benefit.icon}</span>
+                <span className="material-symbols-outlined text-[20px] text-[var(--color-primary)] mb-1">{benefit.icon}</span>
                 <p className="text-xs font-bold font-mono text-text-main">{translate(benefit.title)}</p>
                 <p className="text-[11px] text-text-muted mt-0.5">{translate(benefit.desc)}</p>
               </div>
@@ -1100,7 +1100,7 @@ export default function APIPageClient({ machineId }) {
                 Installing Tailscale...
               </div>
               {tsInstallLog.length > 0 && (
-                <div ref={tsLogRef} className="bg-black/5 dark:bg-white/5 rounded p-2 max-h-40 overflow-y-auto font-mono text-xs text-text-muted">
+                <div ref={tsLogRef} className="bg-[var(--color-surface-2)] rounded p-2 max-h-40 overflow-y-auto font-mono text-xs text-text-muted">
                   {tsInstallLog.map((line, i) => (
                     <div key={i}>{line}</div>
                   ))}
@@ -1112,7 +1112,7 @@ export default function APIPageClient({ machineId }) {
           {/* Installed: show Connect button */}
           {tsInstalled === true && !tsInstalling && (
             <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <div className="flex items-center gap-2 text-sm text-[var(--color-success)]">
                 <span className="material-symbols-outlined text-[16px]">check_circle</span>
                 Tailscale installed
               </div>

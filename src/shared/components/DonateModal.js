@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -37,8 +37,8 @@ export default function DonateModal({ isOpen, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b-2 border-border bg-surface-2">
           <div className="flex items-center gap-2.5">
-            <div className="size-8 rounded-lg border-2 border-border bg-[#ff1a53]/10 shadow-[1.5px_1.5px_0_var(--color-border)] flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px] text-[#ff1a53]">volunteer_activism</span>
+            <div className="size-8 rounded-lg border-2 border-border bg-[var(--color-primary)]/10 shadow-[1.5px_1.5px_0_var(--color-border)] flex items-center justify-center">
+              <span className="material-symbols-outlined text-[18px] text-[var(--color-primary)]">volunteer_activism</span>
             </div>
             <div>
               <p className="font-mono font-bold text-text-main text-sm uppercase tracking-wider leading-tight">Donasi</p>
