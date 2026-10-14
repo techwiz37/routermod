@@ -138,28 +138,56 @@ export default function ProviderTopology({
   const displayProviders = providers.slice(0, 6);
   const count = displayProviders.length;
 
-  // Fixed canvas — lebih tinggi supaya kabel atas/bawah kelihatan jelas
+  // Canvas: wider than tall so a left/right column layout has room.
   const W = 520;
   const H = 320;
   const cx = W / 2;
   const cy = H / 2;
 
-  // Orbit radius: gunakan yang lebih besar tapi masih muat
-  // max H: cy - NODE_H/2 - 28 (jarak kabel ke tepi) = 160 - 15 - 28 = 117
-  // max W: cx - NODE_W/2 - 28 = 260 - 54 - 28 = 178
-  const orbitR = Math.min(
-    cx - NODE_W / 2 - 28,
-    cy - NODE_H / 2 - 28,
-    count <= 2 ? 115 : count <= 4 ? 110 : 105
-  );
+  // ── Layout strategy ───────────────────────────────────────────────────────
+  // 1-4 providers → radial orbit (looks great, plenty of room).
+  // 5-6 providers → two columns (2 left, 2-3 right): an orbit with 5-6 wide
+  //   nodes overlaps because the ring circumference is too small, so switch to
+  //   a grid that guarantees horizontal breathing room.
+  const useGrid = count >= 5;
 
-  // Angle offset so nodes look like reference image: start at top (-90°)
-  const angleOffset = count <= 3 ? -90 : count === 4 ? -45 : -90;
+  let nodePositions;
+  if (useGrid) {
+    const leftCount = Math.ceil(count / 2);
+    const rightCount = count - leftCount;
+    const colLeftX = 96;
+    const colRightX = W - 96;
+    const topPad = 58;
+    const bottomPad = 58;
+    const usableH = H - topPad - bottomPad;
 
-  const nodePositions = displayProviders.map((_, i) => {
-    const angle = angleOffset + (i / count) * 360;
-    return polar(cx, cy, orbitR, angle);
-  });
+    const columnY = (n, idx) => {
+      if (n <= 1) return cy;
+      return topPad + (usableH * idx) / (n - 1);
+    };
+
+    nodePositions = [];
+    for (let i = 0; i < count; i++) {
+      if (i < leftCount) {
+        nodePositions.push({ x: colLeftX, y: columnY(leftCount, i) });
+      } else {
+        nodePositions.push({ x: colRightX, y: columnY(rightCount, i - leftCount) });
+      }
+    }
+  } else {
+    // Radial orbit: pick the largest radius that keeps cables clear of the
+    // node edges without neighbours colliding.
+    const orbitR = Math.min(
+      cx - NODE_W / 2 - 28,
+      cy - NODE_H / 2 - 28,
+      count <= 2 ? 118 : 112
+    );
+    const angleOffset = count <= 3 ? -90 : count === 4 ? -45 : -90;
+    nodePositions = displayProviders.map((_, i) => {
+      const angle = angleOffset + (i / count) * 360;
+      return polar(cx, cy, orbitR, angle);
+    });
+  }
 
   return (
     <>
