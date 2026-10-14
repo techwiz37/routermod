@@ -18,6 +18,7 @@ export default function SyncCookieAntigravityModal({ isOpen, onClose, providerId
   const [keyLoading, setKeyLoading] = useState(false);
   const [emailText, setEmailText] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [proxyText, setProxyText] = useState("");
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [jobId, setJobId] = useState(null);
   const [logLines, setLogLines] = useState([]);
@@ -88,6 +89,7 @@ export default function SyncCookieAntigravityModal({ isOpen, onClose, providerId
     setKeyLoading(false);
     setEmailText("");
     setEmailError("");
+    setProxyText("");
     setJobId(null);
     setLogLines([]);
     setDone(false);
@@ -145,7 +147,12 @@ export default function SyncCookieAntigravityModal({ isOpen, onClose, providerId
       const res = await fetch("/api/providers/antigravity/bot-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: key.trim(), emails: entries, mode: "cookies" }),
+        body: JSON.stringify({
+          key: key.trim(),
+          emails: entries,
+          mode: "cookies",
+          proxyUrl: proxyText.trim() || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -213,6 +220,21 @@ export default function SyncCookieAntigravityModal({ isOpen, onClose, providerId
             <button onClick={loadEmails} className="underline hover:text-[var(--color-primary)]">
               {loadingEmails ? "memuat..." : "muat ulang dari koneksi"}
             </button>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-mono uppercase tracking-wider text-text-muted">
+              Proxy (opsional)
+            </label>
+            <input
+              type="text"
+              value={proxyText}
+              onChange={(e) => setProxyText(e.target.value)}
+              placeholder="http://user:pass@host:port atau socks5://host:port"
+              className="w-full rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-xs text-[var(--color-text-main)] shadow-[2px_2px_0_var(--color-border)] focus:border-[var(--color-primary)] focus:outline-none"
+            />
+            <p className="mt-1 text-[10px] text-text-muted leading-relaxed">
+              Isi kalau server ini IP datacenter (biar Google tidak munculkan CAPTCHA). Kosong = pakai proxy pool aktif kalau ada.
+            </p>
           </div>
           <div className="flex gap-2">
             <Button onClick={handleStart} fullWidth icon="sync">

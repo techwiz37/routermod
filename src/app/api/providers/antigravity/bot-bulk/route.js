@@ -5,7 +5,7 @@ import fs from "fs";
 import os from "os";
 import { cookies } from "next/headers";
 import { getDashboardAuthSession } from "@/lib/auth/dashboardSession";
-import { getProviderConnections } from "@/models";
+import { getProviderConnections, getProxyPools } from "@/models";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 
@@ -44,6 +44,36 @@ function resolveRunner() {
 
 const RUNNER = resolveRunner();
 const JOBS_DIR = path.join(os.tmpdir(), "routermod-jobs");
+
+// Pick an active proxy pool so Google sees a residential/rotating egress
+// instead of the server's datacenter IP (which triggers an image CAPTCHA).
+// Priority: explicit request value → first active http-type pool → env.
+async function resolveRunnerProxy(explicitProxyUrl) {
+  if (explicitProxyUrl) return String(explicitProxyUrl).trim();
+  if (process.env.AG_PROXY_URL) return String(process.env.AG_PROXY_URL).trim();
+  try {
+    const pools = await getProxyPools({ isActive: true });
+    const httpPool = (pools || []).find(
+      (p) => p && p.proxyUrl && (!p.type || p.type === "http")
+    );
+    if (httpPool?.proxyUrl) return String(httpPool.proxyUrl).trim();
+  } catch (_e) {}
+  return null;
+}
+
+// Hide credentials when echoing a proxy URL into the job log.
+function redactProxy(url) {
+  try {
+    const u = new URL(url);
+    if (u.username || u.password) {
+      u.username = u.username ? "***" : "";
+      u.password = u.password ? "***" : "";
+    }
+    return u.toString();
+  } catch (_e) {
+    return String(url).replace(/\/\/[^@/]+@/, "//***@");
+  }
+}
 
 // Ensure jobs dir exists
 try { fs.mkdirSync(JOBS_DIR, { recursive: true }); } catch (_e) {}
@@ -120,12 +150,13 @@ export async function POST(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let key, emails, mode;
+  let key, emails, mode, proxyUrlInput;
   try {
     const body = await request.json();
     key = body.key;
     emails = body.emails;
     mode = body.mode || "add";
+    proxyUrlInput = body.proxyUrl;
   } catch (_e) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -159,15 +190,25 @@ export async function POST(request) {
 
   const jobId = `ag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+  // Route Google traffic through an active proxy pool when one exists, so the
+  // egress IP is not the server's datacenter IP (which triggers a CAPTCHA).
+  const proxyUrl = await resolveRunnerProxy(proxyUrlInput);
+
   // Init files
   fs.writeFileSync(jobFile(jobId), "");
-  writeMeta(jobId, { done: false, summary: null, error: null });
+  writeMeta(jobId, { done: false, summary: null, error: null, proxy: proxyUrl || null });
+  if (proxyUrl) appendLine(jobId, `[proxy] using ${redactProxy(proxyUrl)}`);
 
   // process.execPath matches the running runtime (node/bun) on both Windows and
   // Linux, so we never depend on a `node` binary being on PATH.
   const child = spawn(
     process.execPath,
-    [RUNNER, baseUrl, `auth_token=${authToken}`, ...(cookiesOnly ? ["--cookies-only"] : []), ...emails],
+    [
+      RUNNER, baseUrl, `auth_token=${authToken}`,
+      ...(cookiesOnly ? ["--cookies-only"] : []),
+      ...(proxyUrl ? [`--proxy=${proxyUrl}`] : []),
+      ...emails,
+    ],
     {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,

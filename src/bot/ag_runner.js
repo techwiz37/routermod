@@ -8,11 +8,92 @@ const fs = require("fs");
 const path = require("path");
 const sessionStore = require("./session_store.js");
 const { findChrome } = require("./find_chrome.js");
+const os = require("os");
 
 const GOOGLE_PASSWORD = "qwertyui";
 
-function ts() { return new Date().toTimeString().slice(0, 8); }
-function log(msg) { process.stderr.write(`${ts()} ${msg}\n`); }
+// Headless Chrome is fingerprinted by Google (navigator.webdriver, missing
+// plugins, odd languages, software WebGL...), which triggers an image CAPTCHA
+// before the password step. This script runs on every new document and hides
+// the most common automation tells. It is defense-in-depth, not a guarantee.
+const STEALTH_SCRIPT = `
+(() => {
+  const define = (obj, prop, value) => {
+    try { Object.defineProperty(obj, prop, { get: () => value, configurable: true }); } catch (e) {}
+  };
+  // 1. navigator.webdriver → undefined
+  try { Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => undefined, configurable: true }); } catch (e) {}
+  // 2. chrome runtime shim (headless often has none)
+  if (!window.chrome) window.chrome = {};
+  if (!window.chrome.runtime) window.chrome.runtime = {};
+  define(window.chrome.runtime, 'id', undefined);
+  // 3. languages
+  define(navigator, 'languages', ['id-ID', 'id', 'en-US', 'en']);
+  define(navigator, 'language', 'id-ID');
+  // 4. plugins + mimeTypes (headless reports 0)
+  const fakePlugin = (name, filename, desc) => ({
+    name, filename, description: desc, length: 1,
+    item: () => null, namedItem: () => null,
+  });
+  const pluginList = [
+    fakePlugin('PDF Viewer', 'internal-pdf-viewer', 'Portable Document Format'),
+    fakePlugin('Chrome PDF Viewer', 'internal-pdf-viewer', 'Portable Document Format'),
+    fakePlugin('Chromium PDF Viewer', 'internal-pdf-viewer', 'Portable Document Format'),
+  ];
+  define(navigator, 'plugins', pluginList);
+  define(navigator, 'mimeTypes', [{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }]);
+  // 5. hardware concurrency / memory look like a real box
+  define(navigator, 'hardwareConcurrency', 8);
+  define(navigator, 'deviceMemory', 8);
+  define(navigator, 'platform', 'Win32');
+  // 6. permissions query spoof
+  try {
+    const origQuery = window.navigator.permissions && window.navigator.permissions.query;
+    if (origQuery) {
+      window.navigator.permissions.query = (params) =>
+        params && params.name === 'notifications'
+          ? Promise.resolve({ state: Notification.permission })
+          : origQuery(params);
+    }
+  } catch (e) {}
+  // 7. WebGL vendor/renderer (software renderer is a giveaway)
+  try {
+    const getParam = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function (p) {
+      if (p === 37445) return 'Google Inc. (Intel)';
+      if (p === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0)';
+      return getParam.call(this, p);
+    };
+  } catch (e) {}
+  // 8. hide that we run under CDP
+  try {
+    delete Object.getPrototypeOf(navigator).webdriver;
+  } catch (e) {}
+})();
+`;
+
+
+// Normalize a proxy string into { server, username, password } for Chrome.
+// Chrome wants "scheme://host:port" without credentials; creds go to
+// page.authenticate(). Defaults to http:// when no scheme is given.
+function parseProxy(raw) {
+  const out = { server: "", username: "", password: "" };
+  if (!raw) return out;
+  let s = String(raw).trim();
+  if (!/^[a-z0-9]+:\/\//i.test(s)) s = `http://${s}`;
+  try {
+    const u = new URL(s);
+    const scheme = (u.protocol || "http:").replace(":", "") || "http";
+    out.server = `${scheme}://${u.hostname}${u.port ? ":" + u.port : ""}`;
+    out.username = u.username ? decodeURIComponent(u.username) : "";
+    out.password = u.password ? decodeURIComponent(u.password) : "";
+  } catch (_e) {
+    out.server = s;
+  }
+  return out;
+}
+
+function ts() { return new Date().toTimeString().slice(0, 8); }function log(msg) { process.stderr.write(`${ts()} ${msg}\n`); }
 function logOk(msg) { log(`\x1b[32m${msg}\x1b[0m`); }
 function logErr(msg) { log(`\x1b[31m${msg}\x1b[0m`); }
 
@@ -133,12 +214,28 @@ async function cdpClickButton(page, client, texts) {
 
 async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
   const cookiesOnly = redirectUri === null;
-  const context = await browser.createBrowserContext();
+  // Prefer the default (persistent user-data-dir) context so Google sees a
+  // profile with cookie/history continuity; fall back to an isolated context
+  // if the default one is unavailable.
+  let context = null;
+  try {
+    const pages = await browser.pages();
+    if (pages.length) context = pages[0].browserContext();
+  } catch (_e) {}
+  if (!context) context = await browser.createBrowserContext();
   const page = await context.newPage();
   const client = await page.target().createCDPSession();
-  try {    await page.setUserAgent(
+  try {
+    // Install the anti-fingerprint script before any navigation so it runs on
+    // every document (including Google's signin iframes).
+    try { await client.send("Page.addScriptToEvaluateOnNewDocument", { source: STEALTH_SCRIPT }); } catch (_e) {}
+    await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
     );
+    try {
+      await page.setViewport({ width: 1366, height: 900, deviceScaleFactor: 1 });
+      await page.setExtraHTTPHeaders({ "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7" });
+    } catch (_e) {}
 
     log(`GET ${authUrl.slice(0, 80)} ...`);
     await page.goto(authUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -211,15 +308,28 @@ async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
       if (!pwdEl) {
         // Screenshot + DOM dump so we can see what Google actually rendered
         // (consent screen, 2FA prompt, "couldn't sign in", etc).
+        let pageTxt = "";
         try {
           const os = require("os");
           const shot = path.join(os.tmpdir(), `ag_nopwd_${Date.now()}.png`);
           await page.screenshot({ path: shot, fullPage: true });
           log(`[debug] password field not found — URL: ${page.url().slice(0, 120)}`);
           log(`[debug] screenshot: ${shot}`);
-          const txt = await page.evaluate(() => document.body?.innerText?.slice(0, 400) || "").catch(() => "");
-          if (txt) log(`[debug] page text: ${txt.replace(/\s+/g, " ").slice(0, 300)}`);
+          pageTxt = await page.evaluate(() => document.body?.innerText?.slice(0, 400) || "").catch(() => "");
+          if (pageTxt) log(`[debug] page text: ${pageTxt.replace(/\s+/g, " ").slice(0, 300)}`);
         } catch (_e) {}
+        // Turn Google's anti-bot / dead-account screens into an explicit reason
+        // instead of a bare selector timeout, so the job log is actionable.
+        const flat = pageTxt.replace(/\s+/g, " ");
+        if (/captcha|ketik teks|type the text|unusual traffic|tidak biasa/i.test(flat + " " + page.url())) {
+          throw new Error(`Google CAPTCHA/verifikasi muncul untuk ${email}. Butuh proxy residential (atau isi manual) — IP server ini ditandai Google.`);
+        }
+        if (/deletedaccount|account deleted|akun.*dihapus|berikutnya.*pulihkan/i.test(page.url() + " " + flat)) {
+          throw new Error(`Akun Google ${email} dihapus/tidak bisa dipulihkan (halaman "Account deleted").`);
+        }
+        if (/signin\/rejected|couldn.?t sign you in|contact your domain admin|tidak dapat.*masuk/i.test(page.url() + " " + flat)) {
+          throw new Error(`Google menolak login ${email} (signin/rejected — akun diblokir admin domain).`);
+        }
         throw err;
       }
     }
@@ -314,8 +424,14 @@ async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
 
     throw new Error(`Timeout 120s [${email}] — URL: ${page.url().slice(0, 100)}`);
   } finally {
-    await page.close();
-    await context.close().catch(() => {});
+    await page.close().catch(() => {});
+    // Never close the browser's default persistent context (that would wipe
+    // the profile mid-run); only tear down isolated contexts we created.
+    try {
+      if (typeof context.isIncognito === "function" ? context.isIncognito() : true) {
+        await context.close();
+      }
+    } catch (_e) {}
   }
 }
 
@@ -363,9 +479,11 @@ async function processAccount(browser, email, googlePass, baseUrl, cookie, cooki
 async function main() {
   const rawArgs = process.argv.slice(2);
   let cookiesOnly = false;
+  let proxyUrl = process.env.AG_PROXY_URL || null;
   const positional = [];
   for (const a of rawArgs) {
     if (a === "--cookies-only") cookiesOnly = true;
+    else if (a.startsWith("--proxy=")) proxyUrl = a.slice("--proxy=".length).trim() || null;
     else positional.push(a);
   }
   const [rawBaseUrl, authArg, ...entries] = positional;
@@ -393,25 +511,84 @@ async function main() {
   }
   log(`[browser] ${path.basename(path.dirname(chromePath))}`);
 
+  // Use a persistent, per-run user-data-dir: Google trusts a profile that
+  // keeps cookies/history across navigations far more than a fresh incognito
+  // one. We keep it under the app data dir so it survives restarts.
+  let userDataDir;
+  try {
+    const base = process.env.ROUTERMOD_DATA_DIR
+      || (process.platform === "win32"
+        ? path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "routermod")
+        : path.join(os.homedir(), ".routermod"));
+    userDataDir = path.join(base, "chrome-profile");
+    fs.mkdirSync(userDataDir, { recursive: true });
+  } catch (_e) {
+    userDataDir = undefined;
+  }
+
+  // Headless is the default, but Google's anti-bot is far more suspicious of
+  // headless Chrome. Set AG_HEADLESS=0 to run headful (needs a display; on
+  // Linux use xvfb-run). AG_HEADLESS=shell uses the old chrome-headless-shell.
+  const headlessEnv = String(process.env.AG_HEADLESS ?? "true").toLowerCase();
+  const headless = headlessEnv === "0" || headlessEnv === "false" ? false
+    : headlessEnv === "shell" ? "shell"
+    : true;
+  log(`[browser] headless=${headless}`);
+
+  // Build the launch arg list; route Chrome through the proxy when given.
+  const launchArgs = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--window-size=1366,900",
+    "--disable-blink-features=AutomationControlled",
+    "--disable-infobars",
+    "--disable-dev-shm-usage",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-features=IsolateOrigins,site-per-process,AutomationControlled",
+    "--disable-background-timer-throttling",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+    "--password-store=basic",
+    "--use-mock-keychain",
+    "--lang=id-ID,id",
+    "--accept-lang=id-ID,id",
+  ];
+  if (proxyUrl) {
+    // Chrome's --proxy-server does NOT accept inline credentials
+    // (http://user:pass@host:port → ERR_NO_SUPPORTED_PROXIES). Pass host:port
+    // only and answer the auth dialog via page.authenticate() below.
+    const parsed = parseProxy(proxyUrl);
+    launchArgs.push(`--proxy-server=${parsed.server}`);
+    log(`[browser] proxy=${parsed.server}${parsed.username ? " (auth)" : ""}`);
+  }
+
   const browser = await puppeteer.launch({
     executablePath: chromePath,
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--window-size=1366,900",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-infobars",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--no-zygote",
-      "--disable-gpu",
-      "--incognito",
-      "--lang=id-ID,id",
-    ],
-    ignoreDefaultArgs: ["--enable-automation"],
+    headless,
+    userDataDir,
+    args: launchArgs,
+    ignoreDefaultArgs: ["--enable-automation", "--headless"],
   });
+
+  // Supply proxy credentials to every page/target Chrome opens.
+  if (proxyUrl) {
+    const parsed = parseProxy(proxyUrl);
+    if (parsed.username || parsed.password) {
+      const applyAuth = async (page) => {
+        try {
+          await page.authenticate({ username: parsed.username, password: parsed.password });
+        } catch (_e) {}
+      };
+      browser.on("targetcreated", async (target) => {
+        try {
+          const p = await target.page();
+          if (p) await applyAuth(p);
+        } catch (_e) {}
+      });
+      for (const p of await browser.pages()) await applyAuth(p);
+    }
+  }
 
   let added = 0, failed = 0;
   try {
