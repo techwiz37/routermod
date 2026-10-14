@@ -8,6 +8,13 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 10 * 1000;
 const SENSITIVE_PROVIDERS = new Set(["antigravity", "gemini-cli"]);
 
+// Connections whose refresh token was permanently rejected (invalid_grant /
+// account deleted) keep failing on every tick. Retry them only after a long
+// cooldown so the logs (and the upstream endpoint) aren't hit every minute.
+// A successful Cookie Sync clears `lastError`, which re-enables refreshing.
+const REFRESH_REJECTED_MARKER = "Refresh token ditolak";
+const REFRESH_REJECTED_COOLDOWN_MS = Number(process.env.BG_REFRESH_REJECTED_COOLDOWN_MS) || 6 * 60 * 60 * 1000;
+
 let started = false;
 let intervalHandle = null;
 let initialTimeoutHandle = null;
@@ -33,6 +40,16 @@ function isNonServerRuntime() {
   return false;
 }
 
+export function isRefreshRejectedCooldown(conn, nowMs = Date.now()) {
+  if (!conn) return false;
+  const err = String(conn.lastError || "");
+  if (!err.includes(REFRESH_REJECTED_MARKER)) return false;
+  // If the rejection was recorded a long time ago, allow a retry.
+  const at = Date.parse(conn.lastErrorAt || "");
+  if (!Number.isFinite(at)) return true; // no timestamp → stay in cooldown
+  return nowMs - at < REFRESH_REJECTED_COOLDOWN_MS;
+}
+
 export function selectConnectionsNeedingRefresh(connections, nowMs = Date.now()) {
   if (!Array.isArray(connections) || connections.length === 0) return [];
 
@@ -43,6 +60,10 @@ export function selectConnectionsNeedingRefresh(connections, nowMs = Date.now())
     const authType = String(conn.authType || "").toLowerCase().replace(/_/g, "");
     if (authType !== "oauth") continue;
     if (!conn.refreshToken) continue;
+
+    // Don't hammer connections whose refresh token was permanently rejected
+    // upstream; wait out the cooldown so we don't spam invalid_grant errors.
+    if (isRefreshRejectedCooldown(conn, nowMs)) continue;
 
     const expiresAtMs = getCredentialExpiryMs(conn);
     if (expiresAtMs === null) continue;

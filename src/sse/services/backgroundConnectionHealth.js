@@ -1,5 +1,6 @@
 
 import * as log from "../utils/logger.js";
+import { isRefreshRejectedCooldown } from "./backgroundTokenRefresh.js";
 
 const INTERVAL_MS = 60 * 1000; // Check every 1 minute
 const INITIAL_DELAY_MS = 5 * 1000;
@@ -49,6 +50,10 @@ export function isConnectionDead(conn) {
   if (!conn) return false;
   if (conn.isActive === false) return true;
   if (isConnectionLimited(conn)) return false;
+  // A connection whose refresh token was permanently rejected can't be
+  // resurrected by a health probe (only a fresh Cookie Sync can). Skip it so
+  // the 60s health loop doesn't retrigger invalid_grant refreshes forever.
+  if (isRefreshRejectedCooldown(conn)) return false;
   const status = conn.testStatus;
   return status === "failed" || status === "error" || status === "unavailable";
 }
