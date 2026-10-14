@@ -474,6 +474,23 @@ export async function POST(request, { params }) {
         await persistAntigravityCookieJar(connection, cookieJar);
       }
 
+      // Antigravity only: if no jar came from the client, seed one from the
+      // fresh OAuth grant by driving the web app headlessly. Fire-and-forget so
+      // the login response isn't blocked by a browser launch.
+      if (provider === "antigravity" && connection?.id && !cookieJar) {
+        (async () => {
+          try {
+            const { seedCookieFromOAuth } = requireCjs("@/bot/cookie_refresher.js");
+            await seedCookieFromOAuth({
+              id: connection.id,
+              email: connection.email,
+            });
+          } catch (e) {
+            console.log("seedCookieFromOAuth error:", e?.message ?? e);
+          }
+        })();
+      }
+
       return NextResponse.json({ 
         success: true, 
         connection: {

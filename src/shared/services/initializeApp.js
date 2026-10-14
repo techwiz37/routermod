@@ -110,6 +110,10 @@ async function runHeavyStartup() {
   import("@/sse/services/backgroundConnectionHealth.js")
     .then(({ startBackgroundConnectionHealth }) => startBackgroundConnectionHealth())
     .catch((e) => console.log("[BackgroundConnectionHealth] scheduler start failed:", e.message));
+
+  import("@/sse/services/backgroundCookieRefresh.js")
+    .then(({ startBackgroundCookieRefresh }) => startBackgroundCookieRefresh())
+    .catch((e) => console.log("[BackgroundCookieRefresh] scheduler start failed:", e.message));
 }
 
 function hasQuotaAutoPingEnabled(settings) {

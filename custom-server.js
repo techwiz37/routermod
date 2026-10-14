@@ -15,6 +15,7 @@ process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 
 let backgroundRefreshStarted = false;
 let backgroundHealthStarted = false;
+let backgroundCookieRefreshStarted = false;
 
 function startBackgroundConnectionHealthFromCustomServer() {
   if (backgroundHealthStarted) return;
@@ -75,6 +76,34 @@ function startBackgroundTokenRefreshFromCustomServer() {
     });
 }
 
+function startBackgroundCookieRefreshFromCustomServer() {
+  if (backgroundCookieRefreshStarted) return;
+  backgroundCookieRefreshStarted = true;
+  const modPath = path.join(__dirname, "src", "sse", "services", "backgroundCookieRefresh.js");
+  import(pathToFileURL(modPath).href)
+    .then((m) => {
+      try {
+        m.startBackgroundCookieRefresh();
+      } catch (e) {
+        console.error("[BackgroundCookieRefresh] start failed:", e && e.message ? e.message : e);
+      }
+      const stop = () => {
+        try {
+          m.stopBackgroundCookieRefresh();
+        } catch {
+          /* ignore */
+        }
+      };
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    })
+    .catch((e) => {
+      if (process.env.DEBUG_BG_COOKIE_REFRESH) {
+        console.error("[BackgroundCookieRefresh] import failed:", e && e.message ? e.message : e);
+      }
+    });
+}
+
 // Wrap Next standalone HTTP server: derive client IP from the TCP socket
 // (unspoofable) and strip client-supplied forwarding headers so downstream
 // rate-limiting keys on the real peer address instead of attacker-controlled XFF.
@@ -105,6 +134,7 @@ http.createServer = (...args) => {
   server.once("listening", () => {
     startBackgroundTokenRefreshFromCustomServer();
     startBackgroundConnectionHealthFromCustomServer();
+    startBackgroundCookieRefreshFromCustomServer();
   });
   const origEmit = server.emit;
   // JBR 25 sends h2c upgrades that the HTTP/1.1 server would otherwise close.
