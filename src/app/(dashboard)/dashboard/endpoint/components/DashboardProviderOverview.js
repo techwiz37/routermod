@@ -8,6 +8,7 @@ import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { LOCALE_COOKIE } from "@/i18n/config";
 
 const CHECK_INTERVAL_SEC = 60;
+const PAGE_SIZE = 5;
 
 const TEXT = {
   id: {
@@ -171,6 +172,8 @@ export default function DashboardProviderOverview() {
   const [providerFilter, setProviderFilter] = useState("all");
   const [searchFilter, setSearchFilter] = useState("");
   const [recheckingId, setRecheckingId] = useState(null);
+  const [providerPage, setProviderPage] = useState(1);
+  const [limitedPage, setLimitedPage] = useState(1);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -280,6 +283,32 @@ export default function DashboardProviderOverview() {
       return true;
     });
   }, [limitedAccountsList, providerFilter, searchFilter]);
+
+  // ── Pagination (5 rows per page) ──────────────────────────────────────────
+  const providerTotalPages = Math.max(1, Math.ceil(providers.length / PAGE_SIZE));
+  const safeProviderPage = Math.min(providerPage, providerTotalPages);
+  const pagedProviders = useMemo(
+    () => providers.slice((safeProviderPage - 1) * PAGE_SIZE, safeProviderPage * PAGE_SIZE),
+    [providers, safeProviderPage]
+  );
+
+  const limitedTotalPages = Math.max(1, Math.ceil(filteredLimitedAccounts.length / PAGE_SIZE));
+  const safeLimitedPage = Math.min(limitedPage, limitedTotalPages);
+  const pagedLimitedAccounts = useMemo(
+    () => filteredLimitedAccounts.slice((safeLimitedPage - 1) * PAGE_SIZE, safeLimitedPage * PAGE_SIZE),
+    [filteredLimitedAccounts, safeLimitedPage]
+  );
+
+  // Reset to page 1 whenever the underlying list shrinks (refresh / filter).
+  useEffect(() => {
+    if (providerPage > providerTotalPages) setProviderPage(providerTotalPages);
+  }, [providerPage, providerTotalPages]);
+  useEffect(() => {
+    if (limitedPage > limitedTotalPages) setLimitedPage(limitedTotalPages);
+  }, [limitedPage, limitedTotalPages]);
+  useEffect(() => {
+    setLimitedPage(1);
+  }, [providerFilter, searchFilter]);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
@@ -527,7 +556,7 @@ export default function DashboardProviderOverview() {
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-border">
-                {providers.map((p) => {
+                {pagedProviders.map((p) => {
                   const iconSrc = getProviderIconSrc(p.provider);
                   const isOnline = p.isFree || p.activeAccounts > 0 || p.limitedAccounts > 0;
                   return (
@@ -643,9 +672,35 @@ export default function DashboardProviderOverview() {
             </table>
           </div>
         )}
+
+        {/* Pagination — 5 provider per page */}
+        {!loading && providers.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between gap-2 px-3.5 sm:px-5 py-2.5 border-t-2 border-border bg-surface-2/60 font-mono text-[11px]">
+            <span className="text-text-muted">
+              Hal. <span className="font-bold text-text-main">{safeProviderPage}</span> / {providerTotalPages}
+              <span className="hidden sm:inline"> · {providers.length} provider</span>
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setProviderPage((p) => Math.max(1, p - 1))}
+                disabled={safeProviderPage <= 1}
+                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+              >
+                <span className="material-symbols-outlined text-[14px]">chevron_left</span>
+              </button>
+              <button
+                onClick={() => setProviderPage((p) => Math.min(providerTotalPages, p + 1))}
+                disabled={safeProviderPage >= providerTotalPages}
+                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+              >
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* NEW: Dedicated Table for Limited Accounts (Tabel Akun Terkena Limit) */}
+      {/* Dedicated Table for Limited Accounts (Tabel Akun Terkena Limit) */}
       <div className="bg-surface border-2 border-border rounded-xl shadow-[3px_4px_0px_var(--color-border)] overflow-hidden">
         {/* Section Header */}
         <div className="p-3.5 sm:p-5 border-b-2 border-border flex flex-wrap items-center justify-between gap-3 bg-surface-2">
@@ -733,7 +788,7 @@ export default function DashboardProviderOverview() {
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-border">
-                {filteredLimitedAccounts.map((acc) => {
+                {pagedLimitedAccounts.map((acc) => {
                   const iconSrc = getProviderIconSrc(acc.provider);
                   const isRechecking = recheckingId === acc.id;
                   return (
@@ -804,6 +859,32 @@ export default function DashboardProviderOverview() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination — 5 akun limit per page */}
+        {filteredLimitedAccounts.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between gap-2 px-3.5 sm:px-5 py-2.5 border-t-2 border-border bg-surface-2/60 font-mono text-[11px]">
+            <span className="text-text-muted">
+              Hal. <span className="font-bold text-text-main">{safeLimitedPage}</span> / {limitedTotalPages}
+              <span className="hidden sm:inline"> · {filteredLimitedAccounts.length} akun</span>
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setLimitedPage((p) => Math.max(1, p - 1))}
+                disabled={safeLimitedPage <= 1}
+                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+              >
+                <span className="material-symbols-outlined text-[14px]">chevron_left</span>
+              </button>
+              <button
+                onClick={() => setLimitedPage((p) => Math.min(limitedTotalPages, p + 1))}
+                disabled={safeLimitedPage >= limitedTotalPages}
+                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+              >
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
