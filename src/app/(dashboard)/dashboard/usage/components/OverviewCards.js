@@ -52,30 +52,30 @@ export default function OverviewCards({ stats }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3.5">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
       {cards.map((c, i) => (
         <Card
           key={c.label}
-          className={`flex flex-col justify-between p-3 sm:p-4 border-2 shadow-[2.5px_2.5px_0_var(--color-border)] ${
+          className={`flex flex-col justify-between p-2.5 sm:p-3 border-2 shadow-[2px_2px_0_var(--color-border)] ${
             i === cards.length - 1 ? "col-span-2 sm:col-span-1" : ""
           }`}
         >
-          <div className="flex items-center justify-between gap-1 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted truncate">
+          <div className="flex items-center justify-between gap-1 mb-1 sm:mb-1.5">
+            <span className="text-[9.5px] sm:text-[10.5px] font-bold uppercase tracking-wider text-text-muted truncate">
               {c.label}
             </span>
-            <div className={`flex size-6 shrink-0 items-center justify-center rounded border border-border ${c.bg} ${c.color}`}>
-              <span className="material-symbols-outlined text-[14px]">{c.icon}</span>
+            <div className={`flex size-5 sm:size-6 shrink-0 items-center justify-center rounded border border-border ${c.bg} ${c.color}`}>
+              <span className="material-symbols-outlined text-[12px] sm:text-[14px]">{c.icon}</span>
             </div>
           </div>
           <div className="min-w-0">
-            <span className={`block font-mono text-base font-black tracking-tight sm:text-xl truncate ${c.color}`}>
+            <span className={`block font-mono text-sm sm:text-base lg:text-lg font-black tracking-tight truncate ${c.color}`}>
               {c.value}
             </span>
             {c.subtitle ? (
-              <span className="mt-0.5 block text-[9px] text-text-muted truncate">{c.subtitle}</span>
+              <span className="mt-0.5 block text-[8.5px] sm:text-[9px] text-text-muted truncate">{c.subtitle}</span>
             ) : (
-              <span className="mt-0.5 block text-[9px] text-text-muted opacity-40">RouterMod API</span>
+              <span className="mt-0.5 block text-[8.5px] sm:text-[9px] text-text-muted opacity-40">RouterMod API</span>
             )}
           </div>
         </Card>

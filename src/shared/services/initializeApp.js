@@ -106,6 +106,10 @@ async function runHeavyStartup() {
   import("@/sse/services/backgroundTokenRefresh.js")
     .then(({ startBackgroundTokenRefresh }) => startBackgroundTokenRefresh())
     .catch((e) => console.log("[BackgroundTokenRefresh] scheduler start failed:", e.message));
+
+  import("@/sse/services/backgroundConnectionHealth.js")
+    .then(({ startBackgroundConnectionHealth }) => startBackgroundConnectionHealth())
+    .catch((e) => console.log("[BackgroundConnectionHealth] scheduler start failed:", e.message));
 }
 
 function hasQuotaAutoPingEnabled(settings) {

@@ -43,6 +43,37 @@ import {
 } from "@/lib/oauth/utils/server";
 import { detectIdeInstalled } from "@/lib/oauth/utils/ideDetect";
 import { ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
+import { getProviderConnectionById } from "@/lib/localDb.js";
+import { createRequire } from "module";
+
+const requireCjs = createRequire(import.meta.url);
+let _sessionStore = null;
+function sessionStoreCjs() {
+  if (!_sessionStore) _sessionStore = requireCjs("@/bot/session_store.js");
+  return _sessionStore;
+}
+
+// Persist a browser cookie jar for an OAuth connection so it can be recovered
+// later (see src/bot/session_recovery.js) if Google revokes the refresh token.
+// Accepts either a puppeteer cookie array or a raw `Cookie:` header string.
+async function persistAntigravityCookieJar(connection, cookieJar) {
+  if (!connection?.id) return null;
+  try {
+    const cookieStore = sessionStoreCjs();
+    let cookies = cookieJar;
+    if (typeof cookieJar === "string") {
+      cookies = cookieStore.cookiesFromHeader(cookieJar);
+    }
+    if (!Array.isArray(cookies) || cookies.length === 0) return null;
+    const saved = cookieStore.saveSession(connection.id, connection.email, cookies, {
+      source: "oauth-exchange",
+    });
+    return saved ? { cookies: saved.cookies.length, email: saved.email } : null;
+  } catch (err) {
+    console.log("persistAntigravityCookieJar error:", err?.message ?? err);
+    return null;
+  }
+}
 
 async function completeXaiManualCode(code, state) {
   const session = state ? getXaiSessionStatus(state) : null;
@@ -290,7 +321,7 @@ export async function POST(request, { params }) {
     }
 
     if (action === "exchange") {
-      const { code, redirectUri, codeVerifier, state, meta, systemId } = body;
+      const { code, redirectUri, codeVerifier, state, meta, systemId, cookieJar } = body;
 
       if (provider === "xiaomi-mimo") {
         if (!state) {
@@ -437,6 +468,12 @@ export async function POST(request, { params }) {
         testStatus: "active",
       });
 
+      // Persist the browser cookie jar (when the client sends one) so the
+      // connection can be recovered after the OAuth grant dies.
+      if (cookieJar && connection?.id) {
+        await persistAntigravityCookieJar(connection, cookieJar);
+      }
+
       return NextResponse.json({ 
         success: true, 
         connection: {
@@ -446,6 +483,20 @@ export async function POST(request, { params }) {
           displayName: connection.displayName,
         }
       });
+    }
+
+    if (action === "sync-cookies") {
+      const { cookies } = body;
+      const connectionId = body.connectionId;
+      if (!connectionId || !Array.isArray(cookies)) {
+        return NextResponse.json({ error: "Missing connectionId or cookies" }, { status: 400 });
+      }
+      const connection = await getProviderConnectionById(connectionId);
+      if (!connection) {
+        return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      }
+      const saved = await persistAntigravityCookieJar(connection, cookies);
+      return NextResponse.json({ success: !!saved, saved });
     }
 
     if (action === "poll") {

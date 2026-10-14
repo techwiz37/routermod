@@ -1,6 +1,6 @@
 "use client";
 
-import { Input, Button } from "@/shared/components";
+import { Button } from "@/shared/components";
 
 export default function DomainRow({
   tunnelEnabled, tunnelLoading, tunnelReachable, tunnelEverReachable,
@@ -23,24 +23,24 @@ export default function DomainRow({
 
   const iconBtn = (onClick, icon, title, extra = "") => (
     <button onClick={onClick} title={title}
-      className={`p-2 rounded-lg border-2 border-border bg-surface hover:bg-surface-2 text-text-muted hover:text-text-main transition-colors shrink-0 ${extra}`}
+      className={`p-1.5 rounded-lg border-2 border-border bg-surface hover:bg-surface-2 text-text-muted hover:text-text-main transition-colors shrink-0 ${extra}`}
       style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}>
-      <span className="material-symbols-outlined text-[16px]">{icon}</span>
+      <span className="material-symbols-outlined text-[15px]">{icon}</span>
     </button>
   );
 
   const offBtn = (onClick, title = "Disable") => (
     <button onClick={onClick} title={title}
-      className="p-2 rounded-lg border-2 border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-500 transition-colors shrink-0"
+      className="p-1.5 rounded-lg border-2 border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-500 transition-colors shrink-0"
       style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}>
-      <span className="material-symbols-outlined text-[16px]">power_settings_new</span>
+      <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
     </button>
   );
 
   const statusBox = (icon, text, colorClass, spin = false) => (
-    <div className={`flex-1 min-w-0 flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-border text-xs font-mono ${colorClass}`}
+    <div className={`flex-1 min-w-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 border-border text-xs font-mono ${colorClass}`}
       style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}>
-      <span className={`material-symbols-outlined text-[14px] shrink-0 ${spin ? "animate-spin" : ""}`}>{icon}</span>
+      <span className={`material-symbols-outlined text-[13px] shrink-0 ${spin ? "animate-spin" : ""}`}>{icon}</span>
       <span className="truncate">{text}</span>
     </div>
   );
@@ -49,7 +49,7 @@ export default function DomainRow({
 
   if (isActive) {
     content = (
-      <Input value={`${activeUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs" />
+      <input value={`${activeUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs py-1.5 px-2.5 rounded-lg border-2 border-border bg-surface text-text-main focus:outline-none shadow-[1.5px_1.5px_0px_var(--color-border)] truncate" />
     );
     actions = (
       <>

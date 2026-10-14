@@ -14,6 +14,35 @@ const PEER_TOKEN = crypto.randomBytes(24).toString("hex");
 process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 
 let backgroundRefreshStarted = false;
+let backgroundHealthStarted = false;
+
+function startBackgroundConnectionHealthFromCustomServer() {
+  if (backgroundHealthStarted) return;
+  backgroundHealthStarted = true;
+  const modPath = path.join(__dirname, "src", "sse", "services", "backgroundConnectionHealth.js");
+  import(pathToFileURL(modPath).href)
+    .then((m) => {
+      try {
+        m.startBackgroundConnectionHealth();
+      } catch (e) {
+        console.error("[BackgroundConnectionHealth] start failed:", e && e.message ? e.message : e);
+      }
+      const stop = () => {
+        try {
+          m.stopBackgroundConnectionHealth();
+        } catch {
+          /* ignore */
+        }
+      };
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    })
+    .catch((e) => {
+      if (process.env.DEBUG_BACKGROUND_CONNECTION_HEALTH) {
+        console.error("[BackgroundConnectionHealth] import failed:", e && e.message ? e.message : e);
+      }
+    });
+}
 
 function startBackgroundTokenRefreshFromCustomServer() {
   if (backgroundRefreshStarted) return;
@@ -75,6 +104,7 @@ http.createServer = (...args) => {
   const server = origCreate(...rest, wrapped);
   server.once("listening", () => {
     startBackgroundTokenRefreshFromCustomServer();
+    startBackgroundConnectionHealthFromCustomServer();
   });
   const origEmit = server.emit;
   // JBR 25 sends h2c upgrades that the HTTP/1.1 server would otherwise close.

@@ -41,9 +41,9 @@ function TimeAgo({ timestamp }) {
 
 function RecentRequests({ requests = [] }) {
   return (
-    <Card className="flex min-w-0 flex-col overflow-hidden border-2 shadow-[2.5px_2.5px_0_var(--color-border)]" padding="none" style={{ height: 480 }}>
+    <Card className="flex min-w-0 flex-col overflow-hidden border-2 shadow-[2.5px_2.5px_0_var(--color-border)] h-[280px] sm:h-[340px] lg:h-full lg:min-h-[300px]" padding="none">
       {/* Header */}
-      <div className="px-4 py-3 border-b-2 border-border shrink-0 bg-surface-2 flex items-center gap-2">
+      <div className="px-3.5 py-2.5 border-b-2 border-border shrink-0 bg-surface-2 flex items-center gap-2">
         <span className="material-symbols-outlined text-[15px] text-primary">bolt</span>
         <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Live Request Feed</span>
       </div>

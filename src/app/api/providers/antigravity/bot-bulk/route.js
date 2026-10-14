@@ -5,6 +5,15 @@ import fs from "fs";
 import os from "os";
 import { cookies } from "next/headers";
 import { getDashboardAuthSession } from "@/lib/auth/dashboardSession";
+import { getProviderConnections } from "@/models";
+import { createRequire } from "module";
+
+const requireCjs = createRequire(import.meta.url);
+let _sessionStore = null;
+function sessionStoreCjs() {
+  if (!_sessionStore) _sessionStore = requireCjs("@/bot/session_store.js");
+  return _sessionStore;
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +65,31 @@ async function isAuthed() {
   if (!token) return false;
   const session = await getDashboardAuthSession(token);
   return !!session;
+}
+
+// Copy email-keyed bot sessions to their connection-id key so the recovery
+// path (which looks up by connectionId) can find them.
+async function linkSessionsToConnections(emails) {
+  try {
+    const cookieStore = sessionStoreCjs();
+    const connections = await getProviderConnections({ provider: "antigravity" });
+    const byEmail = new Map(
+      connections.map((c) => [String(c.email || "").toLowerCase(), c])
+    );
+    let linked = 0;
+    for (const raw of emails) {
+      const email = String(raw).split("|")[0].trim().toLowerCase();
+      const conn = byEmail.get(email);
+      if (!conn) continue;
+      const session = cookieStore.loadSession(null, email);
+      if (!session?.cookies?.length) continue;
+      cookieStore.saveSession(conn.id, email, session.cookies, { source: "bot-bulk-link" });
+      linked++;
+    }
+    return linked;
+  } catch (_e) {
+    return 0;
+  }
 }
 
 export async function POST(request) {
@@ -138,6 +172,10 @@ export async function POST(request) {
     const meta = readMeta(jobId) || {};
     meta.done = true;
     writeMeta(jobId, meta);
+    // Link saved cookie sessions to their DB connection ids for recovery.
+    linkSessionsToConnections(emails).then((linked) => {
+      if (linked) appendLine(jobId, `[session] linked ${linked} cookie jar(s) ke koneksi`);
+    });
     // Cleanup after 2h
     setTimeout(() => {
       try { fs.unlinkSync(jobFile(jobId)); } catch (_e) {}

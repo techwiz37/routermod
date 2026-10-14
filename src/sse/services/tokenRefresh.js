@@ -173,6 +173,38 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
 }
 
 
+// Antigravity cookie-session fallback: when the OAuth refresh token is dead
+// (invalid_grant) but a persisted browser cookie jar is still alive, mint a
+// fresh access token from the session and persist it so the account keeps
+// working even though the OAuth grant was deleted upstream.
+async function tryAntigravitySessionRecovery(provider, creds) {
+  const pid = String(provider || "").toLowerCase();
+  if (pid !== "antigravity" && pid !== "ag") return null;
+  if (!creds?.connectionId) return null;
+  try {
+    const mod = await import("../../bot/session_recovery.js");
+    const recovery = mod.default || mod;
+    const recoverAntigravityAccessToken =
+      recovery.recoverAntigravityAccessToken || mod.recoverAntigravityAccessToken;
+    if (!recoverAntigravityAccessToken) return null;
+    const recovered = await recoverAntigravityAccessToken({
+      connectionId: creds.connectionId,
+      email: creds.email || creds.displayName,
+      log,
+    });
+    if (!recovered?.accessToken) return null;
+    return {
+      accessToken: recovered.accessToken,
+      expiresIn: recovered.expiresIn || 3600,
+      refreshToken: creds.refreshToken,
+      projectId: creds.projectId,
+    };
+  } catch (err) {
+    log?.debug?.("AG_SESSION", `Session recovery error: ${err?.message ?? err}`);
+    return null;
+  }
+}
+
 export async function checkAndRefreshToken(provider, credentials, options = {}) {
   let creds = { ...credentials };
   if (!creds.connectionId && creds.id) {
@@ -235,6 +267,38 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
             error: err?.message ?? String(err),
           });
         }
+      }
+
+      // Before giving up, try to recover a fresh access token from the
+      // persisted browser cookie session. Google revoking the OAuth grant does
+      // NOT invalidate the live web session, so this keeps the account usable.
+      const sessionCreds = await tryAntigravitySessionRecovery(provider, creds);
+      if (sessionCreds?.accessToken) {
+        log.info("TOKEN_REFRESH", "Recovered Antigravity token from browser session", {
+          connectionId: creds.connectionId,
+        });
+        await updateProviderCredentials(creds.connectionId, {
+          accessToken: sessionCreds.accessToken,
+          expiresIn: sessionCreds.expiresIn,
+          refreshToken: sessionCreds.refreshToken,
+        });
+        if (creds.connectionId) {
+          try {
+            await updateProviderConnection(creds.connectionId, {
+              testStatus: "active",
+              lastError: null,
+              errorCode: null,
+              lastErrorAt: null,
+              backoffLevel: 0,
+            });
+          } catch (_e) {}
+        }
+        creds = {
+          ...creds,
+          accessToken: sessionCreds.accessToken,
+          expiresAt: toExpiresAt(sessionCreds.expiresIn),
+        };
+        _refreshProjectId(provider, creds.connectionId, creds.accessToken);
       }
     }
 

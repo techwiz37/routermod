@@ -128,26 +128,37 @@ export default function ProviderTopology({
   const activeCount = activeSet.size;
   const isPowering = activeCount > 0;
 
-  const W = 560;
-  const H = 340;
-  const cx = W / 2;
-  const cy = H / 2;
-  const HUB_W = 112;
-  const HUB_H = 66;
-  const NODE_W = 160;
-  const NODE_H = 46;
-  const NODE_ICON = 28;
-  const NODE_PAD = 12;
+  const NODE_W = 108;
+  const NODE_H = 30;
+  const NODE_ICON = 17;
+  const NODE_PAD = 6;
+  const HUB_W = 68;
+  const HUB_H = 42;
 
   const displayProviders = providers.slice(0, 6);
   const count = displayProviders.length;
 
+  // Fixed canvas — lebih tinggi supaya kabel atas/bawah kelihatan jelas
+  const W = 520;
+  const H = 320;
+  const cx = W / 2;
+  const cy = H / 2;
+
+  // Orbit radius: gunakan yang lebih besar tapi masih muat
+  // max H: cy - NODE_H/2 - 28 (jarak kabel ke tepi) = 160 - 15 - 28 = 117
+  // max W: cx - NODE_W/2 - 28 = 260 - 54 - 28 = 178
+  const orbitR = Math.min(
+    cx - NODE_W / 2 - 28,
+    cy - NODE_H / 2 - 28,
+    count <= 2 ? 115 : count <= 4 ? 110 : 105
+  );
+
+  // Angle offset so nodes look like reference image: start at top (-90°)
+  const angleOffset = count <= 3 ? -90 : count === 4 ? -45 : -90;
+
   const nodePositions = displayProviders.map((_, i) => {
-    const angle = count <= 3
-      ? (i / count) * 360 - (count === 1 ? 0 : 30)
-      : (i / count) * 360;
-    const r = count <= 2 ? 170 : count <= 4 ? 160 : 150;
-    return polar(cx, cy, r, angle);
+    const angle = angleOffset + (i / count) * 360;
+    return polar(cx, cy, orbitR, angle);
   });
 
   return (
@@ -192,13 +203,13 @@ export default function ProviderTopology({
         </div>
 
         {providers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-text-muted">
-            <span className="material-symbols-outlined text-[36px] opacity-20">device_hub</span>
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-text-muted">
+            <span className="material-symbols-outlined text-[32px] opacity-20">device_hub</span>
             <span className="text-xs font-mono">Belum ada provider terhubung</span>
           </div>
         ) : (
-          <div style={{ width: "100%", aspectRatio: `${W} / ${H}` }}>
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}>
+          <div className="w-full flex items-center justify-center p-0">
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" style={{ maxHeight: 260 }} preserveAspectRatio="xMidYMid meet">
               <defs>
                 <radialGradient id="hub-radial" cx="50%" cy="50%" r="50%">
                   <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.18" />
@@ -222,9 +233,9 @@ export default function ProviderTopology({
                 const dx = cx - pos.x;
                 const dy = cy - pos.y;
                 const len = Math.hypot(dx, dy) || 1;
-                const gapNode = 6;
-                const gapHubX = HUB_W / 2 + 4;
-                const gapHubY = HUB_H / 2 + 4;
+                const gapNode = 4;
+                const gapHubX = HUB_W / 2 + 3;
+                const gapHubY = HUB_H / 2 + 3;
                 const x1 = pos.x + (dx / len) * (NODE_W / 2 + gapNode) * (Math.abs(dx) / len > 0.3 ? 1 : 1);
                 const y1 = pos.y + (dy / len) * (NODE_H / 2 + gapNode);
                 const hubR = Math.min(gapHubX / Math.max(Math.abs(dx / len), 0.001), gapHubY / Math.max(Math.abs(dy / len), 0.001));
@@ -243,19 +254,19 @@ export default function ProviderTopology({
 
               <g transform={`translate(${cx}, ${cy})`}>
                 {isPowering && (
-                  <circle r={50} fill="url(#hub-radial)" stroke="var(--color-primary)"
+                  <circle r={36} fill="url(#hub-radial)" stroke="var(--color-primary)"
                     strokeWidth={1.5} strokeOpacity={0.35}
                     style={{ animation: "topo-hub-pulse 2.2s ease-in-out infinite" }} />
                 )}
                 {isPowering && (
-                  <circle r={40} fill="none" stroke="var(--color-primary)"
+                  <circle r={30} fill="none" stroke="var(--color-primary)"
                     strokeWidth={1} strokeOpacity={0.18} strokeDasharray="3 6"
                     style={{ animation: "topo-hub-ring 10s linear infinite", transformOrigin: "center" }} />
                 )}
-                <rect x={-HUB_W / 2} y={-HUB_H / 2} width={HUB_W} height={HUB_H} rx={10}
+                <rect x={-HUB_W / 2} y={-HUB_H / 2} width={HUB_W} height={HUB_H} rx={8}
                   fill="var(--color-surface)"
                   stroke="var(--color-primary)"
-                  strokeWidth={2.5}
+                  strokeWidth={2}
                   filter="url(#node-shadow)"
                   style={{
                     filter: isPowering
@@ -263,16 +274,16 @@ export default function ProviderTopology({
                       : "drop-shadow(1.5px 1.5px 0 var(--color-border))",
                   }}
                 />
-                <foreignObject x={-18} y={-18} width={36} height={36}>
+                <foreignObject x={-15} y={-15} width={30} height={30}>
                   <div style={{ width: "100%", height: "100%" }}>
-                    <Soft3DLogo className="size-9" />
+                    <Soft3DLogo className="size-7" />
                   </div>
                 </foreignObject>
                 {isPowering && (
-                  <g transform={`translate(${HUB_W / 2 - 12}, ${-HUB_H / 2 - 10})`}>
-                    <rect x={-14} y={-8} width={28} height={16} rx={8}
+                  <g transform={`translate(${HUB_W / 2 - 8}, ${-HUB_H / 2 - 6})`}>
+                    <rect x={-11} y={-7} width={22} height={14} rx={7}
                       fill="var(--color-primary)" />
-                    <text x={0} y={4.5} textAnchor="middle" fontSize={9} fontWeight={900}
+                    <text x={0} y={3.5} textAnchor="middle" fontSize={8} fontWeight={900}
                       fill="white" style={{ fontFamily: "monospace" }}>
                       {activeCount}
                     </text>
@@ -289,20 +300,20 @@ export default function ProviderTopology({
                 const config = getProviderConfig(p.provider);
                 const color = config.color || "#6b7280";
                 const label = (config.name !== p.provider ? config.name : null) || p.nodeName || p.name || p.provider;
-                const labelShort = label.length > 15 ? label.slice(0, 14) + "…" : label;
+                const labelShort = label.length > 13 ? label.slice(0, 12) + "…" : label;
                 const borderColor = active ? color : hasError ? "#ef4444" : isLast ? "#f59e0b" : "var(--color-border)";
                 const nodeBg = active ? `${color}0d` : hasError ? "#ef444408" : isLast ? "#f59e0b06" : "var(--color-surface-2)";
 
                 return (
                   <g key={`node-${p.provider}`} transform={`translate(${pos.x}, ${pos.y})`}>
                     {active && (
-                      <rect x={-NODE_W / 2 - 3} y={-NODE_H / 2 - 3}
-                        width={NODE_W + 6} height={NODE_H + 6} rx={13}
-                        fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.4}
+                      <rect x={-NODE_W / 2 - 2} y={-NODE_H / 2 - 2}
+                        width={NODE_W + 4} height={NODE_H + 4} rx={10}
+                        fill="none" stroke={color} strokeWidth={1.2} strokeOpacity={0.4}
                         style={{ animation: "topo-node-glow 2s ease-in-out infinite" }} />
                     )}
-                    <rect x={-NODE_W / 2} y={-NODE_H / 2} width={NODE_W} height={NODE_H} rx={10}
-                      fill={nodeBg} stroke={borderColor} strokeWidth={2}
+                    <rect x={-NODE_W / 2} y={-NODE_H / 2} width={NODE_W} height={NODE_H} rx={8}
+                      fill={nodeBg} stroke={borderColor} strokeWidth={1.8}
                       style={{
                         filter: active
                           ? `drop-shadow(1.5px 1.5px 0 var(--color-border)) drop-shadow(0 0 6px ${color}40)`
@@ -310,45 +321,45 @@ export default function ProviderTopology({
                       }}
                     />
 
-                    <g transform={`translate(${-NODE_W / 2 + NODE_PAD + 14}, 0)`}>
+                    <g transform={`translate(${-NODE_W / 2 + NODE_PAD + 10}, 0)`}>
                       {active && (
-                        <circle r={16} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.35}
+                        <circle r={13} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.35}
                           style={{ animation: "topo-icon-pulse 1.8s ease-in-out infinite" }} />
                       )}
-                      <circle r={14} fill={color} fillOpacity={0.15}
-                        stroke={color} strokeWidth={active ? 2 : 1.2}
+                      <circle r={11} fill={color} fillOpacity={0.15}
+                        stroke={color} strokeWidth={active ? 1.6 : 1}
                         strokeOpacity={active ? 0.9 : 0.4} />
-                      <foreignObject x={-NODE_ICON / 2 * 0.7} y={-NODE_ICON / 2 * 0.7}
-                        width={NODE_ICON * 0.7} height={NODE_ICON * 0.7}>
+                      <foreignObject x={-NODE_ICON / 2 * 0.75} y={-NODE_ICON / 2 * 0.75}
+                        width={NODE_ICON * 0.75} height={NODE_ICON * 0.75}>
                         <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <ProviderIcon providerId={p.provider} color={color} size={NODE_ICON * 0.65} />
+                          <ProviderIcon providerId={p.provider} color={color} size={NODE_ICON * 0.7} />
                         </div>
                       </foreignObject>
                     </g>
 
-                    <text x={-NODE_W / 2 + NODE_PAD + 14 + 22} y={4}
-                      textAnchor="start" fontSize={12} fontWeight={800}
+                    <text x={-NODE_W / 2 + NODE_PAD + 10 + 17} y={3.5}
+                      textAnchor="start" fontSize={10} fontWeight={800}
                       fill="var(--color-text-main)" style={{ fontFamily: "monospace" }}>
                       {labelShort}
                     </text>
 
                     {active && (
-                      <g transform={`translate(${NODE_W / 2 - 10}, ${-NODE_H / 2 + 10})`}>
-                        <circle r={4.5} fill="#22c55e"
+                      <g transform={`translate(${NODE_W / 2 - 8}, ${-NODE_H / 2 + 8})`}>
+                        <circle r={3.5} fill="#22c55e"
                           style={{ filter: "drop-shadow(0 0 3px #22c55e)" }}>
-                          <animate attributeName="r" values="3;5;3" dur="1.4s" repeatCount="indefinite" />
+                          <animate attributeName="r" values="2.5;4;2.5" dur="1.4s" repeatCount="indefinite" />
                           <animate attributeName="opacity" values="0.7;1;0.7" dur="1.4s" repeatCount="indefinite" />
                         </circle>
                       </g>
                     )}
                     {hasError && (
-                      <g transform={`translate(${NODE_W / 2 - 10}, ${-NODE_H / 2 + 10})`}>
-                        <circle r={4} fill="#ef4444" />
+                      <g transform={`translate(${NODE_W / 2 - 8}, ${-NODE_H / 2 + 8})`}>
+                        <circle r={3} fill="#ef4444" />
                       </g>
                     )}
                     {isLast && (
-                      <g transform={`translate(${NODE_W / 2 - 10}, ${-NODE_H / 2 + 10})`}>
-                        <circle r={4} fill="#f59e0b" />
+                      <g transform={`translate(${NODE_W / 2 - 8}, ${-NODE_H / 2 + 8})`}>
+                        <circle r={3} fill="#f59e0b" />
                       </g>
                     )}
                   </g>

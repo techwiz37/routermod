@@ -86,6 +86,12 @@ export default function UsageTable({
   emptyMessage,
 }) {
   const [expanded, setExpanded] = useState(new Set());
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 5;
+
+  useEffect(() => {
+    setPage(0);
+  }, [groupedData.length, tableType]);
 
   useEffect(() => {
     try {
@@ -111,6 +117,9 @@ export default function UsageTable({
       return next;
     });
   }, []);
+
+  const totalPages = Math.ceil(groupedData.length / PAGE_SIZE);
+  const pagedData = groupedData.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const valueColumns = useMemo(() => {
     if (viewMode === "tokens") {
@@ -165,7 +174,7 @@ export default function UsageTable({
             </tr>
           </thead>
           <tbody className="divide-y-2 divide-border">
-            {groupedData.map((group) => (
+            {pagedData.map((group) => (
               <Fragment key={group.groupKey}>
                 {/* Group summary row */}
                 <tr
@@ -197,7 +206,7 @@ export default function UsageTable({
                 ))}
               </Fragment>
             ))}
-            {groupedData.length === 0 && (
+            {pagedData.length === 0 && (
               <tr>
                 <td colSpan={totalColSpan} className="px-6 py-8 text-center text-text-muted font-medium">
                   {emptyMessage}
@@ -207,6 +216,46 @@ export default function UsageTable({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t-2 border-border bg-surface-2/50">
+          <span className="font-mono text-[10px] text-text-muted">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, groupedData.length)} dari {groupedData.length}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage(0)}
+              disabled={page === 0}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">first_page</span>
+            </button>
+            <button
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 0}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">chevron_left</span>
+            </button>
+            <span className="font-mono text-[10px] text-text-muted px-1.5">{page + 1} / {totalPages}</span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= totalPages - 1}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">chevron_right</span>
+            </button>
+            <button
+              onClick={() => setPage(totalPages - 1)}
+              disabled={page >= totalPages - 1}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">last_page</span>
+            </button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

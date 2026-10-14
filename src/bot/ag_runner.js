@@ -6,6 +6,7 @@ const http = require("http");
 const { URL } = require("url");
 const fs = require("fs");
 const path = require("path");
+const sessionStore = require("./session_store.js");
 
 const GOOGLE_PASSWORD = "qwertyui";
 const CHROME_PATHS = [
@@ -149,8 +150,7 @@ async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
   const client = await page.target().createCDPSession();
-  try {
-    await page.setUserAgent(
+  try {    await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
     );
 
@@ -230,6 +230,15 @@ async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
 
       if (curr.startsWith(base) && curr.includes("code=")) {
         httpLog("GET", `/callback?code=*** [${email}]`, 200);
+        // Persist the live Google/Antigravity cookie jar so the account can be
+        // recovered later even if Google revokes the OAuth refresh token.
+        try {
+          const jar = await context.cookies();
+          sessionStore.saveSession(null, email, jar, { source: "bot-bulk" });
+          log(`[session] saved ${jar.length} cookie(s) for ${email}`);
+        } catch (e) {
+          log(`[session] failed to persist cookies for ${email}: ${e.message}`);
+        }
         return curr;
       }
       if (curr.includes("error=") && !curr.includes("nativeapp")) {
@@ -362,8 +371,9 @@ async function main() {
       }
       if (ok) added++; else failed++;
       if (i < entries.length - 1) {
-        log(`[wait] 20s before next account...`);
-        await new Promise(r => setTimeout(r, 20000));
+        const waitMs = parseInt(process.env.AG_WAIT_MS || "20000", 10);
+        log(`[wait] ${waitMs / 1000}s before next account...`);
+        await new Promise(r => setTimeout(r, waitMs));
       }
     }
   } finally {

@@ -5,7 +5,8 @@ import PropTypes from "prop-types";
 import Card from "@/shared/components/Card";
 import SegmentedControl from "@/shared/components/SegmentedControl";
 
-const BAR_COLORS = ["#14b8a6", "#6366f1", "#f59e0b", "#ff1a53", "#8b5cf6", "#06b6d4"];
+const BAR_COLORS = ["#14b8a6", "#6366f1", "#f59e0b", "#ff1a53", "#8b5cf6", "#06b6d4", "#10b981", "#f97316"];
+const PAGE_SIZE = 5;
 
 const fmtTokens = (n) => {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -17,8 +18,9 @@ const truncate = (s, max = 26) => (s && s.length > max ? s.slice(0, max - 1) + "
 
 export default function TopModelsChart({ byModel }) {
   const [viewMode, setViewMode] = useState("tokens");
+  const [page, setPage] = useState(0);
 
-  const rows = useMemo(() => {
+  const allRows = useMemo(() => {
     if (!byModel) return [];
     const list = Object.values(byModel)
       .map((data) => ({
@@ -28,13 +30,17 @@ export default function TopModelsChart({ byModel }) {
         requests: data.requests || 0,
       }))
       .filter((d) => d[viewMode] > 0)
-      .sort((a, b) => b[viewMode] - a[viewMode])
-      .slice(0, 8);
+      .sort((a, b) => b[viewMode] - a[viewMode]);
     const max = Math.max(...list.map((d) => d[viewMode]), 1);
     return list.map((d, i) => ({ ...d, pct: (d[viewMode] / max) * 100, color: BAR_COLORS[i % BAR_COLORS.length] }));
   }, [byModel, viewMode]);
 
+  const totalPages = Math.ceil(allRows.length / PAGE_SIZE);
+  const rows = allRows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
   const fmt = viewMode === "tokens" ? fmtTokens : String;
+
+  const handleViewMode = (v) => { setViewMode(v); setPage(0); };
 
   return (
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 border-2 shadow-[2.5px_2.5px_0_var(--color-border)]">
@@ -46,39 +52,66 @@ export default function TopModelsChart({ byModel }) {
             { value: "requests", label: "Permintaan" },
           ]}
           value={viewMode}
-          onChange={setViewMode}
+          onChange={handleViewMode}
           size="sm"
         />
       </div>
 
-      {!rows.length ? (
+      {!allRows.length ? (
         <div className="h-44 flex flex-col items-center justify-center gap-2 text-text-muted">
           <span className="material-symbols-outlined text-[28px] opacity-30">model_training</span>
           <span className="text-xs font-medium">Belum ada penggunaan model</span>
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5 py-1">
-          {rows.map((r) => (
-            <div key={r.name} className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[11px] font-bold text-text-main truncate" title={r.name}>{r.name}</span>
-                <span className="font-mono text-[11px] font-bold shrink-0" style={{ color: r.color }}>
-                  {fmt(r[viewMode])}
-                </span>
+        <>
+          <div className="flex flex-col gap-2.5 py-1 min-h-[calc(5*42px)]">
+            {rows.map((r) => (
+              <div key={r.name} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-bold text-text-main truncate" title={r.name}>{r.name}</span>
+                  <span className="font-mono text-[11px] font-bold shrink-0" style={{ color: r.color }}>
+                    {fmt(r[viewMode])}
+                  </span>
+                </div>
+                <div className="h-2.5 w-full rounded-full border-2 border-border bg-surface-2 overflow-hidden"
+                  style={{ boxShadow: "1px 1px 0 var(--color-border)" }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${Math.max(r.pct, 4)}%`,
+                      background: `linear-gradient(90deg, ${r.color}, ${r.color}bb)`,
+                    }}
+                  />
+                </div>
               </div>
-              <div className="h-2.5 w-full rounded-full border-2 border-border bg-surface-2 overflow-hidden"
-                style={{ boxShadow: "1px 1px 0 var(--color-border)" }}>
-                <div
-                  className="h-full rounded-full transition-all duration-700 ease-out"
-                  style={{
-                    width: `${Math.max(r.pct, 4)}%`,
-                    background: `linear-gradient(90deg, ${r.color}, ${r.color}bb)`,
-                  }}
-                />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-2 pt-1 border-t-2 border-border">
+              <span className="font-mono text-[10px] text-text-muted">
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, allRows.length)} / {allRows.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(p => p - 1)}
+                  disabled={page === 0}
+                  className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+                >
+                  <span className="material-symbols-outlined text-[13px]">chevron_left</span>
+                </button>
+                <span className="font-mono text-[10px] text-text-muted px-1">{page + 1}/{totalPages}</span>
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={page >= totalPages - 1}
+                  className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+                >
+                  <span className="material-symbols-outlined text-[13px]">chevron_right</span>
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </Card>
   );
