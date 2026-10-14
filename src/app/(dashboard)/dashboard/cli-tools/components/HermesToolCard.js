@@ -59,7 +59,7 @@ export default function HermesToolCard({
   const configStatus = getConfigStatus();
 
   const profileStatus = (p) => {
-    if (p.has9Router || (p.baseUrl && matchKnownEndpoint(p.baseUrl, { tunnelPublicUrl, tailscaleUrl }))) return "configured";
+    if (p.hasRoutermod || (p.baseUrl && matchKnownEndpoint(p.baseUrl, { tunnelPublicUrl, tailscaleUrl }))) return "configured";
     if (p.baseUrl) return "other";
     return "not_configured";
   };
@@ -184,7 +184,7 @@ export default function HermesToolCard({
   const getKeyToUse = () =>
     selectedApiKey?.trim()
       || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-      || (!cloudEnabled ? "sk_9router" : null);
+      || (!cloudEnabled ? "sk_routermod" : null);
 
   const profileLabel = (name) => (name === "default" ? "default profile" : `profile "${name}"`);
 
@@ -231,7 +231,7 @@ export default function HermesToolCard({
     if (!isKnown) {
       setMessage({
         type: "error",
-        text: `"${endpoint}" is not a 9router endpoint. Select the local, tunnel, Tailscale or a saved 9router endpoint before applying to all profiles.`,
+        text: `"${endpoint}" is not a routermod endpoint. Select the local, tunnel, Tailscale or a saved routermod endpoint before applying to all profiles.`,
       });
       return;
     }
@@ -317,7 +317,7 @@ export default function HermesToolCard({
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : (!cloudEnabled ? "sk_routermod" : "<API_KEY_FROM_DASHBOARD>");
 
     const base = getEffectiveBaseUrl();
     const homeDir = activeProfile === "default" ? "~/.hermes" : `~/.hermes/profiles/${activeProfile}`;
@@ -543,13 +543,13 @@ export default function HermesToolCard({
                     size="sm"
                     onClick={handleApplyAll}
                     loading={applyingAll}
-                    title="Set the endpoint and API key on every profile that routes through 9router. Each profile keeps its own model."
+                    title="Set the endpoint and API key on every profile that routes through routermod. Each profile keeps its own model."
                     className="w-full sm:w-auto"
                   >
                     <span className="material-symbols-outlined text-[14px] mr-1">groups</span>Apply to All Profiles
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={handleReset} disabled={!hermesStatus?.has9Router} loading={restoring} className="w-full sm:w-auto">
+                <Button variant="outline" size="sm" onClick={handleReset} disabled={!hermesStatus?.hasRoutermod} loading={restoring} className="w-full sm:w-auto">
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)} className="w-full sm:w-auto">

@@ -28,7 +28,7 @@ export function isMuseSparkModel(modelId) {
   return /^muse[-_]?spark(?:$|[-_:.\s])/i.test(base);
 }
 
-// "model(level)" is a 9router thinking override; strip before matching.
+// "model(level)" is a routermod thinking override; strip before matching.
 // Accepts both bare ids ("deepseek-v4-pro(max)") and provider-prefixed ones.
 export function isDeepSeekModel(modelId) {
   if (!modelId || typeof modelId !== "string") return false;

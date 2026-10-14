@@ -2,7 +2,7 @@
  * Native qodercli does NOT stuff image/PDF bytes into agent_chat_generation.
  * It PUTs them to /algo/api/v2/image/upload (COSY-signed multipart) and then
  * sends the returned OSS URL. Agents like Claude Code send OpenAI/Claude
- * data-URIs instead, which 9router previously forwarded verbatim — 10MB
+ * data-URIs instead, which routermod previously forwarded verbatim — 10MB
  * images become 30MB+ JSON and upstream 413s even though the model window
  * is ~200k tokens.
  *
@@ -54,7 +54,7 @@ function stubText({ name, mime, bytes, reason }) {
 }
 
 export function buildMultipartFile(buffer, { fieldName = "file", fileName, mediaType } = {}) {
-  const boundary = `----9routerQoder${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+  const boundary = `----routermodQoder${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
   const filename = fileName || `upload.${mimeExt(mediaType)}`;
   const head = Buffer.from(
     `--${boundary}\r\nContent-Disposition: form-data; name="${fieldName}"; filename="${filename}"\r\nContent-Type: ${mediaType || "application/octet-stream"}\r\n\r\n`,

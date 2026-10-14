@@ -598,7 +598,7 @@ h1{font-size:1.1rem;margin:.2rem 0 .6rem}p{opacity:.8;font-size:.9rem;line-heigh
 }
 
 function donePage() {
-  return htmlPage("登录成功 ✅", ["账号会话已捕获，可以关闭此窗口。", "回到 9router 弹窗继续。"], true);
+  return htmlPage("登录成功 ✅", ["账号会话已捕获，可以关闭此窗口。", "回到 routermod 弹窗继续。"], true);
 }
 
 function pendingPage() {

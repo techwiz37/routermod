@@ -77,7 +77,7 @@ async function runInstall() {
   ensureDir();
   const pkgJson = path.join(PXPIPE_DIR, "package.json");
   if (!fs.existsSync(pkgJson)) {
-    fs.writeFileSync(pkgJson, JSON.stringify({ name: "9router-pxpipe-host", private: true }, null, 2));
+    fs.writeFileSync(pkgJson, JSON.stringify({ name: "routermod-pxpipe-host", private: true }, null, 2));
   }
 
   const outFd = fs.openSync(INSTALL_LOG, "a");

@@ -9,16 +9,16 @@
 
 **Route smarter. Spend less. Ship faster.**
 
-A full redesign of [9Router](https://github.com/decolua/9router) — Neobrutalism UI, persistent CF tunneling, per-key model restrictions, live health monitoring, and a lot of quality-of-life improvements that make daily use actually enjoyable.
+A full redesign of [Routermod](https://github.com/decolua/9router) — Neobrutalism UI, persistent CF tunneling, per-key model restrictions, live health monitoring, and a lot of quality-of-life improvements that make daily use actually enjoyable.
 
 <br/>
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
-[![Based On](https://img.shields.io/badge/based%20on-9Router-crimson)](https://github.com/decolua/9router)
+[![Based On](https://img.shields.io/badge/based%20on-Routermod-crimson)](https://github.com/decolua/9router)
 [![Port](https://img.shields.io/badge/default%20port-1945-orange)](#quick-start)
 [![Stack](https://img.shields.io/badge/Next.js%20+%20React%2019-black?logo=nextdotjs)](#tech-stack)
 
-[Quick Start](#-quick-start) · [What's New](#-whats-different-from-9router) · [Features](#-features) · [Setup](#-setup) · [API](#-api)
+[Quick Start](#-quick-start) · [What's New](#-whats-different-from-routermod) · [Features](#-features) · [Setup](#-setup) · [API](#-api)
 
 </div>
 
@@ -29,7 +29,7 @@ A full redesign of [9Router](https://github.com/decolua/9router) — Neobrutalis
 
 ## RouterMod — Panduan Bahasa Indonesia
 
-RouterMod adalah fork dari 9Router yang di-redesign ulang dari nol. UI-nya pakai tema Neobrutalism 3D dengan aksen Cyber Crimson, tunneling ke domain publik otomatis, dan berbagai fitur tambahan yang bikin pengalaman sehari-hari jauh lebih enak.
+RouterMod adalah fork dari Routermod yang di-redesign ulang dari nol. UI-nya pakai tema Neobrutalism 3D dengan aksen Cyber Crimson, tunneling ke domain publik otomatis, dan berbagai fitur tambahan yang bikin pengalaman sehari-hari jauh lebih enak.
 
 ### Mulai Cepat
 
@@ -51,9 +51,9 @@ API Key  : ambil dari Dashboard → Endpoint
 Model    : kr/claude-sonnet-4.5
 ```
 
-### Perbedaan dari 9Router
+### Perbedaan dari Routermod
 
-| | 9Router | RouterMod |
+| | Routermod | RouterMod |
 |---|---|---|
 | **Rename / re-prefix model** | Tidak bisa | Edit prefix, model ID, display name per model |
 | **Custom model CRUD** | Terbatas | Edit ID, nama, hapus; fetch live dari `/models` |
@@ -123,11 +123,11 @@ Model    : kr/claude-sonnet-4.5
 
 ---
 
-## ✨ What's Different from 9Router
+## ✨ What's Different from Routermod
 
-RouterMod keeps everything that makes 9Router good and fills in the gaps that make daily use frustrating.
+RouterMod keeps everything that makes Routermod good and fills in the gaps that make daily use frustrating.
 
-| | 9Router | RouterMod |
+| | Routermod | RouterMod |
 |---|---|---|
 | **Model rename / re-prefix** | Not possible | Edit prefix, model ID, and display name per model |
 | **Custom model CRUD** | Basic add only | Full edit — change ID, name, delete; live fetch from `/models` |
@@ -153,7 +153,7 @@ RouterMod keeps everything that makes 9Router good and fills in the gaps that ma
 
 ## 💡 Features
 
-### Inherited from 9Router
+### Inherited from Routermod
 
 | Feature | Description |
 |---|---|
@@ -317,7 +317,7 @@ Compatible with any OpenAI-format client.
 
 Built on top of great open-source work:
 
-- **[9Router](https://github.com/decolua/9router)** — the upstream AI router this is forked from
+- **[Routermod](https://github.com/decolua/9router)** — the upstream AI router this is forked from
 - **[RTK](https://github.com/rtk-ai/rtk)** — token compression pipeline
 - **[Caveman](https://github.com/JuliusBrussee/caveman)** — terse output prompt
 - **[Ponytail](https://github.com/DietrichGebert/ponytail)** — lazy senior dev prompt
@@ -331,5 +331,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-  <sub>Fork of 9Router · Neobrutalism UI · Auto CF Tunneling · Port 1945</sub>
+  <sub>Fork of Routermod · Neobrutalism UI · Auto CF Tunneling · Port 1945</sub>
 </div>

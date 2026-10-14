@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import { parseModelBlock, parseDelegationBlock, parseAuxRoles, has9RouterConfig } from "./hermesYaml.js";
+import { parseModelBlock, parseDelegationBlock, parseAuxRoles, hasRoutermodConfig } from "./hermesYaml.js";
 
 export const PROFILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 export const IDENTITY_FILES = ["config.yaml", ".env", "SOUL.md", "profile.yaml", "auth.json", "state.db"];
@@ -79,7 +79,7 @@ const buildEntry = async (name, dir, isDefault) => {
     alias: isDefault ? null : name,
     model: model?.default || null,
     baseUrl: model?.base_url || null,
-    has9Router: has9RouterConfig(model) || has9RouterConfig(delegation) || Object.values(auxiliary).some(has9RouterConfig),
+    hasRoutermod: hasRoutermodConfig(model) || hasRoutermodConfig(delegation) || Object.values(auxiliary).some(hasRoutermodConfig),
   };
 };
 

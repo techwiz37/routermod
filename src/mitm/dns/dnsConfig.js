@@ -7,8 +7,8 @@ const { TOOL_HOSTS } = require("../../shared/constants/mitmToolHosts.js");
 const { runElevatedPowerShell, isAdmin } = require("../winElevated.js");
 
 function atomicWriteHostsWin(target, originalContent, newContent) {
-  const tmpNew = `${target}.9router.new`;
-  const tmpBak = `${target}.9router.bak`;
+  const tmpNew = `${target}.routermod.new`;
+  const tmpBak = `${target}.routermod.bak`;
   try {
     fs.writeFileSync(tmpNew, newContent, "utf8");
     try { fs.unlinkSync(tmpBak); } catch { /* none */ }

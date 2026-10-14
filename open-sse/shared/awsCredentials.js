@@ -225,7 +225,7 @@ function present(resolved, region, mode, expiresAt) {
 /**
  * Resolve usable AWS credentials plus the region to sign for.
  *
- * @param {object} credentials - 9router connection credentials.
+ * @param {object} credentials - routermod connection credentials.
  * @param {object} [opts]
  * @param {object} [opts.log]
  * @param {function} [opts.loadCredentialProviders] - Test seam for the lazy SDK import.

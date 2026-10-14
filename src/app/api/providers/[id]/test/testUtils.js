@@ -54,7 +54,7 @@ const OAUTH_TEST_CONFIG = {
     method: "GET",
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    extraHeaders: { "User-Agent": "9Router", "Accept": "application/vnd.github+json" },
+    extraHeaders: { "User-Agent": "Routermod", "Accept": "application/vnd.github+json" },
   },
   iflow: {
     buildUrl: (token) => `https://iflow.cn/api/oauth/getUserInfo?accessToken=${encodeURIComponent(token)}`,

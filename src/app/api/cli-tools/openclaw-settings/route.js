@@ -48,9 +48,9 @@ const readSettings = async () => {
   }
 };
 
-const has9RouterConfig = (settings) => {
+const hasRoutermodConfig = (settings) => {
   if (!settings || !settings.models || !settings.models.providers) return false;
-  return !!settings.models.providers["9router"];
+  return !!settings.models.providers["routermod"];
 };
 
 const readAgentModel = async (agentDir) => {
@@ -58,7 +58,7 @@ const readAgentModel = async (agentDir) => {
     const modelsPath = path.join(agentDir, "models.json");
     const content = await fs.readFile(modelsPath, "utf-8");
     const data = JSON.parse(content);
-    const models = data?.providers?.["9router"]?.models;
+    const models = data?.providers?.["routermod"]?.models;
     return models?.[0]?.id || null;
   } catch {
     return null;
@@ -91,7 +91,7 @@ export async function GET() {
       installed: true,
       settings,
       agents: enrichedAgents,
-      has9Router: has9RouterConfig(settings),
+      hasRoutermod: hasRoutermodConfig(settings),
       settingsPath: getOpenClawSettingsPath(),
     });
   } catch (error) {
@@ -110,7 +110,7 @@ const writeAgentModels = async (agentDir, model, baseUrl, apiKey) => {
   } catch { /* No existing */ }
 
   if (!existing.providers) existing.providers = {};
-  existing.providers["9router"] = {
+  existing.providers["routermod"] = {
     baseUrl,
     apiKey: apiKey || "your_api_key",
     api: "openai-completions",
@@ -146,10 +146,10 @@ export async function POST(request) {
     if (!settings.models.providers) settings.models.providers = {};
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    const fullModelId = `9router/${model}`;
+    const fullModelId = `routermod/${model}`;
 
     Object.keys(settings.agents.defaults.models)
-      .filter((k) => k.startsWith("9router/"))
+      .filter((k) => k.startsWith("routermod/"))
       .forEach((k) => { delete settings.agents.defaults.models[k]; });
 
     settings.agents.defaults.model.primary = fullModelId;
@@ -158,12 +158,12 @@ export async function POST(request) {
     Object.values(agentModels).forEach((m) => { if (m) allModelIds.add(m); });
 
     allModelIds.forEach((m) => {
-      settings.agents.defaults.models[`9router/${m}`] = {};
+      settings.agents.defaults.models[`routermod/${m}`] = {};
     });
 
     if (settings.agents.list) {
       settings.agents.list = settings.agents.list.map((agent) => {
-        if (resolveAgentModel(agent.model).startsWith("9router/")) {
+        if (resolveAgentModel(agent.model).startsWith("routermod/")) {
           const { model: _, ...rest } = agent;
           return rest;
         }
@@ -171,7 +171,7 @@ export async function POST(request) {
       });
     }
 
-    settings.models.providers["9router"] = {
+    settings.models.providers["routermod"] = {
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || "your_api_key",
       api: "openai-completions",
@@ -181,7 +181,7 @@ export async function POST(request) {
     if (settings.agents.list) {
       settings.agents.list = settings.agents.list.map((agent) => {
         const agentModel = agentModels[agent.id];
-        if (agentModel) return { ...agent, model: `9router/${agentModel}` };
+        if (agentModel) return { ...agent, model: `routermod/${agentModel}` };
         return agent;
       });
 
@@ -227,7 +227,7 @@ export async function DELETE() {
     }
 
     if (settings.models && settings.models.providers) {
-      delete settings.models.providers["9router"];
+      delete settings.models.providers["routermod"];
       
       if (Object.keys(settings.models.providers).length === 0) {
         delete settings.models.providers;
@@ -235,7 +235,7 @@ export async function DELETE() {
     }
 
     if (settings.agents?.defaults?.models) {
-      const keysToRemove = Object.keys(settings.agents.defaults.models).filter((k) => k.startsWith("9router/"));
+      const keysToRemove = Object.keys(settings.agents.defaults.models).filter((k) => k.startsWith("routermod/"));
       for (const key of keysToRemove) {
         delete settings.agents.defaults.models[key];
       }
@@ -244,7 +244,7 @@ export async function DELETE() {
       }
     }
 
-    if (settings.agents?.defaults?.model?.primary?.startsWith("9router/")) {
+    if (settings.agents?.defaults?.model?.primary?.startsWith("routermod/")) {
       delete settings.agents.defaults.model.primary;
     }
 
@@ -252,7 +252,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "9Router settings removed successfully",
+      message: "Routermod settings removed successfully",
     });
   } catch (error) {
     console.log("Error resetting openclaw settings:", error);

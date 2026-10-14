@@ -68,9 +68,9 @@ const readConfig = async () => {
   }
 };
 
-const has9RouterConfig = (config) => {
+const hasRoutermodConfig = (config) => {
   if (!config) return false;
-  return config.includes("model_provider = \"9router\"") || config.includes("[model_providers.9router]");
+  return config.includes("model_provider = \"routermod\"") || config.includes("[model_providers.routermod]");
 };
 
 export async function GET() {
@@ -90,7 +90,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasRoutermod: hasRoutermodConfig(config),
       configPath: getCodexConfigPath(),
     });
   } catch (error) {
@@ -119,11 +119,11 @@ export async function POST(request) {
     } catch { /* No existing config */ }
 
     parsed.model = model;
-    parsed.model_provider = "9router";
+    parsed.model_provider = "routermod";
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    setNestedSection(parsed, "model_providers.9router", {
-      name: "9Router",
+    setNestedSection(parsed, "model_providers.routermod", {
+      name: "Routermod",
       base_url: normalizedBaseUrl,
       wire_api: "responses",
       http_headers: { Authorization: `Bearer ${apiKey}` },
@@ -164,12 +164,12 @@ export async function DELETE() {
       throw error;
     }
 
-    if (parsed.model_provider === "9router") {
+    if (parsed.model_provider === "routermod") {
       delete parsed.model;
       delete parsed.model_provider;
     }
 
-    deleteNestedSection(parsed, "model_providers.9router");
+    deleteNestedSection(parsed, "model_providers.routermod");
 
     deleteNestedSection(parsed, "agents.default_subagent_model");
     deleteNestedSection(parsed, "agents.subagent");
@@ -193,7 +193,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "9Router settings removed successfully",
+      message: "Routermod settings removed successfully",
     });
   } catch (error) {
     console.log("Error resetting codex settings:", error);

@@ -44,8 +44,8 @@ function generateRootCA() {
   cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 10);
 
   const attrs = [
-    { name: "commonName", value: "9Router MITM Root CA" },
-    { name: "organizationName", value: "9Router" },
+    { name: "commonName", value: "Routermod MITM Root CA" },
+    { name: "organizationName", value: "Routermod" },
     { name: "countryName", value: "US" }
   ];
 

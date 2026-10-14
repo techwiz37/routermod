@@ -76,7 +76,7 @@ export async function POST(request) {
     await fs.mkdir(codexDir, { recursive: true });
 
     const filePath = path.join(codexDir, `${cleanName}.config.toml`);
-    const content = `# codex -p ${cleanName}\nmodel = "${cleanModel}"\nmodel_provider = "9router"\n`;
+    const content = `# codex -p ${cleanName}\nmodel = "${cleanModel}"\nmodel_provider = "routermod"\n`;
     await fs.writeFile(filePath, content, "utf-8");
 
     return NextResponse.json({

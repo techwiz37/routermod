@@ -38,9 +38,9 @@ const checkPiInstalled = async () => {
   }
 };
 
-const has9RouterConfig = (settings) => {
+const hasRoutermodConfig = (settings) => {
   if (!settings || !settings.providers) return false;
-  const p = settings.providers["9router"];
+  const p = settings.providers["routermod"];
   if (p && p.baseUrl) return true;
   for (const prov of Object.values(settings.providers)) {
     if (prov.baseUrl && prov.baseUrl.includes("20128")) return true;
@@ -91,7 +91,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasRoutermod: hasRoutermodConfig(config),
       configPath,
     });
   } catch (err) {
@@ -144,7 +144,7 @@ export async function POST(request) {
       modelList = [{ id: modelId, name: modelId, contextWindow: 128000, maxTokens: 16384 }];
     }
 
-    existing.providers["9router"] = {
+    existing.providers["routermod"] = {
       ...existingProvider,
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || existingProvider.apiKey || await resolveCliApiKey(null),
@@ -156,7 +156,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: "Pi settings applied! Use /model in Pi to select the 9Router model.",
+      message: "Pi settings applied! Use /model in Pi to select the Routermod model.",
       configPath,
     });
   } catch (err) {
@@ -175,13 +175,13 @@ export async function DELETE() {
       return NextResponse.json({ success: true, message: "No config file to reset" });
     }
 
-    if (existing.providers && existing.providers["9router"]) {
-      delete existing.providers["9router"];
+    if (existing.providers && existing.providers["routermod"]) {
+      delete existing.providers["routermod"];
       if (Object.keys(existing.providers).length === 0) delete existing.providers;
       await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
     }
 
-    return NextResponse.json({ success: true, message: "9Router removed from Pi" });
+    return NextResponse.json({ success: true, message: "Routermod removed from Pi" });
   } catch (err) {
     return NextResponse.json({ error: { message: err.message } }, { status: 500 });
   }

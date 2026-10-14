@@ -71,7 +71,7 @@ const normalizeSubagentModels = (value) => {
   return result;
 };
 
-const has9RouterConfig = (settings) => Boolean(settings?.model?.base_url);
+const hasRoutermodConfig = (settings) => Boolean(settings?.model?.base_url);
 
 export async function GET() {
   try {
@@ -88,7 +88,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       settings,
-      has9Router: has9RouterConfig(settings),
+      hasRoutermod: hasRoutermodConfig(settings),
       configPath: getGrokConfigPath(),
     });
   } catch (error) {
@@ -120,7 +120,7 @@ export async function POST(request) {
       success: true,
       message: "Grok Build settings applied successfully!",
       configPath: getGrokConfigPath(),
-      modelSlot: "9router",
+      modelSlot: "routermod",
     });
   } catch (error) {
     console.log("Error updating grok-build settings:", error);
@@ -144,7 +144,7 @@ export async function DELETE() {
     await fs.writeFile(configPath, resetGrokBuildConfig(toml));
     return NextResponse.json({
       success: true,
-      message: "9router model slots removed from Grok Build",
+      message: "routermod model slots removed from Grok Build",
     });
   } catch (error) {
     console.log("Error resetting grok-build settings:", error);

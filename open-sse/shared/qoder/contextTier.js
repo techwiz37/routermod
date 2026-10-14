@@ -4,7 +4,7 @@
  * Each Qoder model_config ships a `context_config` list (e.g. 200K / 400K / 1M for
  * qmodel_38max) while `max_input_tokens` only carries the tier the IDE currently has
  * selected (~180K by default). The Qoder IDE lets the user switch tiers from the model
- * picker; a qodercli-style client (which is what 9router impersonates) has no picker,
+ * picker; a qodercli-style client (which is what routermod impersonates) has no picker,
  * so a long Claude-Code / Codex session that grew past the default tier is rejected
  * upstream even though the model itself supports 1M.
  *

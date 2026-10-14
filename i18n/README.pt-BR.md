@@ -1,21 +1,21 @@
 <div align="center">
-  <img src="../images/9router.png?1" alt="Painel do 9Router" width="800"/>
+  <img src="../images/routermod.png?1" alt="Painel do Routermod" width="800"/>
   
-  # 9Router — roteador de IA GRATUITO e economizador de tokens
+  # Routermod — roteador de IA GRATUITO e economizador de tokens
   
   **Nunca pare de codificar. Economize 20-40% de tokens com RTK + fallback automático para modelos de IA GRATUITOS e baratos.**
   
   **Conecte todas as ferramentas de código de IA (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) a mais de 40 provedores de IA e mais de 100 modelos.**
   
-  [![npm](https://img.shields.io/npm/v/9router.svg)](https://www.npmjs.com/package/9router)
-  [![Downloads](https://img.shields.io/npm/dm/9router.svg)](https://www.npmjs.com/package/9router)
+  [![npm](https://img.shields.io/npm/v/routermod.svg)](https://www.npmjs.com/package/9router)
+  [![Downloads](https://img.shields.io/npm/dm/routermod.svg)](https://www.npmjs.com/package/9router)
   [![Docker Pulls](https://img.shields.io/docker/pulls/decolua/9router.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/decolua/9router)
-  [![GHCR](https://img.shields.io/badge/GHCR-decolua%2F9router-blue?logo=github)](https://github.com/decolua/9router/pkgs/container/9router)
-  [![Licença](https://img.shields.io/npm/l/9router.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
+  [![GHCR](https://img.shields.io/badge/GHCR-decolua%2Froutermod-blue?logo=github)](https://github.com/decolua/9router/pkgs/container/routermod)
+  [![Licença](https://img.shields.io/npm/l/routermod.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
 
-<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2F9router | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2Froutermod | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-[🚀 Início rápido](#-início-rápido) • [💡 Recursos](#-principais-recursos) • [📖 Configuração](#-guia-de-configuração) • [🌐 Site](https://9router.com)
+[🚀 Início rápido](#-início-rápido) • [💡 Recursos](#-principais-recursos) • [📖 Configuração](#-guia-de-configuração) • [🌐 Site](https://routermod.com)
 
 [🇺🇸 English](../README.md) • [🇻🇳 Tiếng Việt](./README.vi.md) • [🇨🇳 中文](./README.zh-CN.md) • [🇯🇵 日本語](./README.ja-JP.md) • [🇷🇺 Русский](./README.ru.md) • [🇹🇭 ไทย](./README.th.md) • [🇮🇷 فارسی](./README.fa_IR.md) • [🇮🇩 Indonesia](./README.id-ID.md)
 
@@ -23,7 +23,7 @@
 
 ---
 
-## 🤔 Por que 9Router?
+## 🤔 Por que Routermod?
 
 **Pare de desperdiçar dinheiro, tokens e atingir limites:**
 
@@ -33,7 +33,7 @@
 - ❌ APIs caras ($20–50/mês por provedor)
 - ❌ Troca manual entre provedores
 
-**9Router resolve isso:**
+**Routermod resolve isso:**
 
 - ✅ **RTK Token Saver** - Compactação automática do conteúdo de `tool_result`, economize 20-40% de tokens por solicitação
 - ✅ **Maximize as assinaturas** - Rastreie a cota, aproveite toda a cota antes da renovação
@@ -53,7 +53,7 @@
        │ http://localhost:20128/v1
        ↓
 ┌─────────────────────────────────────────────┐
-│           9Router (Roteador inteligente)            │
+│           Routermod (Roteador inteligente)            │
 │  • RTK Token Saver (reduz tokens de `tool_result`) │
 │  • Tradução de formatos (OpenAI ↔ Claude)     │
 │  • Acompanhamento de cotas                           │
@@ -76,8 +76,8 @@ Resultado: programe sem interrupções, com custo mínimo e economia de 20% a 40
 **1. Instale globalmente:**
 
 ```bash
-npm install -g 9router
-9router
+npm install -g routermod
+routermod
 ```
 
 🎉 O painel abre em `http://localhost:20128`
@@ -99,7 +99,7 @@ Configurações do Claude Code/Codex/OpenClaw/Cursor/Cline:
 
 **Alternativa: executar a partir do código-fonte (este repositório):**
 
-Este pacote de repositório é privado (`9router-app`), portanto, a execução pelo código-fonte/Docker é o caminho de desenvolvimento local esperado.
+Este pacote de repositório é privado (`routermod-app`), portanto, a execução pelo código-fonte/Docker é o caminho de desenvolvimento local esperado.
 
 ```bash
 cp .env.example .env
@@ -129,31 +129,31 @@ URLs padrão:
   <tr>
     <td align="center" width="320">
       <a href="https://www.youtube.com/watch?v=X69n5Lm06Yw">
-        <img src="https://img.youtube.com/vi/X69n5Lm06Yw/maxresdefault.jpg" alt="Tiết kiệm chi phí LLM với 9Router" width="300"/>
+        <img src="https://img.youtube.com/vi/X69n5Lm06Yw/maxresdefault.jpg" alt="Tiết kiệm chi phí LLM với Routermod" width="300"/>
 </a><br/>
       <b>🇻🇳 Tiếng Việt</b><br/>
-      <sub>Tiết kiệm chi phí LLM cho OpenClaw no 9Router<br/>por <a href="https://www.youtube.com/c/M%C3%ACAIblog">Mì AI</a></sub>
+      <sub>Tiết kiệm chi phí LLM cho OpenClaw no Routermod<br/>por <a href="https://www.youtube.com/c/M%C3%ACAIblog">Mì AI</a></sub>
     </td>
     <td align="center" width="320">
       <a href="https://youtu.be/VQAw612S27Y">
-        <img src="https://img.youtube.com/vi/VQAw612S27Y/maxresdefault.jpg" alt="9Router + Claude Code FREE Unlimited Setup" width="300"/>
+        <img src="https://img.youtube.com/vi/VQAw612S27Y/maxresdefault.jpg" alt="Routermod + Claude Code FREE Unlimited Setup" width="300"/>
       </a><br/>
       <b>🇵🇰 اردو / हिन्दी</b><br/>
-      <sub>9Router + Claude Code Configuração ilimitada GRATUITA<br/>por <a href="https://www.youtube.com/@BuildAIWithHamid">Construir IA com Hamid</a></sub>
+      <sub>Routermod + Claude Code Configuração ilimitada GRATUITA<br/>por <a href="https://www.youtube.com/@BuildAIWithHamid">Construir IA com Hamid</a></sub>
     </td>
     <td align="center" width="320">
 <a href="https://www.youtube.com/watch?v=raEyZPg5xE0">
-        <img src="https://img.youtube.com/vi/raEyZPg5xE0/maxresdefault.jpg" alt="9Router Setup Tutorial" width="300"/>
+        <img src="https://img.youtube.com/vi/raEyZPg5xE0/maxresdefault.jpg" alt="Routermod Setup Tutorial" width="300"/>
       </a><br/>
       <b>🇺🇸 Inglês</b><br/>
-      <sub>9Router + Claude Code Configuração GRATUITA<br/>por <a href="https://www.youtube.com/@BuildAIWithHamid">Construir IA com Hamid</a></sub>
+      <sub>Routermod + Claude Code Configuração GRATUITA<br/>por <a href="https://www.youtube.com/@BuildAIWithHamid">Construir IA com Hamid</a></sub>
     </td>
     <td align="center" width="320">
       <a href="https://youtu.be/3dF5GIYMrcQ?si=bAyfyiHbARJQAHj_">
-        <img src="https://img.youtube.com/vi/3dF5GIYMrcQ/hqdefault.jpg" alt="9Router Setup Tutorial" width="300"/>
+        <img src="https://img.youtube.com/vi/3dF5GIYMrcQ/hqdefault.jpg" alt="Routermod Setup Tutorial" width="300"/>
       </a><br/>
       <b>🇺🇸 Inglês</b><br/>
-      <sub>9Router + Claude Code Configuração GRATUITA<br/>por <a href="https://www.youtube.com/@BuildAIWithHamid">Construir IA com Hamid</a></sub>
+      <sub>Routermod + Claude Code Configuração GRATUITA<br/>por <a href="https://www.youtube.com/@BuildAIWithHamid">Construir IA com Hamid</a></sub>
 </td>
     <td align="center" width="320">
       <a href="https://www.youtube.com/watch?v=o3qYCyjrFYg">
@@ -169,14 +169,14 @@ URLs padrão:
 <img src="https://img.youtube.com/vi/Ttpc26m39Dw/maxresdefault.jpg" alt="Claude CLI Free Setup" width="300"/>
       </a><br/>
       <b>🇺🇸 Inglês</b><br/>
-      Configuração gratuita <sub>Claude CLI com 9Router 🚀<br/>por <a href="https://www.youtube.com/@CodeVerseSoban">CodeVerse Soban</a></sub>
+      Configuração gratuita <sub>Claude CLI com Routermod 🚀<br/>por <a href="https://www.youtube.com/@CodeVerseSoban">CodeVerse Soban</a></sub>
     </td>
     <td align="center" width="320">
       <a href="https://www.youtube.com/watch?v=G-5A_D5Pm6Y">
         <img src="https://img.youtube.com/vi/G-5A_D5Pm6Y/maxresdefault.jpg" alt="Cài đặt OpenClaw Free A-Z" width="300"/>
       </a><br/>
       <b>🇻🇳 Tiếng Việt</b><br/>
-      <sub>Cài Đặt OpenClaw Free Từ A-Z + 9Router<br/>por <a href="https://www.youtube.com/@maigia">Mai Gia</a></sub>
+      <sub>Cài Đặt OpenClaw Free Từ A-Z + Routermod<br/>por <a href="https://www.youtube.com/@maigia">Mai Gia</a></sub>
     </td>
 <td align="center" width="320">
       <a href="https://www.youtube.com/watch?v=JXmg8_gccgE">
@@ -190,14 +190,14 @@ URLs padrão:
         <img src="https://img.youtube.com/vi/CkVZZUSTXAI/mqdefault.jpg" alt="Claude CLI Free Setup" width="300"/>
       </a><br/>
       <b>🇮🇩 Indonésia</b><br/>
-<sub>Koding 24 Jam Anti Rate Limit! Hemat Token AI 65% | Tutorial Configuração Rápida 9Router 🚀<br/>por <a href="https://www.youtube.com/@krisswuh">Krisswuh</a></sub>
+<sub>Koding 24 Jam Anti Rate Limit! Hemat Token AI 65% | Tutorial Configuração Rápida Routermod 🚀<br/>por <a href="https://www.youtube.com/@krisswuh">Krisswuh</a></sub>
     </td>
     <td align="center" width="320">
       <a href="https://www.youtube.com/watch?v=TXGv4eofe1I">
-        <img src="https://img.youtube.com/vi/TXGv4eofe1I/mqdefault.jpg" alt="Cara Deploy 9Router di Hugging Face GRATIS Non-Stop! | Alternatif VPS RAM 16GB" width="300"/>
+        <img src="https://img.youtube.com/vi/TXGv4eofe1I/mqdefault.jpg" alt="Cara Deploy Routermod di Hugging Face GRATIS Non-Stop! | Alternatif VPS RAM 16GB" width="300"/>
       </a><br/>
       <b>🇮🇩 Indonésia</b><br/>
-      <sub>Cara Implante 9Router no Hugging Face GRATUITAMENTE sem parar! | Alternativa VPS RAM 16GB<br/>por <a href="https://www.youtube.com/@krisswuh">Krisswuh</a></sub>
+      <sub>Cara Implante Routermod no Hugging Face GRATUITAMENTE sem parar! | Alternativa VPS RAM 16GB<br/>por <a href="https://www.youtube.com/@krisswuh">Krisswuh</a></sub>
     </td>
   </tr>
   <tr>
@@ -210,10 +210,10 @@ URLs padrão:
     </td>
     <td align="center" width="320">
       <a href="https://www.youtube.com/watch?v=hPusYX-5Pmw">
-        <img src="https://img.youtube.com/vi/hPusYX-5Pmw/maxresdefault.jpg" alt="Hướng Dẫn Setup OpenClaw + 9Router: Tạo Bot Zalo AI Tự Động Từ A-Z" width="300"/>
+        <img src="https://img.youtube.com/vi/hPusYX-5Pmw/maxresdefault.jpg" alt="Hướng Dẫn Setup OpenClaw + Routermod: Tạo Bot Zalo AI Tự Động Từ A-Z" width="300"/>
       </a><br/>
       <b>🇻🇳 Tiếng Việt</b><br/>
-      <sub>Hướng Dẫn Setup OpenClaw + 9Router: Tạo Bot Zalo AI Tự Động Từ A-Z<br/>por <a href="https://github.com/tuanminhhole">tuanminhhole</a></sub>
+      <sub>Hướng Dẫn Setup OpenClaw + Routermod: Tạo Bot Zalo AI Tự Động Từ A-Z<br/>por <a href="https://github.com/tuanminhhole">tuanminhhole</a></sub>
 </td>
     <td align="center" width="320"></td>
     <td align="center" width="320"></td>
@@ -223,13 +223,13 @@ URLs padrão:
 
 </div>
 
-> 🎬 **Fez um vídeo sobre o 9Router?** Envie um [Pull Request](https://github.com/decolua/9router/pulls) adicionando seu vídeo a esta seção - nós o mesclaremos!
+> 🎬 **Fez um vídeo sobre o Routermod?** Envie um [Pull Request](https://github.com/decolua/9router/pulls) adicionando seu vídeo a esta seção - nós o mesclaremos!
 
 ---
 
 ## 🛠️ Ferramentas CLI suportadas
 
-9Router funciona perfeitamente com todas as principais ferramentas de codificação de IA:
+Routermod funciona perfeitamente com todas as principais ferramentas de codificação de IA:
 
 <div align="center">
   <table>
@@ -527,7 +527,7 @@ terceiros por meio de um provedor chamado "Auto-hospedado".
 | 📊 **Análise de uso** | Acompanhe tokens, custos e tendências ao longo do tempo | Otimizar gastos |
 | 🌐 **Implante em qualquer lugar** | Localhost, VPS, Docker, Cloudflare Workers | Opções flexíveis de implantação |
 
-Configure `X-9Router-Token-Saver: off` para ignorar todos os economizadores de tokens para uma solicitação de chat.
+Configure `X-Routermod-Token-Saver: off` para ignorar todos os economizadores de tokens para uma solicitação de chat.
 
 <details>
 <summary><b>📖 Detalhes do recurso</b></summary>
@@ -549,10 +549,10 @@ Com RTK: 28 mil tokens enviados ao LLM (40% de economia · mesmo contexto · mes
 
 ### 🧠 Headroom Token Saver
 
-O headroom é opcional e funciona separadamente. 9Router chama o endpoint `/v1/compress` local do Headroom e, em seguida, mantém roteamento normal, fallback, autenticação e rastreamento de uso:
+O headroom é opcional e funciona separadamente. Routermod chama o endpoint `/v1/compress` local do Headroom e, em seguida, mantém roteamento normal, fallback, autenticação e rastreamento de uso:
 
 ```
-Cliente → 9Router → Headroom /v1/compress → 9Router → provedor
+Cliente → Routermod → Headroom /v1/compress → Routermod → provedor
 ```
 
 Configuração local:
@@ -574,7 +574,7 @@ http://headroom:8787
 http://host.docker.internal:8787
 ```
 
-Se o Headroom estiver inativo ou retornar um erro, o o 9Router seguirá em modo aberto e enviará a solicitação original.
+Se o Headroom estiver inativo ou retornar um erro, o o Routermod seguirá em modo aberto e enviará a solicitação original.
 
 ### 🐴 Ponytail (desenvolvedor sênior preguiçoso)
 
@@ -616,7 +616,7 @@ Combo: "my-coding-stack"
 Tradução perfeita entre formatos:
 
 - **OpenAI** ↔ **Claude** ↔ **Gemini** ↔ **Cursor** ↔ **Kiro** ↔ **Vertex** ↔ **Antigravity** ↔ **Ollama** ↔ **OpenAI Responses**
-- Sua ferramenta CLI envia formato OpenAI → 9Router traduz → Provedor recebe formato nativo
+- Sua ferramenta CLI envia formato OpenAI → Routermod traduz → Provedor recebe formato nativo
 - Funciona com qualquer ferramenta que suporte endpoints OpenAI personalizados
 
 ### 👥 Suporte para múltiplas contas
@@ -670,13 +670,13 @@ Tradução perfeita entre formatos:
 > **💡 IMPORTANTE - Compreendendo os custos do painel:**
 >
 > O "custo" exibido no Usage Analytics é **apenas para fins de rastreamento e comparação**.
-> O próprio 9Router **nunca cobra** nada. Você paga apenas aos provedores diretamente (se usar serviços pagos).
+> O próprio Routermod **nunca cobra** nada. Você paga apenas aos provedores diretamente (se usar serviços pagos).
 >
 > **Exemplo:** Se o seu painel mostrar "Custo total $290" ao usar modelos gratuitos do Kiro, isso representa
 > o que você pagaria usando APIs pagas diretamente. Seu custo real = **$0** (nível gratuito do Kiro: ~50 créditos/mês).
 >
 > Pense nisso como um "rastreador de economia" que mostra quanto você está economizando usando modelos gratuitos ou
-> roteamento através do 9Router!
+> roteamento através do Routermod!
 
 ### 🌐 Implante em qualquer lugar
 
@@ -709,15 +709,15 @@ Tradução perfeita entre formatos:
 
 ---
 
-### 📊 Compreendendo os custos e faturamento do 9Router
+### 📊 Compreendendo os custos e faturamento do Routermod
 
-**Como funciona o faturamento do 9Router:**
+**Como funciona o faturamento do Routermod:**
 
-✅ **Software 9Router = GRATUITO para sempre** (código aberto, nunca cobra)  
+✅ **Software Routermod = GRATUITO para sempre** (código aberto, nunca cobra)  
 ✅ **Painel "custos" = Somente exibição/rastreamento** (não são cobranças reais)  
 ✅ **Você paga diretamente aos provedores** (assinaturas ou taxas de API)  
 ✅ **Provedores GRATUITOS permanecem GRATUITOS** (Kiro ~50 créditos/mês, OpenCode Free, créditos do Vertex $300 = $0 dentro dos limites do nível gratuito) — observe que os níveis gratuitos do iFlow/Qwen/Gemini CLI foram descontinuados em 2026
-❌ **9Router nunca envia faturas** ou cobra seu cartão
+❌ **Routermod nunca envia faturas** ou cobra seu cartão
 
 **Como funciona a exibição de custos:**
 
@@ -740,9 +740,9 @@ Custo real:
 **Regras de pagamento:**
 
 - **Provedores de assinatura** (Claude Code, Codex): pague diretamente por meio de seus sites
-- **Provedores baratos** (GLM, MiniMax): pague diretamente, 9Router apenas roteia
+- **Provedores baratos** (GLM, MiniMax): pague diretamente, Routermod apenas roteia
 - **Provedores GRATUITOS** (iFlow, Kiro, Qwen): Genuinamente grátis para sempre, sem taxas ocultas
-- **9Router**: Nunca cobra nada
+- **Routermod**: Nunca cobra nada
 
 ---
 
@@ -821,7 +821,7 @@ Acesso por: WhatsApp, Telegram, Slack, Discord, iMessage, Signal...
 <details>
 <summary><b>📊 Por que meu painel mostra custos altos?</b></summary>
 
-O painel rastreia o uso do token e exibe **custos estimados** como se você estivesse usando APIs pagas diretamente. Este **não é faturamento real** - é uma referência para mostrar quanto você está economizando usando modelos gratuitos ou assinaturas existentes através do 9Router.
+O painel rastreia o uso do token e exibe **custos estimados** como se você estivesse usando APIs pagas diretamente. Este **não é faturamento real** - é uma referência para mostrar quanto você está economizando usando modelos gratuitos ou assinaturas existentes através do Routermod.
 
 **Exemplo:**
 
@@ -835,17 +835,17 @@ A exibição de custos é um "rastreador de economia" para ajudá-lo a entender 
 </details>
 
 <details>
-<summary><b>💳 Serei cobrado pelo 9Router?</b></summary>
+<summary><b>💳 Serei cobrado pelo Routermod?</b></summary>
 
-**Não.** 9Router é um software gratuito e de código aberto que roda em seu próprio computador. Nunca cobra nada.
+**Não.** Routermod é um software gratuito e de código aberto que roda em seu próprio computador. Nunca cobra nada.
 
 **Você só paga:**
 
 - ✅ **Provedores de assinatura** (Claude Code $20/mo, Codex $20-200/mo) → Pague-os diretamente em seus sites
-- ✅ **Provedores baratos** (GLM, MiniMax) → Pague diretamente, 9Router apenas encaminha suas solicitações
-- ❌ **9Router em si** → **Nunca carrega nada, nunca**
+- ✅ **Provedores baratos** (GLM, MiniMax) → Pague diretamente, Routermod apenas encaminha suas solicitações
+- ❌ **Routermod em si** → **Nunca carrega nada, nunca**
 
-9Router é um proxy/roteador local. Não possui cartão de crédito, não pode enviar faturas e não possui sistema de cobrança. É um software totalmente gratuito.
+Routermod é um proxy/roteador local. Não possui cartão de crédito, não pode enviar faturas e não possui sistema de cobrança. É um software totalmente gratuito.
 
 </details>
 
@@ -860,7 +860,7 @@ Estes são serviços gratuitos oferecidos pelas respectivas empresas:
 - **OpenCode Free**: proxy de passagem sem autenticação, modelos buscados automaticamente em `opencode.ai/zen/v1/models`. A lista de modelos gratuitos varia com o tempo (alguns modelos são gratuitos apenas para promoções limitadas) — sujeita a alterações sem aviso prévio.
 - **Vertex AI**: créditos gratuitos $300 para novas contas do Google Cloud (90 dias). Desde março de 2026, o endpoint da API Gemini não consome mais esses créditos. Em vez disso, use o endpoint **Vertex AI Studio**.
 
-O 9Router apenas encaminha suas solicitações para eles - não há pegadinhas ou cobrança futura do próprio 9Router. Eles são serviços verdadeiramente gratuitos e o 9Router os torna fáceis de usar com suporte alternativo.
+O Routermod apenas encaminha suas solicitações para eles - não há pegadinhas ou cobrança futura do próprio Routermod. Eles são serviços verdadeiramente gratuitos e o Routermod os torna fáceis de usar com suporte alternativo.
 
 **Níveis gratuitos descontinuados (não mais recomendados):**
 
@@ -895,7 +895,7 @@ O 9Router apenas encaminha suas solicitações para eles - não há pegadinhas o
 
 3. **Use os provedores de assinatura por último:**
    - Somente se você já os tiver
-- 9Router ajuda a maximizar seu valor por meio do rastreamento de cotas
+- Routermod ajuda a maximizar seu valor por meio do rastreamento de cotas
 
 **Resultado:** A maioria dos usuários pode operar em $0/mês usando apenas níveis gratuitos!
 
@@ -904,22 +904,22 @@ O 9Router apenas encaminha suas solicitações para eles - não há pegadinhas o
 <details>
 <summary><b>📈 E se meu uso aumentar repentinamente?</b></summary>
 
-O fallback inteligente do 9Router evita cobranças surpresa:
+O fallback inteligente do Routermod evita cobranças surpresa:
 
 **Cenário:** você está em um sprint de codificação e ultrapassa suas cotas
 
-**Sem 9Router:**
+**Sem Routermod:**
 
 - ❌ Limite de requisições atingido → Paradas de trabalho → Frustração
 - ❌ Ou: acidentalmente acumular enormes contas de API
 
-**Com 9Router:**
+**Com Routermod:**
 
 - ✅ Assinatura atinge o limite → Retorno automático para nível barato
 - ✅ O nível barato fica caro → Retorno automático para o nível gratuito
 - ✅ Nunca pare de codificar → Custos previsíveis
 
-**Você está no controle:** Defina limites de gastos por provedor no painel e o 9Router os respeita.
+**Você está no controle:** Defina limites de gastos por provedor no painel e o Routermod os respeita.
 
 </details>
 
@@ -944,7 +944,7 @@ Modelos:
   cc/claude-haiku-4-5-20251001
 ```
 
-**Dica profissional:** Use o Opus para tarefas complexas e o Sonnet para velocidade. 9Router rastreia cota por modelo!
+**Dica profissional:** Use o Opus para tarefas complexas e o Sonnet para velocidade. Routermod rastreia cota por modelo!
 
 ### OpenAI Codex (Plus/Pro)
 
@@ -1125,7 +1125,7 @@ Custo: $0 (+ economia de 20–40% de tokens com RTK)!
 ```
 Configurações → Modelos → Avançado:
   OpenAI API Base URL: http://localhost:20128/v1
-  OpenAI API Key: [copie do painel do 9Router]
+  OpenAI API Key: [copie do painel do Routermod]
   Model: cc/claude-opus-4-7
 ```
 
@@ -1138,7 +1138,7 @@ Editar `~/.claude/config.json`:
 ```json
 {
   "anthropic_api_base": "http://localhost:20128/v1",
-  "anthropic_api_key": "your-9router-api-key"
+  "anthropic_api_key": "your-routermod-api-key"
 }
 ```
 
@@ -1146,7 +1146,7 @@ Editar `~/.claude/config.json`:
 
 ```bash
 export OPENAI_BASE_URL="http://localhost:20128"
-export OPENAI_API_KEY="your-9router-api-key"
+export OPENAI_API_KEY="your-routermod-api-key"
 
 codex "seu prompt"
 ```
@@ -1166,15 +1166,15 @@ Painel → Ferramentas CLI → OpenClaw → Selecionar modelo → Aplicar
   "agents": {
     "defaults": {
       "model": {
-        "primary": "9router/kr/claude-sonnet-4.5"
+        "primary": "routermod/kr/claude-sonnet-4.5"
       }
     }
   },
   "models": {
     "providers": {
-      "9router": {
+      "routermod": {
         "baseUrl": "http://127.0.0.1:20128/v1",
-        "apiKey": "sk_9router",
+        "apiKey": "sk_routermod",
         "api": "openai-completions",
         "models": [
           {
@@ -1188,7 +1188,7 @@ Painel → Ferramentas CLI → OpenClaw → Selecionar modelo → Aplicar
 }
 ```
 
-> **Nota:** OpenClaw só funciona com 9Router local. Use `127.0.0.1` em vez de `localhost` para evitar problemas de resolução IPv6.
+> **Nota:** OpenClaw só funciona com Routermod local. Use `127.0.0.1` em vez de `localhost` para evitar problemas de resolução IPv6.
 
 ### Cline / Continue / RooCode
 
@@ -1209,19 +1209,19 @@ Model: cc/claude-opus-4-7
 ```bash
 # Clonar e instalar
 git clone https://github.com/decolua/9router.git
-cd 9router
+cd routermod
 npm install
 npm run build
 
 # Configurar
 export JWT_SECRET="your-secure-secret-change-this"
 export INITIAL_PASSWORD="your-password"
-export DATA_DIR="/var/lib/9router"
+export DATA_DIR="/var/lib/routermod"
 export PORT="20128"
 export HOSTNAME="0.0.0.0"
 export NODE_ENV="production"
 export NEXT_PUBLIC_BASE_URL="http://localhost:20128"
-export NEXT_PUBLIC_CLOUD_URL="https://9router.com"
+export NEXT_PUBLIC_CLOUD_URL="https://routermod.com"
 export API_KEY_SECRET="endpoint-proxy-api-key-secret"
 export MACHINE_ID_SALT="endpoint-proxy-salt"
 
@@ -1230,7 +1230,7 @@ npm run start
 
 # Ou usar PM2
 npm install -g pm2
-pm2 start npm --name 9router -- start
+pm2 start npm --name routermod -- start
 pm2 save
 pm2 startup
 ```
@@ -1240,15 +1240,15 @@ pm2 startup
 Imagens publicadas (multiplataforma `linux/amd64` + `linux/arm64`):
 
 - Hub Docker: [`decolua/9router`](https://hub.docker.com/r/decolua/9router)
-- GHCR: [`ghcr.io/decolua/9router`](https://github.com/decolua/9router/pkgs/container/9router)
+- GHCR: [`ghcr.io/decolua/9router`](https://github.com/decolua/9router/pkgs/container/routermod)
 
 **Início rápido (use imagem publicada):**
 
 ```bash
 docker run -d \
-  --name 9router \
+  --name routermod \
   -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" \
+  -v "$HOME/.routermod:/app/data" \
   -e DATA_DIR=/app/data \
   decolua/9router:latest
 ```
@@ -1259,10 +1259,10 @@ docker run -d \
 
 ```bash
 git clone https://github.com/decolua/9router.git
-cd 9router/app
-docker build -t 9router .
-docker run -d --name 9router -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data 9router
+cd routermod/app
+docker build -t routermod .
+docker run -d --name routermod -p 20128:20128 \
+  -v "$HOME/.routermod:/app/data" -e DATA_DIR=/app/data routermod
 ```
 
 **Padrões do contêiner:**
@@ -1273,28 +1273,28 @@ docker run -d --name 9router -p 20128:20128 \
 **Comandos úteis:**
 
 ```bash
-docker logs -f 9router
-docker restart 9router
-docker stop 9router && docker rm 9router
+docker logs -f routermod
+docker restart routermod
+docker stop routermod && docker rm routermod
 docker pull decolua/9router:latest   # atualizar para a versão mais recente
 ```
 
-**Persistência de dados:** `$HOME/.9router/db/data.sqlite` no host ↔ `/app/data/db/data.sqlite` no contêiner.
+**Persistência de dados:** `$HOME/.routermod/db/data.sqlite` no host ↔ `/app/data/db/data.sqlite` no contêiner.
 
 ### Variáveis de Ambiente
 
 | Variável | Padrão | Descrição |
 | ---------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| `JWT_SECRET` | Gerado automaticamente (`~/.9router/jwt-secret`) | Segredo de assinatura JWT para cookie de autenticação do painel (substituir para compartilhar entre instâncias) |
+| `JWT_SECRET` | Gerado automaticamente (`~/.routermod/jwt-secret`) | Segredo de assinatura JWT para cookie de autenticação do painel (substituir para compartilhar entre instâncias) |
 | `INITIAL_PASSWORD` | `123456` | Primeira senha de login quando não existe hash salvo |
-| `DATA_DIR` | `~/.9router` | Localização principal dos dados do aplicativo (SQLite em `$DATA_DIR/db/data.sqlite`) |
+| `DATA_DIR` | `~/.routermod` | Localização principal dos dados do aplicativo (SQLite em `$DATA_DIR/db/data.sqlite`) |
 | `PORT` | padrão da estrutura | Porta de serviço (`20128` nos exemplos) |
 | `HOSTNAME` | padrão da estrutura | Host de vinculação (o padrão do Docker é `0.0.0.0`) |
 | `NODE_ENV` | padrão de tempo de execução | Definir `production` para implantação |
 | `BASE_URL` | `http://localhost:20128` | URL base interna do lado do servidor usada por trabalhos de sincronização na nuvem |
-| `CLOUD_URL` | `https://9router.com` | URL base do endpoint de sincronização na nuvem do lado do servidor |
+| `CLOUD_URL` | `https://routermod.com` | URL base do endpoint de sincronização na nuvem do lado do servidor |
 | `NEXT_PUBLIC_BASE_URL` | `http://localhost:3000` | URL de base pública/compatível com versões anteriores (prefira `BASE_URL` para tempo de execução do servidor) |
-| `NEXT_PUBLIC_CLOUD_URL` | `https://9router.com` | URL de nuvem pública/compatível com versões anteriores (prefira `CLOUD_URL` para tempo de execução do servidor) |
+| `NEXT_PUBLIC_CLOUD_URL` | `https://routermod.com` | URL de nuvem pública/compatível com versões anteriores (prefira `CLOUD_URL` para tempo de execução do servidor) |
 | `API_KEY_SECRET` | `endpoint-proxy-api-key-secret` | Segredo HMAC para chaves de API geradas |
 | `MACHINE_ID_SALT` | `endpoint-proxy-salt` | Salt para hashing estável de ID de máquina |
 | `ENABLE_REQUEST_LOGS` | `false` | Habilita logs de solicitação/resposta em `logs/` |
@@ -1315,7 +1315,7 @@ Notas:
 - Estado principal do aplicativo: `${DATA_DIR}/db/data.sqlite` (SQLite — provedores, combos, aliases, chaves, configurações, histórico de uso)
 - Backups automáticos: `${DATA_DIR}/db/backups/`
 - Logs opcionais de solicitação/tradutor: `<repo>/logs/...` quando `ENABLE_REQUEST_LOGS=true`
-- `${DATA_DIR}` e `~/.9router` resolvem para o mesmo local em um contêiner Docker — o link simbólico `/root/.9router -> /app/data` é criado no momento da construção.
+- `${DATA_DIR}` e `~/.routermod` resolvem para o mesmo local em um contêiner Docker — o link simbólico `/root/.routermod -> /app/data` é criado no momento da construção.
 
 </details>
 
@@ -1412,7 +1412,7 @@ Notas:
 
 **O token OAuth expirou**
 
-- Atualizado automaticamente pelo 9Router
+- Atualizado automaticamente pelo Routermod
 - Se os problemas persistirem: Painel → Provedor → Reconectar
 
 **Custos elevados**
@@ -1477,7 +1477,7 @@ Authorization: Bearer your-api-key
 
 ## 📧 Suporte
 
-- **Site**: [9router.com](https://9router.com)
+- **Site**: [routermod.com](https://routermod.com)
 - **GitHub**: [github.com/decolua/9router](https://github.com/decolua/9router)
 - **Issues**: [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
 
@@ -1485,7 +1485,7 @@ Authorization: Bearer your-api-key
 
 ## 👥 Colaboradores
 
-Obrigado a todos os colaboradores que ajudaram a tornar o 9Router melhor!
+Obrigado a todos os colaboradores que ajudaram a tornar o Routermod melhor!
 
 [![Contribuidores](https://contrib.rocks/image?repo=decolua/9router&max=150&columns=15&anon=1&v=20260309)](https://github.com/decolua/9router/graphs/contributors)
 
@@ -1497,7 +1497,7 @@ Obrigado a todos os colaboradores que ajudaram a tornar o 9Router melhor!
 
 ## 🔀 Forks
 
-**[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** — Um fork TypeScript completo do 9Router. Adiciona mais de 36 provedores, fallback automático de 4 camadas, APIs multimodais (imagens, incorporações, áudio, TTS), disjuntor, cache semântico, avaliações LLM e um painel sofisticado. Mais de 368 testes de unidade. Disponível via npm e Docker.
+**[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** — Um fork TypeScript completo do Routermod. Adiciona mais de 36 provedores, fallback automático de 4 camadas, APIs multimodais (imagens, incorporações, áudio, TTS), disjuntor, cache semântico, avaliações LLM e um painel sofisticado. Mais de 368 testes de unidade. Disponível via npm e Docker.
 
 ---
 
@@ -1506,11 +1506,11 @@ Obrigado a todos os colaboradores que ajudaram a tornar o 9Router melhor!
 Construído sobre ombros de gigantes:
 
 - **[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)** — implementação Go original que inspirou esta versão JavaScript.
-- **[RTK](https://github.com/rtk-ai/rtk)** ![Stars](https://img.shields.io/github/stars/rtk-ai/rtk?style=flat&color=yellow) — Economizador de tokens em Rust. O 9Router porta seu pipeline de compactação para JS → **−20-40% de tokens de entrada** em cada solicitação.
-- **[Caveman](https://github.com/JuliusBrussee/caveman)** ![Stars](https://img.shields.io/github/stars/JuliusBrussee/caveman?style=flat&color=yellow) por **[@JuliusBrussee](https://github.com/JuliusBrussee)** — viral _"por que usar muitos tokens quando poucos tokens resolvem"_. 9Router adapta seu prompt → **−65% tokens de saída**.
-- **[Ponytail](https://github.com/DietrichGebert/ponytail)** ![Estrelas](https://img.shields.io/github/stars/DietrichGebert/ponytail?style=flat&color=yellow) por **[@DietrichGebert](https://github.com/DietrichGebert)** — _"desenvolvedor sênior preguiçoso"_ habilidade. 9Router injeta sua abordagem YAGNI-first → **menos tokens, menos código, diferenças mais curtas**.
+- **[RTK](https://github.com/rtk-ai/rtk)** ![Stars](https://img.shields.io/github/stars/rtk-ai/rtk?style=flat&color=yellow) — Economizador de tokens em Rust. O Routermod porta seu pipeline de compactação para JS → **−20-40% de tokens de entrada** em cada solicitação.
+- **[Caveman](https://github.com/JuliusBrussee/caveman)** ![Stars](https://img.shields.io/github/stars/JuliusBrussee/caveman?style=flat&color=yellow) por **[@JuliusBrussee](https://github.com/JuliusBrussee)** — viral _"por que usar muitos tokens quando poucos tokens resolvem"_. Routermod adapta seu prompt → **−65% tokens de saída**.
+- **[Ponytail](https://github.com/DietrichGebert/ponytail)** ![Estrelas](https://img.shields.io/github/stars/DietrichGebert/ponytail?style=flat&color=yellow) por **[@DietrichGebert](https://github.com/DietrichGebert)** — _"desenvolvedor sênior preguiçoso"_ habilidade. Routermod injeta sua abordagem YAGNI-first → **menos tokens, menos código, diferenças mais curtas**.
 
-Um grande agradecimento a esses autores – sem o trabalho deles, os recursos de economia de tokens do 9Router não existiriam. Dê uma ⭐ a eles no GitHub!
+Um grande agradecimento a esses autores – sem o trabalho deles, os recursos de economia de tokens do Routermod não existiriam. Dê uma ⭐ a eles no GitHub!
 
 ---
 

@@ -104,7 +104,7 @@ export const removeEnvVar = (envText, key) => {
   return envText.replace(re, "");
 };
 
-export const has9RouterConfig = (modelCfg) => {
+export const hasRoutermodConfig = (modelCfg) => {
   if (!modelCfg?.base_url) return false;
   return modelCfg.provider === "custom" && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(modelCfg.base_url);
 };
