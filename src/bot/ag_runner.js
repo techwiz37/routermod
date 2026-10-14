@@ -185,7 +185,44 @@ async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
       await new Promise(r => setTimeout(r, 2500));
     }
 
-    const pwdEl = await page.waitForSelector('input[type="password"], input[name="Passwd"]', { visible: true, timeout: 20000 });
+    let pwdEl;
+    try {
+      pwdEl = await page.waitForSelector('input[type="password"], input[name="Passwd"]', { visible: true, timeout: 20000 });
+    } catch (err) {
+      // Google sometimes lands on a "Account deleted ... may be recoverable"
+      // interstitial instead of the password page. Click its "Next" button and
+      // see if Google restores the account into the normal password flow.
+      try {
+        const url = page.url();
+        const bodyText = await page.evaluate(() => document.body?.innerText || "").catch(() => "");
+        const looksDeleted = /deletedaccount/i.test(url) || /account deleted/i.test(bodyText);
+        if (looksDeleted) {
+          log(`[restore] "Account deleted" screen for ${email} — attempting restore via Next`);
+          await cdpClickButton(page, client, ["Next", "Berikutnya"]);
+          await new Promise(r => setTimeout(r, 2500));
+          try {
+            pwdEl = await page.waitForSelector('input[type="password"], input[name="Passwd"]', { visible: true, timeout: 15000 });
+          } catch (_e2) {
+            pwdEl = null;
+          }
+        }
+      } catch (_e) {}
+
+      if (!pwdEl) {
+        // Screenshot + DOM dump so we can see what Google actually rendered
+        // (consent screen, 2FA prompt, "couldn't sign in", etc).
+        try {
+          const os = require("os");
+          const shot = path.join(os.tmpdir(), `ag_nopwd_${Date.now()}.png`);
+          await page.screenshot({ path: shot, fullPage: true });
+          log(`[debug] password field not found — URL: ${page.url().slice(0, 120)}`);
+          log(`[debug] screenshot: ${shot}`);
+          const txt = await page.evaluate(() => document.body?.innerText?.slice(0, 400) || "").catch(() => "");
+          if (txt) log(`[debug] page text: ${txt.replace(/\s+/g, " ").slice(0, 300)}`);
+        } catch (_e) {}
+        throw err;
+      }
+    }
     const pBox = await pwdEl.boundingBox();
     await cdpClick(client, pBox.x + pBox.width / 2, pBox.y + pBox.height / 2);
     await new Promise(r => setTimeout(r, 300));
