@@ -24,6 +24,7 @@ import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
 import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import BulkImportAntigravityModal from "./BulkImportAntigravityModal";
+import SyncCookieAntigravityModal from "./SyncCookieAntigravityModal";
 import CustomConfigCard from "./CustomConfigCard";
 import { useNotificationStore } from "@/store/notificationStore";
 
@@ -61,6 +62,7 @@ export default function ProviderDetailPage() {
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
   const [showBulkImportGrokCli, setShowBulkImportGrokCli] = useState(false);
   const [showBulkImportAntigravity, setShowBulkImportAntigravity] = useState(false);
+  const [showSyncCookie, setShowSyncCookie] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
   const [showBulkProxyModal, setShowBulkProxyModal] = useState(false);
@@ -1811,9 +1813,14 @@ export default function ProviderDetailPage() {
                       </Button>
                     )}
                     {providerId === "antigravity" && (
-                      <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportAntigravity(true)}>
-                        {translate("Bulk Add")}
-                      </Button>
+                      <>
+                        <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportAntigravity(true)}>
+                          {translate("Bulk Add")}
+                        </Button>
+                        <Button size="sm" icon="sync" variant="secondary" onClick={() => setShowSyncCookie(true)}>
+                          {translate("Sync Cookie")}
+                        </Button>
+                      </>
                     )}
                     <Button
                       size="sm"
@@ -2197,10 +2204,17 @@ export default function ProviderDetailPage() {
       )}
 
       {providerId === "antigravity" && (
-        <BulkImportAntigravityModal
-          isOpen={showBulkImportAntigravity}
-          onClose={() => setShowBulkImportAntigravity(false)}
-        />
+        <>
+          <BulkImportAntigravityModal
+            isOpen={showBulkImportAntigravity}
+            onClose={() => setShowBulkImportAntigravity(false)}
+          />
+          <SyncCookieAntigravityModal
+            isOpen={showSyncCookie}
+            onClose={() => setShowSyncCookie(false)}
+            providerId={providerId}
+          />
+        </>
       )}
 
       {/* AG Risk Confirmation Modal */}

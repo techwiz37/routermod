@@ -19,9 +19,38 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 
-const SESSION_DIR =
-  process.env.AG_SESSION_DIR ||
-  path.join(process.env.APPDATA || os.homedir(), "run-routermod", "sessions");
+const APP_NAME = process.env.ROUTERMOD_APP_NAME || "routermod";
+
+// Cross-platform data dir, matching src/lib/dataDir.js:
+//   Windows → %APPDATA%\routermod
+//   Linux/macOS → ~/.routermod
+function defaultDataDir() {
+  if (process.platform === "win32") {
+    return path.join(
+      process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"),
+      APP_NAME
+    );
+  }
+  return path.join(os.homedir(), `.${APP_NAME}`);
+}
+
+function resolveSessionDir() {
+  if (process.env.AG_SESSION_DIR) return process.env.AG_SESSION_DIR;
+
+  // Prefer the app's data dir when it's explicitly configured, so cookies live
+  // alongside the DB on every platform.
+  const configured = process.env.DATA_DIR;
+  if (configured) {
+    if (process.platform === "win32" && /^\//.test(configured)) {
+      // Unix-style path on Windows → ignore, fall back to default.
+    } else {
+      return path.join(configured, "sessions");
+    }
+  }
+  return path.join(defaultDataDir(), "sessions");
+}
+
+const SESSION_DIR = resolveSessionDir();
 
 // Google/Antigravity cookies worth persisting. `__Secure-next-auth.session-token`
 // is the Antigravity web session; SID/HSID/SSID/SAPISID/APISID are the Google

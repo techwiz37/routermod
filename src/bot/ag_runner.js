@@ -7,24 +7,9 @@ const { URL } = require("url");
 const fs = require("fs");
 const path = require("path");
 const sessionStore = require("./session_store.js");
+const { findChrome } = require("./find_chrome.js");
 
 const GOOGLE_PASSWORD = "qwertyui";
-const CHROME_PATHS = [
-  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-  "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-  (process.env.LOCALAPPDATA || "") + "\\Google\\Chrome\\Application\\chrome.exe",
-  "/usr/bin/google-chrome",
-  "/usr/bin/chromium-browser",
-  "/usr/bin/chromium",
-  "/snap/bin/chromium",
-];
-
-function findChrome() {
-  for (const p of CHROME_PATHS) {
-    try { if (fs.existsSync(p)) return p; } catch (_e) {}
-  }
-  return null;
-}
 
 function ts() { return new Date().toTimeString().slice(0, 8); }
 function log(msg) { process.stderr.write(`${ts()} ${msg}\n`); }
@@ -147,6 +132,7 @@ async function cdpClickButton(page, client, texts) {
 }
 
 async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
+  const cookiesOnly = redirectUri === null;
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
   const client = await page.target().createCDPSession();
@@ -213,6 +199,26 @@ async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
     }
     await new Promise(r => setTimeout(r, 2500));
 
+    if (cookiesOnly) {
+      // Cookies-only mode: we already authenticated to Google. Visit the
+      // Antigravity web app so its own next-auth session cookie gets minted,
+      // then persist the full jar. No OAuth code exchange, no new connection.
+      log(`[cookies] visiting Antigravity web for ${email} ...`);
+      await page.goto("https://antigravity.google/", { waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => {});
+      await new Promise(r => setTimeout(r, 4000));
+      // Give the SPA time to run its session bootstrap / redirect chains.
+      for (let i = 0; i < 6; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        if (page.url().includes("antigravity.google")) break;
+      }
+      const jar = await context.cookies().catch(() => []);
+      const saved = sessionStore.saveSession(null, email, jar, { source: "cookies-only" });
+      const kept = saved ? saved.cookies.length : 0;
+      log(`[cookies] captured ${jar.length} cookie(s), kept ${kept} for ${email}`);
+      if (!kept) throw new Error(`Tidak ada cookie berguna untuk ${email}`);
+      return { cookiesOnly: true, email, kept };
+    }
+
     const base = redirectUri.split("?")[0];
     const deadline = Date.now() + 120000;
     let lastUrl = "";
@@ -263,7 +269,8 @@ async function googleOAuth(browser, email, googlePass, authUrl, redirectUri) {
     }
 
     try {
-      const shot = path.join(process.env.TEMP || "/tmp", `ag_debug_${Date.now()}.png`);
+      const os = require("os");
+      const shot = path.join(os.tmpdir(), `ag_debug_${Date.now()}.png`);
       await page.screenshot({ path: shot });
       log(`[debug] screenshot: ${shot}`);
     } catch (_e) {}
@@ -294,9 +301,15 @@ async function exchangeCode(baseUrl, cookie, callbackUrl, authData) {
   return res.body;
 }
 
-async function processAccount(browser, email, googlePass, baseUrl, cookie) {
-  log(`--- Processing [${email}] ---`);
+const GOOGLE_LOGIN_URL = "https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn&service=accountsettings";
+
+async function processAccount(browser, email, googlePass, baseUrl, cookie, cookiesOnly = false) {
+  log(`--- Processing [${email}]${cookiesOnly ? " (cookies-only)" : ""} ---`);
   try {
+    if (cookiesOnly) {
+      await googleOAuth(browser, email, googlePass, GOOGLE_LOGIN_URL, null);
+      return true;
+    }
     const authData = await getAuthorizeData(baseUrl, cookie);
     const authUrl = authData.authUrl || authData.url;
     const redirectUri = authData.redirectUri || `${baseUrl}/callback`;
@@ -311,14 +324,21 @@ async function processAccount(browser, email, googlePass, baseUrl, cookie) {
 }
 
 async function main() {
-  const [,, rawBaseUrl, authArg, ...entries] = process.argv;
+  const rawArgs = process.argv.slice(2);
+  let cookiesOnly = false;
+  const positional = [];
+  for (const a of rawArgs) {
+    if (a === "--cookies-only") cookiesOnly = true;
+    else positional.push(a);
+  }
+  const [rawBaseUrl, authArg, ...entries] = positional;
   const baseUrl = String(rawBaseUrl || "").replace(/\/dashboard\/.*$/, "").replace(/\/+$/, "");
   if (!baseUrl || !authArg || entries.length === 0) {
-    process.stderr.write("Usage: node ag_runner.js <baseUrl> <auth_token=...|password> <email[|googlePass]> ...\n");
+    process.stderr.write("Usage: node ag_runner.js <baseUrl> <auth_token=...|password> [--cookies-only] <email[|googlePass]> ...\n");
     process.exit(1);
   }
 
-  log(`=== Bulk add ${entries.length} account(s) ===`);
+  log(`=== ${cookiesOnly ? "Sync cookie" : "Bulk add"} ${entries.length} account(s) ===`);
 
   let cookie;
   try {
@@ -363,15 +383,15 @@ async function main() {
       const email = parts[0].trim();
       const googlePass = (parts[1] || GOOGLE_PASSWORD).trim();
       log(`[${i + 1}/${entries.length}] ${email}`);
-      let ok = await processAccount(browser, email, googlePass, baseUrl, cookie);
+      let ok = await processAccount(browser, email, googlePass, baseUrl, cookie, cookiesOnly);
       if (!ok) {
         log(`[retry] ${email} in 30s...`);
         await new Promise(r => setTimeout(r, 30000));
-        ok = await processAccount(browser, email, googlePass, baseUrl, cookie);
+        ok = await processAccount(browser, email, googlePass, baseUrl, cookie, cookiesOnly);
       }
       if (ok) added++; else failed++;
       if (i < entries.length - 1) {
-        const waitMs = parseInt(process.env.AG_WAIT_MS || "20000", 10);
+        const waitMs = parseInt(process.env.AG_WAIT_MS || (cookiesOnly ? "4000" : "20000"), 10);
         log(`[wait] ${waitMs / 1000}s before next account...`);
         await new Promise(r => setTimeout(r, waitMs));
       }
@@ -381,7 +401,7 @@ async function main() {
   }
 
   log(`=== Done: ${added} success, ${failed} failed ===`);
-  process.stdout.write(JSON.stringify({ added, failed, total: entries.length }) + "\n");
+  process.stdout.write(JSON.stringify({ added, failed, total: entries.length, cookiesOnly }) + "\n");
 }
 
 main().catch((e) => { logErr(`Fatal: ${e.message}`); process.exit(1); });

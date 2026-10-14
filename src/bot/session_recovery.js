@@ -164,22 +164,11 @@ async function recoverViaHttp(session, log) {
 }
 
 // ── Strategy 2: headless browser on the Antigravity web app ─────────────────
+// Chrome/Chromium discovery is shared with ag_runner.js (cross-platform).
+const { findChrome: findChromeExecutable } = require("./find_chrome.js");
+
 async function findChrome() {
-  const fs = require("fs");
-  const paths = [
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    (process.env.LOCALAPPDATA || "") + "\\Google\\Chrome\\Application\\chrome.exe",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-  ];
-  for (const p of paths) {
-    try {
-      if (p && fs.existsSync(p)) return p;
-    } catch (_e) {}
-  }
-  return null;
+  return findChromeExecutable();
 }
 
 async function recoverViaBrowser(session, log) {
