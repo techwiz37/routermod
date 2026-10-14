@@ -98,18 +98,8 @@ if ! command -v pm2 &>/dev/null; then
 fi
 echo "✓ PM2 $(pm2 --version)"
 
-# ── Python + selenium ─────────────────────────────────────────────────────────
-PYTHON=$(command -v python3 || command -v python || echo "")
-if [[ -z "$PYTHON" ]]; then
-  echo "✗ Python 3 not found. Install python3 manually."; exit 1
-fi
-echo "✓ Python $($PYTHON --version)"
-
-if ! $PYTHON -c "import selenium" &>/dev/null; then
-  echo "▸ Installing selenium..."
-  $PYTHON -m pip install --quiet selenium
-fi
-echo "✓ selenium $($PYTHON -c "import selenium; print(selenium.__version__)" 2>/dev/null)"
+# ── Python + selenium — NOT needed anymore (bot uses puppeteer-core/Node.js) ──
+echo "✓ Bot engine: puppeteer-core (Node.js) — no Python required"
 
 # ── Chrome / ChromeDriver check ───────────────────────────────────────────────
 CHROME=$(command -v google-chrome || command -v google-chrome-stable || \

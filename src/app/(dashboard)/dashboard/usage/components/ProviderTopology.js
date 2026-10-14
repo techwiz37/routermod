@@ -1,350 +1,95 @@
 ﻿"use client";
 
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import {
-  ReactFlow,
-  Handle,
-  Position,
-  Controls,
-  BaseEdge,
-  getBezierPath,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import Soft3DLogo from "@/shared/components/Soft3DLogo";
 
 const FE_ACTIVE_TIMEOUT_MS = 60000;
 const FE_ACTIVE_TICK_MS = 1000;
 
-const KAME_PARTICLE_COUNT = 6;
-const SPARK_COUNT = 5;
-
-function getProviderConfig(providerId) {
-  return AI_PROVIDERS[providerId] || { color: "#6b7280", name: providerId };
+function getProviderConfig(id) {
+  return AI_PROVIDERS[id] || { color: "#6b7280", name: id };
 }
 
-function getProviderImageUrl(providerId) {
-  return getProviderIconSrc(providerId);
-}
-
-function ProviderNode({ data }) {
-  const { label, color, imageUrl, textIcon, active } = data;
-  const [imgError, setImgError] = useState(false);
-  return (
-    <div
-      className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all duration-300"
-      style={{
-        borderColor: active ? color : "var(--color-border)",
-        backgroundColor: active ? `${color}12` : "var(--color-surface)",
-        boxShadow: active ? `0 0 14px ${color}35, 1.5px 1.5px 0 var(--color-border)` : "1.5px 1.5px 0 var(--color-border)",
-        minWidth: "140px",
-      }}
-    >
-      <Handle type="target" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
-      <Handle type="target" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0 !w-0 !h-0" />
-      <Handle type="target" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
-      <Handle type="target" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
-
-      {/* Provider icon */}
-      <div
-        className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 border border-border/50"
-        style={{ backgroundColor: `${color}18` }}
-      >
-        {imageUrl && !imgError ? (
-          <img
-            src={imageUrl}
-            alt={label}
-            className="w-5 h-5 rounded-sm object-contain"
-            loading="lazy"
-            decoding="async"
-            onError={() => {
-              const m = imageUrl?.match(/^\/providers\/([^/]+)\.png$/i);
-              if (m) markProviderIconMissing(m[1]);
-              setImgError(true);
-            }}
-          />
-        ) : (
-          <span className="text-xs font-black" style={{ color }}>{textIcon}</span>
-        )}
-      </div>
-
-      {/* Provider name */}
-      <span
-        className="text-xs font-bold truncate"
-        style={{ color: active ? color : "var(--color-text-main)" }}
-      >
-        {label}
-      </span>
-
-      {/* Active indicator */}
-      {active && (
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: color }} />
-          <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: color }} />
-        </span>
-      )}
-    </div>
-  );
-}
-
-ProviderNode.propTypes = {
-  data: PropTypes.object.isRequired,
-};
-
-function RouterNode({ data }) {
-  const powering = (data.activeCount || 0) > 0;
-  return (
-    <div
-      className={`relative z-[1] flex items-center justify-center px-4 py-2.5 rounded-xl border-2 min-w-[130px] ${
-        powering
-          ? "topology-router-core border-[var(--color-primary)] bg-gradient-to-br from-[var(--color-primary)]/30 via-rose-400/20 to-orange-400/15"
-          : "border-[var(--color-primary)] bg-[var(--color-primary)]/5"
-      }`}
-      style={{ boxShadow: powering ? "0 0 20px #ff1a5340, 2px 2px 0 var(--color-border)" : "2px 2px 0 var(--color-border)" }}
-    >
-      <Handle type="source" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0 !w-0 !h-0" />
-      <Handle type="source" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
-      <Handle type="source" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
-
-      <span className={`material-symbols-outlined text-[20px] mr-2 ${powering ? "topology-router-icon text-[var(--color-primary)]" : "text-[var(--color-primary)]"}`}>
-        router
-      </span>
-      <span className={`text-sm font-black tracking-wider uppercase ${powering ? "topology-router-label text-[var(--color-primary)]" : "text-[var(--color-primary)]"}`}>
-        RouterMod
-      </span>
-      {data.activeCount > 0 && (
-        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[var(--color-primary)] text-white text-[10px] font-black topology-router-badge">
-          {data.activeCount}
-        </span>
-      )}
-    </div>
-  );
-}
-
-RouterNode.propTypes = {
-  data: PropTypes.object.isRequired,
-};
-
-function TopologyEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  style = {},
-  data,
-}) {
-  const [edgePath] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
-  const active = !!data?.active;
-  const stroke = style.stroke || "var(--color-border)";
-  const filterId = `topo-electric-${id}`;
-
-  if (!active) {
-    return <BaseEdge id={id} path={edgePath} style={{ ...style, stroke }} />;
+function ProviderIcon({ providerId, color, size = 20 }) {
+  const [err, setErr] = useState(false);
+  const src = getProviderIconSrc(providerId);
+  const config = getProviderConfig(providerId);
+  const textIcon = config.textIcon || (providerId || "?").slice(0, 2).toUpperCase();
+  if (src && !err) {
+    return (
+      <img src={src} alt={providerId}
+        style={{ width: size, height: size, objectFit: "contain" }}
+        onError={() => {
+          const m = src?.match(/^\/providers\/([^/]+)\.png$/i);
+          if (m) markProviderIconMissing(m[1]);
+          setErr(true);
+        }}
+      />
+    );
   }
+  return <span style={{ fontSize: size * 0.55, fontWeight: 900, color, lineHeight: 1 }}>{textIcon}</span>;
+}
+
+ProviderIcon.propTypes = { providerId: PropTypes.string, color: PropTypes.string, size: PropTypes.number };
+
+function polar(cx, cy, r, angleDeg) {
+  const rad = (angleDeg - 90) * (Math.PI / 180);
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function Cable({ x1, y1, x2, y2, color, active, delay = 0, isLast }) {
+  const mx = (x1 + x2) / 2;
+  const d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+  const stroke = active ? color : isLast ? "#f59e0b" : "var(--color-border)";
+  const opacity = active ? 0.9 : isLast ? 0.5 : 0.3;
+  const sw = active ? 2.5 : 1.5;
 
   return (
-    <g className="topology-edge-electric">
-      <defs>
-        <filter id={filterId} x="-40%" y="-40%" width="180%" height="180%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="2" result="noise">
-            <animate attributeName="baseFrequency" values="0.8;1.4;0.8" dur="0.25s" repeatCount="indefinite" />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </defs>
-      {/* Outer electric halo */}
-      <path
-        d={edgePath}
-        fill="none"
-        stroke="#22d3ee"
-        strokeWidth={10}
-        strokeOpacity={0.35}
-        strokeLinecap="round"
-        filter={`url(#${filterId})`}
-        className="topology-edge-halo"
+    <g>
+      {active && (
+        <path d={d} fill="none" stroke={color} strokeWidth={8} strokeOpacity={0.12}
+          style={{ filter: `blur(3px)` }} />
+      )}
+      <path d={d} fill="none" stroke={stroke} strokeWidth={sw} strokeOpacity={opacity}
+        strokeDasharray={active ? "none" : "4 5"}
+        style={!active ? { animation: "topo-march 1.5s linear infinite" } : {}}
       />
-      {/* Mid plasma */}
-      <path
-        d={edgePath}
-        fill="none"
-        stroke="#4ade80"
-        strokeWidth={5}
-        strokeOpacity={0.85}
-        strokeLinecap="round"
-        filter={`url(#${filterId})`}
-        className="topology-edge-plasma"
-      />
-      {/* Hot white core */}
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        style={{ stroke: "#f8fafc", strokeWidth: 2.2, opacity: 1 }}
-        className="topology-edge-kame"
-      />
-      {/* Energy orbs */}
-      {Array.from({ length: KAME_PARTICLE_COUNT }, (_, i) => (
-        <circle
-          key={`${id}-p-${i}`}
-          r={i % 2 === 0 ? 4 : 2.5}
-          fill={i % 3 === 0 ? "#fde047" : i % 3 === 1 ? "#67e8f9" : "#fff"}
-          opacity={0.95}
-          style={{ filter: "drop-shadow(0 0 4px #22d3ee)" }}
-        >
-          <animateMotion
-            dur={`${0.4 + i * 0.08}s`}
-            repeatCount="indefinite"
-            path={edgePath}
-            begin={`${i * 0.09}s`}
-          />
+      {active && [0, 0.45, 0.9].map((off, i) => (
+        <circle key={i} r={3.5} fill={color} fillOpacity={0.95}
+          style={{ filter: `drop-shadow(0 0 4px ${color})` }}>
+          <animateMotion dur="1.6s" repeatCount="indefinite" begin={`${delay + off}s`}>
+            <mpath href={`#cable-path-${Math.round(x1)}-${Math.round(y1)}-${i}`} />
+          </animateMotion>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.88;1"
+            dur="1.6s" repeatCount="indefinite" begin={`${delay + off}s`} />
         </circle>
       ))}
-      {/* Electric sparks (short-lived blink along path) */}
-      {Array.from({ length: SPARK_COUNT }, (_, i) => (
-        <circle
-          key={`${id}-s-${i}`}
-          r={1.8}
-          fill="#e0f2fe"
-          opacity={0}
-        >
-          <animate
-            attributeName="opacity"
-            values="0;1;0;0;1;0"
-            dur={`${0.35 + (i % 3) * 0.1}s`}
-            begin={`${i * 0.07}s`}
-            repeatCount="indefinite"
-          />
-          <animateMotion
-            dur={`${0.28 + i * 0.05}s`}
-            repeatCount="indefinite"
-            path={edgePath}
-            begin={`${i * 0.11}s`}
-          />
-        </circle>
-      ))}
+      {active && (
+        <path id={`cable-path-${Math.round(x1)}-${Math.round(y1)}-0`} d={d} fill="none" stroke="none" />
+      )}
+      {active && (
+        <path id={`cable-path-${Math.round(x1)}-${Math.round(y1)}-1`} d={d} fill="none" stroke="none" />
+      )}
+      {active && (
+        <path id={`cable-path-${Math.round(x1)}-${Math.round(y1)}-2`} d={d} fill="none" stroke="none" />
+      )}
     </g>
   );
 }
 
-TopologyEdge.propTypes = {
-  id: PropTypes.string,
-  sourceX: PropTypes.number,
-  sourceY: PropTypes.number,
-  targetX: PropTypes.number,
-  targetY: PropTypes.number,
-  sourcePosition: PropTypes.string,
-  targetPosition: PropTypes.string,
-  style: PropTypes.object,
-  data: PropTypes.object,
+Cable.propTypes = {
+  x1: PropTypes.number, y1: PropTypes.number, x2: PropTypes.number, y2: PropTypes.number,
+  color: PropTypes.string, active: PropTypes.bool, delay: PropTypes.number, isLast: PropTypes.bool,
 };
 
-const nodeTypes = { provider: ProviderNode, router: RouterNode };
-const edgeTypes = { topology: TopologyEdge };
-
-function buildLayout(providers, activeSet, lastSet, errorSet) {
-  const nodeW = 180;
-  const nodeH = 30;
-  const routerW = 120;
-  const routerH = 44;
-  const nodeGap = 24;
-
-  const count = providers.length;
-
-  const minRx = ((nodeW + nodeGap) * count) / (2 * Math.PI);
-  const rx = Math.max(320, minRx);
-  const ry = Math.max(200, rx * 0.55); // ellipse ratio ~0.55
-  if (count === 0) {
-    return {
-      nodes: [{ id: "router", type: "router", position: { x: 0, y: 0 }, data: { activeCount: 0 }, draggable: false }],
-      edges: [],
-    };
-  }
-
-  const nodes = [];
-  const edges = [];
-
-  nodes.push({
-    id: "router",
-    type: "router",
-    position: { x: -routerW / 2, y: -routerH / 2 },
-    data: { activeCount: activeSet.size },
-    draggable: false,
-  });
-
-  const edgeStyle = (active, last, error) => {
-    if (error) return { stroke: "#ef4444", strokeWidth: 2.5, opacity: 0.9 };
-    if (active) return { stroke: "#22d3ee", strokeWidth: 3.5, opacity: 1 };
-    if (last) return { stroke: "#f59e0b", strokeWidth: 2, opacity: 0.7 };
-    return { stroke: "var(--color-border)", strokeWidth: 1, opacity: 0.3 };
-  };
-
-  providers.forEach((p, i) => {
-    const config = getProviderConfig(p.provider);
-    const active = activeSet.has(p.provider?.toLowerCase());
-    const last = !active && lastSet.has(p.provider?.toLowerCase());
-    const error = !active && errorSet.has(p.provider?.toLowerCase());
-    const nodeId = `provider-${p.provider}`;
-    const data = {
-      label: (config.name !== p.provider ? config.name : null) || p.nodeName || p.name || p.provider,
-      color: config.color || "#6b7280",
-      imageUrl: getProviderImageUrl(p.provider),
-      textIcon: config.textIcon || (p.provider || "?").slice(0, 2).toUpperCase(),
-      active,
-    };
-
-    const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
-    const cx = rx * Math.cos(angle);
-    const cy = ry * Math.sin(angle);
-
-    let sourceHandle, targetHandle;
-    if (Math.abs(angle + Math.PI / 2) < Math.PI / 4 || Math.abs(angle - 3 * Math.PI / 2) < Math.PI / 4) {
-      sourceHandle = "top"; targetHandle = "bottom";
-    } else if (Math.abs(angle - Math.PI / 2) < Math.PI / 4) {
-      sourceHandle = "bottom"; targetHandle = "top";
-    } else if (cx > 0) {
-      sourceHandle = "right"; targetHandle = "left";
-    } else {
-      sourceHandle = "left"; targetHandle = "right";
-    }
-
-    nodes.push({
-      id: nodeId,
-      type: "provider",
-      position: { x: cx - nodeW / 2, y: cy - nodeH / 2 },
-      data,
-      draggable: false,
-    });
-
-    edges.push({
-      id: `e-${nodeId}`,
-      type: "topology",
-      source: "router",
-      sourceHandle,
-      target: nodeId,
-      targetHandle,
-      animated: false,
-      data: { active },
-      style: edgeStyle(active, last, error),
-    });
-  });
-
-  return { nodes, edges };
-}
-
-export default function ProviderTopology({ providers = [], activeRequests = [], lastProvider = "", errorProvider = "" }) {
+export default function ProviderTopology({
+  providers = [], activeRequests = [], lastProvider = "", errorProvider = ""
+}) {
   const activeKey = useMemo(
-    () => activeRequests.map((r) => r.provider?.toLowerCase()).filter(Boolean).sort().join(","),
+    () => activeRequests.map(r => r.provider?.toLowerCase()).filter(Boolean).sort().join(","),
     [activeRequests]
   );
   const lastKey = lastProvider?.toLowerCase() || "";
@@ -360,110 +105,260 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
   useEffect(() => {
     const seen = firstSeenRef.current;
     const now = Date.now();
-    for (const p of rawActiveSet) {
-      if (!seen[p]) seen[p] = now;
-    }
-    for (const p of Object.keys(seen)) {
-      if (!rawActiveSet.has(p)) delete seen[p];
-    }
+    for (const p of rawActiveSet) if (!seen[p]) seen[p] = now;
+    for (const p of Object.keys(seen)) if (!rawActiveSet.has(p)) delete seen[p];
   }, [rawActiveSet]);
 
   useEffect(() => {
     if (rawActiveSet.size === 0) return;
-    const id = setInterval(() => setTick((t) => t + 1), FE_ACTIVE_TICK_MS);
+    const id = setInterval(() => setTick(t => t + 1), FE_ACTIVE_TICK_MS);
     return () => clearInterval(id);
   }, [rawActiveSet]);
 
   const activeSet = useMemo(() => {
     const now = Date.now();
-    const filtered = new Set();
+    const s = new Set();
     for (const p of rawActiveSet) {
       const ts = firstSeenRef.current[p];
-      if (!ts || now - ts < FE_ACTIVE_TIMEOUT_MS) filtered.add(p);
+      if (!ts || now - ts < FE_ACTIVE_TIMEOUT_MS) s.add(p);
     }
-    return filtered;
+    return s;
   }, [rawActiveSet, tick]);
 
-  const { nodes, edges } = useMemo(
-    () => buildLayout(providers, activeSet, lastSet, errorSet),
-    [providers, activeSet, lastSet, errorSet]
-  );
+  const activeCount = activeSet.size;
+  const isPowering = activeCount > 0;
 
-  const providersKey = useMemo(
-    () => providers.map((p) => p.provider).sort().join(","),
-    [providers]
-  );
+  const W = 560;
+  const H = 340;
+  const cx = W / 2;
+  const cy = H / 2;
+  const HUB_W = 112;
+  const HUB_H = 66;
+  const NODE_W = 160;
+  const NODE_H = 46;
+  const NODE_ICON = 28;
+  const NODE_PAD = 12;
 
-  const rfInstance = useRef(null);
-  const containerRef = useRef(null);
-  const fitOpts = { padding: 0.2, duration: 200 };
-  const onInit = useCallback((instance) => {
-    rfInstance.current = instance;
-    setTimeout(() => instance.fitView(fitOpts), 50);
-  }, []);
+  const displayProviders = providers.slice(0, 6);
+  const count = displayProviders.length;
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      if (rfInstance.current) rfInstance.current.fitView(fitOpts);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (rfInstance.current) {
-      const id = setTimeout(() => rfInstance.current.fitView(fitOpts), 50);
-      return () => clearTimeout(id);
-    }
-  }, [nodes.length]);
+  const nodePositions = displayProviders.map((_, i) => {
+    const angle = count <= 3
+      ? (i / count) * 360 - (count === 1 ? 0 : 30)
+      : (i / count) * 360;
+    const r = count <= 2 ? 170 : count <= 4 ? 160 : 150;
+    return polar(cx, cy, r, angle);
+  });
 
   return (
-    <div ref={containerRef} className="relative h-[320px] w-full min-w-0 rounded-xl border-2 border-border overflow-hidden sm:h-[480px]"
-      style={{
-        background: "radial-gradient(ellipse at 50% 50%, var(--color-surface-2) 0%, var(--color-surface) 100%)",
-        boxShadow: "2.5px 2.5px 0 var(--color-border)",
-      }}
-    >
-      {/* Grid dot pattern overlay */}
-      <div className="absolute inset-0 pointer-events-none" style={{
-        backgroundImage: "radial-gradient(circle, var(--color-border) 1px, transparent 1px)",
-        backgroundSize: "28px 28px",
-        opacity: 0.45,
-      }} />
-      {providers.length === 0 ? (
-        <div className="h-full flex flex-col items-center justify-center gap-2 text-text-muted">
-          <span className="material-symbols-outlined text-[36px] opacity-30">device_hub</span>
-          <span className="text-xs font-medium">Belum ada provider terhubung</span>
+    <>
+      <style>{`
+        @keyframes topo-march { to { stroke-dashoffset: -18; } }
+        @keyframes topo-hub-pulse {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
+        }
+        @keyframes topo-hub-ring {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes topo-node-glow {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.9; }
+        }
+        @keyframes topo-icon-pulse {
+          0%, 100% { r: 16; opacity: 0.7; }
+          50% { r: 19; opacity: 0.3; }
+        }
+      `}</style>
+
+      <div className="flex flex-col min-w-0 rounded-xl border-2 border-border overflow-hidden"
+        style={{ boxShadow: "2.5px 2.5px 0 var(--color-border)", background: "var(--color-surface)" }}>
+
+        <div className="flex items-center justify-between px-4 py-2.5 border-b-2 border-border bg-surface-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px] text-[var(--color-primary)]">device_hub</span>
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-text-muted">Provider Topology</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isPowering && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-md border-2 border-emerald-500/40 bg-emerald-500/10 font-mono text-[10px] font-bold text-emerald-600">
+                <span className="size-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                {activeCount} aktif
+              </span>
+            )}
+            <span className="font-mono text-[11px] text-text-muted font-bold">{providers.length} provider</span>
+          </div>
         </div>
-      ) : (
-        <ReactFlow
-          key={providersKey}
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          fitViewOptions={fitOpts}
-          minZoom={0.1}
-          maxZoom={2}
-          onInit={onInit}
-          proOptions={{ hideAttribution: true }}
-          panOnDrag
-          zoomOnScroll
-          zoomOnPinch
-          zoomOnDoubleClick
-          preventScrolling={false}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          style={{ background: "transparent" }}
-        >
-          <Controls showInteractive={false} className="react-flow-controls-custom" />
-        </ReactFlow>
-      )}
-    </div>
+
+        {providers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-text-muted">
+            <span className="material-symbols-outlined text-[36px] opacity-20">device_hub</span>
+            <span className="text-xs font-mono">Belum ada provider terhubung</span>
+          </div>
+        ) : (
+          <div style={{ width: "100%", aspectRatio: `${W} / ${H}` }}>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}>
+              <defs>
+                <radialGradient id="hub-radial" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.18" />
+                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.03" />
+                </radialGradient>
+                <filter id="node-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="1.5" dy="1.5" stdDeviation="0" floodColor="var(--color-border)" floodOpacity="1" />
+                </filter>
+                <filter id="glow-filter" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="3.5" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+
+              {displayProviders.map((p, i) => {
+                const pos = nodePositions[i];
+                const pid = p.provider?.toLowerCase();
+                const active = activeSet.has(pid);
+                const config = getProviderConfig(p.provider);
+                const color = config.color || "#6b7280";
+                const dx = cx - pos.x;
+                const dy = cy - pos.y;
+                const len = Math.hypot(dx, dy) || 1;
+                const gapNode = 6;
+                const gapHubX = HUB_W / 2 + 4;
+                const gapHubY = HUB_H / 2 + 4;
+                const x1 = pos.x + (dx / len) * (NODE_W / 2 + gapNode) * (Math.abs(dx) / len > 0.3 ? 1 : 1);
+                const y1 = pos.y + (dy / len) * (NODE_H / 2 + gapNode);
+                const hubR = Math.min(gapHubX / Math.max(Math.abs(dx / len), 0.001), gapHubY / Math.max(Math.abs(dy / len), 0.001));
+                const x2 = cx - (dx / len) * Math.min(hubR, HUB_W / 2);
+                const y2 = cy - (dy / len) * Math.min(hubR, HUB_H / 2);
+                const isLast = !active && lastSet.has(pid);
+
+                return (
+                  <Cable key={`cable-${p.provider}`}
+                    x1={x1} y1={y1}
+                    x2={x2} y2={y2}
+                    color={color} active={active} delay={i * 0.28} isLast={isLast}
+                  />
+                );
+              })}
+
+              <g transform={`translate(${cx}, ${cy})`}>
+                {isPowering && (
+                  <circle r={50} fill="url(#hub-radial)" stroke="var(--color-primary)"
+                    strokeWidth={1.5} strokeOpacity={0.35}
+                    style={{ animation: "topo-hub-pulse 2.2s ease-in-out infinite" }} />
+                )}
+                {isPowering && (
+                  <circle r={40} fill="none" stroke="var(--color-primary)"
+                    strokeWidth={1} strokeOpacity={0.18} strokeDasharray="3 6"
+                    style={{ animation: "topo-hub-ring 10s linear infinite", transformOrigin: "center" }} />
+                )}
+                <rect x={-HUB_W / 2} y={-HUB_H / 2} width={HUB_W} height={HUB_H} rx={10}
+                  fill="var(--color-surface)"
+                  stroke="var(--color-primary)"
+                  strokeWidth={2.5}
+                  filter="url(#node-shadow)"
+                  style={{
+                    filter: isPowering
+                      ? "drop-shadow(1.5px 1.5px 0 var(--color-border)) drop-shadow(0 0 10px color-mix(in srgb, var(--color-primary) 35%, transparent))"
+                      : "drop-shadow(1.5px 1.5px 0 var(--color-border))",
+                  }}
+                />
+                <foreignObject x={-18} y={-18} width={36} height={36}>
+                  <div style={{ width: "100%", height: "100%" }}>
+                    <Soft3DLogo className="size-9" />
+                  </div>
+                </foreignObject>
+                {isPowering && (
+                  <g transform={`translate(${HUB_W / 2 - 12}, ${-HUB_H / 2 - 10})`}>
+                    <rect x={-14} y={-8} width={28} height={16} rx={8}
+                      fill="var(--color-primary)" />
+                    <text x={0} y={4.5} textAnchor="middle" fontSize={9} fontWeight={900}
+                      fill="white" style={{ fontFamily: "monospace" }}>
+                      {activeCount}
+                    </text>
+                  </g>
+                )}
+              </g>
+
+              {displayProviders.map((p, i) => {
+                const pos = nodePositions[i];
+                const pid = p.provider?.toLowerCase();
+                const active = activeSet.has(pid);
+                const isLast = !active && lastSet.has(pid);
+                const hasError = !active && errorSet.has(pid);
+                const config = getProviderConfig(p.provider);
+                const color = config.color || "#6b7280";
+                const label = (config.name !== p.provider ? config.name : null) || p.nodeName || p.name || p.provider;
+                const labelShort = label.length > 15 ? label.slice(0, 14) + "…" : label;
+                const borderColor = active ? color : hasError ? "#ef4444" : isLast ? "#f59e0b" : "var(--color-border)";
+                const nodeBg = active ? `${color}0d` : hasError ? "#ef444408" : isLast ? "#f59e0b06" : "var(--color-surface-2)";
+
+                return (
+                  <g key={`node-${p.provider}`} transform={`translate(${pos.x}, ${pos.y})`}>
+                    {active && (
+                      <rect x={-NODE_W / 2 - 3} y={-NODE_H / 2 - 3}
+                        width={NODE_W + 6} height={NODE_H + 6} rx={13}
+                        fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.4}
+                        style={{ animation: "topo-node-glow 2s ease-in-out infinite" }} />
+                    )}
+                    <rect x={-NODE_W / 2} y={-NODE_H / 2} width={NODE_W} height={NODE_H} rx={10}
+                      fill={nodeBg} stroke={borderColor} strokeWidth={2}
+                      style={{
+                        filter: active
+                          ? `drop-shadow(1.5px 1.5px 0 var(--color-border)) drop-shadow(0 0 6px ${color}40)`
+                          : "drop-shadow(1.5px 1.5px 0 var(--color-border))",
+                      }}
+                    />
+
+                    <g transform={`translate(${-NODE_W / 2 + NODE_PAD + 14}, 0)`}>
+                      {active && (
+                        <circle r={16} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.35}
+                          style={{ animation: "topo-icon-pulse 1.8s ease-in-out infinite" }} />
+                      )}
+                      <circle r={14} fill={color} fillOpacity={0.15}
+                        stroke={color} strokeWidth={active ? 2 : 1.2}
+                        strokeOpacity={active ? 0.9 : 0.4} />
+                      <foreignObject x={-NODE_ICON / 2 * 0.7} y={-NODE_ICON / 2 * 0.7}
+                        width={NODE_ICON * 0.7} height={NODE_ICON * 0.7}>
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <ProviderIcon providerId={p.provider} color={color} size={NODE_ICON * 0.65} />
+                        </div>
+                      </foreignObject>
+                    </g>
+
+                    <text x={-NODE_W / 2 + NODE_PAD + 14 + 22} y={4}
+                      textAnchor="start" fontSize={12} fontWeight={800}
+                      fill="var(--color-text-main)" style={{ fontFamily: "monospace" }}>
+                      {labelShort}
+                    </text>
+
+                    {active && (
+                      <g transform={`translate(${NODE_W / 2 - 10}, ${-NODE_H / 2 + 10})`}>
+                        <circle r={4.5} fill="#22c55e"
+                          style={{ filter: "drop-shadow(0 0 3px #22c55e)" }}>
+                          <animate attributeName="r" values="3;5;3" dur="1.4s" repeatCount="indefinite" />
+                          <animate attributeName="opacity" values="0.7;1;0.7" dur="1.4s" repeatCount="indefinite" />
+                        </circle>
+                      </g>
+                    )}
+                    {hasError && (
+                      <g transform={`translate(${NODE_W / 2 - 10}, ${-NODE_H / 2 + 10})`}>
+                        <circle r={4} fill="#ef4444" />
+                      </g>
+                    )}
+                    {isLast && (
+                      <g transform={`translate(${NODE_W / 2 - 10}, ${-NODE_H / 2 + 10})`}>
+                        <circle r={4} fill="#f59e0b" />
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 

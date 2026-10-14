@@ -26,7 +26,7 @@ function ensureDir(d) {
 }
 
 run("pm2 stop routermod");
-run("npm run build");
+run("bun run build:bun");
 
 // postbuild script handles most of this, but ensure manually as fallback
 const standalone = path.join(__dirname, ".next", "standalone");

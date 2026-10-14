@@ -1,20 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo } from "react";
 import PropTypes from "prop-types";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
 import Card from "@/shared/components/Card";
+import SegmentedControl from "@/shared/components/SegmentedControl";
 
-const COLORS = ["#6366f1", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6"];
+const BAR_COLORS = ["#14b8a6", "#6366f1", "#f59e0b", "#ff1a53", "#8b5cf6", "#06b6d4"];
 
 const fmtTokens = (n) => {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -22,93 +13,72 @@ const fmtTokens = (n) => {
   return String(n || 0);
 };
 
-const truncate = (s, max = 22) => (s && s.length > max ? s.slice(0, max) + "…" : s || "");
+const truncate = (s, max = 26) => (s && s.length > max ? s.slice(0, max - 1) + "…" : s || "");
 
 export default function TopModelsChart({ byModel }) {
   const [viewMode, setViewMode] = useState("tokens");
 
-  const chartData = useMemo(() => {
+  const rows = useMemo(() => {
     if (!byModel) return [];
-    return Object.values(byModel)
+    const list = Object.values(byModel)
       .map((data) => ({
         name: truncate(data.rawModel || "Unknown"),
+        provider: data.provider || "",
         tokens: (data.promptTokens || 0) + (data.completionTokens || 0),
         requests: data.requests || 0,
       }))
       .filter((d) => d[viewMode] > 0)
       .sort((a, b) => b[viewMode] - a[viewMode])
-      .slice(0, 5);
+      .slice(0, 8);
+    const max = Math.max(...list.map((d) => d[viewMode]), 1);
+    return list.map((d, i) => ({ ...d, pct: (d[viewMode] / max) * 100, color: BAR_COLORS[i % BAR_COLORS.length] }));
   }, [byModel, viewMode]);
 
   const fmt = viewMode === "tokens" ? fmtTokens : String;
-  const label = viewMode === "tokens" ? "Tokens" : "Requests";
 
   return (
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 border-2 shadow-[2.5px_2.5px_0_var(--color-border)]">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Top Models</span>
-        <div className="grid grid-cols-2 items-center gap-1 rounded-lg border-2 border-border bg-surface-2 p-1 shadow-[1.5px_1.5px_0_var(--color-border)]">
-          <button
-            onClick={() => setViewMode("tokens")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-bold transition-all ${viewMode === "tokens" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
-          >
-            Tokens
-          </button>
-          <button
-            onClick={() => setViewMode("requests")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-bold transition-all ${viewMode === "requests" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
-          >
-            Requests
-          </button>
-        </div>
+        <SegmentedControl
+          options={[
+            { value: "tokens", label: "Token" },
+            { value: "requests", label: "Permintaan" },
+          ]}
+          value={viewMode}
+          onChange={setViewMode}
+          size="sm"
+        />
       </div>
 
-      {!chartData.length ? (
+      {!rows.length ? (
         <div className="h-44 flex flex-col items-center justify-center gap-2 text-text-muted">
           <span className="material-symbols-outlined text-[28px] opacity-30">model_training</span>
           <span className="text-xs font-medium">Belum ada penggunaan model</span>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart
-            data={chartData}
-            layout="vertical"
-            margin={{ top: 4, right: 40, left: 4, bottom: 4 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.08} horizontal={false} />
-            <XAxis
-              type="number"
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.45 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={fmt}
-            />
-            <YAxis
-              type="category"
-              dataKey="name"
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.7 }}
-              tickLine={false}
-              axisLine={false}
-              width={90}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--color-surface)",
-                border: "2px solid var(--color-border)",
-                borderRadius: "10px",
-                fontSize: "12px",
-                fontWeight: "bold",
-                boxShadow: "3px 3px 0 var(--color-border)",
-              }}
-              formatter={(value) => [fmt(value), label]}
-            />
-            <Bar dataKey={viewMode} radius={[0, 4, 4, 0]}>
-              {chartData.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} fillOpacity={0.9} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="flex flex-col gap-2.5 py-1">
+          {rows.map((r) => (
+            <div key={r.name} className="flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-[11px] font-bold text-text-main truncate" title={r.name}>{r.name}</span>
+                <span className="font-mono text-[11px] font-bold shrink-0" style={{ color: r.color }}>
+                  {fmt(r[viewMode])}
+                </span>
+              </div>
+              <div className="h-2.5 w-full rounded-full border-2 border-border bg-surface-2 overflow-hidden"
+                style={{ boxShadow: "1px 1px 0 var(--color-border)" }}>
+                <div
+                  className="h-full rounded-full transition-all duration-700 ease-out"
+                  style={{
+                    width: `${Math.max(r.pct, 4)}%`,
+                    background: `linear-gradient(90deg, ${r.color}, ${r.color}bb)`,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </Card>
   );

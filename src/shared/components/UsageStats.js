@@ -11,6 +11,7 @@ function isLLMProvider(id) {
 }
 import Badge from "./Badge";
 import Card from "./Card";
+import SegmentedControl from "./SegmentedControl";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import dynamic from "next/dynamic";
@@ -434,18 +435,13 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       {/* Period selector (hidden when controlled by parent) */}
       {!hidePeriodSelector && (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
-          <div className="grid flex-1 grid-cols-6 items-center gap-1 rounded-xl border-2 border-border bg-surface-2 p-1 shadow-[2px_2px_0_var(--color-border)] sm:flex sm:flex-none">
-            {PERIODS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                disabled={fetching}
-                className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${period === p.value ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={PERIODS}
+            value={period}
+            onChange={setPeriod}
+            size="sm"
+            className="w-full sm:w-auto"
+          />
           {fetching && (
             <span className="material-symbols-outlined text-[16px] text-primary animate-spin">progress_activity</span>
           )}
@@ -492,19 +488,16 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border-2 border-border bg-surface-2 p-1 shadow-[2px_2px_0_var(--color-border)] sm:flex">
-            <button
-              onClick={() => setViewMode("costs")}
-              className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${viewMode === "costs" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
-            >
-              Costs
-            </button>
-            <button
-              onClick={() => setViewMode("tokens")}
-              className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${viewMode === "tokens" ? "bg-primary text-white shadow-[1px_1px_0_var(--color-border)]" : "text-text-muted hover:text-text hover:bg-surface"}`}
-            >
-              Tokens
-            </button>
+          <div className="flex items-center gap-2">
+            <SegmentedControl
+              options={[
+                { value: "costs", label: "Biaya" },
+                { value: "tokens", label: "Token" },
+              ]}
+              value={viewMode}
+              onChange={setViewMode}
+              size="sm"
+            />
           </div>
         </div>
         {loading ? spinner : activeTableConfig && (

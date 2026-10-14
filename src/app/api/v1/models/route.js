@@ -512,9 +512,14 @@ export async function buildModelsList(kindFilter, options = {}) {
         if (!kindFilter.includes(kind) && !allowAsLlm) continue;
         if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId)) continue;
 
+        const staticModel = providerModels.find((m) => m.id === modelId);
+        const customModel = customModels.find((m) => m.id === modelId);
+        const displayName = customModel?.name || staticModel?.name || modelId;
+
         const model = {
           id: `${outputAlias}/${modelId}`,
           object: "model",
+          name: displayName,
           owned_by: outputAlias,
         };
         const liveCaps = liveCapabilitiesById.get(modelId);
@@ -540,6 +545,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         models.push({
           id: `${outputAlias}/search`,
           object: "model",
+          name: `${outputAlias} Search`,
           kind: "webSearch",
           owned_by: outputAlias,
         });
@@ -548,6 +554,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         models.push({
           id: `${outputAlias}/fetch`,
           object: "model",
+          name: `${outputAlias} Fetch`,
           kind: "webFetch",
           owned_by: outputAlias,
         });
@@ -576,13 +583,44 @@ export async function OPTIONS() {
   });
 }
 
+// Default caps — keeps token usage low for all models.
+// Override per-request: ?maxCtx=0 or ?maxOut=0 disables respective cap.
+const DEFAULT_CTX_CAP = 16384;
+const DEFAULT_OUT_CAP = 4096;
+
+function capTokenLimits(models, maxCtxCap, maxOutCap) {
+  return models.map((m) => {
+    const next = { ...m };
+    if (Number.isFinite(maxCtxCap) && maxCtxCap > 0 && Number.isFinite(m.context_length) && m.context_length > maxCtxCap)
+      next.context_length = maxCtxCap;
+    if (Number.isFinite(maxOutCap) && maxOutCap > 0 && Number.isFinite(m.max_completion_tokens) && m.max_completion_tokens > maxOutCap)
+      next.max_completion_tokens = maxOutCap;
+    return next;
+  });
+}
+
 export async function GET(request) {
   try {
+    const url = new URL(request.url);
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
-    const data = await filterModelsListForKey(
+
+    const maxCtxParam = parseInt(url.searchParams.get("maxCtx") || "", 10);
+    const maxOutParam = parseInt(url.searchParams.get("maxOut") || "", 10);
+
+    const maxCtxCap = url.searchParams.has("maxCtx")
+      ? (Number.isFinite(maxCtxParam) && maxCtxParam > 0 ? maxCtxParam : Infinity)
+      : DEFAULT_CTX_CAP;
+    const maxOutCap = url.searchParams.has("maxOut")
+      ? (Number.isFinite(maxOutParam) && maxOutParam > 0 ? maxOutParam : Infinity)
+      : DEFAULT_OUT_CAP;
+
+    let data = await filterModelsListForKey(
       await getKeyAccessContext(request),
       await buildModelsList([LLM_KIND], { skipDynamicFetch })
     );
+
+    data = capTokenLimits(data, maxCtxCap, maxOutCap);
+
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
     });

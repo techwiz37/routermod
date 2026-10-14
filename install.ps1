@@ -61,26 +61,8 @@ if (-not (Test-Command pm2)) {
 }
 Write-Host "✓ PM2 $(pm2 --version)" -ForegroundColor Green
 
-# ── Python ────────────────────────────────────────────────────────────────────
-$python = $null
-foreach ($p in @("python", "python3", "py")) {
-  if (Test-Command $p) { $python = $p; break }
-}
-if (-not $python) {
-  Invoke-Step "Installing Python 3" {
-    choco install python -y 2>&1 | Out-Null
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-    $python = "python"
-  }
-}
-Write-Host "✓ Python $( & $python --version 2>&1 )" -ForegroundColor Green
-
-# ── Selenium ──────────────────────────────────────────────────────────────────
-$hasSelenium = & $python -c "import selenium; print('ok')" 2>$null
-if ($hasSelenium -ne "ok") {
-  Invoke-Step "Installing selenium" { & $python -m pip install --quiet selenium }
-}
-Write-Host "✓ selenium $( & $python -c "import selenium; print(selenium.__version__)" 2>$null )" -ForegroundColor Green
+# ── Python/selenium NOT needed — bot uses puppeteer-core (Node.js) ───────────
+Write-Host "✓ Bot engine: puppeteer-core (Node.js) — no Python required" -ForegroundColor Green
 
 # ── Chrome ────────────────────────────────────────────────────────────────────
 $chrome = @(

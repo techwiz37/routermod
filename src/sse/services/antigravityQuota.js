@@ -73,6 +73,19 @@ export function getAntigravityModelQuota(quotas, model) {
     candidates.push(quotas["gemini-3.6-flash-medium"]);
   }
 
+  if (cleanModel.startsWith("gemini-3.8-flash") || cleanModel.startsWith("gemini-3.7-flash") || cleanModel.startsWith("gemini-3.6-flash")) {
+    if (quotas["gemini-3.8-flash-tiered"]) candidates.push(quotas["gemini-3.8-flash-tiered"]);
+  }
+  if (cleanModel.startsWith("claude-sonnet")) {
+    if (quotas["claude-sonnet-4-6"]) candidates.push(quotas["claude-sonnet-4-6"]);
+  }
+  if (cleanModel.startsWith("claude-opus")) {
+    if (quotas["claude-opus-4-6-thinking"]) candidates.push(quotas["claude-opus-4-6-thinking"]);
+  }
+  if (cleanModel.startsWith("gemini-3.1-pro") || cleanModel === "gemini-pro-agent") {
+    if (quotas["gemini-3-flash-agent"]) candidates.push(quotas["gemini-3-flash-agent"]);
+  }
+
   if (family === "claude_gpt") {
     if (quotas.claude_gpt_session) candidates.push(quotas.claude_gpt_session);
     if (quotas.claude_gpt_weekly) candidates.push(quotas.claude_gpt_weekly);
