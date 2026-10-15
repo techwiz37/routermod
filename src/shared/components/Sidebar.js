@@ -24,6 +24,7 @@ const navItems = [
   { href: "/dashboard/quota", label: "Cek Limit", icon: "data_usage" },
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
+  { href: "/dashboard/agent", label: "AI Agent", icon: "smart_toy" },
 ];
 
 const debugItems = [
