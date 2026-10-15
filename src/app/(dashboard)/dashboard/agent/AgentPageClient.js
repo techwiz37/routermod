@@ -31,6 +31,10 @@ async function api(path, opts) {
   return data;
 }
 
+function sessionKey(project) {
+  return `routermod:agent-session:${project || ""}`;
+}
+
 const TABS = [
   { id: "chat", label: "Agent", icon: "smart_toy" },
   { id: "files", label: "Files", icon: "folder" },
@@ -389,8 +393,12 @@ function AgentChat({ project, terminalEnabled }) {
   const [reloading, setReloading] = useState(false);
   const [notice, setNotice] = useState("");
   const [attachments, setAttachments] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [sessionId, setSessionId] = useState("");
   const fileRef = useRef(null);
   const scrollRef = useRef(null);
+  const saveTimer = useRef(null);
+  const openingRef = useRef(false);
 
   const applyProviders = (list, preferredId) => {
     const id = preferredId || providerId || list[0]?.id || "";
@@ -411,6 +419,118 @@ function AgentChat({ project, terminalEnabled }) {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [log]);
+
+  const openSession = async (id) => {
+    if (!id) return;
+    openingRef.current = true;
+    try {
+      const d = await api(`/api/agent/sessions?project=${encodeURIComponent(project)}&id=${encodeURIComponent(id)}`);
+      setSessionId(d.session.id);
+      setLog(Array.isArray(d.session.log) ? d.session.log : []);
+      localStorage.setItem(sessionKey(project), d.session.id);
+      setNotice("");
+    } catch (e) {
+      setNotice(e?.message || String(e));
+    } finally {
+      openingRef.current = false;
+    }
+  };
+
+  const newSession = async () => {
+    openingRef.current = true;
+    setSessionId("");
+    setLog([]);
+    setAttachments([]);
+    try {
+      const d = await api("/api/agent/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project, log: [], providerId, model }),
+      });
+      setSessionId(d.id);
+      setSessions((s) => [{ id: d.id, title: d.title, updatedAt: d.updatedAt, turns: 0 }, ...s]);
+      localStorage.setItem(sessionKey(project), d.id);
+    } catch (e) {
+      setNotice(e?.message || String(e));
+    } finally {
+      openingRef.current = false;
+    }
+  };
+
+  const forgetSession = async () => {
+    if (!sessionId || busy) return;
+    if (!confirm("Hapus sesi chat ini? Riwayatnya hilang permanen.")) return;
+    const id = sessionId;
+    openingRef.current = true;
+    setSessions((s) => s.filter((x) => x.id !== id));
+    setSessionId("");
+    setLog([]);
+    localStorage.removeItem(sessionKey(project));
+    try {
+      await api("/api/agent/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id }) });
+    } catch {
+      /* eslint-disable-next-line no-empty */
+    } finally {
+      openingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!project) return;
+    let alive = true;
+    (async () => {
+      try {
+        const d = await api(`/api/agent/sessions?project=${encodeURIComponent(project)}`);
+        if (!alive) return;
+        const list = d.sessions || [];
+        setSessions(list);
+        const remembered = localStorage.getItem(sessionKey(project));
+        const pick = list.find((s) => s.id === remembered) || list[0];
+        if (pick) await openSession(pick.id);
+        else {
+          setSessionId("");
+          setLog([]);
+        }
+      } catch {
+        if (alive) {
+          setSessions([]);
+          setSessionId("");
+          setLog([]);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project]);
+
+  useEffect(() => {
+    if (openingRef.current || busy || !project) return;
+    if (!log.length && !sessionId) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (openingRef.current) return;
+      try {
+        const d = await api("/api/agent/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: sessionId || undefined, project, log, providerId, model }),
+        });
+        if (!sessionId) setSessionId(d.id);
+        localStorage.setItem(sessionKey(project), d.id || sessionId);
+        setSessions((s) => {
+          const rest = s.filter((x) => x.id !== (d.id || sessionId));
+          const meta = { id: d.id || sessionId, title: d.title, updatedAt: d.updatedAt, turns: log.filter((e) => e.kind === "user").length };
+          return [meta, ...rest];
+        });
+      } catch {
+        /* eslint-disable-next-line no-empty */
+      }
+    }, 900);
+    return () => clearTimeout(saveTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [log, busy, sessionId, project]);
 
   const activeProvider = providers.find((p) => p.id === providerId);
   const models = activeProvider?.models || [];
@@ -589,6 +709,39 @@ function AgentChat({ project, terminalEnabled }) {
           {reloading ? <Spinner /> : <span className="material-symbols-outlined text-[16px]">refresh</span>}
           Reload Models
         </button>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5">
+          <span className="material-symbols-outlined text-[16px] text-text-muted">history</span>
+          <select
+            value={sessionId}
+            onChange={(e) => openSession(e.target.value)}
+            className="bg-transparent text-xs outline-none cursor-pointer max-w-[160px]"
+            title={sessions.find((s) => s.id === sessionId)?.title || "Sesi chat"}
+          >
+            {sessions.length === 0 && <option value="">(sesi kosong)</option>}
+            {sessions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {(s.title || "Sesi").slice(0, 40)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={newSession}
+          disabled={busy}
+          title="Sesi baru"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[16px]">add_comment</span>
+          Sesi baru
+        </button>
+        <button
+          onClick={forgetSession}
+          disabled={busy || !sessionId || sessions.length === 0}
+          title="Hapus sesi ini"
+          className="grid h-[30px] w-[30px] place-items-center rounded-lg border border-border bg-surface text-text-muted hover:text-rose-500 hover:border-rose-500/40 transition-colors disabled:opacity-50 cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
+        </button>
         <div className="flex-1" />
         <button onClick={() => setLog([])} disabled={busy} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text transition-colors disabled:opacity-50 cursor-pointer">
           Clear
@@ -620,7 +773,7 @@ function AgentChat({ project, terminalEnabled }) {
                   {e.media?.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {e.media.map((m, mi) =>
-                        m.kind === "image" ? (
+                        m.kind === "image" && m.data ? (
                           <img
                             key={mi}
                             src={m.data}
@@ -633,10 +786,12 @@ function AgentChat({ project, terminalEnabled }) {
                             key={mi}
                             className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 max-w-[220px]"
                           >
-                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">movie</span>
+                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">
+                              {m.kind === "video" ? "movie" : "image"}
+                            </span>
                             <span className="min-w-0">
                               <span className="block text-[11px] font-medium truncate">{m.name}</span>
-                              <span className="block text-[10px] text-text-muted">video</span>
+                              <span className="block text-[10px] text-text-muted">{m.kind === "video" ? "video" : "gambar"}</span>
                             </span>
                           </div>
                         )
