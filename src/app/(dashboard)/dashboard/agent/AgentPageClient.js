@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { renderMarkdown } from "./MarkdownText";
 
 function fmtSize(n) {
   if (!n && n !== 0) return "";
@@ -374,10 +375,7 @@ function AgentChat({ project, terminalEnabled }) {
   const [busy, setBusy] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [notice, setNotice] = useState("");
-  const [statusText, setStatusText] = useState("");
-  const [elapsed, setElapsed] = useState(0);
   const scrollRef = useRef(null);
-  const startedAtRef = useRef(0);
 
   const applyProviders = (list, preferredId) => {
     const id = preferredId || providerId || list[0]?.id || "";
@@ -398,20 +396,6 @@ function AgentChat({ project, terminalEnabled }) {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [log]);
-
-  useEffect(() => {
-    if (!busy) {
-      setElapsed(0);
-      return undefined;
-    }
-    startedAtRef.current = Date.now();
-    const t = setInterval(() => setElapsed(Math.round((Date.now() - startedAtRef.current) / 1000)), 1000);
-    return () => clearInterval(t);
-  }, [busy]);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [statusText]);
 
   const activeProvider = providers.find((p) => p.id === providerId);
   const models = activeProvider?.models || [];
@@ -485,11 +469,8 @@ function AgentChat({ project, terminalEnabled }) {
           } catch {
             continue;
           }
-          if (ev.type === "status") {
-            setStatusText(ev.text || "");
-          } else if (ev.type === "assistant_text") {
+          if (ev.type === "assistant_text") {
             assistantText += ev.text;
-            setStatusText((s) => (s && s !== "Model sedang mengetik…" ? "Model sedang mengetik…" : s));
             setLog((l) => {
               const copy = [...l];
               if (copy[copy.length - 1]?.kind === "assistant") copy[copy.length - 1] = { kind: "assistant", text: assistantText };
@@ -498,16 +479,12 @@ function AgentChat({ project, terminalEnabled }) {
             });
           } else if (ev.type === "tool_call") {
             assistantText = "";
-            setStatusText(`${TOOL_META[ev.name]?.label || ev.name}…`);
             setLog((l) => [...l, { kind: "tool", id: ev.id, name: ev.name, args: ev.args, result: null, state: "running" }]);
           } else if (ev.type === "tool_result") {
-            setStatusText("Menganalisis hasil…");
             setLog((l) => l.map((e) => (e.kind === "tool" && e.id === ev.id ? { ...e, result: ev.result, state: ev.ok ? "done" : "error" } : e)));
           } else if (ev.type === "error") {
-            setStatusText("");
             setLog((l) => [...l, { kind: "error", text: ev.error }]);
           } else if (ev.type === "done") {
-            setStatusText("");
             assistantText = "";
           }
         }
@@ -516,7 +493,6 @@ function AgentChat({ project, terminalEnabled }) {
       setLog((l) => [...l, { kind: "error", text: e?.message || String(e) }]);
     } finally {
       setBusy(false);
-      setStatusText("");
     }
   };
 
@@ -574,12 +550,12 @@ function AgentChat({ project, terminalEnabled }) {
                 <div className="shrink-0 mt-0.5 grid place-items-center h-6 w-6 rounded-lg bg-emerald-500/10 text-emerald-500">
                   <span className="material-symbols-outlined text-[15px]">smart_toy</span>
                 </div>
-                <p className="whitespace-pre-wrap leading-relaxed">
-                  {e.text}
+                <div className="flex-1 min-w-0 space-y-1 leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  {renderMarkdown(e.text)}
                   {busy && i === log.length - 1 && (
-                    <span className="inline-block ml-0.5 h-4 w-[7px] translate-y-[2px] bg-primary animate-pulse" />
+                    <span className="inline-block ml-0.5 h-4 w-[7px] translate-y-[3px] bg-primary animate-pulse" />
                   )}
-                </p>
+                </div>
               </>
             )}
             {e.kind === "tool" && <ToolCard entry={e} />}
@@ -592,19 +568,15 @@ function AgentChat({ project, terminalEnabled }) {
           </div>
         ))}
         {busy && (
-          <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 w-full fade-in">
-            <span className="flex gap-1">
+          <div className="flex items-center gap-3 px-1 py-1 w-full">
+            <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce [animation-delay:150ms]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary/40 animate-bounce [animation-delay:300ms]" />
             </span>
-            <span className="text-xs text-text font-medium">
-              {elapsed > 10 && (statusText === "Menghubungi model…" || statusText === "Model sedang berpikir…")
-                ? "Menunggu model merespons…"
-                : statusText || "Berpikir…"}
-            </span>
-            <span className="flex-1" />
-            <span className="font-mono text-[11px] text-text-muted tabular-nums">{elapsed}s</span>
+            <div className="flex-1 h-1 rounded-full bg-primary/10 overflow-hidden">
+              <div className="h-full w-1/3 bg-primary/50 animate-[ctaShimmer_1.4s_linear_infinite]" />
+            </div>
           </div>
         )}
       </div>

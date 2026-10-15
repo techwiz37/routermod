@@ -28,9 +28,6 @@ export default {
     // would force one format (e.g. claude-adaptive) onto every model.
     baseUrl: "https://tokenharbor.ai/v1/chat/completions",
     validateUrl: "https://tokenharbor.ai/v1/models",
-    retry: {
-      429: 2,
-    },
   },
   // Curated seed; the live catalogue is fetched via modelsFetcher and any other
   // id is accepted via passthroughModels. Their catalogue rotates (the :free set
