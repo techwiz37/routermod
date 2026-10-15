@@ -1013,7 +1013,7 @@ export function encodeMcpToolDefinition(tool) {
     encodeField(MTD_NAME, WIRE_TYPE.LEN, name),
     encodeField(MTD_DESCRIPTION, WIRE_TYPE.LEN, description),
     encodeField(MTD_INPUT_SCHEMA, WIRE_TYPE.LEN, encodeAgentValue(schema)),
-    encodeField(MTD_PROVIDER, WIRE_TYPE.LEN, "routermod"),
+    encodeField(MTD_PROVIDER, WIRE_TYPE.LEN, "9router"),
     encodeField(MTD_TOOL_NAME, WIRE_TYPE.LEN, name),
   );
 }

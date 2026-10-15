@@ -333,7 +333,7 @@ AGENT_TERMINAL_TIMEOUT_MS=120000`}
           </pre>
           <p className="text-xs text-text-muted">
             Set lewat <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">ecosystem.config.js</code> (blok <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">env</code>) atau <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">.env.local</code>, lalu{" "}
-            <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">pm2 restart routermod</code>.
+            <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">pm2 restart run-routermod</code>.
           </p>
         </div>
       </div>

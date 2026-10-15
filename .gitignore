@@ -106,5 +106,4 @@ debug.log
 .env.local
 .env.*.local
 
-# media yang dilampirkan ke AI Agent
 .agent-media/

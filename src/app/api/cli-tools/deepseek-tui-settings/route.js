@@ -10,7 +10,7 @@ import os from "os";
 
 const execAsync = promisify(exec);
 
-const PROVIDER_NAME = "routermod";
+const PROVIDER_NAME = "9router";
 
 const getDeepSeekDir = () => path.join(os.homedir(), ".deepseek");
 const getDeepSeekConfigPath = () => path.join(getDeepSeekDir(), "config.toml");
@@ -47,7 +47,7 @@ const parseToml = (content) => {
     return result;
 };
 
-const buildRoutermodConfig = (baseUrl, apiKey, model) => {
+const build9RouterConfig = (baseUrl, apiKey, model) => {
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     return `provider = "openai"
 
@@ -86,7 +86,7 @@ const readConfigToml = async () => {
     }
 };
 
-const hasRoutermodConfig = (config) => {
+const has9RouterConfig = (config) => {
     if (!config) return false;
     const provider = config.provider;
     if (provider !== "openai") return false;
@@ -106,7 +106,7 @@ export async function GET() {
         return NextResponse.json({
             installed: true,
             settings: config,
-            hasRoutermod: hasRoutermodConfig(config),
+            has9Router: has9RouterConfig(config),
             configPath: getDeepSeekConfigPath(),
         });
     } catch (error) {
@@ -125,7 +125,7 @@ export async function POST(request) {
         const dir = getDeepSeekDir();
         await fs.mkdir(dir, { recursive: true });
 
-        const newConfig = buildRoutermodConfig(baseUrl, await resolveCliApiKey(apiKey), model);
+        const newConfig = build9RouterConfig(baseUrl, await resolveCliApiKey(apiKey), model);
         await fs.writeFile(getDeepSeekConfigPath(), newConfig);
 
         return NextResponse.json({

@@ -9,7 +9,7 @@
  */
 
 /** Canonical names required by the upstream free-tier gate. */
-export const OPENCODE_FINGERPRINT_TOOLS = ["bash", "glob", "grep", "read"];
+export const OPENCODE_FINGERPRINT_TOOLS = ["read"];
 
 // Request body -> names renamed for that request. transformRequest() mutates the
 // same body object that chatCore passed into the executor, so a WeakMap keeps the
@@ -86,13 +86,13 @@ export function appendMissingFingerprintTools(tools, flat) {
     list.push(flat ? {
       type: "function",
       name,
-      description: "This tool is currently unavailable and must not be used.",
+      description: "d",
       parameters: { type: "object", properties: {} },
     } : {
       type: "function",
       function: {
         name,
-        description: "This tool is currently unavailable and must not be used.",
+        description: "d",
         parameters: { type: "object", properties: {} },
       },
     });

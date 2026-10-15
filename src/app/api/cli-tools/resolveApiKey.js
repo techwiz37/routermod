@@ -2,7 +2,7 @@
 import { getApiKeys } from "@/lib/db";
 
 export async function resolveCliApiKey(callerKey) {
-  if (callerKey && callerKey.trim() && callerKey.trim() !== "sk_routermod") {
+  if (callerKey && callerKey.trim() && callerKey.trim() !== "sk_9router") {
     return callerKey.trim();
   }
   try {

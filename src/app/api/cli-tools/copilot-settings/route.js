@@ -28,25 +28,25 @@ const readConfig = async () => {
   }
 };
 
-const hasRoutermodConfig = (config) => {
+const has9RouterConfig = (config) => {
   if (!Array.isArray(config)) return false;
-  return config.some((entry) => entry.name === "Routermod");
+  return config.some((entry) => entry.name === "9Router");
 };
 
-const getRoutermodEntry = (config) => {
+const get9RouterEntry = (config) => {
   if (!Array.isArray(config)) return null;
-  return config.find((entry) => entry.name === "Routermod") || null;
+  return config.find((entry) => entry.name === "9Router") || null;
 };
 
 export async function GET() {
   try {
     const config = await readConfig();
-    const entry = getRoutermodEntry(config);
+    const entry = get9RouterEntry(config);
 
     return NextResponse.json({
       installed: true,
       config,
-      hasRoutermod: hasRoutermodConfig(config),
+      has9Router: has9RouterConfig(config),
       configPath: getConfigPath(),
       currentModel: entry?.models?.[0]?.id || null,
       currentUrl: entry?.models?.[0]?.url || null,
@@ -79,7 +79,7 @@ export async function POST(request) {
     const keyToUse = await resolveCliApiKey(apiKey);
 
     const newEntry = {
-      name: "Routermod",
+      name: "9Router",
       vendor: "azure",
       apiKey: keyToUse,
       models: models.map((id) => ({
@@ -93,7 +93,7 @@ export async function POST(request) {
       })),
     };
 
-    const idx = config.findIndex((e) => e.name === "Routermod");
+    const idx = config.findIndex((e) => e.name === "9Router");
     if (idx >= 0) {
       config[idx] = newEntry;
     } else {
@@ -129,12 +129,12 @@ export async function DELETE() {
       throw error;
     }
 
-    config = config.filter((e) => e.name !== "Routermod");
+    config = config.filter((e) => e.name !== "9Router");
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
 
     return NextResponse.json({
       success: true,
-      message: "Routermod removed from Copilot config",
+      message: "9Router removed from Copilot config",
     });
   } catch (error) {
     console.log("Error resetting copilot settings:", error);

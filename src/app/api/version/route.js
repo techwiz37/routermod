@@ -1,7 +1,7 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
 
-const NPM_PACKAGE_NAME = "routermod";
+const NPM_PACKAGE_NAME = "9router";
 const VERSION_CACHE_TTL_MS = 3600000; // cache npm latest lookup for 1h
 
 const versionCache = (global.__npmVersionCache ??= { value: null, fetchedAt: 0 });

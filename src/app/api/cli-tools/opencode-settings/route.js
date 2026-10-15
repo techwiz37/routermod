@@ -43,9 +43,9 @@ const readConfig = async () => {
   }
 };
 
-const hasRoutermodConfig = (config) => {
+const has9RouterConfig = (config) => {
   if (!config?.provider) return false;
-  return !!config.provider["routermod"];
+  return !!config.provider["9router"];
 };
 
 export async function GET() {
@@ -61,17 +61,17 @@ export async function GET() {
     }
 
     const config = await readConfig();
-    const providerConfig = config?.provider?.["routermod"];
+    const providerConfig = config?.provider?.["9router"];
     const modelMap = providerConfig?.models || {};
 
     return NextResponse.json({
       installed: true,
       config,
-      hasRoutermod: hasRoutermodConfig(config),
+      has9Router: has9RouterConfig(config),
       configPath: getConfigPath(),
         opencode: {
           models: Object.keys(modelMap),
-          activeModel: config?.model?.startsWith("routermod/") ? config.model.replace(/^routermod\//, "") : null,
+          activeModel: config?.model?.startsWith("9router/") ? config.model.replace(/^9router\//, "") : null,
           baseURL: providerConfig?.options?.baseURL || null,
         },
     });
@@ -108,7 +108,7 @@ export async function POST(request) {
 
     if (!config.provider) config.provider = {};
 
-    const existingProvider = config.provider["routermod"] || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
+    const existingProvider = config.provider["9router"] || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
 
     existingProvider.options = {
       ...existingProvider.options,
@@ -123,14 +123,14 @@ export async function POST(request) {
       existingProvider.models[m] = { name: m, modalities: { input: ["text", "image"], output: ["text"] } };
     }
 
-    config.provider["routermod"] = existingProvider;
+    config.provider["9router"] = existingProvider;
 
     if (activeModel === "") {
       config.model = "";
     } else {
       const finalActive = activeModel || modelsArray[0];
       if (finalActive) {
-        config.model = `routermod/${finalActive}`;
+        config.model = `9router/${finalActive}`;
       }
     }
 
@@ -138,7 +138,7 @@ export async function POST(request) {
     config.agent.explorer = {
       description: "Fast explorer subagent for codebase exploration",
       mode: "subagent",
-      model: `routermod/${effectiveSubagentModel}`,
+      model: `9router/${effectiveSubagentModel}`,
     };
 
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
@@ -171,7 +171,7 @@ export async function PATCH(request) {
     }
 
     if (clearActiveModel === true) {
-      if (config.model?.startsWith("routermod/")) {
+      if (config.model?.startsWith("9router/")) {
         config.model = "";
       }
     }
@@ -205,22 +205,22 @@ export async function DELETE(request) {
       throw error;
     }
 
-    if (modelToRemove && config.provider?.["routermod"]?.models) {
-      delete config.provider["routermod"].models[modelToRemove];
+    if (modelToRemove && config.provider?.["9router"]?.models) {
+      delete config.provider["9router"].models[modelToRemove];
       
-      if (Object.keys(config.provider["routermod"].models).length === 0) {
-        delete config.provider["routermod"];
-        if (config.model?.startsWith("routermod/")) delete config.model;
-      } else if (config.model === `routermod/${modelToRemove}`) {
-        const remainingModels = Object.keys(config.provider["routermod"].models);
-        config.model = `routermod/${remainingModels[0]}`;
+      if (Object.keys(config.provider["9router"].models).length === 0) {
+        delete config.provider["9router"];
+        if (config.model?.startsWith("9router/")) delete config.model;
+      } else if (config.model === `9router/${modelToRemove}`) {
+        const remainingModels = Object.keys(config.provider["9router"].models);
+        config.model = `9router/${remainingModels[0]}`;
       }
     } else {
-      if (config.provider) delete config.provider["routermod"];
-      if (config.model?.startsWith("routermod/")) delete config.model;
+      if (config.provider) delete config.provider["9router"];
+      if (config.model?.startsWith("9router/")) delete config.model;
     }
 
-    if (config.agent?.explorer?.model?.startsWith("routermod/")) {
+    if (config.agent?.explorer?.model?.startsWith("9router/")) {
       delete config.agent.explorer;
       if (Object.keys(config.agent).length === 0) delete config.agent;
     }
@@ -229,7 +229,7 @@ export async function DELETE(request) {
 
     return NextResponse.json({
       success: true,
-      message: modelToRemove ? `Model "${modelToRemove}" removed` : "Routermod settings removed from OpenCode",
+      message: modelToRemove ? `Model "${modelToRemove}" removed` : "9Router settings removed from OpenCode",
     });
   } catch (error) {
     console.log("Error resetting opencode settings:", error);

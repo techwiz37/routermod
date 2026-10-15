@@ -64,6 +64,11 @@ const TEXT = {
     unitHour: "jam",
     unitMin: "m",
     unitSec: "d",
+    reasonAuth: "API key tidak valid / tidak berwenang",
+    reasonBalance: "Saldo atau kuota akun ini habis — perlu isi ulang",
+    reasonRate: "Terlalu banyak request (rate limit) — tunggu sebentar lalu coba lagi",
+    reasonQuota: "Kuota periode ini sudah habis",
+    reasonLimit: "Akun sedang terkena limit",
   },
   en: {
     activeProviders: "Live Providers",
@@ -118,6 +123,11 @@ const TEXT = {
     unitHour: "hr",
     unitMin: "m",
     unitSec: "s",
+    reasonAuth: "Invalid / unauthorized API key",
+    reasonBalance: "Account balance or quota exhausted — top up required",
+    reasonRate: "Too many requests (rate limit) — wait a moment and retry",
+    reasonQuota: "This period's quota is exhausted",
+    reasonLimit: "Account is currently limited",
   },
 };
 
@@ -147,6 +157,82 @@ function formatResetAt(resetAt, t) {
   if (m > 0) parts.push(`${m}${t.unitMin}`);
   if (s > 0 || parts.length === 0) parts.push(`${s}${t.unitSec}`);
   return parts.join(" ");
+}
+
+// Unwrap a raw upstream error string like `[429]: [{"error":{"message":"Rate
+// limit reached ... retry after 30s"}}]` into { status, message, retryAfterSec }.
+// The executor stores `[status]: <body>` and the body may be JSON (object or
+// array) or plain text, so we probe for JSON defensively and never throw.
+function parseUpstreamError(raw) {
+  const out = { status: null, message: "", retryAfterSec: null };
+  if (!raw) return out;
+  let text = String(raw).trim();
+
+  const statusMatch = text.match(/^\[(\d{3})\]:\s*([\s\S]*)$/);
+  if (statusMatch) {
+    out.status = Number(statusMatch[1]);
+    text = statusMatch[2].trim();
+  }
+
+  const extractMsg = (obj) => {
+    const target = Array.isArray(obj) ? obj[0] : obj;
+    return (
+      target?.error?.message ||
+      target?.message ||
+      (typeof target?.error === "string" ? target.error : null) ||
+      null
+    );
+  };
+
+  let msg = null;
+  try {
+    msg = extractMsg(JSON.parse(text));
+  } catch {
+    // Body isn't clean JSON (may have a prefix); try from the first brace.
+    const braceIdx = text.indexOf("{");
+    if (braceIdx >= 0) {
+      try {
+        msg = extractMsg(JSON.parse(text.slice(braceIdx)));
+      } catch { /* fall through to raw */ }
+    }
+  }
+  out.message = msg || text;
+
+  // Pull a reset/retry hint out of the body: `"retry-after": 30` or "retry after 30s".
+  const rawStr = String(raw);
+  const ra =
+    rawStr.match(/"retry-?(?:after|in)"\s*:\s*"?(\d+)/i) ||
+    rawStr.match(/(?:retry|try again|wait|reset)[^0-9]{0,14}(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hour|hours)/i);
+  if (ra) {
+    let n = Number(ra[1]);
+    const unit = (ra[2] || "s").toLowerCase();
+    if (unit.startsWith("m")) n *= 60;
+    else if (unit.startsWith("h")) n *= 3600;
+    if (Number.isFinite(n) && n > 0) out.retryAfterSec = n;
+  }
+  return out;
+}
+
+// Turn a parsed upstream error into a short human sentence in the active locale.
+function humanizeLimit(parsed, t) {
+  const lower = (parsed.message || "").toLowerCase();
+  const s = parsed.status;
+  if (s === 401 || lower.includes("invalid api key") || lower.includes("unauthorized") || lower.includes("api key not valid")) {
+    return t.reasonAuth;
+  }
+  if (s === 402 || lower.includes("insufficient") || lower.includes("balance") || lower.includes("credit") || lower.includes("out of credit")) {
+    return t.reasonBalance;
+  }
+  if (s === 429 || lower.includes("rate limit") || lower.includes("too many request") || lower.includes("rate_limit")) {
+    return t.reasonRate;
+  }
+  if (lower.includes("quota") || lower.includes("allowance")) {
+    return t.reasonQuota;
+  }
+  if (lower.includes("limit")) {
+    return t.reasonLimit;
+  }
+  return parsed.message || t.reasonLimit;
 }
 
 function getLocale() {
@@ -631,8 +717,7 @@ export default function DashboardProviderOverview() {
                       {/* AKUN LIMIT */}
                       <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-center">
                         {p.limitedAccounts > 0 ? (
-                          <span className="font-bold text-amber-500 bg-amber-400/15 px-1 py-0.5 rounded border border-amber-400/40 inline-flex items-center gap-0.5 text-[10px]">
-                            <span className="material-symbols-outlined text-[9px] leading-none">speed</span>
+                          <span className="font-bold text-amber-500 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30 text-[11px]">
                             {p.limitedAccounts}
                           </span>
                         ) : (
@@ -791,6 +876,15 @@ export default function DashboardProviderOverview() {
                 {pagedLimitedAccounts.map((acc) => {
                   const iconSrc = getProviderIconSrc(acc.provider);
                   const isRechecking = recheckingId === acc.id;
+                  const parsedError = parseUpstreamError(acc.lastError);
+                  const reasonText = humanizeLimit(parsedError, t);
+                  const derivedResetMs = parsedError.retryAfterSec
+                    ? new Date(acc.lastErrorAt || Date.now()).getTime() + parsedError.retryAfterSec * 1000
+                    : null;
+                  const effectiveResetAt =
+                    acc.resetAt || (derivedResetMs ? new Date(derivedResetMs).toISOString() : null);
+                  const upstreamDetail =
+                    parsedError.message && parsedError.message !== reasonText ? parsedError.message : null;
                   return (
                     <tr key={acc.id} className="hover:bg-surface-2/40 transition-colors">
                       <td className="py-2 px-3 sm:px-4 whitespace-nowrap">
@@ -831,14 +925,19 @@ export default function DashboardProviderOverview() {
 
                       <td className="py-2 px-2 sm:px-3 whitespace-nowrap text-text-muted text-[11px]">
                         <span className="font-mono text-text-main font-semibold">
-                          {formatResetAt(acc.resetAt, t)}
+                          {formatResetAt(effectiveResetAt, t)}
                         </span>
                       </td>
 
                       <td className="py-2 px-3 sm:px-4 max-w-[260px] sm:max-w-[340px]">
-                        <p className="text-[10.5px] text-text-muted font-mono truncate" title={acc.lastError}>
-                          {acc.lastError || "Akun terkena batas kuota / rate limit"}
+                        <p className="text-[10.5px] text-text-main font-mono truncate" title={acc.lastError}>
+                          {reasonText}
                         </p>
+                        {upstreamDetail && (
+                          <p className="text-[9px] text-text-muted font-mono truncate" title={acc.lastError}>
+                            {upstreamDetail}
+                          </p>
+                        )}
                       </td>
 
                       <td className="py-2 px-3 sm:px-4 text-center whitespace-nowrap">

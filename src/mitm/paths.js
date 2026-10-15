@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const APP_NAME = "routermod";
+const APP_NAME = "9router";
 
 function defaultDir() {
   if (process.platform === "win32") {

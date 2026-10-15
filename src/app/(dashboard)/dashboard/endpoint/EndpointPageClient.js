@@ -1015,7 +1015,7 @@ export default function APIPageClient({ machineId }) {
                   {translate("Cloudflare Tunnel")}
                 </p>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  {translate("Expose your local Routermod to the internet. No port forwarding, no static IP needed. Share endpoint URL with your team or use it in Cursor, Cline, and other AI tools from anywhere.")}
+                  {translate("Expose your local 9Router to the internet. No port forwarding, no static IP needed. Share endpoint URL with your team or use it in Cursor, Cline, and other AI tools from anywhere.")}
                 </p>
               </div>
             </div>

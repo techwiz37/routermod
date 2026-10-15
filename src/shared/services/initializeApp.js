@@ -111,6 +111,10 @@ async function runHeavyStartup() {
     .then(({ startBackgroundConnectionHealth }) => startBackgroundConnectionHealth())
     .catch((e) => console.log("[BackgroundConnectionHealth] scheduler start failed:", e.message));
 
+  import("@/sse/services/tokenharborHealth.js")
+    .then(({ startTokenharborHealth }) => startTokenharborHealth())
+    .catch((e) => console.log("[TokenHarborHealth] scheduler start failed:", e.message));
+
   import("@/sse/services/backgroundCookieRefresh.js")
     .then(({ startBackgroundCookieRefresh }) => startBackgroundCookieRefresh())
     .catch((e) => console.log("[BackgroundCookieRefresh] scheduler start failed:", e.message));

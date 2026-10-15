@@ -246,7 +246,7 @@ export async function GET() {
       ? config.inferenceModels.map((m) => (typeof m === "string" ? m : m?.name)).filter(Boolean)
       : [];
     const managedMcp = Array.isArray(config?.managedMcpServers) ? config.managedMcpServers : [];
-    const hasRoutermod = !!(config?.inferenceProvider === PROVIDER && baseUrl);
+    const has9Router = !!(config?.inferenceProvider === PROVIDER && baseUrl);
 
     const stdioNames = new Set(LOCAL_STDIO_PLUGINS.map((p) => p.name));
     const activeLocalNames = managedMcp
@@ -260,7 +260,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      hasRoutermod,
+      has9Router,
       configPath,
       cowork: {
         appliedId,

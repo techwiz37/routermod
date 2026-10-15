@@ -61,7 +61,7 @@ export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs } = {}) {
         dispatcher,
         signal: controller.signal,
         headers: {
-          "User-Agent": "Routermod",
+          "User-Agent": "9Router",
         },
       });
 

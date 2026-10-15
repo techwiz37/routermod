@@ -20,14 +20,14 @@ import {
   removeDelegationBlock,
   removeAuxRole,
   upsertEnvVar,
-  hasRoutermodConfig,
+  has9RouterConfig,
   isCustomBlock,
 } from "./hermesYaml.js";
 import { resolveHermesHome, listProfiles, dirExists } from "./hermesProfiles.js";
 
 const execAsync = promisify(exec);
 
-const PROVIDER_NAME = "routermod";
+const PROVIDER_NAME = "9router";
 const API_KEY_ENV = "OPENAI_API_KEY";
 
 const getQueryParam = (request, key) => {
@@ -113,7 +113,7 @@ export async function GET(request) {
       installed: true,
       profile: { name: home.name, dir: home.dir, isDefault: home.isDefault },
       settings: { model, delegation, auxiliary },
-      hasRoutermod: hasRoutermodConfig(model) || hasRoutermodConfig(delegation) || Object.values(auxiliary).some(hasRoutermodConfig),
+      has9Router: has9RouterConfig(model) || has9RouterConfig(delegation) || Object.values(auxiliary).some(has9RouterConfig),
       configPath: home.configPath,
     });
   } catch (error) {

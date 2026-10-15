@@ -25,7 +25,7 @@ function ensureDir(d) {
   fs.mkdirSync(d, { recursive: true });
 }
 
-run("pm2 stop routermod");
+run("pm2 stop run-routermod");
 run("bun run build:bun");
 
 // postbuild script handles most of this, but ensure manually as fallback
@@ -39,5 +39,5 @@ if (fs.existsSync(standalone)) {
   cpDir(path.join(__dirname, "src"),               path.join(standalone, "src"));
 }
 
-run("pm2 start routermod");
+run("pm2 start run-routermod");
 console.log("\nDone.");

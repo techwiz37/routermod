@@ -29,10 +29,10 @@ const checkSmeltInstalled = async () => {
   }
 };
 
-const hasRoutermodConfig = (settings) => {
+const has9RouterConfig = (settings) => {
   if (!settings) return false;
   return (
-    settings._managedBy === "routermod" ||
+    settings._managedBy === "9router" ||
     (typeof settings.baseUrl === "string" && settings.baseUrl.length > 0 && settings.baseUrl.includes("20128"))
   );
 };
@@ -62,7 +62,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      hasRoutermod: hasRoutermodConfig(config),
+      has9Router: has9RouterConfig(config),
       configPath: getSmeltConfigPath(),
     });
   } catch (err) {
@@ -99,7 +99,7 @@ export async function POST(request) {
       baseUrl: normalizedBaseUrl,
       apiKey: await resolveCliApiKey(apiKey),
       model: model || existing.model || "provider/model-id",
-      _managedBy: "routermod",
+      _managedBy: "9router",
     };
 
     await fs.writeFile(configPath, JSON.stringify(updated, null, 2), "utf-8");
@@ -136,7 +136,7 @@ export async function DELETE() {
       await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
     }
 
-    return NextResponse.json({ success: true, message: "Smelt Routermod settings removed" });
+    return NextResponse.json({ success: true, message: "Smelt 9Router settings removed" });
   } catch (err) {
     return NextResponse.json({ error: { message: err.message } }, { status: 500 });
   }

@@ -42,9 +42,9 @@ const readSettings = async () => {
   }
 };
 
-const hasRoutermodConfig = (settings) => {
+const has9RouterConfig = (settings) => {
   if (!settings || !settings.customModels) return false;
-  return settings.customModels.some(m => m.id?.startsWith("custom:Routermod"));
+  return settings.customModels.some(m => m.id?.startsWith("custom:9Router"));
 };
 
 export async function GET() {
@@ -64,7 +64,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       settings,
-      hasRoutermod: hasRoutermodConfig(settings),
+      has9Router: has9RouterConfig(settings),
       settingsPath: getDroidSettingsPath(),
     });
   } catch (error) {
@@ -98,7 +98,7 @@ export async function POST(request) {
       settings.customModels = [];
     }
 
-    settings.customModels = settings.customModels.filter(m => !m.id?.startsWith("custom:Routermod"));
+    settings.customModels = settings.customModels.filter(m => !m.id?.startsWith("custom:9Router"));
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     const keyToUse = apiKey || "your_api_key";
@@ -118,7 +118,7 @@ export async function POST(request) {
       if (!m || typeof m !== "string") continue;
       settings.customModels.push({
         model: m,
-        id: `custom:Routermod-${i}`,
+        id: `custom:9Router-${i}`,
         index: i,
         baseUrl: normalizedBaseUrl,
         apiKey: keyToUse,
@@ -167,7 +167,7 @@ export async function DELETE() {
     }
 
     if (settings.customModels) {
-      settings.customModels = settings.customModels.filter(m => !m.id?.startsWith("custom:Routermod"));
+      settings.customModels = settings.customModels.filter(m => !m.id?.startsWith("custom:9Router"));
       
       if (settings.customModels.length === 0) {
         delete settings.customModels;
@@ -178,7 +178,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "Routermod settings removed successfully",
+      message: "9Router settings removed successfully",
     });
   } catch (error) {
     console.log("Error resetting droid settings:", error);

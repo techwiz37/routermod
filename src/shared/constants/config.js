@@ -7,8 +7,8 @@ export const APP_CONFIG = {
 };
 
 export const GITHUB_CONFIG = {
-  changelogUrl: "https://raw.githubusercontent.com/techwiz37/routermod/refs/heads/master/CHANGELOG.md",
-  donateUrl: "https://routermod.com/api/donate",
+  changelogUrl: "https://raw.githubusercontent.com/decolua/9router/refs/heads/master/CHANGELOG.md",
+  donateUrl: "https://9router.com/api/donate",
 };
 
 export const UPDATER_CONFIG = {
@@ -81,6 +81,36 @@ export const QUOTA_AUTOPING_CONFIG = {
       pingReasoningEffort: "none",
     },
   },
+};
+
+// Proactive health checker for Token Harbor (apikey) accounts.
+//
+// The reactive path (markAccountUnavailable on a real 429) only fires AFTER a
+// user request already hit a limited account. Token Harbor is a prepaid-wallet
+// aggregator, so an exhausted balance surfaces as 402 / "insufficient quota"
+// on the chat endpoint — NOT on /v1/models (which only proves the key is
+// alive). This checker probes each active account on the chat endpoint with a
+// 1-token request to a free model so a limited/exhausted account is detected
+// BEFORE traffic selects it, then locks it via modelLock___all (the same field
+// getProviderCredentials already skips) until it recovers.
+export const TOKENHARBOR_HEALTH_CONFIG = {
+  provider: "tokenharbor",
+  settingsKey: "tokenharborHealthEnabled", // set false in settings to opt out
+  tickIntervalMs: 40000,        // check every 40s
+  initialDelayMs: 20000,        // let server finish booting first
+  maxConcurrent: 3,             // parallel probes per tick
+  requestTimeoutMs: 20000,      // abort a hung probe
+  pingModel: "deepseek-v4.1-flash:free", // free model → probe costs ~nothing
+  pingText: "ping",
+  pingMaxTokens: 1,
+  limitCooldownMs: 5 * 60 * 1000,  // limited/empty wallet → re-probe later
+  deadCooldownMs: 15 * 60 * 1000,  // rejected key → bg health retests & recovers
+  lockedRecheckMs: 2 * 60 * 1000,  // throttle re-probe of already-locked accounts
+  healthyRecheckMs: 40000,         // healthy accounts re-probed each tick
+  limitKeywords: [
+    "quota", "balance", "insufficient", "limit", "allowance",
+    "exhausted", "too many requests", "rate", "credit", "top up", "topup",
+  ],
 };
 
 export {

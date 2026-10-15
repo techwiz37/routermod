@@ -10,7 +10,7 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-const PROVIDER_ID = "routermod";
+const PROVIDER_ID = "9router";
 const getOmpDir = () => path.join(os.homedir(), ".omp", "agent");
 const getOmpDbPath = () => path.join(getOmpDir(), "agent.db");
 const getOmpModelsYmlPath = () => path.join(getOmpDir(), "models.yml");
@@ -44,9 +44,9 @@ const readModelsYml = async () => {
   }
 };
 
-const hasRoutermodInYml = (content) => {
+const has9RouterInYml = (content) => {
   if (!content) return false;
-  return content.includes("routermod:") || content.includes("localhost:20128");
+  return content.includes("9router:") || content.includes("localhost:20128");
 };
 
 const buildOmpProviderYaml = (baseUrl, apiKey) => {
@@ -74,11 +74,11 @@ export async function GET() {
     }
 
     const ymlContent = await readModelsYml();
-    const hasRoutermod = hasRoutermodInYml(ymlContent);
+    const has9Router = has9RouterInYml(ymlContent);
 
     return NextResponse.json({
       installed: true,
-      hasRoutermod,
+      has9Router,
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {
@@ -147,7 +147,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: "Oh My Pi settings applied! Run 'omp' and all Routermod models appear under routermod in /model.",
+      message: "Oh My Pi settings applied! Run 'omp' and all 9Router models appear under 9router in /model.",
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {
@@ -169,7 +169,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "Routermod removed from Oh My Pi",
+      message: "9Router removed from Oh My Pi",
     });
   } catch (err) {
     return NextResponse.json({ error: { message: err.message } }, { status: 500 });

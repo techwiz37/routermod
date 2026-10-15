@@ -39,7 +39,7 @@ const I18N = {
     serverError: "Gagal nyambung ke server. Coba beberapa saat lagi.",
     pwdChangeSuccess: "Password berhasil diganti! Mengalihkan...",
     pwdChangeFailed: "Gagal simpan password baru. Coba lagi.",
-    faqTitle: "Apa Bedanya Dengan Routermod?",
+    faqTitle: "Apa Bedanya Dengan 9Router?",
     faqDesc: "RouterMod dibuat biar tampilannya jauh lebih responsif di semua layout (HP, tablet, sampai layar gede), lebih adem di mata, serta ada beberapa penambahan fitur.",
     faqRequestHint: "Mau request fitur baru atau ngasih masukan? Langsung gas ke repo GitHub RouterMod:",
     faqRepoBtn: "Buka Repo RouterMod",
@@ -78,7 +78,7 @@ const I18N = {
     serverError: "Couldn't reach server. Please try again shortly.",
     pwdChangeSuccess: "Password updated! Redirecting...",
     pwdChangeFailed: "Failed to update password. Please try again.",
-    faqTitle: "What's the difference with Routermod?",
+    faqTitle: "What's the difference with 9Router?",
     faqDesc: "RouterMod is made to be way more responsive across every layout (phones, tablets, and large screens), easier on the eyes, and packed with extra built-in features.",
     faqRequestHint: "Want to request a feature or share feedback? Hop directly into the RouterMod GitHub repo:",
     faqRepoBtn: "View RouterMod on GitHub",
@@ -434,7 +434,7 @@ export default function LoginForm() {
               </div>
             </div>
 
-            {/* Dropdown FAQ: "Apa Bedanya Dengan Routermod?" */}
+            {/* Dropdown FAQ: "Apa Bedanya Dengan 9Router?" */}
             <div className="border-2 border-[var(--color-border)] bg-[var(--color-surface)] shadow-[3px_4px_0px_var(--color-border)] rounded-xl overflow-hidden transition-all">
               <button
                 type="button"

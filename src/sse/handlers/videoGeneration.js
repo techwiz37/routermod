@@ -79,7 +79,7 @@ async function resolveVideoProvider(parsedBody) {
 function withConnectionHeader(response, connectionId) {
   if (!connectionId) return response;
   const headers = new Headers(response.headers);
-  headers.set("x-routermod-connection-id", String(connectionId));
+  headers.set("x-9router-connection-id", String(connectionId));
   return new Response(response.body, { status: response.status, headers });
 }
 

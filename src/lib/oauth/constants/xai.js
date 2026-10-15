@@ -19,7 +19,7 @@ export const XAI_PKCE_VERIFIER_BYTES = 96;
 
 export const XAI_REFRESH_LEAD_SECONDS = 5 * 60;
 
-export const XAI_USER_AGENT = "grok-cli/routermod";
+export const XAI_USER_AGENT = "grok-cli/9router";
 
 export const XAI_CONFIG = {
   clientId: XAI_CLIENT_ID,
