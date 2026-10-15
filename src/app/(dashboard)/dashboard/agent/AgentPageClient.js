@@ -3,6 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { renderMarkdown } from "./MarkdownText";
 
+const MAX_ATTACH_FILES = 6;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 32 * 1024 * 1024;
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error(`Gagal membaca ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
 function fmtSize(n) {
   if (!n && n !== 0) return "";
   if (n < 1024) return `${n} B`;
@@ -375,6 +388,8 @@ function AgentChat({ project, terminalEnabled }) {
   const [busy, setBusy] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [notice, setNotice] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const fileRef = useRef(null);
   const scrollRef = useRef(null);
 
   const applyProviders = (list, preferredId) => {
@@ -426,25 +441,70 @@ function AgentChat({ project, terminalEnabled }) {
     setReloading(false);
   };
 
+  const pickFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    setNotice("");
+    const accepted = [];
+    for (const f of files) {
+      if (attachments.length + accepted.length >= MAX_ATTACH_FILES) {
+        setNotice(`Maksimal ${MAX_ATTACH_FILES} lampiran per pesan.`);
+        break;
+      }
+      const isImage = f.type.startsWith("image/");
+      const isVideo = f.type.startsWith("video/");
+      if (!isImage && !isVideo) {
+        setNotice(`${f.name}: hanya gambar atau video yang didukung.`);
+        continue;
+      }
+      const cap = isImage ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
+      if (f.size > cap) {
+        setNotice(`${f.name}: ${fmtSize(f.size)} melebihi batas ${fmtSize(cap)}.`);
+        continue;
+      }
+      try {
+        const data = await fileToBase64(f);
+        accepted.push({ id: `${f.name}-${f.size}-${Date.now()}`, name: f.name, mime: f.type, size: f.size, kind: isImage ? "image" : "video", data });
+      } catch (err) {
+        setNotice(err?.message || String(err));
+      }
+    }
+    if (accepted.length) setAttachments((a) => [...a, ...accepted].slice(0, MAX_ATTACH_FILES));
+  };
+
+  const dropAttachment = (id) => setAttachments((a) => a.filter((x) => x.id !== id));
+
   const send = async () => {
     const text = input.trim();
-    if (!text || busy || !ready) return;
+    if ((!text && !attachments.length) || busy || !ready) return;
+    const outgoing = attachments;
     setInput("");
+    setAttachments([]);
     setBusy(true);
     setNotice("");
     const history = [
       ...log
-        .filter((e) => (e.kind === "user" || e.kind === "assistant") && (e.text || "").trim())
-        .map((e) => ({ role: e.kind, content: e.text })),
-      { role: "user", content: text },
+        .filter((e) => (e.kind === "user" || e.kind === "assistant") && ((e.text || "").trim() || e.media?.length))
+        .map((e) => ({
+          role: e.kind,
+          content: (e.text || "").trim() || (e.kind === "user" ? "(melampirkan media)" : ""),
+        })),
+      { role: "user", content: text || "(melampirkan media)" },
     ];
-    setLog((l) => [...l, { kind: "user", text }]);
+    setLog((l) => [...l, { kind: "user", text, media: outgoing.map((m) => ({ name: m.name, kind: m.kind, data: m.data })) }]);
 
     try {
       const res = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project, providerId, model, messages: history }),
+        body: JSON.stringify({
+          project,
+          providerId,
+          model,
+          messages: history,
+          attachments: outgoing.map((m) => ({ name: m.name, mime: m.mime, data: m.data })),
+        }),
       });
       if (!res.ok || !res.body) {
         const d = await res.json().catch(() => ({}));
@@ -482,6 +542,20 @@ function AgentChat({ project, terminalEnabled }) {
             setLog((l) => [...l, { kind: "tool", id: ev.id, name: ev.name, args: ev.args, result: null, state: "running" }]);
           } else if (ev.type === "tool_result") {
             setLog((l) => l.map((e) => (e.kind === "tool" && e.id === ev.id ? { ...e, result: ev.result, state: ev.ok ? "done" : "error" } : e)));
+          } else if (ev.type === "attachments") {
+            if (ev.files?.length) {
+              setLog((l) => {
+                const copy = [...l];
+                for (let k = copy.length - 1; k >= 0; k--) {
+                  if (copy[k]?.kind === "user") {
+                    copy[k] = { ...copy[k], saved: [...(copy[k].saved || []), ...ev.files] };
+                    break;
+                  }
+                }
+                return copy;
+              });
+            }
+            if (ev.skipped?.length) setLog((l) => [...l, { kind: "error", text: `Lampiran dilewati: ${ev.skipped.join("; ")}` }]);
           } else if (ev.type === "error") {
             setLog((l) => [...l, { kind: "error", text: ev.error }]);
           } else if (ev.type === "done") {
@@ -542,7 +616,46 @@ function AgentChat({ project, terminalEnabled }) {
                 <div className="shrink-0 mt-0.5 grid place-items-center h-6 w-6 rounded-lg bg-primary/10 text-primary">
                   <span className="material-symbols-outlined text-[15px]">person</span>
                 </div>
-                <p className="whitespace-pre-wrap leading-relaxed">{e.text}</p>
+                <div className="flex-1 min-w-0 space-y-2">
+                  {e.media?.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {e.media.map((m, mi) =>
+                        m.kind === "image" ? (
+                          <img
+                            key={mi}
+                            src={m.data}
+                            alt={m.name}
+                            title={m.name}
+                            className="h-24 w-24 object-cover rounded-xl border border-border"
+                          />
+                        ) : (
+                          <div
+                            key={mi}
+                            className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 max-w-[220px]"
+                          >
+                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">movie</span>
+                            <span className="min-w-0">
+                              <span className="block text-[11px] font-medium truncate">{m.name}</span>
+                              <span className="block text-[10px] text-text-muted">video</span>
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+                  {e.text?.trim() && <p className="whitespace-pre-wrap leading-relaxed">{e.text}</p>}
+                  {e.saved?.length > 0 && (
+                    <p className="text-[11px] text-text-muted">
+                      Tersimpan di project:{" "}
+                      {e.saved.map((s, si) => (
+                        <span key={si}>
+                          {si > 0 && ", "}
+                          <code className="rounded bg-surface-2 px-1 py-0.5 font-mono break-all">{s}</code>
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </div>
               </>
             )}
             {e.kind === "assistant" && (
@@ -582,7 +695,45 @@ function AgentChat({ project, terminalEnabled }) {
       </div>
 
       <div className="p-3 border-t border-border">
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 pb-2">
+            {attachments.map((a) => (
+              <div key={a.id} className="relative group">
+                {a.kind === "image" ? (
+                  <img src={a.data} alt={a.name} className="h-16 w-16 object-cover rounded-lg border border-border" />
+                ) : (
+                  <div className="flex h-16 w-28 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2">
+                    <span className="material-symbols-outlined text-[16px] text-primary shrink-0">movie</span>
+                    <span className="min-w-0">
+                      <span className="block text-[10px] font-medium truncate">{a.name}</span>
+                      <span className="block text-[9px] text-text-muted">{fmtSize(a.size)}</span>
+                    </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => dropAttachment(a.id)}
+                  aria-label={`Hapus ${a.name}`}
+                  className="absolute -top-1.5 -right-1.5 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "13px" }}>close</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2 rounded-xl border border-border bg-surface-2/40 focus-within:border-primary/40 transition-colors p-1.5 pl-3">
+          <input ref={fileRef} type="file" accept="image/*,video/*" multiple onChange={pickFiles} className="hidden" />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy || attachments.length >= MAX_ATTACH_FILES}
+            aria-label="Lampirkan gambar atau video"
+            title="Lampirkan gambar atau video"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">attach_file</span>
+          </button>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -598,7 +749,7 @@ function AgentChat({ project, terminalEnabled }) {
           />
           <button
             onClick={send}
-            disabled={busy || !input.trim() || !ready}
+            disabled={busy || (!input.trim() && !attachments.length) || !ready}
             className="grid place-items-center h-9 w-9 rounded-lg bg-primary text-white disabled:opacity-40 hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
           >
             {busy ? <Spinner className="text-white" /> : <span className="material-symbols-outlined text-[18px]">arrow_upward</span>}

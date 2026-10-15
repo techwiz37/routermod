@@ -105,3 +105,6 @@ debug.log
 # Local env secrets
 .env.local
 .env.*.local
+
+# media yang dilampirkan ke AI Agent
+.agent-media/

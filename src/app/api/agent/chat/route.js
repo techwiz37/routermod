@@ -17,6 +17,162 @@ export const dynamic = "force-dynamic";
 const MAX_READ_BYTES = 512 * 1024;
 const UPSTREAM_TIMEOUT_MS = 180000;
 const HEARTBEAT_MS = 8000;
+const MAX_ATTACHMENTS = 6;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 32 * 1024 * 1024;
+const MEDIA_DIR = ".agent-media";
+const FRAME_TIMEOUT_MS = 45000;
+
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function isImageMime(mime) {
+  return /^image\//i.test(String(mime || ""));
+}
+
+function isVideoMime(mime) {
+  return /^video\//i.test(String(mime || ""));
+}
+
+function parseAttachment(att) {
+  if (!att || typeof att !== "object") return null;
+  const name = String(att.name || "attachment").replace(/[\\/]/g, "_").slice(0, 120) || "attachment";
+  const mime = String(att.mime || "").split(";")[0].trim().toLowerCase();
+  const raw = String(att.data || "");
+  const m = /^data:([^;]+)?;base64,(.*)$/s.exec(raw);
+  const b64 = m ? m[2] : raw;
+  const resolvedMime = mime || (m && m[1]) || "";
+  if (!b64 || !resolvedMime) return null;
+  let buffer;
+  try {
+    buffer = Buffer.from(b64, "base64");
+  } catch {
+    return null;
+  }
+  if (!buffer.length) return null;
+  return { name, mime: resolvedMime, buffer };
+}
+
+function imagePart(buffer, mime) {
+  return { type: "image_url", image_url: { url: `data:${mime};base64,${buffer.toString("base64")}` } };
+}
+
+function saveVideoAttachment(buffer, name, projectPath) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const safe = name.replace(/[^\w.\-]+/g, "_").slice(-80) || "video";
+  const abs = resolvePath(projectPath, `${MEDIA_DIR}/${stamp}-${safe}`);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, buffer);
+  return abs;
+}
+
+function extractVideoFrame(videoPath) {
+  const out = `${videoPath}.frame.jpg`;
+  const isWin = process.platform === "win32";
+  const bin = process.env.FFMPEG_PATH || "ffmpeg";
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      resolve(val);
+    };
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch (_e) {
+        /* eslint-disable-next-line no-empty */
+      }
+      finish(null);
+    }, FRAME_TIMEOUT_MS);
+    const child = spawn(bin, ["-y", "-ss", "1", "-i", videoPath, "-frames:v", "1", "-vf", "scale='min(1280,iw)':-2", "-q:v", "4", out], {
+      windowsHide: true,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    child.on("error", () => {
+      clearTimeout(timer);
+      finish(null);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return finish(null);
+      try {
+        const buf = fs.readFileSync(out);
+        fs.rmSync(out, { force: true });
+        finish(buf.length > 0 ? buf : null);
+      } catch (_e) {
+        finish(null);
+      }
+    });
+  });
+}
+
+async function prepareAttachments(list, projectPath, terminal) {
+  const parts = [];
+  const notes = [];
+  const files = [];
+  const skipped = [];
+
+  for (const att of (Array.isArray(list) ? list : []).slice(0, MAX_ATTACHMENTS)) {
+    const parsed = parseAttachment(att);
+    if (!parsed) {
+      skipped.push("lampiran rusak/tidak terbaca");
+      continue;
+    }
+    const { name, mime, buffer } = parsed;
+
+    if (isImageMime(mime)) {
+      if (buffer.length > MAX_IMAGE_BYTES) {
+        skipped.push(`${name} (${fmtBytes(buffer.length)}) melebihi ${fmtBytes(MAX_IMAGE_BYTES)}`);
+        continue;
+      }
+      parts.push(imagePart(buffer, mime));
+      notes.push(`Gambar "${name}" (${mime}, ${fmtBytes(buffer.length)}) disertakan dalam pesan ini.`);
+      continue;
+    }
+
+    if (isVideoMime(mime)) {
+      if (buffer.length > MAX_VIDEO_BYTES) {
+        skipped.push(`${name} (${fmtBytes(buffer.length)}) melebihi ${fmtBytes(MAX_VIDEO_BYTES)}`);
+        continue;
+      }
+      let abs;
+      try {
+        abs = saveVideoAttachment(buffer, name, projectPath);
+      } catch (e) {
+        skipped.push(`${name}: gagal disimpan (${e?.message || e})`);
+        continue;
+      }
+      const rel = path.relative(projectPath || process.cwd(), abs).split(path.sep).join("/");
+      files.push(rel);
+
+      if (!terminal) {
+        notes.push(`Video "${name}" (${mime}, ${fmtBytes(buffer.length)}) disimpan di ${rel}. Terminal nonaktif, jadi kamu tidak bisa menganalisis isinya.`);
+        continue;
+      }
+
+      const frame = await extractVideoFrame(abs);
+      if (frame) {
+        parts.push(imagePart(frame, "image/jpeg"));
+        notes.push(
+          `Video "${name}" (${mime}, ${fmtBytes(buffer.length)}) disimpan di ${rel}. Satu frame (±1 detik) diekstrak dan disertakan sebagai gambar. Gunakan run_command dengan ffprobe/ffmpeg di ${rel} untuk detail lain (durasi, resolusi, frame lain).`
+        );
+      } else {
+        notes.push(
+          `Video "${name}" (${mime}, ${fmtBytes(buffer.length)}) disimpan di ${rel}. Ekstrak frame gagal (ffmpeg tidak tersedia?). Gunakan run_command dengan ffprobe/ffmpeg untuk menganalisisnya.`
+        );
+      }
+      continue;
+    }
+
+    skipped.push(`${name}: tipe ${mime} belum didukung (hanya gambar/video)`);
+  }
+
+  return { parts, notes, files, skipped };
+}
 
 function toolDefs({ terminal }) {
   const tools = [
@@ -328,13 +484,24 @@ export async function POST(request) {
     terminal
       ? "You may run shell commands. The working directory is always the project root."
       : "You cannot run shell commands in this session; use file tools only.",
+    "When the user attaches an image, describe or analyse what you actually see in it. When the user attaches a video, it is saved into the project and only one frame is shown — inspect the real file with run_command (ffprobe/ffmpeg) when you need more.",
     "When you are done, reply with a concise summary of what you changed and why. Do not paste whole files back.",
   ].join("\n");
 
-  const messages = [
-    { role: "system", content: systemPrompt },
-    ...userMessages.map((m) => ({ role: m.role, content: m.content })),
-  ];
+  const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+  const media = await prepareAttachments(attachments, projectPath, terminal);
+
+  const messages = [{ role: "system", content: systemPrompt }];
+  userMessages.forEach((m, i) => {
+    const isLast = i === userMessages.length - 1;
+    if (isLast && media.parts.length) {
+      const textParts = typeof m.content === "string" && m.content.trim() ? [{ type: "text", text: m.content }] : [];
+      if (media.notes.length) textParts.push({ type: "text", text: media.notes.join("\n") });
+      messages.push({ role: m.role, content: [...textParts, ...media.parts] });
+      return;
+    }
+    messages.push({ role: m.role, content: m.content });
+  });
 
   const tools = toolDefs({ terminal });
   const url = `${target.baseUrl}/chat/completions`;
@@ -352,6 +519,10 @@ export async function POST(request) {
         }
       };
       const heartbeat = setInterval(() => send({ type: "ping", ts: Date.now() }), HEARTBEAT_MS);
+
+      if (media.files.length || media.skipped.length) {
+        send({ type: "attachments", files: media.files, skipped: media.skipped });
+      }
 
       try {
         for (let step = 0; step < maxSteps; step++) {
