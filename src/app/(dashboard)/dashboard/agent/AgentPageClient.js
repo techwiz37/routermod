@@ -186,13 +186,26 @@ function ModelPicker({ models, value, onChange, disabled }) {
   const q = query.trim().toLowerCase();
   const filtered = q ? models.filter((m) => (m.id || "").toLowerCase().includes(q) || (m.name || "").toLowerCase().includes(q)) : models;
 
+  const groups = [];
+  const byName = new Map();
+  for (const m of filtered) {
+    const key = m.providerName || m.provider || "Lainnya";
+    if (!byName.has(key)) {
+      const g = { name: key, items: [] };
+      byName.set(key, g);
+      groups.push(g);
+    }
+    byName.get(key).items.push(m);
+  }
+  groups.sort((a, b) => a.name.localeCompare(b.name));
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative w-full sm:w-auto">
       <button
         type="button"
         disabled={disabled || models.length === 0}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-left min-w-[240px] max-w-[360px] disabled:opacity-50 cursor-pointer hover:border-primary/40 transition-colors"
+        className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 sm:py-1.5 text-left w-full sm:min-w-[240px] sm:max-w-[360px] disabled:opacity-50 cursor-pointer hover:border-primary/40 transition-colors"
       >
         <span className="material-symbols-outlined text-[16px] text-text-muted shrink-0">neurology</span>
         <span className="flex-1 min-w-0">
@@ -209,7 +222,7 @@ function ModelPicker({ models, value, onChange, disabled }) {
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-1 w-[360px] max-w-[90vw] rounded-xl border border-border bg-surface shadow-lg overflow-hidden">
+        <div className="absolute z-30 mt-1 left-0 right-0 sm:right-auto sm:w-[360px] sm:max-w-[90vw] rounded-xl border border-border bg-surface shadow-lg overflow-hidden">
           <div className="p-2 border-b border-border">
             <input
               autoFocus
@@ -219,25 +232,35 @@ function ModelPicker({ models, value, onChange, disabled }) {
               className="w-full rounded-lg bg-surface-2 border border-border px-2.5 py-1.5 text-xs outline-none focus:border-primary/40"
             />
           </div>
-          <div className="max-h-72 overflow-y-auto py-1">
+          <div className="max-h-[60vh] sm:max-h-72 overflow-y-auto py-1 overscroll-contain">
             {filtered.length === 0 && <p className="px-3 py-2 text-xs text-text-muted">Tidak ada model.</p>}
-            {filtered.map((m) => {
-              const active = m.id === value;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(m.id);
-                    setOpen(false);
-                    setQuery("");
-                  }}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-surface-2 transition-colors ${active ? "bg-primary/5 text-primary font-medium" : "text-text"}`}
-                >
-                  <span className="block truncate">{m.name || friendlyModelName(m.id)}</span>
-                </button>
-              );
-            })}
+            {groups.map((g) => (
+              <div key={g.name}>
+                <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-surface-2/95 backdrop-blur px-3 py-1.5 border-y border-border">
+                  <span className="material-symbols-outlined text-[13px] text-primary">dns</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{g.name}</span>
+                  <span className="text-[10px] text-text-muted/70">({g.items.length})</span>
+                </div>
+                {g.items.map((m) => {
+                  const active = m.id === value;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(m.id);
+                        setOpen(false);
+                        setQuery("");
+                      }}
+                      className={`flex w-full items-center gap-2 text-left px-3 py-2 text-xs hover:bg-surface-2 transition-colors ${active ? "bg-primary/5 text-primary font-medium" : "text-text"}`}
+                    >
+                      <span className="flex-1 min-w-0 truncate">{m.name || friendlyModelName(m.id)}</span>
+                      {active && <span className="material-symbols-outlined text-[15px] shrink-0">check</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -319,13 +342,13 @@ AGENT_TERMINAL_TIMEOUT_MS=120000`}
 
   return (
     <div className="flex flex-col gap-4 h-full min-h-0">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="flex items-center gap-3">
-          <div className="grid place-items-center h-10 w-10 rounded-xl bg-primary/10 text-primary">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="grid place-items-center h-10 w-10 shrink-0 rounded-xl bg-primary/10 text-primary">
             <span className="material-symbols-outlined">smart_toy</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-base font-semibold leading-none">AI Agent</h1>
               <StatusPill tone={status.rootMode === "full" ? "warn" : "ok"}>
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -333,18 +356,18 @@ AGENT_TERMINAL_TIMEOUT_MS=120000`}
               </StatusPill>
               {status.terminalEnabled && <StatusPill tone="warn">Terminal</StatusPill>}
             </div>
-            <p className="text-[11px] text-text-muted mt-1 font-mono truncate max-w-[320px]">{status.projectsRoot}</p>
+            <p className="text-[11px] text-text-muted mt-1 font-mono truncate">{status.projectsRoot}</p>
           </div>
         </div>
 
-        <div className="flex-1" />
+        <div className="sm:flex-1" />
 
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
-          <span className="material-symbols-outlined text-[18px] text-text-muted">folder_open</span>
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 min-w-0">
+          <span className="material-symbols-outlined text-[18px] text-text-muted shrink-0">folder_open</span>
           <select
             value={project}
             onChange={(e) => setProject(e.target.value)}
-            className="bg-transparent text-sm outline-none min-w-[180px] cursor-pointer"
+            className="bg-transparent text-sm outline-none flex-1 sm:flex-none sm:min-w-[180px] min-w-0 cursor-pointer truncate"
           >
             {projects.length === 0 && <option value="">(tidak ada folder project)</option>}
             {projects.map((p) => (
@@ -354,23 +377,25 @@ AGENT_TERMINAL_TIMEOUT_MS=120000`}
         </div>
       </div>
 
-      <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1 w-fit">
-        {TABS.map((t) => {
-          if (t.id === "terminal" && !status.terminalEnabled) return null;
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
-                active ? "bg-primary/10 text-primary" : "text-text-muted hover:text-text hover:bg-surface-2"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
-              {t.label}
-            </button>
-          );
-        })}
+      <div className="-mx-1 px-1 overflow-x-auto">
+        <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1 w-fit min-w-full sm:min-w-0">
+          {TABS.map((t) => {
+            if (t.id === "terminal" && !status.terminalEnabled) return null;
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] sm:text-sm font-medium transition-colors cursor-pointer ${
+                  active ? "bg-primary/10 text-primary" : "text-text-muted hover:text-text hover:bg-surface-2"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex-1 min-h-0">
@@ -692,10 +717,10 @@ function AgentChat({ project, terminalEnabled }) {
 
   return (
     <div className="h-full rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] flex flex-col overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 p-3 border-b border-border bg-surface-2/40">
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5">
-          <span className="material-symbols-outlined text-[16px] text-text-muted">hub</span>
-          <select value={providerId} onChange={(e) => onSelectProvider(e.target.value)} className="bg-transparent text-xs outline-none cursor-pointer min-w-[110px]">
+      <div className="grid grid-cols-2 gap-2 p-3 border-b border-border bg-surface-2/40 sm:flex sm:flex-wrap sm:items-center">
+        <div className="col-span-2 flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 sm:col-span-1">
+          <span className="material-symbols-outlined text-[16px] text-text-muted shrink-0">hub</span>
+          <select value={providerId} onChange={(e) => onSelectProvider(e.target.value)} className="bg-transparent text-xs outline-none cursor-pointer w-full sm:w-auto sm:min-w-[110px]">
             {providers.length === 0 && <option value="">(belum ada provider)</option>}
             {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -704,17 +729,17 @@ function AgentChat({ project, terminalEnabled }) {
         <button
           onClick={reload}
           disabled={reloading || !providerId}
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 cursor-pointer"
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
         >
           {reloading ? <Spinner /> : <span className="material-symbols-outlined text-[16px]">refresh</span>}
           Reload Models
         </button>
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5">
-          <span className="material-symbols-outlined text-[16px] text-text-muted">history</span>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 min-w-0">
+          <span className="material-symbols-outlined text-[16px] text-text-muted shrink-0">history</span>
           <select
             value={sessionId}
             onChange={(e) => openSession(e.target.value)}
-            className="bg-transparent text-xs outline-none cursor-pointer max-w-[160px]"
+            className="bg-transparent text-xs outline-none cursor-pointer w-full sm:w-auto sm:max-w-[160px] truncate"
             title={sessions.find((s) => s.id === sessionId)?.title || "Sesi chat"}
           >
             {sessions.length === 0 && <option value="">(sesi kosong)</option>}
@@ -729,7 +754,7 @@ function AgentChat({ project, terminalEnabled }) {
           onClick={newSession}
           disabled={busy}
           title="Sesi baru"
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 cursor-pointer"
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-[16px]">add_comment</span>
           Sesi baru
@@ -738,12 +763,13 @@ function AgentChat({ project, terminalEnabled }) {
           onClick={forgetSession}
           disabled={busy || !sessionId || sessions.length === 0}
           title="Hapus sesi ini"
-          className="grid h-[30px] w-[30px] place-items-center rounded-lg border border-border bg-surface text-text-muted hover:text-rose-500 hover:border-rose-500/40 transition-colors disabled:opacity-50 cursor-pointer"
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-rose-500 hover:border-rose-500/40 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
+          Hapus
         </button>
-        <div className="flex-1" />
-        <button onClick={() => setLog([])} disabled={busy} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text transition-colors disabled:opacity-50 cursor-pointer">
+        <div className="hidden sm:block sm:flex-1" />
+        <button onClick={() => setLog([])} disabled={busy} className="flex items-center justify-center rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text transition-colors disabled:opacity-50 cursor-pointer sm:border-transparent sm:bg-transparent whitespace-nowrap">
           Clear
         </button>
       </div>
