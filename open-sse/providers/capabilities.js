@@ -203,6 +203,15 @@ export const PROVIDER_CAPABILITIES = {
     "deepseek-ai/deepseek-v4-pro": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
     "deepseek-ai/deepseek-v4-flash": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
   },
+  // APInex free lane: the global deepseek-v4 pattern sets vision:false (some
+  // deepseek-v4 endpoints are text-only), but these two ids on APInex do accept
+  // images — confirmed with red/blue/green probes. A provider override is needed
+  // because step 1 short-circuits the pattern; the full field set is repeated so
+  // the 1M context / 384k output the pattern produced is preserved.
+  "apinex": {
+    "deepseek-v4-pro-0813":   { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: true, thinkingEffortSupported: true, contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4-flash-0731": { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: true, thinkingEffortSupported: true, contextWindow: 1000000, maxOutput: 384000 },
+  },
   // glm-5.3-flash on OpenCode Go is served by a backend that rejects the z.ai
   // `thinking` object (400: unknown field "thinking") and wants reasoning_effort.
   // Overrides the global entry, whose z.ai shape is correct for z.ai itself.

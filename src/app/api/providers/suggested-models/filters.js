@@ -3,6 +3,20 @@ const KNOWN_FREE_OPENCODE_MODELS = ["big-pickle"];
 const DEAD_FREE_OPENCODE_MODELS = new Set(["deepseek-v4-flash-free"]);
 
 export const FILTERS = {
+  // Standard OpenAI /v1/models payload: { data: [{ id, owned_by, ... }] }. Used by
+  // aggregators that expose a plain OpenAI-compatible catalogue (tokenharbor, bai,
+  // dahl, apinex, vercel-ai-gateway, ...). Ids are kept verbatim - they may carry
+  // a vendor prefix (e.g. `free/...`, `anthropic/...`).
+  "openai": (models) =>
+    (Array.isArray(models) ? models : [])
+      .filter((m) => typeof m?.id === "string" && m.id.trim() !== "")
+      .map((m) => ({
+        id: m.id,
+        name: m.name || m.id,
+        contextLength: Number(m.context_length ?? m.contextLength ?? m.limit?.context) || undefined,
+      }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id))),
+
   "openrouter-free": (models) =>
     models
       .filter(
