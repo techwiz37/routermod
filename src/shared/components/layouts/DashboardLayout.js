@@ -185,7 +185,7 @@ export default function DashboardLayout({ children }) {
       )}
 
       {/* Sidebar - Desktop */}
-      <div className="hidden lg:flex">
+      <div className="hidden lg:flex lg:h-full">
         <Sidebar />
       </div>
 

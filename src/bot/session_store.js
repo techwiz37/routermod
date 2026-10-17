@@ -82,7 +82,7 @@ function ensureDir() {
 }
 
 function keyFor(connectionId, email) {
-  const seed = String(connectionId || email || "unknown");
+  const seed = String(connectionId || "unknown");
   return crypto.createHash("sha1").update(seed).digest("hex").slice(0, 24);
 }
 

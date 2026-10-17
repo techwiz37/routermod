@@ -675,7 +675,7 @@ export default function DashboardProviderOverview() {
                               )}
                             </div>
                             <div className="text-[9px] sm:text-[9.5px] text-text-muted uppercase truncate">
-                              {p.provider}
+                              {p.subtitle || p.provider}
                             </div>
                           </div>
                         </div>

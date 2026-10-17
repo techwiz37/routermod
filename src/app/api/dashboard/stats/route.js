@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getProviderConnections } from "@/models";
+import { getProviderConnections, getProviderNodes } from "@/models";
 import { getUsageStats } from "@/lib/usageDb";
-import { AI_PROVIDERS, FREE_PROVIDERS } from "@/shared/constants/providers";
+import { AI_PROVIDERS, FREE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { startBackgroundConnectionHealth, runDeadAccountsCheck } from "@/sse/services/backgroundConnectionHealth";
 
 const FREE_PROVIDER_IDS = new Set(Object.keys(FREE_PROVIDERS));
@@ -123,14 +123,28 @@ export async function GET(request) {
     const limitedAccountsList = [];
     const failedAccountsList = [];
 
+    let nodeNameMap = {};
+    let nodePrefixMap = {};
+    try {
+      const nodes = await getProviderNodes();
+      for (const node of nodes) {
+        if (!node.id) continue;
+        if (node.name) nodeNameMap[node.id] = node.name;
+        if (node.prefix) nodePrefixMap[node.id] = node.prefix;
+      }
+    } catch { }
+
     for (const conn of connections) {
       const pid = conn.provider || "unknown";
       if (!providerMap[pid]) {
         const provMeta = AI_PROVIDERS[pid] || {};
+        const isCompatible =
+          isOpenAICompatibleProvider(pid) || isAnthropicCompatibleProvider(pid);
         const isFree = FREE_PROVIDER_IDS.has(pid) || !!(provMeta.noAuth);
         providerMap[pid] = {
           provider: pid,
-          name: provMeta.name || pid,
+          name: isCompatible ? (nodeNameMap[pid] || conn.providerSpecificData?.nodeName || conn.name || pid) : provMeta.name || pid,
+          subtitle: isCompatible ? (nodePrefixMap[pid] || conn.providerSpecificData?.prefix || null) : null,
           icon: provMeta.icon || pid,
           isFree,
           totalAccounts: 0,
@@ -187,9 +201,12 @@ export async function GET(request) {
       if (!providerMap[pid] && pUsage.requests > 0) {
         const provMeta2 = AI_PROVIDERS[pid] || {};
         const isFree2 = FREE_PROVIDER_IDS.has(pid) || !!(provMeta2.noAuth);
+        const isCompat2 =
+          isOpenAICompatibleProvider(pid) || isAnthropicCompatibleProvider(pid);
         providerMap[pid] = {
           provider: pid,
-          name: provMeta2.name || pid,
+          name: isCompat2 ? (nodeNameMap[pid] || pid) : provMeta2.name || pid,
+          subtitle: isCompat2 ? (nodePrefixMap[pid] || null) : null,
           icon: provMeta2.icon || pid,
           isFree: isFree2,
           totalAccounts: 0,

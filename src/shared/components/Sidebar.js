@@ -103,7 +103,7 @@ export default function Sidebar({ onClose }) {
 
   return (
     <>
-      <aside className="flex w-72 flex-col border-r-2 border-border bg-surface min-h-full">
+      <aside className="flex w-72 flex-col border-r-2 border-border bg-surface h-full overflow-hidden">
         {/* Top HUD reticle / Brand bar */}
         <div className="flex items-center justify-between border-b-2 border-border bg-surface-2 px-4 py-2.5">
           <div className="flex items-center gap-1.5">
@@ -176,7 +176,7 @@ export default function Sidebar({ onClose }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-2 space-y-0.5 overflow-y-auto overflow-x-clip custom-scrollbar">
+        <nav className="flex-1 min-h-0 px-4 py-2 space-y-0.5 overflow-y-auto overflow-x-clip custom-scrollbar">
           {navItems.map((item) => (
             <Link
               key={item.href}

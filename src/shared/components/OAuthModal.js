@@ -39,7 +39,7 @@ function friendlyError(msg) {
   return m.split("\n")[0];
 }
 
-const PROXY_OAUTH_PROVIDERS = new Set(["trae", "windsurf", "zed"]);
+const PROXY_OAUTH_PROVIDERS = new Set(["trae", "windsurf", "zed", "antigravity"]);
 
 const PASTE_TOKEN_PROVIDERS = {
   trae: {
@@ -230,6 +230,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     const regBody = { state: authData.state };
     if (authData.codeVerifier) regBody.codeVerifier = authData.codeVerifier;
     if (authData.systemId) regBody.systemId = authData.systemId;
+    if (providerId === "antigravity") regBody.redirectUri = startData.callbackUrl;
     const regRes = await fetch(`/api/oauth/${providerId}/register-session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

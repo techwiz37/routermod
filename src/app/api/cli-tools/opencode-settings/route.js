@@ -108,6 +108,11 @@ export async function POST(request) {
 
     if (!config.provider) config.provider = {};
 
+    // Keep provider map in sync with router-only policy: drop stale providers.
+    for (const key of Object.keys(config.provider)) {
+      if (key !== "9router") delete config.provider[key];
+    }
+
     const existingProvider = config.provider["9router"] || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
 
     existingProvider.options = {

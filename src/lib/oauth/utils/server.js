@@ -1,6 +1,9 @@
 import http from "http";
 import { URL } from "url";
+import { createRequire } from "module";
 import { CODEX_CONFIG, TRAE_CONFIG, WINDSURF_CONFIG, ZED_HOSTED_CONFIG } from "../constants/oauth.js";
+
+const requireCjs = createRequire(import.meta.url);
 
 function isLoopbackOrigin(origin) {
   if (!origin) return true; // navigation redirect — allow
@@ -865,5 +868,177 @@ export function stopXiaomiMimoProxy() {
   if (xiaomiMimoProxyServer) { xiaomiMimoProxyServer.close(); xiaomiMimoProxyServer = null; }
   xiaomiMimoProxyPort = null;
   xiaomiMimoSessions.clear();
+}
+
+
+// ── Antigravity localhost OAuth proxy ────────────────────────────────────────
+// Antigravity's Google OAuth client is an installed/desktop app client, so
+// Google rejects `${window.location.origin}/callback` as a redirect_uri.
+// We spin up a loopback callback server on 127.0.0.1:<random port>/callback,
+// exchange the code there, persist the connection, and seed the cookie jar.
+let antigravityProxyServer = null;
+let antigravityProxyTimeout = null;
+let antigravityProxyPort = null;
+let antigravitySession = null;
+
+const ANTIGRAVITY_PROXY_TIMEOUT_MS = 300000;
+
+export function registerAntigravitySession({ state, codeVerifier, redirectUri }) {
+  if (!state || !codeVerifier || !redirectUri) return false;
+  antigravitySession = { state, codeVerifier, redirectUri, status: "pending", createdAt: Date.now() };
+  return true;
+}
+
+export function getAntigravitySessionStatus(state) {
+  if (!antigravitySession) return null;
+  if (state && antigravitySession.state !== state) return null;
+  return antigravitySession;
+}
+
+export function clearAntigravitySession(state) {
+  if (!state || (antigravitySession && antigravitySession.state === state)) antigravitySession = null;
+}
+
+export function startAntigravityProxy() {
+  return new Promise((resolve) => {
+    if (antigravityProxyServer) {
+      resolve({ success: true, port: antigravityProxyPort, callbackUrl: `http://127.0.0.1:${antigravityProxyPort}/callback` });
+      return;
+    }
+
+    const server = http.createServer(async (req, res) => {
+      const url = new URL(req.url, "http://localhost");
+      if (url.pathname !== "/callback") {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+
+      const session = antigravitySession;
+      if (!session) {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderAntigravityResultPage(false, "No active Antigravity login session."));
+        return;
+      }
+
+      const code = url.searchParams.get("code");
+      const cbState = url.searchParams.get("state");
+      const errorParam = url.searchParams.get("error");
+
+      if (errorParam) {
+        session.status = "error";
+        session.error = url.searchParams.get("error_description") || errorParam;
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderAntigravityResultPage(false, session.error));
+        stopAntigravityProxy();
+        return;
+      }
+
+      if (!code || cbState !== session.state) {
+        session.status = "error";
+        session.error = "Invalid authorization callback";
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderAntigravityResultPage(false, session.error));
+        stopAntigravityProxy();
+        return;
+      }
+
+      try {
+        const { exchangeTokens } = await import("../providers.js");
+        const { createProviderConnection } = await import("@/models");
+
+        const tokenData = await exchangeTokens(
+          "antigravity",
+          code,
+          session.redirectUri,
+          session.codeVerifier,
+          session.state,
+        );
+
+        const connection = await createProviderConnection({
+          provider: "antigravity",
+          authType: "oauth",
+          ...tokenData,
+          expiresAt: tokenData.expiresIn
+            ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
+            : null,
+          testStatus: "active",
+        });
+
+        session.status = "done";
+        session.connectionId = connection.id;
+        session.email = connection.email;
+
+        // Seed the cookie jar from the fresh OAuth grant (best-effort,
+        // fire-and-forget so the login response isn't blocked by Chrome).
+        (async () => {
+          try {
+            const { seedCookieFromOAuth } = requireCjs("@/bot/cookie_refresher.js");
+            await seedCookieFromOAuth({ id: connection.id, email: connection.email });
+          } catch (e) {
+            console.log("[antigravity proxy] seedCookieFromOAuth error:", e?.message ?? e);
+          }
+        })();
+
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderAntigravityResultPage(true, "Antigravity connected successfully.", connection.email));
+      } catch (err) {
+        session.status = "error";
+        session.error = err.message;
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderAntigravityResultPage(false, err.message));
+      } finally {
+        stopAntigravityProxy();
+      }
+    });
+
+    server.listen(0, "127.0.0.1", () => {
+      antigravityProxyServer = server;
+      antigravityProxyPort = server.address().port;
+      antigravityProxyTimeout = setTimeout(() => stopAntigravityProxy(), ANTIGRAVITY_PROXY_TIMEOUT_MS);
+      console.log(`[antigravity oauth proxy] listening on port ${antigravityProxyPort}`);
+      resolve({
+        success: true,
+        port: antigravityProxyPort,
+        callbackUrl: `http://127.0.0.1:${antigravityProxyPort}/callback`,
+      });
+    });
+
+    server.on("error", (err) => {
+      console.log("[antigravity oauth proxy] listen error:", err.message);
+      resolve({ success: false, reason: err.message });
+    });
+  });
+}
+
+export function stopAntigravityProxy() {
+  console.log(`[antigravity oauth proxy] stopping (port ${antigravityProxyPort || "-"})`);
+  if (antigravityProxyTimeout) { clearTimeout(antigravityProxyTimeout); antigravityProxyTimeout = null; }
+  if (antigravityProxyServer) { antigravityProxyServer.close(); antigravityProxyServer = null; }
+  antigravityProxyPort = null;
+}
+
+// Styled popup page matching the Routermod dark theme.
+function renderAntigravityResultPage(success, message, email) {
+  const color = success ? "#22c55e" : "#ef4444";
+  const icon = success ? "&#10003;" : "&#10007;";
+  const title = success ? "Authentication Successful" : "Authentication Failed";
+  const safeMessage = escapeHtml(message || "");
+  const safeEmail = escapeHtml(email || "");
+  const autoClose = success ? "<script>setTimeout(() => window.close(), 3000);</script>" : "";
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#050505;color:#e5e5e5}
+  .container{text-align:center;padding:2.5rem;background:#0f0f0f;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.5);border:1px solid #1a1a1a;max-width:400px;width:90%}
+  .icon{color:${color};font-size:3rem;margin-bottom:1rem}
+  h1{margin-bottom:0.5rem;font-size:1.25rem;letter-spacing:-0.02em}
+  p{color:#94a3b8;font-size:0.875rem;margin-bottom:1rem;line-height:1.5}
+  .email{font-family:ui-monospace,SFMono-Regular,monospace;font-size:0.75rem;color:#cbd5e1;background:#16161a;padding:0.5rem;border-radius:6px;word-break:break-all;display:inline-block;margin-bottom:1rem}
+  .close{font-size:0.75rem;color:#64748b;margin-top:1rem;display:block}
+  .close span{color:#475569}
+</style>
+</head><body><div class="container"><div class="icon">${icon}</div><h1>${title}</h1><p>${safeMessage}</p>${safeEmail ? `<div class="email">${safeEmail}</div>` : ""}<span class="close">${success ? "Jendela akan tertutup otomatis dalam beberapa detik…" : "Anda dapat menutup jendela ini."}</span>${autoClose}</div></body></html>`;
 }
 
