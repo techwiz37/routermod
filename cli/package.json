@@ -1,6 +1,6 @@
 {
   "name": "routermod",
-  "version": "0.0.1",
+  "version": "1.0.2",
   "description": "AI Gateway & routing hub — one-command install and run",
   "main": "index.js",
   "bin": {
@@ -10,7 +10,7 @@
     "pack:cli": "npm pack",
     "publish:cli": "npm publish --access public"
   },
-  "keywords": ["ai", "gateway", "router", "openai", "anthropic", "claude", "gemini", "proxy"],
+  "keywords": ["ai", "gateway", "router", "openai", "anthropic", "claude", "gemini", "proxy", "llm", "opencode", "cline", "neobrutalism"],
   "author": "techwiz37",
   "license": "MIT",
   "engines": {
@@ -23,7 +23,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/techwiz37/routermod.git"
+    "url": "git+https://github.com/techwiz37/routermod.git"
   },
-  "homepage": "https://github.com/techwiz37/routermod"
+  "homepage": "https://github.com/techwiz37/routermod#readme",
+  "bugs": {
+    "url": "https://github.com/techwiz37/routermod/issues"
+  }
 }

@@ -22,7 +22,10 @@ function install() {
   console.log("[routermod] Installing app...");
   fs.mkdirSync(INSTALL_DIR, { recursive: true });
   run(`git clone --depth 1 ${REPO} "${INSTALL_DIR}"`);
-  run("npm install --production", { cwd: INSTALL_DIR });
+  // Full install (including devDependencies) is required: the production build
+  // needs tailwindcss + @tailwindcss/postcss + postcss, which live in
+  // devDependencies. A --production install would fail at `npm run build`.
+  run("npm install --include=dev", { cwd: INSTALL_DIR });
   run("npm run build", { cwd: INSTALL_DIR });
 }
 
