@@ -107,3 +107,11 @@ debug.log
 .env.*.local
 
 .agent-media/
+# Local sensitive data (credentials in plain text)
+antigravity-accounts.txt
+free-proxy-list.txt
+
+# Local database files (runtime state lives in DATA_DIR)
+src/lib/db/*.sqlite
+src/lib/db/*.sqlite-journal
+src/lib/db/*.db

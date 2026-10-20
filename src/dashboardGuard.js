@@ -32,6 +32,7 @@ const PUBLIC_API_PATHS = [
   "/api/settings/require-login",
   "/api/tunnel/status",
   "/api/tunnel/gate-status",
+  "/api/public",
 ];
 
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex", "/responses"];

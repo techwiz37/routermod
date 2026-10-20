@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { renderMarkdown } from "./MarkdownText";
+import { translate } from "@/i18n/runtime";
 
 const MAX_ATTACH_FILES = 6;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -29,6 +30,26 @@ async function api(path, opts) {
   const data = ct.includes("application/json") ? await res.json().catch(() => ({})) : {};
   if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
   return data;
+}
+
+/** One-line summary of an error payload for the chat bubble. */
+function shortenError(text) {
+  let s = String(text || "").trim();
+  if (!s) return "Terjadi kesalahan";
+  try {
+    const j = JSON.parse(s);
+    const msg = j?.error?.message || j?.message || j?.error;
+    if (typeof msg === "string" && msg.trim()) s = msg.trim();
+  } catch {
+    /* plain text */
+  }
+  s = s
+    .replace(/<!doctype html>[\s\S]*?<\/head>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.length > 140) s = `${s.slice(0, 140)}…`;
+  return s || "Terjadi kesalahan";
 }
 
 function sessionKey(project) {
@@ -200,18 +221,18 @@ function ModelPicker({ models, value, onChange, disabled }) {
   groups.sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div ref={ref} className="relative w-full sm:w-auto">
+    <div ref={ref} className="relative w-full sm:w-auto min-w-0 basis-full sm:basis-auto">
       <button
         type="button"
         disabled={disabled || models.length === 0}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 sm:py-1.5 text-left w-full sm:min-w-[240px] sm:max-w-[360px] disabled:opacity-50 cursor-pointer hover:border-primary/40 transition-colors"
+        className="an-btn an-ghost h-auto min-h-[38px] w-full sm:w-auto sm:min-w-[240px] sm:max-w-[360px] justify-start gap-2 px-2.5 py-2 sm:py-1.5 text-left disabled:opacity-50 cursor-pointer items-start sm:items-center"
       >
         <span className="material-symbols-outlined text-[16px] text-text-muted shrink-0">neurology</span>
         <span className="flex-1 min-w-0">
           <span className="block truncate text-xs font-medium">{selected ? selected.name : models.length ? "Pilih model…" : "(belum ada model)"}</span>
           {selected && (
-            <span className="mt-1 flex items-center gap-1.5 flex-wrap">
+            <span className="mt-1 flex items-center gap-1.5 flex-wrap min-w-0">
               {selected.providerName && <span className="text-[9px] text-text-muted shrink-0">{selected.providerName}</span>}
               <CapBadges caps={selected.caps} size="text-[9px]" />
               {selected.caps?.contextWindow ? <span className="text-[9px] text-text-muted">{fmtContext(selected.caps.contextWindow)}</span> : null}
@@ -222,14 +243,14 @@ function ModelPicker({ models, value, onChange, disabled }) {
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-1 left-0 right-0 sm:right-auto sm:w-[360px] sm:max-w-[90vw] rounded-xl border border-border bg-surface shadow-lg overflow-hidden">
+        <div className="an-panel absolute z-30 mt-1 left-0 right-0 sm:right-auto sm:w-[360px] sm:max-w-[90vw] max-w-[calc(100vw-32px)] overflow-hidden">
           <div className="p-2 border-b border-border">
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cari model…"
-              className="w-full rounded-lg bg-surface-2 border border-border px-2.5 py-1.5 text-xs outline-none focus:border-primary/40"
+              className="an-input !py-1.5 !px-2.5 !text-[12px] !font-sans w-full"
             />
           </div>
           <div className="max-h-[60vh] sm:max-h-72 overflow-y-auto py-1 overscroll-contain">
@@ -292,11 +313,13 @@ export default function AgentPageClient() {
 
   if (loadError) {
     return (
-      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-5 flex items-start gap-3">
-        <span className="material-symbols-outlined text-rose-500">error</span>
-        <div>
-          <p className="text-sm font-medium text-rose-500">Gagal memuat agent</p>
-          <p className="text-xs text-text-muted mt-0.5">{loadError}</p>
+      <div className="an-notice danger">
+        <span className="an-notice-ico" aria-hidden>
+          <span className="material-symbols-outlined">error</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-medium text-[var(--t-ink)]">Gagal memuat agent</p>
+          <p className="text-[12px] text-[var(--t-muted)] mt-0.5">{loadError}</p>
         </div>
       </div>
     );
@@ -304,81 +327,89 @@ export default function AgentPageClient() {
 
   if (!status) {
     return (
-      <div className="flex items-center gap-2 text-sm text-text-muted p-6">
-        <Spinner className="text-primary" /> Memuat agent…
+      <div className="an-scope flex min-w-0 flex-col gap-5">
+        <div className="an-panel h-[140px] animate-pulse" />
       </div>
     );
   }
 
   if (!status.enabled) {
     return (
-      <div className="max-w-2xl mx-auto mt-6 rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] overflow-hidden">
-        <div className="flex items-center gap-3 p-5 border-b border-border">
-          <div className="grid place-items-center h-10 w-10 rounded-xl bg-amber-500/10 text-amber-500">
-            <span className="material-symbols-outlined">shield_lock</span>
-          </div>
-          <div>
-            <h2 className="text-base font-semibold">AI Agent nonaktif</h2>
-            <p className="text-xs text-text-muted">Fitur ini memberi akses file, terminal, dan eksekusi model ke server.</p>
-          </div>
-        </div>
-        <div className="p-5 space-y-4">
-          <p className="text-sm text-text-muted">Aktifkan lewat environment variable lalu restart server:</p>
-          <pre className="text-xs leading-relaxed bg-surface-2 border border-border rounded-xl p-4 overflow-x-auto font-mono">
+      <div className="an-scope flex min-w-0 flex-col gap-5">
+        <section className="an-panel">
+          <header className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">shield_lock</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">AI Agent nonaktif</h2>
+              <p className="an-panel-sub">
+                Fitur ini memberi akses file, terminal, dan eksekusi model ke server.
+              </p>
+            </div>
+          </header>
+          <div className="an-panel-pad flex flex-col gap-4">
+            <p className="text-[13px] text-[var(--t-muted)]">
+              Aktifkan lewat environment variable lalu restart server:
+            </p>
+            <pre className="text-[11px] leading-relaxed rounded-[10px] border border-[var(--t-line)] bg-[var(--t-raised)] p-4 overflow-x-auto font-mono text-[var(--t-ink)]">
 {`AGENT_ENABLED=1
 AGENT_ROOT_MODE=projects        # "projects" atau "full" (seluruh disk)
 AGENT_PROJECTS_ROOT=/root       # Windows: C:\\Users\\<kamu>\\Desktop
 AGENT_ALLOW_TERMINAL=1          # izinkan jalankan command
 AGENT_TERMINAL_TIMEOUT_MS=120000`}
           </pre>
-          <p className="text-xs text-text-muted">
-            Set lewat <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">ecosystem.config.js</code> (blok <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">env</code>) atau <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">.env.local</code>, lalu{" "}
-            <code className="px-1 py-0.5 rounded bg-surface-2 font-mono">pm2 restart run-routermod</code>.
+          <p className="text-xs text-[var(--t-muted)]">
+            Set lewat <code className="px-1 py-0.5 rounded bg-[var(--t-raised)] font-mono">.env.local</code>, lalu
+            restart server.
           </p>
         </div>
+      </section>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4 h-full min-h-0">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="grid place-items-center h-10 w-10 shrink-0 rounded-xl bg-primary/10 text-primary">
+    <div className="an-scope flex flex-col gap-4 h-full min-h-0">
+      <section className="an-panel">
+        <header className="an-panel-head">
+          <span className="an-panel-ico" aria-hidden>
             <span className="material-symbols-outlined">smart_toy</span>
-          </div>
-          <div className="min-w-0">
+          </span>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base font-semibold leading-none">AI Agent</h1>
+              <h2 className="an-panel-title">AI Agent</h2>
               <StatusPill tone={status.rootMode === "full" ? "warn" : "ok"}>
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 {status.rootMode === "full" ? "Full disk" : "Project-scoped"}
               </StatusPill>
               {status.terminalEnabled && <StatusPill tone="warn">Terminal</StatusPill>}
             </div>
-            <p className="text-[11px] text-text-muted mt-1 font-mono truncate">{status.projectsRoot}</p>
+            <p className="an-panel-sub font-mono truncate">{status.projectsRoot}</p>
+          </div>
+        </header>
+        <div className="an-panel-pad !py-3">
+          <div className="flex items-center gap-2 rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] px-3 py-2 min-w-0 w-full sm:w-auto sm:max-w-[280px]">
+            <span className="material-symbols-outlined text-[16px] text-[var(--t-muted)] shrink-0">
+              folder_open
+            </span>
+            <select
+              value={project}
+              onChange={(e) => setProject(e.target.value)}
+              className="an-select !w-full !h-6 !border-0 !bg-transparent !pl-0 !pr-6 !text-[12px] cursor-pointer truncate"
+              aria-label="Pilih project"
+            >
+              {projects.length === 0 && <option value="">(tidak ada folder project)</option>}
+              {projects.map((p) => (
+                <option key={p.path} value={p.path}>{p.name}</option>
+              ))}
+            </select>
           </div>
         </div>
-
-        <div className="sm:flex-1" />
-
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 min-w-0">
-          <span className="material-symbols-outlined text-[18px] text-text-muted shrink-0">folder_open</span>
-          <select
-            value={project}
-            onChange={(e) => setProject(e.target.value)}
-            className="bg-transparent text-sm outline-none flex-1 sm:flex-none sm:min-w-[180px] min-w-0 cursor-pointer truncate"
-          >
-            {projects.length === 0 && <option value="">(tidak ada folder project)</option>}
-            {projects.map((p) => (
-              <option key={p.path} value={p.path}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      </section>
 
       <div className="-mx-1 px-1 overflow-x-auto">
-        <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1 w-fit min-w-full sm:min-w-0">
+        <div className="an-segmented an-segmented-sm w-fit min-w-full sm:min-w-0">
           {TABS.map((t) => {
             if (t.id === "terminal" && !status.terminalEnabled) return null;
             const active = tab === t.id;
@@ -386,11 +417,10 @@ AGENT_TERMINAL_TIMEOUT_MS=120000`}
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] sm:text-sm font-medium transition-colors cursor-pointer ${
-                  active ? "bg-primary/10 text-primary" : "text-text-muted hover:text-text hover:bg-surface-2"
-                }`}
+                aria-pressed={active}
+                className={`an-segmented-btn ${active ? "active" : ""}`}
               >
-                <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
+                <span className="material-symbols-outlined">{t.icon}</span>
                 {t.label}
               </button>
             );
@@ -702,7 +732,25 @@ function AgentChat({ project, terminalEnabled }) {
             }
             if (ev.skipped?.length) setLog((l) => [...l, { kind: "error", text: `Lampiran dilewati: ${ev.skipped.join("; ")}` }]);
           } else if (ev.type === "error") {
-            setLog((l) => [...l, { kind: "error", text: ev.error }]);
+            setLog((l) => [
+              ...l,
+              {
+                kind: "error",
+                text: ev.error,
+                short: shortenError(ev.error),
+              },
+            ]);
+          } else if (ev.type === "model_switch") {
+            if (ev.model) {
+              setModel(ev.model);
+              setLog((l) => [
+                ...l,
+                {
+                  kind: "notice",
+                  text: `Model ${ev.model} dipakai (model sebelumnya tidak tersedia).`,
+                },
+              ]);
+            }
           } else if (ev.type === "done") {
             assistantText = "";
           }
@@ -716,9 +764,9 @@ function AgentChat({ project, terminalEnabled }) {
   };
 
   return (
-    <div className="h-full rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] flex flex-col overflow-hidden">
-      <div className="grid grid-cols-2 gap-2 p-3 border-b border-border bg-surface-2/40 sm:flex sm:flex-wrap sm:items-center">
-        <div className="col-span-2 flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 sm:col-span-1">
+    <div className="an-panel h-full flex flex-col overflow-hidden">
+      <div className="an-panel-pad !py-3 flex flex-wrap items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] px-2.5 py-1.5 basis-full sm:basis-auto">
           <span className="material-symbols-outlined text-[16px] text-text-muted shrink-0">hub</span>
           <select value={providerId} onChange={(e) => onSelectProvider(e.target.value)} className="bg-transparent text-xs outline-none cursor-pointer w-full sm:w-auto sm:min-w-[110px]">
             {providers.length === 0 && <option value="">(belum ada provider)</option>}
@@ -729,12 +777,12 @@ function AgentChat({ project, terminalEnabled }) {
         <button
           onClick={reload}
           disabled={reloading || !providerId}
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+          className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 disabled:opacity-50"
         >
           {reloading ? <Spinner /> : <span className="material-symbols-outlined text-[16px]">refresh</span>}
           Reload Models
         </button>
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 min-w-0">
+        <div className="flex items-center gap-2 rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] px-2.5 py-1.5 min-w-0">
           <span className="material-symbols-outlined text-[16px] text-text-muted shrink-0">history</span>
           <select
             value={sessionId}
@@ -754,7 +802,7 @@ function AgentChat({ project, terminalEnabled }) {
           onClick={newSession}
           disabled={busy}
           title="Sesi baru"
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+          className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-[16px]">add_comment</span>
           Sesi baru
@@ -763,20 +811,20 @@ function AgentChat({ project, terminalEnabled }) {
           onClick={forgetSession}
           disabled={busy || !sessionId || sessions.length === 0}
           title="Hapus sesi ini"
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-rose-500 hover:border-rose-500/40 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+          className="an-btn h-8 px-3 text-[11px] gap-1.5 border border-[rgba(232,0,31,0.32)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
           Hapus
         </button>
         <div className="hidden sm:block sm:flex-1" />
-        <button onClick={() => setLog([])} disabled={busy} className="flex items-center justify-center rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text transition-colors disabled:opacity-50 cursor-pointer sm:border-transparent sm:bg-transparent whitespace-nowrap">
-          Clear
+        <button onClick={() => setLog([])} disabled={busy} className="an-btn an-ghost h-8 px-3 text-[11px] disabled:opacity-50">
+          {translate("Clear chat")}
         </button>
       </div>
 
       {notice && <div className="px-4 py-2 text-xs text-primary bg-primary/5 border-b border-border">{notice}</div>}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 text-sm">
         {log.length === 0 && (
           <div className="h-full grid place-items-center text-center">
             <div className="max-w-sm space-y-3">
@@ -789,7 +837,7 @@ function AgentChat({ project, terminalEnabled }) {
           </div>
         )}
         {log.map((e, i) => (
-          <div key={i} className="flex gap-3">
+          <div key={i} className="flex gap-3 min-w-0 max-w-full">
             {e.kind === "user" && (
               <>
                 <div className="shrink-0 mt-0.5 grid place-items-center h-6 w-6 rounded-lg bg-primary/10 text-primary">
@@ -824,7 +872,11 @@ function AgentChat({ project, terminalEnabled }) {
                       )}
                     </div>
                   )}
-                  {e.text?.trim() && <p className="whitespace-pre-wrap leading-relaxed">{e.text}</p>}
+                  {e.text?.trim() && (
+                    <p className="whitespace-pre-wrap leading-relaxed break-words [overflow-wrap:anywhere] min-w-0">
+                      {e.text}
+                    </p>
+                  )}
                   {e.saved?.length > 0 && (
                     <p className="text-[11px] text-text-muted">
                       Tersimpan di project:{" "}
@@ -853,10 +905,36 @@ function AgentChat({ project, terminalEnabled }) {
               </>
             )}
             {e.kind === "tool" && <ToolCard entry={e} />}
+            {e.kind === "notice" && (
+              <div className="an-notice info !items-start !py-2 !px-3 min-w-0 max-w-full">
+                <span className="an-notice-ico" aria-hidden>
+                  <span className="material-symbols-outlined">info</span>
+                </span>
+                <p className="text-[11.5px] leading-relaxed text-[var(--t-muted)] break-words [overflow-wrap:anywhere]">
+                  {e.text}
+                </p>
+              </div>
+            )}
             {e.kind === "error" && (
-              <div className="flex items-start gap-2 rounded-lg bg-rose-500/5 border border-rose-500/20 px-3 py-2 w-full">
-                <span className="material-symbols-outlined text-[15px] text-rose-500">error</span>
-                <span className="text-xs text-rose-500 whitespace-pre-wrap">{e.text}</span>
+              <div className="an-notice danger !items-start !py-2 !px-3 min-w-0 max-w-full">
+                <span className="an-notice-ico" aria-hidden>
+                  <span className="material-symbols-outlined">error</span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11.5px] leading-relaxed text-[var(--t-danger)] break-words [overflow-wrap:anywhere]">
+                    {e.short || e.text}
+                  </p>
+                  {e.text && e.text !== e.short && (
+                    <details className="mt-1 group">
+                      <summary className="cursor-pointer text-[10.5px] text-[var(--t-muted)] hover:text-[var(--t-ink)] select-none">
+                        Detail teknis
+                      </summary>
+                      <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-[8px] border border-[var(--t-line)] bg-[var(--t-raised)] p-2 text-[10px] leading-snug text-[var(--t-muted)]">
+                        {e.text}
+                      </pre>
+                    </details>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -903,7 +981,7 @@ function AgentChat({ project, terminalEnabled }) {
             ))}
           </div>
         )}
-        <div className="flex items-end gap-2 rounded-xl border border-border bg-surface-2/40 focus-within:border-primary/40 transition-colors p-1.5 pl-3">
+        <div className="flex items-end gap-2 rounded-[12px] border border-[var(--t-line)] bg-[var(--t-field)] focus-within:border-[var(--t-accent)] transition-colors p-1.5 pl-3 min-w-0">
           <input ref={fileRef} type="file" accept="image/*,video/*" multiple onChange={pickFiles} className="hidden" />
           <button
             type="button"
@@ -925,8 +1003,9 @@ function AgentChat({ project, terminalEnabled }) {
               }
             }}
             rows={1}
-            placeholder={ready ? "Tulis instruksi… (Enter kirim, Shift+Enter baris baru)" : "Pilih provider & model dulu, atau klik Reload Models"}
-            className="flex-1 bg-transparent py-1.5 text-sm resize-none outline-none max-h-40"
+            placeholder={ready ? "Tulis instruksi…" : "Pilih model dulu"}
+            title="Enter untuk kirim, Shift+Enter untuk baris baru"
+            className="flex-1 min-w-0 bg-transparent py-1.5 text-sm resize-none outline-none max-h-40 placeholder:text-[var(--t-dim)]"
           />
           <button
             onClick={send}
@@ -1020,8 +1099,8 @@ function FileManager({ project }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full min-h-0">
-      <div className="flex flex-col rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] overflow-hidden min-h-[300px]">
-        <div className="flex items-center gap-2 p-2.5 border-b border-border bg-surface-2/40">
+      <div className="an-panel flex flex-col overflow-hidden min-h-[300px]">
+        <div className="an-panel-pad !py-2.5 flex items-center gap-2">
           <button onClick={up} disabled={cwd === "."} className="grid place-items-center h-7 w-7 rounded-lg border border-border text-text-muted hover:text-primary disabled:opacity-40 cursor-pointer">
             <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
           </button>
@@ -1061,10 +1140,10 @@ function FileManager({ project }) {
         </div>
       </div>
 
-      <div className="flex flex-col rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] overflow-hidden min-h-[300px]">
+      <div className="an-panel flex flex-col overflow-hidden min-h-[300px]">
         {editing ? (
           <>
-            <div className="flex items-center gap-2 p-2.5 border-b border-border bg-surface-2/40">
+            <div className="an-panel-pad !py-2.5 flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px] text-text-muted">draft</span>
               <span className="font-mono text-xs truncate flex-1">{editing.path}</span>
               <button onClick={() => setEditing(null)} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text cursor-pointer">
@@ -1131,8 +1210,8 @@ function Terminal({ project }) {
   };
 
   return (
-    <div className="h-full rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 p-3 border-b border-border bg-surface-2/40">
+    <div className="an-panel h-full flex flex-col overflow-hidden">
+      <div className="an-panel-pad !py-2.5 flex items-center gap-2">
         <span className="material-symbols-outlined text-[18px] text-primary">terminal</span>
         <span className="text-xs font-medium">Terminal</span>
         <span className="text-[11px] font-mono text-text-muted truncate">{project?.split(/[\\/]/).pop()}</span>
@@ -1157,7 +1236,7 @@ function Terminal({ project }) {
         <div ref={endRef} />
       </div>
       <div className="p-3 border-t border-border">
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-2/40 focus-within:border-primary/40 transition-colors px-3 py-1">
+        <div className="flex items-center gap-2 rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] focus-within:border-[var(--t-accent)] transition-colors px-3 py-1">
           <span className="text-primary font-mono text-sm">$</span>
           <input
             value={command}
@@ -1249,7 +1328,7 @@ function ProviderSettings() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-      <div className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] p-5 space-y-3">
+      <div className="an-panel p-5 space-y-3">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-[20px]">{form.id ? "edit" : "add_circle"}</span>
           <h3 className="font-semibold text-sm">{form.id ? "Edit provider" : "Tambah provider"}</h3>
@@ -1281,7 +1360,7 @@ function ProviderSettings() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-soft)] p-5 space-y-3">
+      <div className="an-panel p-5 space-y-3">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-text-muted text-[20px]">database</span>
           <h3 className="font-semibold text-sm">Provider tersimpan</h3>
@@ -1289,7 +1368,7 @@ function ProviderSettings() {
         </div>
         {providers.length === 0 && <p className="text-sm text-text-muted">Belum ada provider.</p>}
         {providers.map((p) => (
-          <div key={p.id} className="rounded-xl border border-border bg-surface-2/30 p-3.5 space-y-2">
+          <div key={p.id} className="an-panel p-3.5 space-y-2">
             <div className="flex items-center gap-2">
               <span className="grid place-items-center h-8 w-8 rounded-lg bg-primary/10 text-primary shrink-0">
                 <span className="material-symbols-outlined text-[17px]">hub</span>

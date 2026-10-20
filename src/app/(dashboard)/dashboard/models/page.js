@@ -1,14 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Card,
-  CardSkeleton,
-  Badge,
-  Button,
-  Toggle,
-  Input,
-} from "@/shared/components";
+import { CardSkeleton } from "@/shared/components";
+import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import {
   getModelsByProviderId,
   PROVIDER_ID_TO_ALIAS,
@@ -182,37 +176,54 @@ export default function ModelsPage() {
     : [...providerMap.entries()];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="an-scope flex min-w-0 flex-col gap-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h1 className="text-base font-bold text-text-main">Models</h1>
-          <p className="text-[11px] text-text-muted">
-            Kelola model yang tersedia per provider. Model yang dimatikan tidak akan muncul di daftar model API.
-          </p>
-        </div>
-        {error && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
-            <span className="material-symbols-outlined text-red-500 text-sm">error</span>
-            <span className="text-xs text-red-500">{error}</span>
+      <section className="an-panel">
+        <header className="an-panel-head">
+          <span className="an-panel-ico" aria-hidden>
+            <span className="material-symbols-outlined">model_training</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="an-panel-title">Models</h2>
+            <p className="an-panel-sub">
+              Kelola model yang tersedia per provider. Model yang dimatikan tidak
+              akan muncul di daftar model API.
+            </p>
           </div>
-        )}
-      </div>
+          <div className="an-panel-actions">
+            {error && (
+              <span className="an-chip danger">
+                <span className="size-1.5 rounded-full bg-[var(--t-danger)] shrink-0" />
+                <span className="truncate max-w-[220px]">{error}</span>
+              </span>
+            )}
+          </div>
+        </header>
 
-      {/* Search filter */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <Input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Cari provider atau model..."
-            className="w-full text-xs"
-          />
+        <div className="an-panel-pad">
+          <div className="an-toolbar">
+            <div className="an-search">
+              <span className="material-symbols-outlined">search</span>
+              <input
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Cari provider atau model..."
+                className="an-input"
+                aria-label="Cari provider atau model"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={fetchData}
+              className="an-btn an-ghost h-[38px] px-3 text-[11px] gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">refresh</span>
+              Refresh
+            </button>
+          </div>
         </div>
-        <Button variant="secondary" icon="refresh" onClick={fetchData} size="sm">
-          Refresh
-        </Button>
-      </div>
+      </section>
 
       {/* Provider cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -221,15 +232,14 @@ export default function ModelsPage() {
           const isProviderActive = info.connections.some((c) => c.isActive !== false);
 
           return (
-            <Card
+            <section
               key={providerId}
-              padding="none"
-              className="flex flex-col min-w-0 overflow-hidden"
+              className="an-panel flex flex-col min-w-0 overflow-hidden"
             >
               {/* Card header */}
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-black/[0.05] dark:border-white/[0.05] bg-surface-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="size-8 rounded-lg flex items-center justify-center p-1 bg-black/[0.03] dark:bg-white/[0.03]">
+              <div className="an-conn-head">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-full sm:basis-auto">
+                  <div className="an-conn-ico !size-8 !w-8 !h-8 !rounded-[9px]">
                     <ProviderIcon
                       src={"/providers/" + providerId + ".png"}
                       alt={providerId}
@@ -240,32 +250,27 @@ export default function ModelsPage() {
                     />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-text-main truncate text-sm">
-                      {info.name}
-                    </h3>
-                    <p className="text-[10px] text-text-muted truncate">
+                    <h3 className="an-conn-name">{info.name}</h3>
+                    <p className="an-conn-sub">
                       {info.alias} - {info.connections.length} koneksi
                     </p>
                   </div>
                 </div>
-                <Badge
-                  variant={isProviderActive ? "success" : "default"}
-                  size="sm"
-                >
+                <span className={`an-chip ${isProviderActive ? "ok" : ""} shrink-0 ml-auto`}>
                   {isProviderActive ? "Aktif" : "Tidak Aktif"}
-                </Badge>
+                </span>
               </div>
 
               {/* Model list */}
               {models.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-text-muted">
+                <div className="flex flex-col items-center justify-center py-8 text-[var(--t-muted)]">
                   <span className="material-symbols-outlined text-[40px] opacity-20 mb-2">
                     device_unknown
                   </span>
                   <p className="text-sm">Tidak ada model statis</p>
                 </div>
               ) : (
-                <div className="flex-1 min-h-[200px] overflow-y-auto divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+                <div className="an-conn-list !gap-0 flex-1 min-h-[200px] max-h-[420px] overflow-y-auto">
                   {models.map((model) => {
                     const modelId = model.id;
                     const isDisabledModel = isDisabled(info.alias, modelId);
@@ -278,54 +283,58 @@ export default function ModelsPage() {
                     return (
                       <div
                         key={modelId}
-                        className={"flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02] " + (isDisabledModel ? "opacity-50 bg-red-500/5" : "")}
+                        className={"an-conn-row flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 transition-colors hover:bg-white/[0.015] " + (isDisabledModel ? "opacity-50" : "")}
                       >
                         {/* Kind icon */}
-                        <div className="size-7 rounded-md flex items-center justify-center text-xs shrink-0 bg-black/[0.03] dark:bg-white/[0.03]">
+                        <div className="an-conn-ico !size-7 !w-7 !h-7 !rounded-[7px] !text-[11px]">
                           {kind === "image" ? "image" : kind === "tts" ? "tts" : "llm"}
                         </div>
 
                         {/* Model info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-text-main truncate">
+                        <div className="flex-1 min-w-0 basis-full sm:basis-auto">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[13px] font-medium text-[var(--t-ink)] truncate">
                               {model.name || modelId}
                             </span>
                             {isDisabledModel && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 font-medium shrink-0">
+                              <span className="an-chip !h-auto !px-1.5 !py-0.5 !text-[9px] danger shrink-0">
                                 Dimatikan
                               </span>
                             )}
                             {testResult && (
                               <span
-                                className={"text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 " + (testResult.ok ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}
+                                className={"an-chip !h-auto !px-1.5 !py-0.5 !text-[9px] shrink-0 " + (testResult.ok ? "ok" : "danger")}
                               >
                                 {testResult.ok ? "OK " + testResult.latency + "ms" : "Gagal"}
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] font-mono text-text-muted/60 truncate">
+                          <div className="text-[10px] font-mono text-[var(--t-dim)] truncate">
                             {modelId}
                           </div>
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            variant="ghost"
+                        <div className="flex items-center gap-2 shrink-0 ml-auto">
+                          <button
+                            type="button"
                             onClick={() => testModel(modelId, info.alias, kind)}
                             disabled={isTesting || isDisabledModel || !isProviderActive}
                             title="Test model"
-                            icon={isTesting ? "progress_activity" : "bolt"}
+                            aria-label={`Test ${model.name || modelId}`}
+                            className="an-conn-btn disabled:opacity-40"
                           >
-                            {isTesting ? "" : "Test"}
-                          </Button>
-                          <Toggle
-                            checked={!isDisabledModel}
+                            <span className="material-symbols-outlined">
+                              {isTesting ? "progress_activity" : "bolt"}
+                            </span>
+                          </button>
+                          <AntaresSwitch
+                            on={!isDisabledModel}
                             onChange={() => toggleModel(info.alias, modelId, isDisabledModel)}
                             disabled={isSaving || !isProviderActive}
+                            label={isDisabledModel ? "Off" : "On"}
                             title={isDisabledModel ? "Aktifkan model" : "Matikan model"}
+                            ariaLabel={`Toggle ${model.name || modelId}`}
                           />
                         </div>
                       </div>
@@ -335,13 +344,13 @@ export default function ModelsPage() {
               )}
 
               {!isProviderActive && (
-                <div className="px-4 py-3 bg-black/[0.02] dark:bg-white/[0.02] border-t border-black/[0.05] dark:border-white/[0.05]">
-                  <p className="text-xs text-text-muted">
+                <div className="px-4 py-3 bg-[var(--t-raised)] border-t border-[var(--t-line-soft)]">
+                  <p className="text-xs text-[var(--t-muted)]">
                     Tidak ada koneksi aktif untuk provider ini. Model tidak akan tersedia di API sampai ada koneksi aktif.
                   </p>
                 </div>
               )}
-            </Card>
+            </section>
           );
         })}
       </div>

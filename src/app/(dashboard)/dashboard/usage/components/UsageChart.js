@@ -11,8 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import Card from "@/shared/components/Card";
-import SegmentedControl from "@/shared/components/SegmentedControl";
+import AntaresSegmented from "@/shared/components/AntaresSegmented";
 
 const fmtTokens = (n) => {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -63,25 +62,29 @@ export default function UsageChart({ period = "7d" }) {
   const hasData = data.some((d) => (d[cfg.dataKey] || 0) > 0);
 
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 border-2 shadow-[2.5px_2.5px_0_var(--color-border)]">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Grafik Penggunaan & Beban</span>
-        <SegmentedControl
-          options={VIEW_MODES}
-          value={viewMode}
-          onChange={setViewMode}
-          size="sm"
-          className="w-full sm:w-auto"
-        />
-      </div>
+    <section className="an-panel">
+      <div className="an-chart">
+        <div className="an-chart-head">
+          <span className="an-chart-title">
+            <span className="material-symbols-outlined" aria-hidden>show_chart</span>
+            <span className="truncate">Grafik Penggunaan & Beban</span>
+          </span>
+          <AntaresSegmented
+            options={VIEW_MODES}
+            value={viewMode}
+            onChange={setViewMode}
+            size="sm"
+            className="w-full sm:w-auto"
+          />
+        </div>
 
       {loading ? (
-        <div className="h-52 flex items-center justify-center text-text-muted text-sm gap-2">
-          <span className="material-symbols-outlined animate-spin text-primary text-[18px]">progress_activity</span>
+        <div className="h-52 flex items-center justify-center text-[var(--t-muted)] text-sm gap-2">
+          <span className="material-symbols-outlined animate-spin text-[var(--t-star-ink)] text-[18px]">progress_activity</span>
           Memuat data...
         </div>
       ) : !hasData ? (
-        <div className="h-52 flex flex-col items-center justify-center text-text-muted gap-2">
+        <div className="h-52 flex flex-col items-center justify-center text-[var(--t-muted)] gap-2">
           <span className="material-symbols-outlined text-[32px] opacity-30">bar_chart</span>
           <span className="text-xs font-medium">Belum ada data untuk periode ini</span>
         </div>
@@ -118,16 +121,19 @@ export default function UsageChart({ period = "7d" }) {
               width={50}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--color-surface)",
-                border: "2px solid var(--color-border)",
-                borderRadius: "10px",
-                fontSize: "12px",
-                fontWeight: "bold",
-                boxShadow: "3px 3px 0 var(--color-border)",
-              }}
-              labelStyle={{ color: "var(--color-text-muted)", fontWeight: 600, marginBottom: 4 }}
-              formatter={(value) => [cfg.formatter(value), cfg.label]}
+              content={({ active, payload, label }) =>
+                active && payload?.length ? (
+                  <div className="an-tip">
+                    <div className="an-tip-label">{label}</div>
+                    {payload.map((p) => (
+                      <div key={p.dataKey} className="flex items-center justify-between gap-4">
+                        <span style={{ color: p.color }}>{cfg.label}</span>
+                        <span>{cfg.formatter(p.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null
+              }
             />
             <Area
               type="monotone"
@@ -141,7 +147,8 @@ export default function UsageChart({ period = "7d" }) {
           </AreaChart>
         </ResponsiveContainer>
       )}
-    </Card>
+      </div>
+    </section>
   );
 }
 

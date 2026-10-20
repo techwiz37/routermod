@@ -128,6 +128,16 @@ export default function ModelRow({
             </code>
           )}
           <span className="flex min-w-0 items-center gap-1 pl-0.5">
+            {isFree === true && (
+              <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-bold text-green-500">
+                FREE
+              </span>
+            )}
+            {isFree === false && (
+              <span className="rounded bg-sidebar px-1.5 py-0.5 text-[10px] font-bold text-text-muted/70">
+                PAID
+              </span>
+            )}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
           </span>
         </div>

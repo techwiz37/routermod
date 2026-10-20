@@ -1,5 +1,5 @@
 
-import { execSync, exec } from "child_process";
+import { execSync, exec, spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -163,7 +163,7 @@ async function enableCaddy(slug, domain) {
   fs.writeFileSync(CADDYFILE, caddyfileContent(slug, domain));
   console.log("[reverseProxy] wrote Caddyfile", CADDYFILE);
   stopOldCaddy();
-  const child = require("child_process").spawn(
+  const child = spawn(
     CADDY_BIN,
     ["run", "--config", CADDYFILE, "--adapter", "caddyfile"],
     { detached: true, stdio: "ignore" }

@@ -65,4 +65,4 @@ function buildManagedMcpServers(plugins) {
   return out;
 }
 
-module.exports = { DEFAULT_PLUGINS, LOCAL_STDIO_PLUGINS, buildManagedMcpServers };
+export { DEFAULT_PLUGINS, LOCAL_STDIO_PLUGINS, buildManagedMcpServers };

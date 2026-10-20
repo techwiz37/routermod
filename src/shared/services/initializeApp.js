@@ -1,21 +1,23 @@
 import os from "os";
+import { loadState, writeGate } from "../../lib/tunnel/shared/state.js";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
-import { cleanupProviderConnections, getSettings, updateSettings, getApiKeys } from "@/lib/localDb";
+import { cleanupProviderConnections, getSettings, updateSettings, getApiKeys } from "../../lib/localDb";
 import {
   enableTunnel, enableTailscale,
   isTunnelManuallyDisabled, isTunnelReconnecting, isTailscaleReconnecting,
   getTunnelService, getTailscaleService, setTunnelUnexpectedExitCallback,
   killCloudflared, isCloudflaredRunning, ensureCloudflared,
+  getTunnelStatus,
   isTailscaleRunning, isTailscaleRunningStrict, isDaemonAlive, startFunnel,
   checkInternet,
   RESTART_COOLDOWN_MS, NETWORK_SETTLE_MS,
   WATCHDOG_INTERVAL_MS, NETWORK_CHECK_INTERVAL_MS, VIRTUAL_IFACE_REGEX,
-} from "@/lib/tunnel";
-import { getMitmStatus, startMitm, loadEncryptedPassword, initDbHooks, restoreToolDNS, removeAllDNSEntriesSync } from "@/mitm/manager";
-import { syncToJson as syncMitmAliasCache } from "@/lib/mitmAliasCache";
-import { killAllBridges } from "@/lib/mcp/stdioSseBridge";
+} from "../../lib/tunnel";
+import { getMitmStatus, startMitm, loadEncryptedPassword, initDbHooks, restoreToolDNS, removeAllDNSEntriesSync } from "../../mitm/manager";
+import { syncToJson as syncMitmAliasCache } from "../../lib/mitmAliasCache";
+import { killAllBridges } from "../../lib/mcp/stdioSseBridge";
 
 (function bootstrapMitm() {
   if (!process.env.MITM_SERVER_PATH) {
@@ -79,7 +81,24 @@ async function runHeavyStartup() {
   if (settings.tunnelEnabled && !g.tunnelAutoResumed) {
     g.tunnelAutoResumed = true;
     console.log("[InitApp] Tunnel was enabled, auto-resuming...");
-    safeRestartTunnel("startup").catch((e) => console.log("[InitApp] Tunnel resume failed:", e.message));
+    writeGate({ tunnelActive: true });
+    (async () => {
+      for (let attempt = 1; attempt <= 6; attempt++) {
+        try {
+          await safeRestartTunnel("startup");
+          const st = await getTunnelStatus();
+          if (st.running || st.enabled) {
+            console.log("[InitApp] Tunnel resumed successfully");
+            writeGate({ tunnelActive: true });
+            return;
+          }
+        } catch (e) {
+          console.log(`[InitApp] Tunnel resume attempt ${attempt} failed:`, e?.message);
+        }
+        await new Promise((r) => setTimeout(r, 4000));
+      }
+      console.log("[InitApp] Tunnel resume exhausted retries");
+    })().catch((e) => console.log("[InitApp] Tunnel resume failed:", e?.message));
   }
 
   if (settings.tailscaleEnabled && !g.tailscaleAutoResumed) {
@@ -120,9 +139,13 @@ async function runHeavyStartup() {
     .catch((e) => console.log("[BackgroundCookieRefresh] scheduler start failed:", e.message));
 }
 
+// Cheap local check: keeps the scheduler module (and its provider graph) unloaded
+// when nothing opted in. An enabled schedule counts on its own.
 function hasQuotaAutoPingEnabled(settings) {
-  return [settings?.claudeAutoPing, settings?.codexAutoPing]
-    .some((config) => Object.values(config?.connections || {}).some(Boolean));
+  return [settings?.claudeAutoPing, settings?.codexAutoPing].some((config) => (
+    Object.values(config?.connections || {}).some(Boolean)
+    || Object.values(config?.schedules || {}).some((schedule) => schedule?.enabled === true)
+  ));
 }
 
 async function autoStartMitm(settings) {

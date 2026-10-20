@@ -52,6 +52,9 @@ export async function POST(request, { params }) {
       lastTestedAt: now,
       lastError: result.ok ? null : (result.error || `Proxy test failed with status ${result.status}`),
       isActive: result.ok,
+      // Persist the exit IP so the pool card can show where traffic leaves from.
+      exitIp: result.ok ? (result.exitIp || null) : null,
+      exitCountry: result.ok ? (result.exitCountry || null) : null,
     });
 
     return NextResponse.json({
@@ -60,6 +63,8 @@ export async function POST(request, { params }) {
       statusText: result.statusText || null,
       error: result.error || null,
       elapsedMs: result.elapsedMs || 0,
+      exitIp: result.exitIp || null,
+      exitCountry: result.exitCountry || null,
       testedAt: now,
     });
   } catch (error) {

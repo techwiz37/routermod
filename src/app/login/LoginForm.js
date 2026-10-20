@@ -1,141 +1,135 @@
-﻿"use client";
+"use client";
 
-import { useState, useEffect } from "react";
-import { useTheme } from "@/shared/hooks/useTheme";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { LOCALE_COOKIE } from "@/i18n/config";
+import StarField from "@/shared/components/StarField";
+import AntaresFooter from "@/shared/components/AntaresFooter";
+
+const APP_VERSION = "0.1.0";
+const GITHUB_URL = "https://github.com/techwiz37/routermod";
 
 const I18N = {
   id: {
-    systemTitle: "ROUTERMOD",
-    badgeGateway: "ONLINE :1945",
-    badgeBeta: "BETA V0.5",
-    subtitle: "// AI GATEWAY & SMART LOAD BALANCER",
-    heroHighlight: "AI ROUTING HUB",
-    desc: "Satu pintu masuk buat semua AI favorit lu (Claude, OpenAI, Gemini, DeepSeek, Grok, Ollama). Failover otomatis tanpa putus, hemat kuota token, dan database lokal aman.",
-    welcomeHeader: "LOGIN ADMIN",
-    welcomeSub: "Akses dashboard pengelola infrastruktur AI",
-    pwdLabel: "PASSWORD ADMIN",
-    pwdPlaceholder: "Ketik password (bawaan: merdeka)",
-    btnSubmit: "GAS MASUK DASHBOARD",
-    btnLoading: "LAGI NGECEK...",
-    defaultPwdText: "PASSWORD BAWAAN:",
+    systemTitle: "RouterMod",
+    systemSub: "AI Gateway",
+    nodeActive: "Node aktif",
+    heroBadge: "Gateway AI privat",
+    heroLine1: "Satu endpoint untuk",
+    heroLine2: "seluruh model AI.",
+    desc: "Gateway AI privat untuk Claude, OpenAI, Gemini, DeepSeek, Grok, dan Ollama. Failover otomatis, efisiensi token, dan seluruh data tetap di server Anda sendiri.",
+    metaLoading: "Memuat statistik...",
+    badgeGateway: "Konsol admin terenkripsi",
+    cardTitle: "Login Dashboard",
+    pwdLabel: "Password administrator",
+    show: "Lihat password",
+    hide: "Sembunyikan password",
+    btnSubmit: "Masuk ke dashboard",
+    btnLoading: "Memverifikasi",
+    orDivider: "atau",
+    defaultPwdText: "Password bawaan",
     defaultPwdVal: "merdeka",
-    forgotHint: "Lupa password? Reset langsung dari terminal host:",
-    feature1Title: "MULTI-MODEL HUB",
-    feature1Desc: "Satu API bisa manggil ratusan model AI tanpa ribet ubah kode aplikasi.",
-    feature2Title: "SMART FAILOVER",
-    feature2Desc: "Langsung switch ke provider cadangan kalau yang utama kena limit atau lemot.",
-    feature3Title: "SQLITE LOKAL",
-    feature3Desc: "History pemakaian dan API key tersimpan aman di lokal (routermod.sqlite).",
-    changePwdTitle: "GANTI PASSWORD",
-    changePwdDesc: "Wajib set password baru dulu biar makin aman.",
-    newPwdLabel: "PASSWORD BARU",
-    newPwdPlaceholder: "Masukin password baru",
-    btnSavePwd: "SIMPAN & LANJUT",
-    darkMode: "GELAP",
-    lightMode: "TERANG",
-    loginSuccess: "Login berhasil! Mengalihkan ke dashboard...",
-    loginFailed: "Password salah nih, coba cek lagi ya.",
-    serverError: "Gagal nyambung ke server. Coba beberapa saat lagi.",
-    pwdChangeSuccess: "Password berhasil diganti! Mengalihkan...",
-    pwdChangeFailed: "Gagal simpan password baru. Coba lagi.",
-    faqTitle: "Apa Bedanya Dengan 9Router?",
+    strengthLabel: "Kekuatan",
+    strengthWeak: "Lemah",
+    strengthMedium: "Sedang",
+    strengthStrong: "Kuat",
+    changePwdTitle: "Tetapkan password baru",
+    changePwdDesc: "Password administrator masih memakai nilai bawaan. Tetapkan yang baru sebelum melanjutkan.",
+    newPwdLabel: "Password baru",
+    btnSavePwd: "Simpan dan lanjutkan",
+    loginFailed: "Password salah. Silakan periksa kembali.",
+    serverError: "Tidak dapat menghubungi server. Coba beberapa saat lagi.",
+    pwdChangeSuccess: "Password berhasil diperbarui. Mengalihkan...",
+    pwdChangeFailed: "Gagal menyimpan password baru. Silakan coba lagi.",
+    loginSuccess: "Berhasil masuk. Mengalihkan ke dashboard...",
+    compareTitle: "Apa Bedanya Dengan 9Router?",
     faqDesc: "RouterMod dibuat biar tampilannya jauh lebih responsif di semua layout (HP, tablet, sampai layar gede), lebih adem di mata, serta ada beberapa penambahan fitur.",
     faqRequestHint: "Mau request fitur baru atau ngasih masukan? Langsung gas ke repo GitHub RouterMod:",
     faqRepoBtn: "Buka Repo RouterMod",
+    footerMeta: "Server lokal · privat",
+    github: "GitHub",
   },
   en: {
-    systemTitle: "ROUTERMOD",
-    badgeGateway: "ONLINE :1945",
-    badgeBeta: "BETA V0.5",
-    subtitle: "// AI GATEWAY & SMART LOAD BALANCER",
-    heroHighlight: "AI ROUTING HUB",
-    desc: "Single unified hub for all your go-to AI models (Claude, OpenAI, Gemini, DeepSeek, Grok, Ollama). Seamless auto-failover, lower token spend, and private local storage.",
-    welcomeHeader: "ADMIN LOGIN",
-    welcomeSub: "Sign in to manage your AI routing infrastructure",
-    pwdLabel: "ADMIN PASSWORD",
-    pwdPlaceholder: "Enter password (default: merdeka)",
-    btnSubmit: "OPEN DASHBOARD",
-    btnLoading: "CHECKING...",
-    defaultPwdText: "DEFAULT PASSWORD:",
+    systemTitle: "RouterMod",
+    systemSub: "AI Gateway",
+    nodeActive: "Node active",
+    heroBadge: "Private AI gateway",
+    heroLine1: "One endpoint for",
+    heroLine2: "every AI model.",
+    desc: "A private AI gateway for Claude, OpenAI, Gemini, DeepSeek, Grok, and Ollama. Automatic failover, token efficiency, and every byte of data stays on your own server.",
+    metaLoading: "Loading stats...",
+    badgeGateway: "Encrypted admin console",
+    cardTitle: "Login Dashboard",
+    pwdLabel: "Administrator password",
+    show: "Show password",
+    hide: "Hide password",
+    btnSubmit: "Open dashboard",
+    btnLoading: "Verifying",
+    orDivider: "or",
+    defaultPwdText: "Default password",
     defaultPwdVal: "merdeka",
-    forgotHint: "Forgot password? Reset anytime via your host terminal:",
-    feature1Title: "MULTI-MODEL HUB",
-    feature1Desc: "Hit 100+ AI models through one endpoint without touching client apps.",
-    feature2Title: "SMART FAILOVER",
-    feature2Desc: "Instantly switches to a backup model when the main one rates-limit or drops.",
-    feature3Title: "LOCAL SQLITE",
-    feature3Desc: "All metrics, keys, and configs stay safe in your local routermod.sqlite.",
-    changePwdTitle: "UPDATE PASSWORD",
-    changePwdDesc: "Pick a new password to keep things secure.",
-    newPwdLabel: "NEW PASSWORD",
-    newPwdPlaceholder: "Type your new password",
-    btnSavePwd: "SAVE & CONTINUE",
-    darkMode: "DARK",
-    lightMode: "LIGHT",
-    loginSuccess: "Signed in successfully! Redirecting to dashboard...",
-    loginFailed: "Incorrect password, please double-check.",
-    serverError: "Couldn't reach server. Please try again shortly.",
-    pwdChangeSuccess: "Password updated! Redirecting...",
+    strengthLabel: "Strength",
+    strengthWeak: "Weak",
+    strengthMedium: "Medium",
+    strengthStrong: "Strong",
+    changePwdTitle: "Set a new password",
+    changePwdDesc: "The administrator password is still the default value. Set a new one before continuing.",
+    newPwdLabel: "New password",
+    btnSavePwd: "Save and continue",
+    loginFailed: "Incorrect password. Please double-check.",
+    serverError: "Couldn't reach the server. Please try again shortly.",
+    pwdChangeSuccess: "Password updated. Redirecting...",
     pwdChangeFailed: "Failed to update password. Please try again.",
-    faqTitle: "What's the difference with 9Router?",
+    loginSuccess: "Signed in. Redirecting to dashboard...",
+    compareTitle: "What's the difference with 9Router?",
     faqDesc: "RouterMod is made to be way more responsive across every layout (phones, tablets, and large screens), easier on the eyes, and packed with extra built-in features.",
     faqRequestHint: "Want to request a feature or share feedback? Hop directly into the RouterMod GitHub repo:",
     faqRepoBtn: "View RouterMod on GitHub",
+    footerMeta: "Local server · private",
+    github: "GitHub",
   },
 };
 
 function getSavedLocale() {
   if (typeof document === "undefined") return "id";
-  const cookie = document.cookie
-    .split(";")
-    .find((c) => c.trim().startsWith(`${LOCALE_COOKIE}=`));
+  const cookie = document.cookie.split(";").find((c) => c.trim().startsWith(`${LOCALE_COOKIE}=`));
   const val = cookie ? decodeURIComponent(cookie.split("=")[1]) : "";
   if (val === "en" || val === "id") return val;
   const ls = localStorage.getItem("app_locale");
   return ls === "en" ? "en" : "id";
 }
 
-function Soft3DLogo({ className = "size-11" }) {
+function pwdScore(pw) {
+  if (!pw) return 0;
+  let s = 0;
+  if (pw.length >= 8) s++;
+  if (pw.length >= 12) s++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+  if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) s++;
+  return Math.min(s, 4);
+}
+
+function fmtResp(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return null;
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(2)} s`;
+}
+
+function Spinner() {
   return (
-    <div className={`relative flex items-center justify-center shrink-0 group ${className}`}>
-      <svg
-        viewBox="0 0 120 120"
-        className="w-full h-full drop-shadow-[2.5px_3.5px_0px_var(--color-border)] transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:drop-shadow-[3.5px_4.5px_0px_var(--color-border)]"
-      >
-        <defs>
-          <linearGradient id="logo-r-red" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="var(--color-brand-500)" />
-            <stop offset="100%" stopColor="#dc2626" />
-          </linearGradient>
-        </defs>
-
-        <rect x="8" y="8" width="104" height="104" rx="22" fill="var(--color-border)" stroke="var(--color-border)" strokeWidth="4" />
-        <rect x="12" y="12" width="96" height="96" rx="18" className="fill-[var(--color-surface)]" />
-
-        <path d="M12 36L36 12H12v24z" fill="url(#logo-r-red)" />
-        <circle cx="94" cy="26" r="4.5" className="fill-[var(--color-success)]" stroke="var(--color-border)" strokeWidth="2" />
-
-        <rect x="34" y="30" width="16" height="60" rx="4" className="fill-[var(--color-text-main)]" />
-        <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" className="fill-[var(--color-text-main)]" />
-        <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" className="fill-[var(--color-surface)]" />
-
-        <path d="M60 62L83 90H65L48 68h14z" fill="url(#logo-r-red)" stroke="var(--color-border)" strokeWidth="2" strokeLinejoin="round" />
-        <circle cx="88" cy="88" r="4.5" className="fill-[var(--color-info)]" stroke="var(--color-border)" strokeWidth="2" />
-      </svg>
-    </div>
+    <svg className="size-[15px] animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path fill="currentColor" d="M4 12a8 8 0 0 1 8-8v3.5A4.5 4.5 0 0 0 7.5 12H4z" />
+    </svg>
   );
 }
 
 export default function LoginForm() {
-  const { isDark, toggleTheme } = useTheme();
   const [locale, setLocale] = useState("id");
 
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
-  const [resetHint, setResetHint] = useState("");
   const [loading, setLoading] = useState(false);
-  const [hasPassword, setHasPassword] = useState(null);
   const [authMode, setAuthMode] = useState("password");
   const [ssoType, setSsoType] = useState("oidc");
   const [oidcConfigured, setOidcConfigured] = useState(false);
@@ -144,10 +138,18 @@ export default function LoginForm() {
   const [samlLoginLabel, setSamlLoginLabel] = useState("Sign in with SAML SSO");
   const [mustChange, setMustChange] = useState(false);
   const [newPassword, setNewPassword] = useState("");
-  const [faqOpen, setFaqOpen] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [stats, setStats] = useState(null);
+  const [httpMs, setHttpMs] = useState(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [failFlash, setFailFlash] = useState(false);
+  const [successFlash, setSuccessFlash] = useState(false);
 
   const t = I18N[locale] || I18N.id;
+  const newScore = useMemo(() => pwdScore(newPassword), [newPassword]);
+  const strengthText =
+    newScore >= 3 ? t.strengthStrong : newScore === 2 ? t.strengthMedium : t.strengthWeak;
 
   useEffect(() => {
     setLocale(getSavedLocale());
@@ -168,9 +170,7 @@ export default function LoginForm() {
       const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
       try {
-        const res = await fetch(`${baseUrl}/api/auth/status`, {
-          signal: controller.signal,
-        });
+        const res = await fetch(`${baseUrl}/api/auth/status`, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (res.ok) {
@@ -179,22 +179,41 @@ export default function LoginForm() {
             window.location.assign("/dashboard");
             return;
           }
-          setHasPassword(!!data.hasPassword);
           setAuthMode(data.authMode || "password");
           setSsoType(data.ssoType || "oidc");
           setOidcConfigured(data.oidcConfigured === true);
           setOidcLoginLabel(data.oidcLoginLabel || "Sign in with OIDC");
           setSamlConfigured(data.samlConfigured === true);
           setSamlLoginLabel(data.samlLoginLabel || "Sign in with SAML SSO");
-        } else {
-          setHasPassword(true);
         }
       } catch (err) {
         clearTimeout(timeoutId);
-        setHasPassword(true);
       }
     }
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const startedAt = Date.now();
+      try {
+        const res = await fetch(`${baseUrl}/api/public/stats`, { cache: "no-store" });
+        const elapsed = Date.now() - startedAt;
+        if (!alive) return;
+        setHttpMs(elapsed);
+        if (res.ok) {
+          const data = await res.json();
+          if (alive) setStats(data);
+        }
+      } catch {
+        if (alive) setHttpMs(Date.now() - startedAt);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const handleLogin = async (e) => {
@@ -202,7 +221,6 @@ export default function LoginForm() {
     setLoading(true);
     setError("");
     setSuccessMsg("");
-    setResetHint("");
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -210,7 +228,6 @@ export default function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
@@ -219,18 +236,21 @@ export default function LoginForm() {
           return;
         }
         setSuccessMsg(t.loginSuccess);
-        setTimeout(() => {
-          window.location.assign("/dashboard");
-        }, 500);
+        setSuccessFlash(true);
+        setTimeout(() => window.location.assign("/dashboard"), 1400);
       } else {
         if (data.mustChangePassword) {
           setMustChange(true);
           return;
         }
         setError(data.error || t.loginFailed);
+        setFailFlash(true);
+        setTimeout(() => setFailFlash(false), 1400);
       }
     } catch (err) {
       setError(t.serverError);
+      setFailFlash(true);
+      setTimeout(() => setFailFlash(false), 1400);
     } finally {
       setLoading(false);
     }
@@ -249,9 +269,8 @@ export default function LoginForm() {
       });
       if (res.ok) {
         setSuccessMsg(t.pwdChangeSuccess);
-        setTimeout(() => {
-          window.location.assign("/dashboard");
-        }, 500);
+        setSuccessFlash(true);
+        setTimeout(() => window.location.assign("/dashboard"), 1400);
       } else {
         const data = await res.json();
         setError(data.error || t.pwdChangeFailed);
@@ -267,384 +286,322 @@ export default function LoginForm() {
   const activeSsoType = ssoType || (authMode === "saml" ? "saml" : "oidc");
   const samlAvailable = isSsoEnabled && activeSsoType === "saml" && samlConfigured;
   const oidcAvailable = isSsoEnabled && activeSsoType === "oidc" && oidcConfigured;
-  const passwordAvailable = authMode === "password" || authMode === "both" || (!samlAvailable && !oidcAvailable);
+  const passwordAvailable =
+    authMode === "password" || authMode === "both" || (!samlAvailable && !oidcAvailable);
+
+  const respMs = stats && typeof stats.avgLatencyMs === "number" ? stats.avgLatencyMs : httpMs;
+  const respText = fmtResp(respMs);
+  const metaText =
+    stats && respText
+      ? locale === "en"
+        ? `${stats.models} models · ${stats.providers} providers · avg response ${respText}`
+        : `${stats.models} model · ${stats.providers} provider · rata-rata respon ${respText}`
+      : null;
 
   return (
-    <div className="min-h-screen w-full bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col justify-between selection:bg-[var(--color-primary)] selection:text-white relative font-sans overflow-x-hidden">
-      {/* Top Ambient Glow / Reticle */}
-      <div className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent z-50 pointer-events-none opacity-80" />
+    <div className="login-skin relative min-h-screen w-full overflow-x-hidden antialiased selection:bg-[var(--t-accent)] selection:text-white">
+      <div aria-hidden className="login-bg">
+        <StarField />
+        <div className="login-fade" />
+      </div>
 
-      {/* Top Navbar */}
-      <header className="w-full border-b-2 border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-md z-40 sticky top-0 shadow-[0_4px_12px_rgba(24,28,36,0.06)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* Logo brand */}
-          <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer">
-            <Soft3DLogo className="size-9 sm:size-10" />
-            <div className="flex flex-col leading-tight">
-              <span className="font-mono text-sm sm:text-base font-black tracking-wider text-[var(--color-text-main)]">
-                ROUTER<span className="text-[var(--color-primary)]">MOD</span>
+      <div className="relative z-10 flex min-h-screen w-full flex-col">
+        {/* ---- Header ---- */}
+        <header className="an-header">
+          <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 md:h-16 md:gap-6 md:px-5 lg:px-6">
+            <a href="#top" aria-label={`${t.systemTitle}, kembali ke atas`} className="inline-flex items-center gap-2.5">
+              <span className="an-logo">
+                <span className="material-symbols-outlined">hub</span>
               </span>
-              <span className="font-mono text-[9.5px] sm:text-[10px] font-bold text-[var(--color-primary)] tracking-widest">
-              </span>
-            </div>
-          </div>
+              <span className="an-name">{t.systemTitle}</span>
+              <span className="an-badge an-hide-sm">v{APP_VERSION}</span>
+            </a>
 
-          {/* Right Toolbar Controls */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Online Pulse with 3D Depth */}
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] rounded-lg text-[11px] font-mono font-bold">
-              <span className="size-2 rounded-full bg-[var(--color-success)] animate-pulse" />
-              <span>{t.badgeGateway}</span>
-            </div>
-
-            {/* Circular National Flags with 3D Pill */}
-            <div className="inline-flex items-center gap-1.5 border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] shadow-[2px_3px_0px_var(--color-border)] rounded-full p-1">
-              <button
-                type="button"
-                onClick={() => switchLocale("id")}
-                aria-label="Bahasa Indonesia"
-                title="Bahasa Indonesia"
-                className={`size-7 rounded-full overflow-hidden border-2 transition-all duration-200 flex items-center justify-center cursor-pointer ${
-                  locale === "id"
-                    ? "border-[var(--color-primary)] scale-110 shadow-[0_2px_6px_rgba(255,26,83,0.4)] ring-1 ring-[var(--color-primary)]"
-                    : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
-                }`}
+            <div className="flex items-center gap-2">
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${t.systemTitle} di GitHub`}
+                title={`${t.systemTitle} di GitHub`}
+                className="an-iconbtn an-hide-sm"
               >
-                <svg viewBox="0 0 32 32" className="w-full h-full object-cover">
-                  <clipPath id="circle-id">
-                    <circle cx="16" cy="16" r="16" />
-                  </clipPath>
-                  <g clipPath="url(#circle-id)">
-                    <rect width="32" height="16" fill="#e11d48" />
-                    <rect y="16" width="32" height="16" fill="#ffffff" />
-                  </g>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
+                  <path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z" />
                 </svg>
-              </button>
+              </a>
 
-              <button
-                type="button"
-                onClick={() => switchLocale("en")}
-                aria-label="English (United States / UK)"
-                title="English"
-                className={`size-7 rounded-full overflow-hidden border-2 transition-all duration-200 flex items-center justify-center cursor-pointer ${
-                  locale === "en"
-                    ? "border-[var(--color-primary)] scale-110 shadow-[0_2px_6px_rgba(255,26,83,0.4)] ring-1 ring-[var(--color-primary)]"
-                    : "border-transparent opacity-60 hover:opacity-100 hover:scale-105"
-                }`}
-              >
-                <svg viewBox="0 0 32 32" className="w-full h-full object-cover">
-                  <clipPath id="circle-uk">
-                    <circle cx="16" cy="16" r="16" />
-                  </clipPath>
-                  <g clipPath="url(#circle-uk)">
-                    <rect width="32" height="32" fill="#012169" />
-                    <path d="M0 0L32 32M32 0L0 32" stroke="#ffffff" strokeWidth="5.5" />
-                    <path d="M0 0L32 32M32 0L0 32" stroke="#C8102E" strokeWidth="2.5" />
-                    <path d="M16 0v32M0 16h32" stroke="#ffffff" strokeWidth="8.5" />
-                    <path d="M16 0v32M0 16h32" stroke="#C8102E" strokeWidth="5" />
-                  </g>
-                </svg>
-              </button>
-            </div>
-
-            {/* Dark / Light Mode 3D Button */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label="Toggle Theme"
-              className="px-2.5 py-1.5 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4.5px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1px_0px_var(--color-border)] transition-all flex items-center gap-1.5 font-mono text-xs font-bold rounded-lg cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px] text-[var(--color-primary)]">
-                {isDark ? "light_mode" : "dark_mode"}
-              </span>
-              <span className="hidden sm:inline text-[11px]">
-                {isDark ? t.lightMode : t.darkMode}
-              </span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container Section */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
-          {/* Left Hero & Specs Column */}
-          <div className="lg:col-span-7 flex flex-col gap-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-1 bg-[var(--color-primary)] text-white border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-black uppercase tracking-wider rounded-lg">
-                {t.badgeBeta}
-              </span>
-              <span className="px-2.5 py-1 bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] font-mono text-[11px] font-bold text-[var(--color-success)] flex items-center gap-1.5 rounded-lg">
-                <span className="size-2 rounded-full bg-[var(--color-success)] animate-pulse" />
-                STANDALONE // FAST REFRESH
-              </span>
-            </div>
-
-            <div>
-              <h1 className="font-mono text-2xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-[var(--color-text-main)] leading-[1.15] mb-2.5">
-                AI GATEWAY <span className="text-[var(--color-primary)] underline decoration-3 underline-offset-4">{t.heroHighlight}</span>
-              </h1>
-              <p className="text-xs sm:text-sm md:text-base text-[var(--color-text-muted)] leading-relaxed max-w-xl">
-                {t.desc}
-              </p>
-            </div>
-
-            {/* 3D Feature Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)] hover:shadow-[4px_6px_0px_var(--color-border)] p-3.5 rounded-xl hover:-translate-y-1 transition-all">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <div className="size-6 rounded-md bg-[var(--color-primary)]/10 border border-[var(--color-primary)] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[var(--color-primary)] text-[16px]">hub</span>
-                  </div>
-                  <span className="font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)]">
-                    {t.feature1Title}
-                  </span>
-                </div>
-                <p className="text-[11.5px] text-[var(--color-text-muted)] leading-snug">
-                  {t.feature1Desc}
-                </p>
-              </div>
-
-              <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)] hover:shadow-[4px_6px_0px_var(--color-border)] p-3.5 rounded-xl hover:-translate-y-1 transition-all">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <div className="size-6 rounded-md bg-[var(--color-info)]/10 border border-[var(--color-info)] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[var(--color-info)] text-[16px]">sync</span>
-                  </div>
-                  <span className="font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)]">
-                    {t.feature2Title}
-                  </span>
-                </div>
-                <p className="text-[11.5px] text-[var(--color-text-muted)] leading-snug">
-                  {t.feature2Desc}
-                </p>
-              </div>
-
-              <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[3px_4px_0px_var(--color-border)] hover:shadow-[4px_6px_0px_var(--color-border)] p-3.5 rounded-xl hover:-translate-y-1 transition-all">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <div className="size-6 rounded-md bg-[var(--color-success)]/10 border border-[var(--color-success)] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[var(--color-success)] text-[16px]">database</span>
-                  </div>
-                  <span className="font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)]">
-                    {t.feature3Title}
-                  </span>
-                </div>
-                <p className="text-[11.5px] text-[var(--color-text-muted)] leading-snug">
-                  {t.feature3Desc}
-                </p>
-              </div>
-            </div>
-
-            {/* Dropdown FAQ: "Apa Bedanya Dengan 9Router?" */}
-            <div className="border-2 border-[var(--color-border)] bg-[var(--color-surface)] shadow-[3px_4px_0px_var(--color-border)] rounded-xl overflow-hidden transition-all">
-              <button
-                type="button"
-                onClick={() => setFaqOpen(!faqOpen)}
-                className="w-full px-4 py-3 bg-[var(--color-surface-2)] flex items-center justify-between gap-3 text-left font-mono font-black text-xs uppercase tracking-wide text-[var(--color-text-main)] hover:bg-[var(--color-surface)] cursor-pointer transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="size-5 rounded-md bg-[var(--color-primary)] text-white flex items-center justify-center text-[12px] font-mono">
-                    ?
-                  </span>
-                  <span>{t.faqTitle}</span>
-                </div>
-                <span className={`material-symbols-outlined text-[18px] text-[var(--color-text-muted)] transition-transform duration-200 ${faqOpen ? "rotate-180 text-[var(--color-primary)]" : ""}`}>
-                  expand_more
-                </span>
-              </button>
-
-              {faqOpen && (
-                <div className="p-4 border-t-2 border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col gap-3">
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    {t.faqDesc}
-                  </p>
-                  <div className="pt-2 border-t border-[var(--color-border)]/60 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[11px] text-[var(--color-text-muted)]">
-                      {t.faqRequestHint}
-                    </span>
-                    <a
-                      href="https://github.com/techwiz37/routermod"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 text-xs font-mono font-bold rounded-lg transition-all"
-                    >
-                      <span>{t.faqRepoBtn}</span>
-                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Terminal Command Bar */}
-            <div className="border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text-main)] px-4 py-2.5 shadow-[2.5px_3.5px_0px_var(--color-border)] rounded-xl font-mono text-xs flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[var(--color-primary)] font-black">$</span>
-                <span className="font-bold">npm i -g routermod</span>
-                <span className="text-[var(--color-text-muted)]">&amp;&amp; routermod</span>
-              </div>
-              <span className="text-[10px] text-[var(--color-text-muted)] font-bold uppercase tracking-wider">
-                PORT 1945
-              </span>
-            </div>
-          </div>
-
-          {/* Right Login Card Column */}
-          <div className="lg:col-span-5 w-full">
-            <div className="bg-[var(--color-surface)] border-2 border-[var(--color-border)] shadow-[5px_7px_0px_var(--color-border)] p-5 sm:p-7 rounded-2xl relative transition-transform">
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-[var(--color-primary)] rounded-t-2xl" />
-
-              <div className="flex items-center justify-between border-b-2 border-[var(--color-border)] pb-3.5 mb-5 mt-1">
-                <div>
-                  <h2 className="font-mono text-lg sm:text-xl font-black uppercase text-[var(--color-text-main)] tracking-wide flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[var(--color-primary)] text-[22px]">key</span>
-                    {mustChange ? t.changePwdTitle : t.welcomeHeader}
-                  </h2>
-                  <p className="text-[11px] sm:text-xs text-[var(--color-text-muted)] font-mono mt-0.5">
-                    {mustChange ? t.changePwdDesc : t.welcomeSub}
-                  </p>
-                </div>
-                <span className="px-2 py-0.5 bg-[var(--color-warning)]/15 text-[var(--color-warning)] border border-[var(--color-border)] font-mono font-black text-[9.5px] shadow-[1px_2px_0px_var(--color-border)] rounded-md">
-                  AUTH
-                </span>
-              </div>
-
-              {mustChange ? (
-                <form onSubmit={handleSetNewPassword} className="flex flex-col gap-3.5">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="font-mono text-xs font-black uppercase text-[var(--color-text-main)]">
-                      {t.newPwdLabel}
-                    </label>
-                    <input
-                      type="password"
-                      placeholder={t.newPwdPlaceholder}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                      autoFocus
-                      className="w-full bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] p-2.5 sm:p-3 font-mono text-xs sm:text-sm shadow-[2px_3px_0px_var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[3px_4px_0px_var(--color-primary)] transition-all rounded-lg"
-                    />
-                    {error && (
-                      <p className="font-mono text-xs font-bold text-[var(--color-danger)] mt-1 bg-[var(--color-danger)]/10 p-2 border border-[var(--color-danger)] rounded-md">
-                        {error}
-                      </p>
-                    )}
-                    {successMsg && (
-                      <p className="font-mono text-xs font-bold text-[var(--color-success)] mt-1 bg-[var(--color-success)]/10 p-2 border border-[var(--color-success)] rounded-md">
-                        {successMsg}
-                      </p>
-                    )}
-                  </div>
-
+              <div role="radiogroup" aria-label="Bahasa" className="flex gap-1 rounded-full border border-[var(--t-line)] bg-[var(--t-card)] p-1">
+                {["id", "en"].map((l) => (
                   <button
-                    type="submit"
-                    disabled={loading || !newPassword}
-                    className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-2 border-[var(--color-border)] font-mono font-black text-xs sm:text-sm uppercase py-3 px-4 shadow-[3px_4px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[4px_5.5px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1px_0px_var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer rounded-lg mt-1"
+                    key={l}
+                    type="button"
+                    role="radio"
+                    aria-checked={locale === l}
+                    onClick={() => switchLocale(l)}
+                    aria-label={l === "id" ? "Bahasa Indonesia" : "English"}
+                    className={`inline-flex h-8 items-center gap-2 rounded-full px-3.5 text-[13px] transition-colors ${
+                      locale === l
+                        ? "bg-[var(--t-raised)] text-[var(--t-ink)]"
+                        : "text-[var(--t-muted)] hover:text-[var(--t-ink)]"
+                    }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">verified</span>
-                    {loading ? t.btnLoading : t.btnSavePwd}
+                    {locale === l && <span aria-hidden className="size-1.5 rounded-full bg-[var(--t-accent)]" />}
+                    {l}
                   </button>
-                </form>
-              ) : (
-                <div className="flex flex-col gap-3.5">
-                  {samlAvailable && (
-                    <button
-                      type="button"
-                      onClick={() => (window.location.href = "/api/auth/saml/start")}
-                      className="w-full bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] border-2 border-[var(--color-border)] font-mono font-bold text-xs uppercase py-2.5 px-4 shadow-[2px_3px_0px_var(--color-border)] transition-all rounded-lg"
-                    >
-                      {samlLoginLabel}
-                    </button>
-                  )}
+                ))}
+              </div>
+            </div>
+          </div>
+        </header>
 
-                  {oidcAvailable && (
-                    <button
-                      type="button"
-                      onClick={() => (window.location.href = "/api/auth/oidc/start")}
-                      className="w-full bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] border-2 border-[var(--color-border)] font-mono font-bold text-xs uppercase py-2.5 px-4 shadow-[2px_3px_0px_var(--color-border)] transition-all rounded-lg"
-                    >
-                      {oidcLoginLabel}
-                    </button>
-                  )}
+        {/* ---- Hero ---- */}
+        <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden">
+          <div className="relative mx-auto w-full max-w-[1400px] px-4 pt-14 pb-10 md:px-5 md:pt-20 md:pb-14 lg:px-6">
+            <p className="an-eyebrow sk-anim">
+              <span className="an-dot" />
+              {t.heroBadge} · v{APP_VERSION}
+            </p>
+            <h1 id="hero-title" className="an-h1 sk-anim mt-5 max-w-[16ch]">
+              {t.heroLine1}
+              <span className="an-dim block">{t.heroLine2}</span>
+            </h1>
+            <p className="sk-anim mt-5 max-w-[46ch] text-[16px] leading-relaxed text-[var(--t-muted)] md:text-[17px]">
+              {t.desc}
+            </p>
+            <p className="an-meta sk-anim mt-6">
+              {metaText || <span className="an-meta-load">{t.metaLoading}</span>}
+            </p>
+          </div>
+        </section>
 
-                  {passwordAvailable && (
-                    <form onSubmit={handleLogin} className="flex flex-col gap-3.5">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="font-mono text-xs font-black uppercase text-[var(--color-text-main)] flex items-center justify-between">
-                          <span>{t.pwdLabel}</span>
-                          <span className="text-[10px] text-[var(--color-text-muted)] font-normal">
-                            PORT :1945
-                          </span>
-                        </label>
+        {/* ---- Main: login + side ---- */}
+        <main className="mx-auto w-full max-w-[1400px] px-4 pb-16 md:px-5 lg:px-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+            {/* Login card */}
+            <div id="sr-login" className="an-card sk-anim scroll-mt-20">
+              <div className="an-card-head">
+                <span className="an-card-title">
+                  <span className="an-ic an-ic-sm" aria-hidden>
+                    <span className="material-symbols-outlined">login</span>
+                  </span>
+                  {mustChange ? t.changePwdTitle : t.cardTitle}
+                </span>
+              </div>
+
+              <div className="p-5 md:p-7 relative">
+                {mustChange && (
+                  <p className="mb-6 max-w-[54ch] text-[14.5px] leading-relaxed text-[var(--t-muted)]">
+                    {t.changePwdDesc}
+                  </p>
+                )}
+
+                {!mustChange && error && <p className="an-msg err mb-4">{error}</p>}
+                {!mustChange && successMsg && <p className="an-msg ok mb-4">{successMsg}</p>}
+
+                {mustChange ? (
+                  <form onSubmit={handleSetNewPassword} className="mt-6 flex flex-col gap-4">
+                    <div>
+                      <label htmlFor="sk-newpwd" className="an-label">
+                        {t.newPwdLabel}
+                      </label>
+                      <div className="an-field">
+                        <span className="fi">
+                          <span className="material-symbols-outlined">lock</span>
+                        </span>
                         <input
-                          type="password"
-                          placeholder={t.pwdPlaceholder}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
+                          id="sk-newpwd"
+                          type={showNewPwd ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
                           required
                           autoFocus
-                          className="w-full bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] p-2.5 sm:p-3 font-mono text-xs sm:text-sm shadow-[2px_3px_0px_var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[3px_4px_0px_var(--color-primary)] transition-all placeholder:text-[var(--color-text-muted)]/60 rounded-lg"
+                          autoComplete="new-password"
+                          className="an-input eye"
                         />
-
-                        {error && (
-                          <div className="font-mono text-xs font-bold text-[var(--color-danger)] mt-1 bg-[var(--color-danger)]/10 p-2 border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] rounded-md">
-                            [!] {error}
-                          </div>
-                        )}
-
-                        {successMsg && (
-                          <div className="font-mono text-xs font-bold text-[var(--color-success)] mt-1 bg-[var(--color-success)]/10 p-2 border-2 border-[var(--color-border)] shadow-[2px_2px_0px_var(--color-border)] rounded-md">
-                            [âœ“] {successMsg}
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPwd((v) => !v)}
+                          aria-label={showNewPwd ? t.hide : t.show}
+                          title={showNewPwd ? t.hide : t.show}
+                          className="an-eye"
+                        >
+                          <span className="material-symbols-outlined">
+                            {showNewPwd ? "visibility_off" : "visibility"}
+                          </span>
+                        </button>
                       </div>
+                    </div>
 
-                      {/* Submit 3D Button */}
+                    <div className="an-str">
+                      <span className="bars" aria-hidden>
+                        {[1, 2, 3, 4].map((i) => (
+                          <span key={i} style={{ background: newScore >= i ? "var(--t-accent)" : "var(--t-line)" }} />
+                        ))}
+                      </span>
+                      <span className="lbl">
+                        {t.strengthLabel}: <strong>{strengthText}</strong>
+                      </span>
+                    </div>
+
+                    {error && <p className="an-msg err">{error}</p>}
+                    {successMsg && <p className="an-msg ok">{successMsg}</p>}
+
+                    <button type="submit" disabled={loading || !newPassword} className="an-btn an-primary an-full">
+                      {loading && <Spinner />}
+                      {loading ? t.btnLoading : t.btnSavePwd}
+                      {!loading && <span className="material-symbols-outlined">arrow_right</span>}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="mt-6 flex flex-col gap-4">
+                    {samlAvailable && (
                       <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-2 border-[var(--color-border)] font-mono font-black text-xs sm:text-sm uppercase py-3 sm:py-3.5 px-4 shadow-[3px_4.5px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[4px_6px_0px_var(--color-border)] active:translate-y-0.5 active:shadow-[1px_1.5px_0px_var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-lg mt-0.5"
+                        type="button"
+                        onClick={() => (window.location.href = "/api/auth/saml/start")}
+                        className="an-btn an-ghost an-full"
                       >
-                        <span className="material-symbols-outlined text-[17px]">login</span>
-                        {loading ? t.btnLoading : t.btnSubmit}
+                        <span className="material-symbols-outlined">shield</span>
+                        {samlLoginLabel}
                       </button>
+                    )}
 
-                      {/* Password helper chip */}
-                      <div className="mt-1 p-2 bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] shadow-[2px_2.5px_0px_var(--color-border)] flex items-center justify-between text-[11px] font-mono rounded-lg">
-                        <span className="text-[var(--color-text-muted)] font-bold">{t.defaultPwdText}</span>
-                        <code className="bg-[var(--color-surface)] text-[var(--color-success)] px-2.5 py-0.5 border border-[var(--color-border)] font-black tracking-wider text-[11px] shadow-[1px_1.5px_0px_var(--color-border)] rounded-md">
-                          {t.defaultPwdVal}
-                        </code>
+                    {oidcAvailable && (
+                      <button
+                        type="button"
+                        onClick={() => (window.location.href = "/api/auth/oidc/start")}
+                        className="an-btn an-ghost an-full"
+                      >
+                        <span className="material-symbols-outlined">account_circle</span>
+                        {oidcLoginLabel}
+                      </button>
+                    )}
+
+                    {(samlAvailable || oidcAvailable) && (
+                      <div className="flex items-center gap-4 font-mono text-[12px] uppercase tracking-[0.14em] text-[var(--t-dim)]">
+                        <span className="h-px flex-1 bg-[var(--t-line)]" />
+                        {t.orDivider}
+                        <span className="h-px flex-1 bg-[var(--t-line)]" />
                       </div>
-                    </form>
-                  )}
-                </div>
-              )}
+                    )}
+
+                    {passwordAvailable && (
+                      <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                        <div>
+                          <label htmlFor="sk-password" className="an-label">
+                            {t.pwdLabel}
+                          </label>
+                          <div className="an-field">
+                            <span className="fi">
+                              <span className="material-symbols-outlined">lock</span>
+                            </span>
+                            <input
+                              id="sk-password"
+                              type={showPwd ? "text" : "password"}
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              required
+                              autoFocus
+                              autoComplete="current-password"
+                              className="an-input eye"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPwd((v) => !v)}
+                              aria-label={showPwd ? t.hide : t.show}
+                              title={showPwd ? t.hide : t.show}
+                              className="an-eye"
+                            >
+                              <span className="material-symbols-outlined">
+                                {showPwd ? "visibility_off" : "visibility"}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <button type="submit" disabled={loading} className="an-btn an-primary an-full">
+                          {loading && <Spinner />}
+                          {loading ? t.btnLoading : t.btnSubmit}
+                          {!loading && <span className="material-symbols-outlined">arrow_right</span>}
+                        </button>
+
+                        <p className="an-hint text-center">
+                          {t.defaultPwdText}: <code>{t.defaultPwdVal}</code>
+                        </p>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {loading && (
+                  <div className="an-overlay">
+                    <Spinner />
+                    <span className="an-overlay-text">{t.btnLoading}</span>
+                  </div>
+                )}
+
+                {failFlash && (
+                  <div className="an-failflash">
+                    <span className="an-failflash-emoji">😭</span>
+                  </div>
+                )}
+
+                {successFlash && (
+                  <div className="an-successflash">
+                    <span className="an-successflash-emoji">🎉</span>
+                    <span className="an-successflash-text">{t.loginSuccess}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Side column: comparison */}
+            <div className="flex flex-col gap-6">
+              <div className="an-card">
+                <button
+                  type="button"
+                  onClick={() => setCompareOpen((v) => !v)}
+                  aria-expanded={compareOpen}
+                  className="an-dd-head"
+                >
+                  <span className="an-eyebrow">
+                    <span className="an-rule" />
+                    {t.compareTitle}
+                  </span>
+                  <span className={`an-dd-chev${compareOpen ? " on" : ""}`} aria-hidden>
+                    <span className="material-symbols-outlined">expand_more</span>
+                  </span>
+                </button>
+
+                {compareOpen && (
+                  <div className="an-dd-body">
+                    <p className="text-[13.5px] leading-relaxed text-[var(--t-muted)]">
+                      {t.faqDesc}
+                    </p>
+                    <div className="flex flex-col gap-2 pt-1 border-t border-[var(--t-line-soft)]">
+                      <span className="text-[11.5px] text-[var(--t-dim)]">
+                        {t.faqRequestHint}
+                      </span>
+                      <a
+                        className="an-dd-src"
+                        href={GITHUB_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {t.faqRepoBtn}
+                        <span className="material-symbols-outlined">open_in_new</span>
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
 
-      {/* Modern Responsive Footer */}
-      <footer className="w-full border-t-2 border-[var(--color-border)] bg-[var(--color-surface)] py-3.5 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto flex flex-col items-center justify-center gap-1 font-mono text-center">
-          <div className="text-xs font-bold text-[var(--color-text-main)] flex items-center justify-center gap-2">
-            <span className="size-2 rounded-full bg-[var(--color-success)]" />
-            <span>Router Mod {new Date().getFullYear()}</span>
-          </div>
-          <div className="text-[11px] font-semibold text-[var(--color-text-muted)]">
-            Developed by{" "}
-            <a
-              href="https://github.com/techwiz37"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--color-primary)] hover:underline font-bold inline-flex items-center gap-0.5"
-            >
-              Techwiz
-              <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-            </a>
-          </div>
-        </div>
-      </footer>
+        {/* ---- Footer ---- */}
+        <AntaresFooter />
+      </div>
     </div>
   );
 }

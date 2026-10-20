@@ -74,8 +74,15 @@ export function listProjects() {
 }
 
 export function resolveInsideRoot(targetPath, { projectPath, mode = getRootMode() } = {}) {
-  const base = mode === "full" ? path.parse(process.cwd()).root : projectPath || getProjectsRoot();
+  const root = getProjectsRoot();
+  const base = mode === "full" ? path.parse(process.cwd()).root : projectPath || root;
   if (!base) throw new Error("No agent root configured");
+
+  // The project folder itself must live inside the projects root — otherwise a
+  // caller could point "project" at any path on the disk and read/write it.
+  if (mode !== "full" && !isInside(root, base)) {
+    throw new Error("Project is outside the allowed root");
+  }
 
   const raw = String(targetPath || ".");
   const abs = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(base, raw);

@@ -40,40 +40,15 @@ import {
   registerXiaomiMimoSession,
   getXiaomiMimoSessionStatus,
   clearXiaomiMimoSession,
+  startAntigravityProxy,
+  stopAntigravityProxy,
+  registerAntigravitySession,
+  getAntigravitySessionStatus,
+  clearAntigravitySession,
 } from "@/lib/oauth/utils/server";
 import { detectIdeInstalled } from "@/lib/oauth/utils/ideDetect";
 import { ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
 import { getProviderConnectionById } from "@/lib/localDb.js";
-import { createRequire } from "module";
-
-const requireCjs = createRequire(import.meta.url);
-let _sessionStore = null;
-function sessionStoreCjs() {
-  if (!_sessionStore) _sessionStore = requireCjs("@/bot/session_store.js");
-  return _sessionStore;
-}
-
-// Persist a browser cookie jar for an OAuth connection so it can be recovered
-// later (see src/bot/session_recovery.js) if Google revokes the refresh token.
-// Accepts either a puppeteer cookie array or a raw `Cookie:` header string.
-async function persistAntigravityCookieJar(connection, cookieJar) {
-  if (!connection?.id) return null;
-  try {
-    const cookieStore = sessionStoreCjs();
-    let cookies = cookieJar;
-    if (typeof cookieJar === "string") {
-      cookies = cookieStore.cookiesFromHeader(cookieJar);
-    }
-    if (!Array.isArray(cookies) || cookies.length === 0) return null;
-    const saved = cookieStore.saveSession(connection.id, connection.email, cookies, {
-      source: "oauth-exchange",
-    });
-    return saved ? { cookies: saved.cookies.length, email: saved.email } : null;
-  } catch (err) {
-    console.log("persistAntigravityCookieJar error:", err?.message ?? err);
-    return null;
-  }
-}
 
 async function completeXaiManualCode(code, state) {
   const session = state ? getXaiSessionStatus(state) : null;
@@ -172,8 +147,12 @@ export async function GET(request, { params }) {
         const result = await startXiaomiMimoProxy();
         return NextResponse.json(result);
       }
+      if (provider === "antigravity") {
+        const result = await startAntigravityProxy();
+        return NextResponse.json(result);
+      }
       if (!["codex", "xai"].includes(provider)) {
-        return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
+        return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed/antigravity" }, { status: 400 });
       }
       const appPort = searchParams.get("app_port");
       if (!appPort) {
@@ -206,7 +185,8 @@ export async function GET(request, { params }) {
       else if (provider === "xai") session = getXaiSessionStatus(state);
       else if (provider === "codex") session = getCodexSessionStatus(state);
       else if (provider === "xiaomi-mimo") session = getXiaomiMimoSessionStatus(state);
-      else return NextResponse.json({ error: "Poll only supported for codex/xai/trae/windsurf/zed/xiaomi-mimo" }, { status: 400 });
+      else if (provider === "antigravity") session = getAntigravitySessionStatus(state);
+      else return NextResponse.json({ error: "Poll only supported for codex/xai/trae/windsurf/zed/xiaomi-mimo/antigravity" }, { status: 400 });
       if (!session) return NextResponse.json({ status: "unknown" });
       if (session.status === "done" || session.status === "error") {
         const payload = { ...session };
@@ -221,6 +201,7 @@ export async function GET(request, { params }) {
         else if (provider === "windsurf") clearWindsurfSession(state);
         else if (provider === "zed") clearZedSession(state);
         else if (provider === "xai") clearXaiSession(state);
+        else if (provider === "antigravity") { clearAntigravitySession(state); stopAntigravityProxy(); }
         else clearCodexSession(state);
         return NextResponse.json(payload);
       }
@@ -234,7 +215,8 @@ export async function GET(request, { params }) {
       else if (provider === "xai") stopXaiProxy();
       else if (provider === "codex") stopCodexProxy();
       else if (provider === "xiaomi-mimo") stopXiaomiMimoProxy();
-      else return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed/xiaomi-mimo" }, { status: 400 });
+      else if (provider === "antigravity") stopAntigravityProxy();
+      else return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed/xiaomi-mimo/antigravity" }, { status: 400 });
       return NextResponse.json({ success: true });
     }
 
@@ -277,6 +259,7 @@ export async function GET(request, { params }) {
         "grok-cli",
         "muse",
         "glm",
+        "nous",
       ];
       let deviceData;
       if (noPkceDeviceProviders.includes(provider)) {
@@ -316,7 +299,8 @@ export async function POST(request, { params }) {
       if (provider === "trae") ok = registerTraeSession({ state });
       else if (provider === "windsurf") ok = registerWindsurfSession({ state });
       else if (provider === "zed") ok = registerZedSession({ state, codeVerifier: body?.codeVerifier, systemId: body?.systemId });
-      else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed" }, { status: 400 });
+      else if (provider === "antigravity") ok = registerAntigravitySession({ state, codeVerifier: body?.codeVerifier, redirectUri: body?.redirectUri });
+      else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed/antigravity" }, { status: 400 });
       return NextResponse.json({ success: ok });
     }
 
@@ -468,29 +452,6 @@ export async function POST(request, { params }) {
         testStatus: "active",
       });
 
-      // Persist the browser cookie jar (when the client sends one) so the
-      // connection can be recovered after the OAuth grant dies.
-      if (cookieJar && connection?.id) {
-        await persistAntigravityCookieJar(connection, cookieJar);
-      }
-
-      // Antigravity only: if no jar came from the client, seed one from the
-      // fresh OAuth grant by driving the web app headlessly. Fire-and-forget so
-      // the login response isn't blocked by a browser launch.
-      if (provider === "antigravity" && connection?.id && !cookieJar) {
-        (async () => {
-          try {
-            const { seedCookieFromOAuth } = requireCjs("@/bot/cookie_refresher.js");
-            await seedCookieFromOAuth({
-              id: connection.id,
-              email: connection.email,
-            });
-          } catch (e) {
-            console.log("seedCookieFromOAuth error:", e?.message ?? e);
-          }
-        })();
-      }
-
       return NextResponse.json({ 
         success: true, 
         connection: {
@@ -523,7 +484,7 @@ export async function POST(request, { params }) {
         return NextResponse.json({ error: "Missing device code" }, { status: 400 });
       }
 
-      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn", "codebuddy-intl", "glm"];
+      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn", "codebuddy-intl", "glm", "nous"];
       let result;
       if (noPkceProviders.includes(provider)) {
         result = await pollForToken(provider, deviceCode, null, extraData);

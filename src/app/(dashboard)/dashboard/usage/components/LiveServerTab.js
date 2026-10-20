@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Card from "@/shared/components/Card";
 import Button from "@/shared/components/Button";
 
 function formatBytes(bytes) {
@@ -112,7 +111,8 @@ export default function LiveServerTab() {
       {/* Grid of Resource Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* CPU */}
-        <Card className="flex flex-col justify-between p-4 space-y-4">
+        <section className="an-panel">
+          <div className="an-panel-pad">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">CPU Usage</p>
@@ -130,10 +130,12 @@ export default function LiveServerTab() {
           <div className="border-t border-border/50 pt-2 font-mono text-[11px] text-text-muted">
             {metrics?.cpu?.cores} Cores · {metrics?.cpu?.model?.slice(0, 24)}...
           </div>
-        </Card>
+          </div>
+        </section>
 
         {/* RAM (Host) */}
-        <Card className="flex flex-col justify-between p-4 space-y-4">
+        <section className="an-panel">
+          <div className="an-panel-pad">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Host Memory (RAM)</p>
@@ -154,10 +156,12 @@ export default function LiveServerTab() {
           <div className="border-t border-border/50 pt-2 font-mono text-[11px] text-text-muted">
             Free: {formatBytes(metrics?.memory?.free)}
           </div>
-        </Card>
+          </div>
+        </section>
 
         {/* Process App Memory (RSS) */}
-        <Card className="flex flex-col justify-between p-4 space-y-4">
+        <section className="an-panel">
+          <div className="an-panel-pad">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">RouterMod Process</p>
@@ -178,10 +182,12 @@ export default function LiveServerTab() {
           <div className="border-t border-border/50 pt-2 font-mono text-[11px] text-text-muted">
             Up: {formatUptime(metrics?.processUptime)}
           </div>
-        </Card>
+          </div>
+        </section>
 
         {/* Disk Storage */}
-        <Card className="flex flex-col justify-between p-4 space-y-4">
+        <section className="an-panel">
+          <div className="an-panel-pad">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Disk Storage</p>
@@ -202,11 +208,13 @@ export default function LiveServerTab() {
           <div className="border-t border-border/50 pt-2 font-mono text-[11px] text-text-muted">
             Free: {formatBytes(metrics?.disk?.free)}
           </div>
-        </Card>
+          </div>
+        </section>
       </div>
 
       {/* Network & Host Details Card */}
-      <Card className="p-5">
+      <section className="an-panel">
+        <div className="an-panel-pad">
         <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">Host System Information</h4>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 font-mono text-xs">
           <div className="rounded-lg border-2 border-border bg-surface-2 p-3 shadow-[1.5px_1.5px_0_var(--color-border)]">
@@ -226,7 +234,8 @@ export default function LiveServerTab() {
             <span className="text-text-main font-bold mt-0.5 block">{process.arch} / {process.platform}</span>
           </div>
         </div>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

@@ -9,13 +9,17 @@ import {
   isInside,
   getRootMode,
 } from "@/lib/agent/config";
-import { resolveModelTarget } from "@/lib/agent/providerStore";
+import { resolveModelTarget, rememberWorkingModel } from "@/lib/agent/providerStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_READ_BYTES = 512 * 1024;
 const UPSTREAM_TIMEOUT_MS = 180000;
+// A model that never answers must not stall the whole turn.
+const FIRST_BYTE_TIMEOUT_MS = 15000;
+// How many alternative models we try before giving up.
+const MODEL_FALLBACK_LIMIT = 3;
 const HEARTBEAT_MS = 8000;
 const MAX_ATTACHMENTS = 6;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -352,6 +356,45 @@ async function executeTool(name, args, { projectPath, terminal }) {
   }
 }
 
+/**
+ * Turn a noisy upstream payload (HTML error page, nested JSON) into one
+ * short line the UI can show.
+ */
+function summarizeUpstreamError(text) {
+  let s = String(text || "").trim();
+  if (!s) return "Upstream tidak merespons";
+  try {
+    const j = JSON.parse(s);
+    const msg = j?.error?.message || j?.message || j?.error;
+    if (typeof msg === "string" && msg.trim()) s = msg.trim();
+    else if (msg) s = JSON.stringify(msg);
+  } catch {
+    /* not JSON — fall through to the HTML strip */
+  }
+  s = s
+    .replace(/<!doctype html>[\s\S]*?<\/head>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.length > 240) s = `${s.slice(0, 240)}…`;
+  return s || "Upstream tidak merespons";
+}
+
+/**
+ * The model cannot serve this turn (gone upstream, or not answering at all)
+ * -> try the next one instead of failing the whole request.
+ */
+function isModelMissingError(err) {
+  const t = String(err?.message || "").toLowerCase();
+  return (
+    t.includes("404") ||
+    t.includes("not found") ||
+    t.includes("not_found") ||
+    t.includes("entity was not found") ||
+    t.includes("tidak merespons")
+  );
+}
+
 function sse(obj) {
   return `data: ${JSON.stringify(obj)}\n\n`;
 }
@@ -365,16 +408,31 @@ function parseToolArgs(raw) {
 }
 
 async function callUpstreamOnce({ url, headers, model, messages, tools, emit }) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ model, messages, tools, tool_choice: "auto", stream: true }),
-    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-  });
+  const controller = new AbortController();
+  const firstByteTimer = setTimeout(() => {
+    controller.abort(new Error("no-response"));
+  }, FIRST_BYTE_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model, messages, tools, tool_choice: "auto", stream: true }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(firstByteTimer);
+    if (controller.signal.aborted) {
+      throw new Error(`Upstream tidak merespons dalam ${FIRST_BYTE_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  }
+  clearTimeout(firstByteTimer);
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Upstream HTTP ${res.status}: ${text.slice(0, 400)}`);
+    throw new Error(`Upstream HTTP ${res.status}: ${summarizeUpstreamError(text)}`);
   }
 
   const contentType = res.headers.get("content-type") || "";
@@ -504,6 +562,8 @@ export async function POST(request) {
   });
 
   const tools = toolDefs({ terminal });
+  // Model that answered — sticks for the rest of the turn.
+  let activeModel = target.model;
   const url = `${target.baseUrl}/chat/completions`;
   const encoder = new TextEncoder();
 
@@ -531,14 +591,51 @@ export async function POST(request) {
           const headers = { "Content-Type": "application/json", Accept: "text/event-stream" };
           if (target.apiKey) headers.Authorization = `Bearer ${target.apiKey}`;
 
-          const { content, toolCalls } = await callUpstreamOnce({
-            url,
-            headers,
-            model: target.model,
-            messages,
-            tools,
-            emit: send,
-          });
+          let content = "";
+          let toolCalls = [];
+          let usedModel = target.model;
+          let lastError = null;
+
+          // Candidate models: the requested one first, then the provider's
+          // other models. A model can disappear upstream at any time, so fall
+          // back instead of failing the whole turn.
+          const candidates = [
+            activeModel,
+            ...(target.models || []).filter((m) => m && m !== activeModel),
+          ].slice(0, MODEL_FALLBACK_LIMIT);
+
+          for (const candidate of candidates) {
+            try {
+              const r = await callUpstreamOnce({
+                url,
+                headers,
+                model: candidate,
+                messages,
+                tools,
+                emit: send,
+              });
+              content = r.content;
+              toolCalls = r.toolCalls;
+              usedModel = candidate;
+              lastError = null;
+              break;
+            } catch (err) {
+              lastError = err;
+              if (!isModelMissingError(err)) throw err;
+              send({
+                type: "status",
+                text: `Model ${candidate} tidak tersedia — mencoba model lain…`,
+              });
+            }
+          }
+
+          if (lastError) throw lastError;
+          if (usedModel !== activeModel) {
+            activeModel = usedModel;
+            send({ type: "model_switch", model: usedModel });
+            // Remember it so the next turn starts on a working model.
+            rememberWorkingModel(target.providerId, usedModel).catch(() => {});
+          }
 
           if (!toolCalls.length) {
             if (!content) send({ type: "error", error: "Model tidak mengembalikan balasan apa pun. Coba model lain atau kirim ulang." });

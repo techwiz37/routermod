@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import { createRequire } from "module";
 import { promisify } from "util";
 import { access, constants, readFile } from "fs/promises";
 import { homedir } from "os";
@@ -6,6 +7,9 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 
 const execFileAsync = promisify(execFile);
+// better-sqlite3 is a native CommonJS addon: it must be loaded through
+// createRequire, a bare require() would throw in an ES module.
+const requireCjs = createRequire(import.meta.url);
 
 export const ZED_DEFAULT_CREDENTIALS_URL = "https://zed.dev";
 export const ZED_KEYRING_LABEL = "zed-github-account";
@@ -74,7 +78,7 @@ export async function readZedSystemId() {
 async function queryKvStore(dbPath, key) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Database = require("better-sqlite3");
+    const Database = requireCjs("better-sqlite3");
     const db = new Database(dbPath, { readonly: true, fileMustExist: true });
     try {
       const row = db.prepare("SELECT value FROM kv_store WHERE key = ? LIMIT 1").get(key);

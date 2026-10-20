@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-export default function PageLoadBadge() {
+export default function PageLoadBadge({ variant = "default" }) {
+  const antares = variant === "antares";
   const [info, setInfo] = useState(null);
   const [visible, setVisible] = useState(false);
   const startRef = useRef(null);
@@ -80,11 +81,14 @@ export default function PageLoadBadge() {
           display: "flex",
           alignItems: "center",
           gap: "6px",
-          padding: "5px 10px",
-          borderRadius: "8px",
-          border: `1.5px solid ${info.color}40`,
-          background: `color-mix(in srgb, ${info.color} 10%, var(--color-surface-2, #f4f5f8))`,
-          boxShadow: `2px 2px 0px ${info.color}30`,
+          padding: antares ? "6px 12px" : "5px 10px",
+          borderRadius: antares ? "999px" : "8px",
+          border: antares ? "1px solid rgba(255,255,255,0.09)" : `1.5px solid ${info.color}40`,
+          background: antares
+            ? "rgba(14,16,19,0.82)"
+            : `color-mix(in srgb, ${info.color} 10%, var(--color-surface-2, #f4f5f8))`,
+          backdropFilter: antares ? "blur(10px)" : "none",
+          boxShadow: antares ? "0 8px 24px -12px rgba(0,0,0,0.6)" : `2px 2px 0px ${info.color}30`,
           fontFamily: "monospace",
           fontSize: "11px",
           color: info.color,

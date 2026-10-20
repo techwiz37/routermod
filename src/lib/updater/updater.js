@@ -1,10 +1,9 @@
-
-const { spawn } = require("child_process");
-const http = require("http");
-const net = require("net");
-const path = require("path");
-const fs = require("fs");
-const os = require("os");
+import { spawn } from "child_process";
+import http from "http";
+import net from "net";
+import path from "path";
+import fs from "fs";
+import os from "os";
 
 const packageName = process.env.UPDATER_PKG_NAME || "9router";
 const port = parseInt(process.env.UPDATER_PORT || "20129", 10);

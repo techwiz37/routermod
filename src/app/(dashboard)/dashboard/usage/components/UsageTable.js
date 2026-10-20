@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import PropTypes from "prop-types";
-import Card from "@/shared/components/Card";
 import Badge from "@/shared/components/Badge";
 
 const fmt = (n) => new Intl.NumberFormat().format(n || 0);
@@ -141,7 +140,7 @@ export default function UsageTable({
   const totalColSpan = columns.length + valueColumns.length;
 
   return (
-    <Card className="overflow-hidden border-2 shadow-[3px_3px_0_var(--color-border)]">
+    <section className="an-panel overflow-hidden">
       {title && (
         <div className="p-3.5 border-b-2 border-border bg-surface-2">
           <h3 className="font-bold text-sm tracking-wider uppercase">{title}</h3>
@@ -256,7 +255,7 @@ export default function UsageTable({
           </div>
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 

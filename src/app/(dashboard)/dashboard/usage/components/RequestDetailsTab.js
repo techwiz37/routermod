@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Card from "@/shared/components/Card";
 import Button from "@/shared/components/Button";
 import Drawer from "@/shared/components/Drawer";
 import Pagination from "@/shared/components/Pagination";
@@ -178,7 +177,8 @@ export default function RequestDetailsTab() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <Card padding="md">
+      <section className="an-panel">
+        <div className="an-panel-pad">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Provider</label>
@@ -242,9 +242,11 @@ export default function RequestDetailsTab() {
             </Button>
           </div>
         </div>
-      </Card>
+        </div>
+      </section>
 
-      <Card padding="none" className="border-2 shadow-[3px_3px_0_var(--color-border)] overflow-hidden">
+      <section className="an-panel">
+        <div className="an-panel-pad">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px] text-xs">
             <thead>
@@ -339,7 +341,8 @@ export default function RequestDetailsTab() {
             />
           </div>
         )}
-      </Card>
+        </div>
+      </section>
 
       <Drawer
         isOpen={isDrawerOpen}

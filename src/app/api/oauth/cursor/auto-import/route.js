@@ -3,9 +3,13 @@ import { access, constants } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 import { execFile } from "child_process";
+import { createRequire } from "module";
 import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
+// better-sqlite3 is a native CommonJS addon: it must be loaded through
+// createRequire, a bare require() would throw in an ES module.
+const requireCjs = createRequire(import.meta.url);
 
 const ACCESS_TOKEN_KEYS = ["cursorAuth/accessToken", "cursorAuth/token"];
 const MACHINE_ID_KEYS = [
@@ -73,7 +77,7 @@ const normalize = (value) => {
 
 function extractTokensViaBetterSqlite(dbPath) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require("better-sqlite3");
+  const Database = requireCjs("better-sqlite3");
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
 
   const query = (key) => {

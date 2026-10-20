@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Card, Button, Toggle, Input } from "@/shared/components";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import { useTheme } from "@/shared/hooks/useTheme";
@@ -22,6 +23,10 @@ function getLocaleFromCookie() {
 export default function ProfilePage() {
   const { theme, setTheme, isDark } = useTheme();
   const [locale, setLocale] = useState(() => getLocaleFromCookie());
+  // Values that only exist in the browser are rendered after mount so the
+  // server and the first client render stay identical (no hydration error).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [langOpen, setLangOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
@@ -762,7 +767,60 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="an-scope an-settingsscope flex flex-col gap-5">
+      {/* Hero */}
+      <section className="an-panel an-hero">
+        <div className="an-hero-main">
+          <span className="an-hero-eyebrow">Pengaturan</span>
+          <h1 className="an-hero-title">Pengaturan Sistem</h1>
+          <p className="an-hero-sub">
+            Atur bahasa, keamanan, routing, jaringan, dan preferensi RouterMod
+            di satu tempat.
+          </p>
+        </div>
+        <div className="an-hero-stats">
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">computer</span>
+              Mode
+            </span>
+            <span className="an-stat-value !text-[15px]">Lokal</span>
+            <span className="an-stat-foot">jalan di mesin sendiri</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">translate</span>
+              Bahasa
+            </span>
+            <span className="an-stat-value !text-[15px]">
+              {mounted ? (locale || "id").toUpperCase() : "—"}
+            </span>
+            <span className="an-stat-foot">bahasa antarmuka</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">lock</span>
+              Keamanan
+            </span>
+            <span className="an-stat-value !text-[15px]">
+              {mounted ? (settings.hasPassword ? "Aktif" : "Belum") : "—"}
+            </span>
+            <span className="an-stat-foot">password dashboard</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">hub</span>
+              Mode Login
+            </span>
+            <span className="an-stat-value !text-[15px]">
+              {mounted ? settings.authMode || "password" : "—"}
+            </span>
+            <span className="an-stat-foot">cara masuk</span>
+          </div>
+        </div>
+      </section>
+
+      <SurfaceSkinContext.Provider value="antares">
         {/* Local Mode Info */}
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
@@ -771,7 +829,7 @@ export default function ProfilePage() {
                 <span className="material-symbols-outlined text-xl sm:text-2xl">computer</span>
               </div>
               <div>
-                <h2 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Local Mode</h2>
+                <h2 className="an-panel-title">Local Mode</h2>
                 <p className="text-sm text-text-muted">Running on your machine</p>
               </div>
             </div>
@@ -844,7 +902,7 @@ export default function ProfilePage() {
             <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">language</span>
             </div>
-            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Language</h3>
+            <h3 className="an-panel-title">Language</h3>
           </div>
           <button
             onClick={() => setLangOpen(true)}
@@ -852,7 +910,9 @@ export default function ProfilePage() {
             data-i18n-skip="true"
           >
             <span className="text-sm text-text-muted">Display language</span>
-            <span className="text-2xl">{LOCALE_FLAGS[locale] || "🌐"}</span>
+            <span className="text-2xl">
+              {mounted ? LOCALE_FLAGS[locale] || "🌐" : "\u00A0"}
+            </span>
           </button>
         </Card>
 
@@ -862,7 +922,7 @@ export default function ProfilePage() {
             <div className="size-10 rounded-xl border-2 border-border bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">shield</span>
             </div>
-            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Security</h3>
+            <h3 className="an-panel-title">Security</h3>
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
@@ -949,7 +1009,7 @@ export default function ProfilePage() {
               <span className="material-symbols-outlined text-[20px]">lock_open</span>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Single Sign-On (SSO)</h3>
+              <h3 className="an-panel-title">Single Sign-On (SSO)</h3>
               <p className="text-xs text-text-muted">
                 {settings.authMode === "sso" || settings.authMode === "oidc" || settings.authMode === "saml"
                   ? `${settings.ssoType === "saml" ? "SAML 2.0" : "OIDC"} SSO active`
@@ -1436,7 +1496,7 @@ export default function ProfilePage() {
             <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">route</span>
             </div>
-            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Routing Strategy</h3>
+            <h3 className="an-panel-title">Routing Strategy</h3>
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
@@ -1527,7 +1587,7 @@ export default function ProfilePage() {
             <div className="size-10 rounded-xl border-2 border-border bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">wifi</span>
             </div>
-            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Network</h3>
+            <h3 className="an-panel-title">Network</h3>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -1599,7 +1659,7 @@ export default function ProfilePage() {
             <div className="size-10 rounded-xl border-2 border-border bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">monitoring</span>
             </div>
-            <h3 className="font-mono font-bold text-sm sm:text-base uppercase tracking-wider text-text-main">Observability</h3>
+            <h3 className="an-panel-title">Observability</h3>
           </div>
           <div className="flex items-start sm:items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -1691,6 +1751,7 @@ export default function ProfilePage() {
           autoFocus
         />
       </Modal>
+      </SurfaceSkinContext.Provider>
     </div>
   );
 }

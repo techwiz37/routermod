@@ -15,49 +15,50 @@ export default function DomainRow({
   const isWaiting  = tunnelEnabled && !tunnelLoading && !tunnelReachable;
   const isError    = tunnelStatus?.type === "error";
 
-  const badgeClass = `self-start text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
-    tunnelEnabled
-      ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] border-[var(--color-primary)]/30"
-      : "bg-surface-2 text-text-muted border-border"
-  }`;
-
   const iconBtn = (onClick, icon, title, extra = "") => (
-    <button onClick={onClick} title={title}
-      className={`p-1.5 rounded-lg border-2 border-border bg-surface hover:bg-surface-2 text-text-muted hover:text-text-main transition-colors shrink-0 ${extra}`}
-      style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}>
+    <button onClick={onClick} title={title} aria-label={title}
+      className={`an-btn an-ghost h-9 w-9 px-0 shrink-0 ${extra}`}>
       <span className="material-symbols-outlined text-[15px]">{icon}</span>
     </button>
   );
 
   const offBtn = (onClick, title = "Disable") => (
-    <button onClick={onClick} title={title}
-      className="p-1.5 rounded-lg border-2 border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-500 transition-colors shrink-0"
-      style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}>
+    <button onClick={onClick} title={title} aria-label={title}
+      className="an-btn h-9 w-9 px-0 shrink-0 border border-[rgba(255,106,117,0.4)] bg-transparent text-[var(--t-danger)] hover:bg-[var(--t-danger-soft)]">
       <span className="material-symbols-outlined text-[15px]">power_settings_new</span>
     </button>
   );
 
-  const statusBox = (icon, text, colorClass, spin = false) => (
-    <div className={`flex-1 min-w-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 border-border text-xs font-mono ${colorClass}`}
-      style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}>
-      <span className={`material-symbols-outlined text-[13px] shrink-0 ${spin ? "animate-spin" : ""}`}>{icon}</span>
-      <span className="truncate">{text}</span>
-    </div>
-  );
+  const statusBox = (icon, text, tone = "default", spin = false) => {
+    const tones = {
+      default: { bg: "var(--t-raised)", ink: "var(--t-muted)", border: "var(--t-line)" },
+      warn: { bg: "rgba(240,161,58,0.12)", ink: "#f0a13a", border: "rgba(240,161,58,0.3)" },
+      danger: { bg: "var(--t-danger-soft)", ink: "var(--t-danger)", border: "rgba(255,106,117,0.3)" },
+    };
+    const c = tones[tone] || tones.default;
+    return (
+      <div
+        className="flex-1 min-w-0 flex items-center gap-1.5 px-3 py-2 rounded-[10px] border text-xs"
+        style={{ background: c.bg, borderColor: c.border, color: c.ink }}
+      >
+        <span className={`material-symbols-outlined text-[13px] shrink-0 ${spin ? "animate-spin" : ""}`}>{icon}</span>
+        <span className="truncate">{text}</span>
+      </div>
+    );
+  };
 
   let content, actions;
 
   if (isActive) {
     content = (
-      <input value={`${activeUrl}/v1`} readOnly className="flex-1 min-w-0 font-mono text-xs py-1.5 px-2.5 rounded-lg border-2 border-border bg-surface text-text-main focus:outline-none shadow-[1.5px_1.5px_0px_var(--color-border)] truncate" />
+      <input value={`${activeUrl}/v1`} readOnly className="an-input flex-1 min-w-0 py-1.5 text-xs truncate" />
     );
     actions = (
       <>
         {iconBtn(() => copy(`${activeUrl}/v1`, "domain_url"),
           copied === "domain_url" ? "check" : "content_copy", "Copy URL")}
-        <a href={activeUrl} target="_blank" rel="noopener noreferrer" title="Open"
-          className="p-2 rounded-lg border-2 border-border bg-surface hover:bg-surface-2 text-text-muted hover:text-text-main transition-colors shrink-0"
-          style={{ boxShadow: "1.5px 1.5px 0 var(--color-border)" }}>
+        <a href={activeUrl} target="_blank" rel="noopener noreferrer" title="Open" aria-label="Open domain"
+          className="an-btn an-ghost h-9 w-9 px-0 shrink-0">
           <span className="material-symbols-outlined text-[16px]">open_in_new</span>
         </a>
         {offBtn(onDisable, "Disable & delete domain")}
@@ -65,25 +66,22 @@ export default function DomainRow({
     );
   } else if (isWaiting) {
     content = statusBox("progress_activity",
-      tunnelEverReachable ? "Reconnecting…" : "Checking domain…",
-      "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10 border-amber-300/60 dark:border-amber-700/40", true);
+      tunnelEverReachable ? "Reconnecting…" : "Checking domain…", "warn", true);
     actions = offBtn(onDisable, "Disable & delete domain");
   } else if (tunnelLoading) {
     content = statusBox("progress_activity",
-      tunnelProgress || "Generating domain…",
-      "text-text-muted bg-surface-2", true);
+      tunnelProgress || "Generating domain…", "default", true);
     actions = offBtn(onCancelLoading, "Cancel");
   } else if (isError) {
-    content = statusBox("error_outline", tunnelStatus.message,
-      "text-red-500 bg-red-50 dark:bg-red-900/10 border-red-300/60 dark:border-red-700/40");
-    actions = <Button size="sm" icon="refresh" onClick={onGenerate}>Retry</Button>;
+    content = statusBox("error_outline", tunnelStatus.message, "danger");
+    actions = <Button skin="antares" size="sm" icon="refresh" onClick={onGenerate}>Retry</Button>;
   } else if (tunnelChecking) {
-    content = statusBox("progress_activity", "Checking…", "text-text-muted bg-surface-2", true);
+    content = statusBox("progress_activity", "Checking…", "default", true);
     actions = offBtn(onCancelChecking, "Cancel");
   } else {
-    content = statusBox("public", "Free public domain · *.toolwiz.id", "text-text-muted bg-surface-2");
+    content = statusBox("public", "Free public domain · *.toolwiz.id", "default");
     actions = (
-      <Button size="sm" icon="add_link" onClick={() => {
+      <Button skin="antares" size="sm" icon="add_link" onClick={() => {
         if (isLoginUnsafe) { addNotification({ type: "error", title: "Security Required", message: unsafeReason }); return; }
         if (!requireApiKey) { addNotification({ type: "warning", title: "Security Required", message: "Enable \"Require API key\" before activating the domain." }); return; }
         onGenerate();
@@ -94,8 +92,8 @@ export default function DomainRow({
   }
 
   return (
-    <div className="flex flex-col gap-1 min-w-0">
-      <span className={badgeClass}>Domain</span>
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <span className={`an-chip self-start ${tunnelEnabled ? "accent" : ""}`}>Domain</span>
       <div className="flex items-center gap-1.5 min-w-0">
         {content}
         <div className="flex items-center gap-1 shrink-0">{actions}</div>

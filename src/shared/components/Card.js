@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
 import { cn } from "@/shared/utils/cn";
+import { useSurfaceSkin } from "./SurfaceSkinContext";
 
 export default function Card({
   children,
@@ -11,9 +12,11 @@ export default function Card({
   padding = "md",
   hover = false,
   elev = false,
+  skin,
   className,
   ...props
 }) {
+  const contextSkin = useSurfaceSkin();
   const paddings = {
     none: "",
     xs: "p-3",
@@ -21,6 +24,38 @@ export default function Card({
     md: "p-5 sm:p-6",
     lg: "p-6 sm:p-8",
   };
+  const activeSkin = skin || contextSkin;
+
+  if (activeSkin === "antares") {
+    return (
+      <div
+        className={cn(
+          "an-panel",
+          hover && "transition-colors cursor-pointer hover:border-[var(--t-hover-line)]",
+          className
+        )}
+        {...props}
+      >
+        {(title || subtitle || icon || action) && (
+          <div className="an-panel-head">
+            {icon && (
+              <span className="an-panel-ico" aria-hidden>
+                <span className="material-symbols-outlined">{icon}</span>
+              </span>
+            )}
+            {(title || subtitle) && (
+              <div className="min-w-0 flex-1">
+                {title && <h3 className="an-panel-title truncate">{title}</h3>}
+                {subtitle && <p className="an-panel-sub">{subtitle}</p>}
+              </div>
+            )}
+            {action && <div className="an-panel-actions">{action}</div>}
+          </div>
+        )}
+        <div className={cn(paddings[padding])}>{children}</div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -59,6 +94,17 @@ export default function Card({
 }
 
 Card.Section = function CardSection({ children, className, ...props }) {
+  const skin = useSurfaceSkin();
+  if (skin === "antares") {
+    return (
+      <div
+        className={cn("rounded-[10px] border border-[var(--t-line)] bg-[var(--t-raised)] p-4", className)}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
   return (
     <div
       className={cn(
@@ -74,6 +120,22 @@ Card.Section = function CardSection({ children, className, ...props }) {
 };
 
 Card.Row = function CardRow({ children, className, ...props }) {
+  const skin = useSurfaceSkin();
+  if (skin === "antares") {
+    return (
+      <div
+        className={cn(
+          "p-3 -mx-3 px-3 transition-colors",
+          "border-b border-[var(--t-line-soft)] last:border-b-0",
+          "hover:bg-white/[0.015]",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
   return (
     <div
       className={cn(
@@ -95,6 +157,27 @@ Card.ListItem = function CardListItem({
   className,
   ...props
 }) {
+  const skin = useSurfaceSkin();
+  if (skin === "antares") {
+    return (
+      <div
+        className={cn(
+          "group flex items-center justify-between p-3 -mx-3 px-3",
+          "border-b border-[var(--t-line-soft)] last:border-b-0",
+          "hover:bg-white/[0.015] transition-colors",
+          className
+        )}
+        {...props}
+      >
+        <div className="flex-1 min-w-0">{children}</div>
+        {actions && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {actions}
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div
       className={cn(

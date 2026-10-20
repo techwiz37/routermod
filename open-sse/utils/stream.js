@@ -87,6 +87,11 @@ export function createSSEStream(options = {}) {
   let openAIResponsesTerminalSeen = false;
   let openAIResponsesDoneSent = false;
   let streamDoneSent = false;  // track duplicate [DONE] across transform + flush
+  // Some OpenAI-compatible upstreams (e.g. Radox) emit a finish_reason chunk and
+  // then keep streaming trailing content. Strict clients (OpenCode / AI SDK) throw
+  // "received content after the finish reason". Hold the finish chunk back and
+  // replay it as the last event before [DONE] so ordering is always valid.
+  let heldFinishOutput = null;
   let finalized = false;
   let completionFlushTimer = null;
 
@@ -163,8 +168,26 @@ export function createSSEStream(options = {}) {
           let output;
           let injectedUsage = false;
           let responsesTerminal = false;
+          let sawFinishChunk = false;
+          const isUpstreamDoneLine = trimmed.startsWith("data:") && trimmed.slice(5).trim() === "[DONE]";
 
-          if (trimmed.startsWith("data:") && trimmed.slice(5).trim() !== "[DONE]") {
+          if (isUpstreamDoneLine) {
+            // Replay the held finish chunk so it lands as the last content event,
+            // then forward the upstream sentinel exactly once.
+            if (heldFinishOutput) {
+              reqLogger?.appendConvertedChunk?.(heldFinishOutput);
+              controller.enqueue(sharedEncoder.encode(heldFinishOutput));
+              heldFinishOutput = null;
+            }
+            if (!streamDoneSent) {
+              reqLogger?.appendConvertedChunk?.(trimmed + "\n");
+              controller.enqueue(sharedEncoder.encode(trimmed + "\n"));
+              streamDoneSent = true;
+            }
+            continue;
+          }
+
+          if (trimmed.startsWith("data:")) {
             try {
               const parsed = JSON.parse(trimmed.slice(5).trim());
 
@@ -229,6 +252,7 @@ export function createSSEStream(options = {}) {
               responsesTerminal = isOpenAIResponsesTerminalEvent(currentOpenAIResponsesEvent, parsed);
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+              if (isFinishChunk) sawFinishChunk = true;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
@@ -258,6 +282,13 @@ export function createSSEStream(options = {}) {
             } else {
               output = line + "\n";
             }
+          }
+
+          // Hold the finish chunk back: upstream may still send trailing content
+          // after it, which strict clients reject. Replayed just before [DONE].
+          if (sawFinishChunk) {
+            heldFinishOutput = output;
+            continue;
           }
 
           reqLogger?.appendConvertedChunk?.(output);
@@ -445,6 +476,11 @@ export function createSSEStream(options = {}) {
           // Without it they can hang until timeout and trigger failover.
           // Gemini-family clients (Antigravity, Vertex, Gemini) reject this sentinel with 400 syntax errors.
           const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
+          if (heldFinishOutput) {
+            reqLogger?.appendConvertedChunk?.(heldFinishOutput);
+            controller.enqueue(sharedEncoder.encode(heldFinishOutput));
+            heldFinishOutput = null;
+          }
           if (!streamDoneSent && !isGeminiFamily) {
             const doneOutput = "data: [DONE]\n\n";
             reqLogger?.appendConvertedChunk?.(doneOutput);

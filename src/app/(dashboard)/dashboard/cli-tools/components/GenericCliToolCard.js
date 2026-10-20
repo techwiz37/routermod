@@ -391,11 +391,11 @@ export default function GenericCliToolCard({
                 <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
-                    <p className="font-medium text-yellow-600 dark:text-yellow-400">{tool.name} not detected locally</p>
-                    <p className="text-sm text-text-muted">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-[13px] font-medium text-yellow-600 dark:text-yellow-400 sm:text-sm">{tool.name} not detected locally</p>
+                    <p className="text-[12.5px] text-text-muted sm:text-sm">Manual configuration is still available if 9router is deployed on a remote server.</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 pl-9">
+                <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-9">
                   <Button
                     variant="secondary"
                     size="sm"
@@ -511,7 +511,7 @@ export default function GenericCliToolCard({
                             size="sm"
                             variant="ghost"
                             onClick={handleAddAllActiveModels}
-                            className="text-xs text-primary hover:text-primary-hover"
+                            className="text-xs text-primary hover:text-primary-hover" max-w-full
                           >
                             + Add All Active Models
                           </Button>
@@ -598,7 +598,7 @@ export default function GenericCliToolCard({
                       size="sm"
                       onClick={handleRestore}
                       disabled={restoring || checking}
-                      className="text-red-500 hover:text-red-600 hover:border-red-500/50"
+                      className="text-red-500 hover:text-red-600 hover:border-red-500/50" max-w-full
                     >
                       {restoring ? "Removing..." : "Remove from Tool"}
                     </Button>

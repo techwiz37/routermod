@@ -78,6 +78,10 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
       const data = await res.json();
       if (res.ok) {
         onCreated(data.node);
+        window.dispatchEvent(new CustomEvent("routermod:providers-changed"));
+        try {
+          localStorage.setItem("routermod:providers-changed", String(Date.now()));
+        } catch {}
         setFormData(initialFormData());
         setCheckKey("");
         setValidationResult(null);

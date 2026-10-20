@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
@@ -43,7 +43,7 @@ function polar(cx, cy, r, angleDeg) {
 function Cable({ x1, y1, x2, y2, color, active, delay = 0, isLast }) {
   const mx = (x1 + x2) / 2;
   const d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
-  const stroke = active ? color : isLast ? "#f59e0b" : "var(--color-border)";
+  const stroke = active ? color : isLast ? "#f59e0b" : "var(--t-line)";
   const opacity = active ? 0.9 : isLast ? 0.5 : 0.3;
   const sw = active ? 2.5 : 1.5;
 
@@ -128,10 +128,12 @@ export default function ProviderTopology({
   const activeCount = activeSet.size;
   const isPowering = activeCount > 0;
 
-  const NODE_W = 108;
-  const NODE_H = 30;
+  const NODE_W = 124;
+  const NODE_H = 34;
   const NODE_ICON = 17;
   const NODE_PAD = 6;
+  // Maximum characters that fit inside the node box (monospace, 14px).
+  const NODE_LABEL_MAX = 9;
   const HUB_W = 68;
   const HUB_H = 42;
 
@@ -211,40 +213,45 @@ export default function ProviderTopology({
         }
       `}</style>
 
-      <div className="flex flex-col min-w-0 rounded-xl border-2 border-border overflow-hidden"
-        style={{ boxShadow: "2.5px 2.5px 0 var(--color-border)", background: "var(--color-surface)" }}>
+      <section className="an-panel flex flex-col min-w-0 overflow-hidden">
 
-        <div className="flex items-center justify-between px-4 py-2.5 border-b-2 border-border bg-surface-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[16px] text-[var(--color-primary)]">device_hub</span>
-            <span className="font-mono text-xs font-bold uppercase tracking-wider text-text-muted">Provider Topology</span>
+        <header className="an-panel-head">
+          <span className="an-panel-ico" aria-hidden>
+            <span className="material-symbols-outlined">device_hub</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="an-panel-title">Provider Topology</h2>
+            <p className="an-panel-sub">
+              <span>{providers.length}</span>{" "}
+              <span>provider terhubung</span>
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="an-panel-actions">
             {isPowering && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-md border-2 border-emerald-500/40 bg-emerald-500/10 font-mono text-[10px] font-bold text-emerald-600">
-                <span className="size-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                {activeCount} aktif
+              <span className="an-chip ok">
+                <span className="size-1.5 rounded-full bg-[var(--t-ok)] animate-pulse shrink-0" />
+                <span>{activeCount}</span>{" "}
+                <span>aktif</span>
               </span>
             )}
-            <span className="font-mono text-[11px] text-text-muted font-bold">{providers.length} provider</span>
           </div>
-        </div>
+        </header>
 
         {providers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-8 text-text-muted">
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-[var(--t-muted)]">
             <span className="material-symbols-outlined text-[32px] opacity-20">device_hub</span>
             <span className="text-xs font-mono">Belum ada provider terhubung</span>
           </div>
         ) : (
-          <div className="w-full flex items-center justify-center p-0">
+          <div className="w-full flex-1 flex items-center justify-center p-0">
             <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" style={{ maxHeight: 260 }} preserveAspectRatio="xMidYMid meet">
               <defs>
                 <radialGradient id="hub-radial" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.03" />
+                  <stop offset="0%" stopColor="var(--t-accent)" stopOpacity="0.18" />
+                  <stop offset="100%" stopColor="var(--t-accent)" stopOpacity="0.03" />
                 </radialGradient>
                 <filter id="node-shadow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="1.5" dy="1.5" stdDeviation="0" floodColor="var(--color-border)" floodOpacity="1" />
+                  <feDropShadow dx="1.5" dy="1.5" stdDeviation="0" floodColor="var(--t-line)" floodOpacity="1" />
                 </filter>
                 <filter id="glow-filter" x="-50%" y="-50%" width="200%" height="200%">
                   <feGaussianBlur stdDeviation="3.5" result="blur" />
@@ -282,35 +289,35 @@ export default function ProviderTopology({
 
               <g transform={`translate(${cx}, ${cy})`}>
                 {isPowering && (
-                  <circle r={36} fill="url(#hub-radial)" stroke="var(--color-primary)"
+                  <circle r={36} fill="url(#hub-radial)" stroke="var(--t-accent)"
                     strokeWidth={1.5} strokeOpacity={0.35}
                     style={{ animation: "topo-hub-pulse 2.2s ease-in-out infinite" }} />
                 )}
                 {isPowering && (
-                  <circle r={30} fill="none" stroke="var(--color-primary)"
+                  <circle r={30} fill="none" stroke="var(--t-accent)"
                     strokeWidth={1} strokeOpacity={0.18} strokeDasharray="3 6"
                     style={{ animation: "topo-hub-ring 10s linear infinite", transformOrigin: "center" }} />
                 )}
                 <rect x={-HUB_W / 2} y={-HUB_H / 2} width={HUB_W} height={HUB_H} rx={8}
-                  fill="var(--color-surface)"
-                  stroke="var(--color-primary)"
+                  fill="var(--t-card)"
+                  stroke="var(--t-accent)"
                   strokeWidth={2}
                   filter="url(#node-shadow)"
                   style={{
                     filter: isPowering
-                      ? "drop-shadow(1.5px 1.5px 0 var(--color-border)) drop-shadow(0 0 10px color-mix(in srgb, var(--color-primary) 35%, transparent))"
-                      : "drop-shadow(1.5px 1.5px 0 var(--color-border))",
+                      ? "drop-shadow(1.5px 1.5px 0 var(--t-line)) drop-shadow(0 0 10px color-mix(in srgb, var(--t-accent) 35%, transparent))"
+                      : "drop-shadow(1.5px 1.5px 0 var(--t-line))",
                   }}
                 />
-                <foreignObject x={-15} y={-15} width={30} height={30}>
+                <foreignObject x={-16} y={-16} width={32} height={32}>
                   <div style={{ width: "100%", height: "100%" }}>
-                    <Soft3DLogo className="size-7" />
+                    <Soft3DLogo className="size-8" />
                   </div>
                 </foreignObject>
                 {isPowering && (
                   <g transform={`translate(${HUB_W / 2 - 8}, ${-HUB_H / 2 - 6})`}>
                     <rect x={-11} y={-7} width={22} height={14} rx={7}
-                      fill="var(--color-primary)" />
+                      fill="var(--t-accent)" />
                     <text x={0} y={3.5} textAnchor="middle" fontSize={8} fontWeight={900}
                       fill="white" style={{ fontFamily: "monospace" }}>
                       {activeCount}
@@ -328,9 +335,12 @@ export default function ProviderTopology({
                 const config = getProviderConfig(p.provider);
                 const color = config.color || "#6b7280";
                 const label = (config.name !== p.provider ? config.name : null) || p.nodeName || p.name || p.provider;
-                const labelShort = label.length > 13 ? label.slice(0, 12) + "…" : label;
-                const borderColor = active ? color : hasError ? "#ef4444" : isLast ? "#f59e0b" : "var(--color-border)";
-                const nodeBg = active ? `${color}0d` : hasError ? "#ef444408" : isLast ? "#f59e0b06" : "var(--color-surface-2)";
+                const labelShort =
+                  label.length > NODE_LABEL_MAX
+                    ? label.slice(0, NODE_LABEL_MAX - 1).trimEnd() + "…"
+                    : label;
+                const borderColor = active ? color : hasError ? "#ef4444" : isLast ? "#f59e0b" : "var(--t-line)";
+                const nodeBg = active ? `${color}0d` : hasError ? "#ef444408" : isLast ? "#f59e0b06" : "var(--t-raised)";
 
                 return (
                   <g key={`node-${p.provider}`} transform={`translate(${pos.x}, ${pos.y})`}>
@@ -344,8 +354,8 @@ export default function ProviderTopology({
                       fill={nodeBg} stroke={borderColor} strokeWidth={1.8}
                       style={{
                         filter: active
-                          ? `drop-shadow(1.5px 1.5px 0 var(--color-border)) drop-shadow(0 0 6px ${color}40)`
-                          : "drop-shadow(1.5px 1.5px 0 var(--color-border))",
+                          ? `drop-shadow(1.5px 1.5px 0 var(--t-line)) drop-shadow(0 0 6px ${color}40)`
+                          : "drop-shadow(1.5px 1.5px 0 var(--t-line))",
                       }}
                     />
 
@@ -365,10 +375,11 @@ export default function ProviderTopology({
                       </foreignObject>
                     </g>
 
-                    <text x={-NODE_W / 2 + NODE_PAD + 10 + 17} y={3.5}
-                      textAnchor="start" fontSize={10} fontWeight={800}
-                      fill="var(--color-text-main)" style={{ fontFamily: "monospace" }}>
+                    <text x={-NODE_W / 2 + NODE_PAD + 10 + 17} y={4.5}
+                      textAnchor="start" fontSize={14} fontWeight={700}
+                      fill="var(--t-ink)" style={{ fontFamily: "var(--t-mono)" }}>
                       {labelShort}
+                      <title>{label}</title>
                     </text>
 
                     {active && (
@@ -396,7 +407,7 @@ export default function ProviderTopology({
             </svg>
           </div>
         )}
-      </div>
+      </section>
     </>
   );
 }

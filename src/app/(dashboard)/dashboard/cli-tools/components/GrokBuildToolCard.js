@@ -289,7 +289,7 @@ export default function GrokBuildToolCard({
               <div className="flex items-start gap-3">
                 <span className="material-symbols-outlined text-yellow-500">warning</span>
                 <div className="flex-1">
-                  <p className="font-medium text-yellow-600 dark:text-yellow-400">Grok Build not detected locally</p>
+                  <p className="text-[13px] font-medium text-yellow-600 dark:text-yellow-400 sm:text-sm">Grok Build not detected locally</p>
                   <code className="block mt-2 p-2 bg-black/20 rounded text-xs font-mono">curl -fsSL https://x.ai/cli/install.sh | bash</code>
                 </div>
               </div>

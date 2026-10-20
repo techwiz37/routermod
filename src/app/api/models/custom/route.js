@@ -30,7 +30,39 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { providerAlias, id, type, name, caps, transport } = await request.json();
+    const { providerAlias, id, type, name, caps, transport, models } = await request.json();
+
+    // Bulk mode — used by "Auto-detect Models" to register a whole catalog in
+    // a single request instead of one round-trip per model.
+    if (Array.isArray(models)) {
+      if (!providerAlias) {
+        return NextResponse.json({ error: "providerAlias required" }, { status: 400 });
+      }
+      const seen = new Set();
+      let added = 0;
+      for (const entry of models) {
+        const raw = typeof entry === "string" ? entry : entry?.id;
+        const modelId = typeof raw === "string" ? raw.trim() : "";
+        if (!modelId || seen.has(modelId)) continue;
+        seen.add(modelId);
+        const modelType = (typeof entry === "object" && entry?.type) || "llm";
+        const cleanCaps = sanitizeCaps(typeof entry === "object" ? entry?.caps : null);
+        const cleanTransport = sanitizeTransport(typeof entry === "object" ? entry?.transport : null, modelType);
+        const freeFlag = typeof entry === "object" && typeof entry?.free === "boolean" ? entry.free : undefined;
+        const wasAdded = await addCustomModel({
+          providerAlias,
+          id: modelId,
+          type: modelType,
+          name: (typeof entry === "object" && entry?.name) || undefined,
+          ...(cleanCaps ? { caps: cleanCaps } : {}),
+          ...(cleanTransport ? { transport: cleanTransport } : {}),
+          ...(typeof freeFlag === "boolean" ? { isFree: freeFlag } : {}),
+        });
+        if (wasAdded) added += 1;
+      }
+      return NextResponse.json({ success: true, added, total: seen.size });
+    }
+
     if (!providerAlias || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
@@ -63,6 +95,7 @@ export async function PATCH(request) {
         name: (name?.trim() || old?.name || newId.trim()),
         ...(old?.caps ? { caps: old.caps } : {}),
         ...(old?.transport ? { transport: old.transport } : {}),
+        ...(typeof old?.isFree === "boolean" ? { isFree: old.isFree } : {}),
       });
     } else if (name?.trim()) {
       await addCustomModel({ providerAlias, id, type: resolvedType, name: name.trim() });

@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
 import { cn } from "@/shared/utils/cn";
+import { useSurfaceSkin } from "./SurfaceSkinContext";
 
 const variants = {
   primary: "bg-[var(--color-primary)] hover:bg-[#e10943] text-white disabled:bg-surface-3 disabled:text-text-muted",
@@ -12,6 +13,7 @@ const variants = {
 };
 
 const sizes = {
+  xs: "h-6 px-2.5 text-[11px] rounded-[6px] gap-1.5 font-mono",
   sm: "h-8 px-3 text-xs rounded-lg font-mono",
   md: "h-9.5 px-4 text-xs sm:text-sm rounded-lg font-mono",
   lg: "h-11 px-6 text-sm rounded-xl font-mono",
@@ -26,9 +28,52 @@ export default function Button({
   disabled = false,
   loading = false,
   fullWidth = false,
+  skin,
   className,
   ...props
 }) {
+  const contextSkin = useSurfaceSkin();
+  if ((skin || contextSkin) === "antares") {
+    const antaresVariants = {
+      primary: "an-primary",
+      secondary: "an-ghost",
+      outline: "an-ghost",
+      ghost: "border border-transparent bg-transparent text-[var(--t-muted)] hover:text-[var(--t-ink)] hover:bg-[var(--t-raised)]",
+      danger: "bg-[var(--t-danger)] text-white hover:brightness-110",
+      success: "bg-[var(--t-ok)] text-white hover:brightness-110",
+    };
+    const antaresSizes = {
+      xs: "h-7 px-2.5 text-[11px] gap-1.5",
+      sm: "h-8 px-3 text-[12px]",
+      md: "h-10 px-4 text-[13px]",
+      lg: "h-11 px-5 text-[14px]",
+    };
+    return (
+      <button
+        className={cn(
+          "an-btn inline-flex items-center justify-center gap-2 rounded-[10px] font-medium",
+          "transition-colors duration-150 disabled:opacity-55 disabled:cursor-not-allowed",
+          antaresVariants[variant] || antaresVariants.primary,
+          antaresSizes[size] || antaresSizes.md,
+          fullWidth && "w-full",
+          className
+        )}
+        disabled={disabled || loading}
+        {...props}
+      >
+        {loading ? (
+          <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+        ) : icon ? (
+          <span className="material-symbols-outlined text-[16px]">{icon}</span>
+        ) : null}
+        {children}
+        {iconRight && !loading ? (
+          <span className="material-symbols-outlined text-[16px]">{iconRight}</span>
+        ) : null}
+      </button>
+    );
+  }
+
   return (
     <button
       className={cn(
@@ -44,13 +89,13 @@ export default function Button({
       {...props}
     >
       {loading ? (
-        <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+        <span className={cn("material-symbols-outlined animate-spin", size === "xs" ? "text-[14px]" : "text-[18px]")}>progress_activity</span>
       ) : icon ? (
-        <span className="material-symbols-outlined text-[18px]">{icon}</span>
+        <span className={cn("material-symbols-outlined", size === "xs" ? "text-[14px]" : "text-[18px]")}>{icon}</span>
       ) : null}
       {children}
       {iconRight && !loading && (
-        <span className="material-symbols-outlined text-[18px]">{iconRight}</span>
+        <span className={cn("material-symbols-outlined", size === "xs" ? "text-[14px]" : "text-[18px]")}>{iconRight}</span>
       )}
     </button>
   );

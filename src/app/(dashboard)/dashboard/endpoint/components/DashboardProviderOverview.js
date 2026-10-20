@@ -1,20 +1,21 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import AntaresStat from "@/shared/components/AntaresStat";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { LOCALE_COOKIE } from "@/i18n/config";
 
-const CHECK_INTERVAL_SEC = 60;
+const CHECK_INTERVAL_SEC = 5;
 const PAGE_SIZE = 5;
 
 const TEXT = {
   id: {
     activeProviders: "Provider Aktif",
-    connsReady: "Koneksi AI siap digunakan",
-    activeAccounts: "Akun Aktif (OK)",
+    connsReady: "AI siap dipecut",
+    activeAccounts: "Akun Aktif",
     readyExec: "Siap melayani request",
     limitedAccounts: "Akun Limit",
     limitSub: "Limit token / kuota / 429",
@@ -44,7 +45,7 @@ const TEXT = {
     liveCheck: "Live Cek",
     checking: "Mengecek...",
     btnCheckNow: "Cek Sekarang",
-    limitedSectionTitle: "Tabel Akun Terkena Limit (Token / Quota)",
+    limitedSectionTitle: "List Akun Limit",
     limitedSectionSub: "Daftar akun yang sedang terkena limit token, rate limit (429), saldo habis (402), atau model lock",
     thLimitProvider: "Provider AI",
     thLimitAccount: "Akun / Node",
@@ -72,8 +73,8 @@ const TEXT = {
   },
   en: {
     activeProviders: "Live Providers",
-    connsReady: "AI connections ready",
-    activeAccounts: "Active Accounts (OK)",
+    connsReady: "AI ready to burn",
+    activeAccounts: "Active Accounts",
     readyExec: "Ready to route requests",
     limitedAccounts: "Limited Accounts",
     limitSub: "Rate / Quota limited",
@@ -103,7 +104,7 @@ const TEXT = {
     liveCheck: "Live Check",
     checking: "Checking...",
     btnCheckNow: "Check Now",
-    limitedSectionTitle: "Limited Accounts Table (Token / Quota)",
+    limitedSectionTitle: "Limited Account List",
     limitedSectionSub: "Accounts currently hit by token limit, rate limit (429), zero balance (402), or model locks",
     thLimitProvider: "AI Provider",
     thLimitAccount: "Account / Node",
@@ -251,8 +252,6 @@ export default function DashboardProviderOverview() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [locale, setLocale] = useState("id");
-  const [seeding, setSeeding] = useState(false);
-  const [clearing, setClearing] = useState(false);
   const [liveChecking, setLiveChecking] = useState(false);
   const [countdown, setCountdown] = useState(CHECK_INTERVAL_SEC);
   const [providerFilter, setProviderFilter] = useState("all");
@@ -305,41 +304,44 @@ export default function DashboardProviderOverview() {
     }
   };
 
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      await fetch("/api/dashboard/seed-usage", { method: "POST" });
-      await fetchStats(false);
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const handleClear = async () => {
-    setClearing(true);
-    try {
-      await fetch("/api/dashboard/seed-usage", { method: "DELETE" });
-      await fetchStats(false);
-    } finally {
-      setClearing(false);
-    }
-  };
-
-  // Live check every 20 seconds
+  // Realtime live check every 5 seconds & on focus/events
   useEffect(() => {
     fetchStats(false);
+
+    const onEventRefresh = () => {
+      fetchStats(false);
+    };
+
+    const handleStorage = (e) => {
+      if (e.key === "routermod:providers-changed") {
+        fetchStats(false);
+      }
+    };
+
+    window.addEventListener("focus", onEventRefresh);
+    document.addEventListener("visibilitychange", onEventRefresh);
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("routermod:providers-changed", onEventRefresh);
 
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          fetchStats(false);
+          if (typeof document !== "undefined" && document.visibilityState === "visible") {
+            fetchStats(false);
+          }
           return CHECK_INTERVAL_SEC;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", onEventRefresh);
+      document.removeEventListener("visibilitychange", onEventRefresh);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("routermod:providers-changed", onEventRefresh);
+    };
   }, []);
 
   const summary = data?.summary || {
@@ -398,209 +400,119 @@ export default function DashboardProviderOverview() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
-      {/* 5 Hero Neobrutalism Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
+      {/* 5 Hero Metrics Cards — Antares tiles */}
+      <div className="an-grid gap-2.5 sm:gap-3">
         {/* Active Providers */}
-        <div className="bg-surface border-2 border-border p-3 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-            <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
-              {t.activeProviders}
-            </span>
-            <span className="size-6 sm:size-7 rounded-md bg-[var(--color-primary)]/15 border border-border flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-[var(--color-primary)]">
-                hub
-              </span>
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5 sm:gap-2">
-            <span className="font-mono text-xl sm:text-2xl lg:text-3xl font-black text-text-main">
-              {loading ? "..." : summary.activeProviders}
-            </span>
-            <span className="font-mono text-[10px] sm:text-xs text-text-muted">
-              / {summary.totalProviders}
-            </span>
-          </div>
-          <div className="mt-2 text-[9.5px] sm:text-[10px] font-mono text-text-muted flex items-center gap-1.5 truncate">
-            <span className="size-1.5 rounded-full bg-[var(--color-success)] animate-pulse shrink-0" />
-            <span className="truncate">{t.connsReady}</span>
-          </div>
-        </div>
+        <AntaresStat
+          label={t.activeProviders}
+          icon="hub"
+          tone="default"
+          value={loading ? "..." : summary.activeProviders}
+          unit={`/ ${summary.totalProviders}`}
+          foot={t.connsReady}
+        />
 
-        {/* Active Accounts (OK) */}
-        <div className="bg-surface border-2 border-border p-3 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-            <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
-              {t.activeAccounts}
-            </span>
-            <span className="size-6 sm:size-7 rounded-md bg-[var(--color-success)]/15 border border-border flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-[var(--color-success)]">
-                check_circle
-              </span>
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5 sm:gap-2">
-            <span className="font-mono text-xl sm:text-2xl lg:text-3xl font-black text-[var(--color-success)]">
-              {loading ? "..." : summary.totalActiveAccounts}
-            </span>
-            <span className="font-mono text-[10px] sm:text-xs text-text-muted">Node</span>
-          </div>
-          <div className="mt-2 text-[9.5px] sm:text-[10px] font-mono text-[var(--color-success)] flex items-center gap-1 truncate">
-            <span className="material-symbols-outlined text-[12px] shrink-0">verified</span>
-            <span className="truncate">{t.readyExec}</span>
-          </div>
-        </div>
+        {/* Active Accounts */}
+        <AntaresStat
+          label={t.activeAccounts}
+          icon="check_circle"
+          tone="ok"
+          value={loading ? "..." : summary.totalActiveAccounts}
+          unit="Acc"
+          foot={t.readyExec}
+        />
 
         {/* Limited Accounts */}
-        <div className="bg-surface border-2 border-border p-3 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-            <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
-              {t.limitedAccounts}
-            </span>
-            <span className="size-6 sm:size-7 rounded-md bg-amber-500/15 border border-border flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-amber-500">
-                speed
-              </span>
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5 sm:gap-2">
-            <span className="font-mono text-xl sm:text-2xl lg:text-3xl font-black text-amber-500">
-              {loading ? "..." : summary.totalLimitedAccounts}
-            </span>
-            <span className="font-mono text-[10px] sm:text-xs text-text-muted">Node</span>
-          </div>
-          <div className="mt-2 text-[9.5px] sm:text-[10px] font-mono text-amber-500/90 flex items-center gap-1 truncate">
-            <span className="material-symbols-outlined text-[12px] shrink-0">hourglass_top</span>
-            <span className="truncate">{t.limitSub}</span>
-          </div>
-        </div>
+        <AntaresStat
+          label={t.limitedAccounts}
+          icon="speed"
+          tone="warn"
+          value={loading ? "..." : summary.totalLimitedAccounts}
+          unit="Acc"
+          foot={t.limitSub}
+        />
 
         {/* Dead Accounts */}
-        <div className="bg-surface border-2 border-border p-3 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-            <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
-              {t.failedAccounts}
-            </span>
-            <span className="size-6 sm:size-7 rounded-md bg-red-500/15 border border-border flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-red-500">
-                error
-              </span>
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5 sm:gap-2">
-            <span className="font-mono text-xl sm:text-2xl lg:text-3xl font-black text-red-500">
-              {loading ? "..." : summary.totalFailedAccounts}
-            </span>
-            <span className="font-mono text-[10px] sm:text-xs text-text-muted">Node</span>
-          </div>
-          <div className="mt-2 text-[9.5px] sm:text-[10px] font-mono text-red-500/90 flex items-center gap-1 truncate">
-            <span className="material-symbols-outlined text-[12px] shrink-0">warning</span>
-            <span className="truncate">{t.needCheck}</span>
-          </div>
-        </div>
+        <AntaresStat
+          label={t.failedAccounts}
+          icon="heart_broken"
+          tone="danger"
+          value={loading ? "..." : summary.totalFailedAccounts}
+          unit="Acc"
+          foot={t.needCheck}
+        />
 
-        {/* Lifetime Token Usage */}
-        <div className="col-span-2 sm:col-span-1 bg-surface border-2 border-border p-3 sm:p-4 rounded-xl shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-            <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase text-text-muted truncate">
-              {t.tokensUsed}
-            </span>
-            <span className="size-6 sm:size-7 rounded-md bg-purple-500/15 border border-border flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[15px] sm:text-[18px] text-purple-500">
-                token
-              </span>
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5 sm:gap-2">
-            <span className="font-mono text-xl sm:text-2xl lg:text-3xl font-black text-text-main truncate">
-              {loading ? "..." : fmtNum(summary.totalTokens)}
-            </span>
-            <span className="font-mono text-[10px] sm:text-xs text-text-muted shrink-0">Tok</span>
-          </div>
-          <div className="mt-2 text-[9.5px] sm:text-[10px] font-mono text-text-muted flex items-center gap-1 truncate">
-            <span className="material-symbols-outlined text-[12px] shrink-0">query_stats</span>
-            <span className="truncate">{fmtNum(summary.totalRequests)} {t.totalReqs}</span>
-          </div>
-        </div>
+        {/* Lifetime Token Usage — odd card spans the full row on narrow screens */}
+        <AntaresStat
+          className="an-stat-wide"
+          label={t.tokensUsed}
+          icon="token"
+          tone="violet"
+          value={loading ? "..." : fmtNum(summary.totalTokens)}
+          unit="Token"
+          foot={`${fmtNum(summary.totalRequests)} ${t.totalReqs}`}
+        />
       </div>
 
       {/* Provider Details Table & Status Grid */}
-      <div className="bg-surface border-2 border-border rounded-xl shadow-[3px_4px_0px_var(--color-border)] overflow-hidden">
+      <div className="an-panel overflow-hidden">
         {/* Header Bar */}
-        <div className="p-3.5 sm:p-5 border-b-2 border-border flex flex-wrap items-center justify-between gap-3 bg-surface-2">
+        <div className="an-panel-head flex-wrap">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="size-8 rounded-lg bg-[var(--color-primary)]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[var(--color-primary)] shrink-0">
-              <span className="material-symbols-outlined text-[18px]">dns</span>
-            </div>
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">dns</span>
+            </span>
             <div className="min-w-0">
-              <h2 className="font-mono text-xs sm:text-sm md:text-base font-bold text-text-main uppercase tracking-wider truncate">
-                {t.sectionTitle}
-              </h2>
-              <p className="font-mono text-[10px] sm:text-[11px] text-text-muted truncate">
-                {t.sectionSub}
-              </p>
+              <h2 className="an-panel-title">{t.sectionTitle}</h2>
+              <p className="an-panel-sub">{t.sectionSub}</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-col gap-2 w-full sm:w-auto sm:items-end">
             {/* Live Check Indicator & Refresh Button */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-surface font-mono text-[10.5px] text-text-muted shadow-[1px_1px_0px_var(--color-border)]">
-              <span className="size-2 rounded-full bg-[var(--color-success)] animate-pulse shrink-0" />
-              <span>{t.liveCheck}:</span>
-              <span className="font-bold text-text-main">{countdown}s</span>
+            <div className="flex items-center gap-2">
+              <div className="an-chip">
+                <span className="size-1.5 rounded-full bg-[var(--t-ok)] animate-pulse shrink-0" />
+                <span>{t.liveCheck}:</span>
+                <span className="font-semibold text-[var(--t-ink)]">{countdown}s</span>
+              </div>
+
+              <button
+                onClick={handleManualCheck}
+                disabled={liveChecking}
+                title="Cek live status akun mati sekarang"
+                aria-label={t.btnCheckNow}
+                className="an-btn an-ghost h-8 w-8 px-0"
+              >
+                <span className={`material-symbols-outlined text-[14px] ${liveChecking ? "animate-spin text-[var(--t-star-ink)]" : ""}`}>
+                  {liveChecking ? "progress_activity" : "sync"}
+                </span>
+              </button>
             </div>
 
-            <button
-              onClick={handleManualCheck}
-              disabled={liveChecking}
-              title="Cek live status akun mati sekarang"
-              className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border-2 border-border bg-surface hover:bg-surface-2 text-text-main transition-all font-mono text-[11px] font-bold uppercase shadow-[1.5px_1.5px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
-            >
-              <span className={`material-symbols-outlined text-[14px] ${liveChecking ? "animate-spin text-[var(--color-primary)]" : ""}`}>
-                {liveChecking ? "progress_activity" : "sync"}
-              </span>
-              <span className="hidden sm:inline">{liveChecking ? t.checking : t.btnCheckNow}</span>
-            </button>
-
-            {/* Mock data buttons */}
-            <button
-              onClick={handleSeed}
-              disabled={seeding}
-              title="Generate mock data"
-              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border bg-surface hover:bg-surface-2 text-text-muted hover:text-text-main transition-all font-mono text-[10px] font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-[13px]">{seeding ? "progress_activity" : "science"}</span>
-              <span className="hidden sm:inline">{seeding ? "..." : "Mock"}</span>
-            </button>
-            <button
-              onClick={handleClear}
-              disabled={clearing}
-              title="Clear mock data"
-              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-red-500/40 bg-surface hover:bg-red-500/10 text-red-500/60 hover:text-red-500 transition-all font-mono text-[10px] font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-[13px]">{clearing ? "progress_activity" : "delete_sweep"}</span>
-              <span className="hidden sm:inline">{clearing ? "..." : "Clear"}</span>
-            </button>
-
-            <Link
-              href="/dashboard/providers"
-              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-border bg-surface text-text-main hover:bg-surface-2 shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all font-mono text-[11px] font-bold uppercase text-center"
-            >
-              <span className="material-symbols-outlined text-[15px] shrink-0">add_circle</span>
-              <span className="truncate">{t.btnManage}</span>
-            </Link>
-            <Link
-              href="/dashboard/usage"
-              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-border bg-surface text-text-main hover:bg-surface-2 shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all font-mono text-[11px] font-bold uppercase text-center"
-            >
-              <span className="material-symbols-outlined text-[15px] shrink-0">analytics</span>
-              <span className="truncate">{t.btnUsage}</span>
-            </Link>
+            {/* Navigation — side by side on every breakpoint */}
+            <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
+              <Link
+                href="/dashboard/providers"
+                className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 justify-center"
+              >
+                <span className="material-symbols-outlined text-[15px] shrink-0">add_circle</span>
+                <span className="truncate">{t.btnManage}</span>
+              </Link>
+              <Link
+                href="/dashboard/usage"
+                className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 justify-center"
+              >
+                <span className="material-symbols-outlined text-[15px] shrink-0">analytics</span>
+                <span className="truncate">{t.btnUsage}</span>
+              </Link>
+            </div>
           </div>
         </div>
 
         {/* Content Section */}
         {loading ? (
-          <div className="p-8 text-center font-mono text-sm text-text-muted flex items-center justify-center gap-2">
+          <div className="p-8 text-center font-mono text-sm text-[var(--t-muted)] flex items-center justify-center gap-2">
             <span className="material-symbols-outlined animate-spin text-[20px] text-[var(--color-primary)]">
               progress_activity
             </span>
@@ -608,40 +520,40 @@ export default function DashboardProviderOverview() {
           </div>
         ) : providers.length === 0 ? (
           <div className="p-6 sm:p-10 text-center flex flex-col items-center justify-center gap-3">
-            <div className="size-12 rounded-xl bg-surface-2 border-2 border-border shadow-[2px_2px_0px_var(--color-border)] flex items-center justify-center text-text-muted">
+            <div className="size-12 rounded-[12px] bg-[var(--t-raised)] border border-[var(--t-line)] flex items-center justify-center text-[var(--t-muted)]">
               <span className="material-symbols-outlined text-[24px]">cloud_off</span>
             </div>
-            <p className="font-mono text-sm font-bold text-text-main">
+            <p className="font-mono text-sm font-bold text-[var(--t-ink)]">
               {t.emptyTitle}
             </p>
-            <p className="font-mono text-xs text-text-muted max-w-md">
+            <p className="font-mono text-xs text-[var(--t-muted)] max-w-md">
               {t.emptySub}
             </p>
             <Link
               href="/dashboard/providers"
-              className="mt-2 px-4 py-2 rounded-lg border-2 border-border bg-[var(--color-primary)] text-white shadow-[2.5px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)] active:translate-y-0 transition-all font-mono text-xs font-bold uppercase flex items-center gap-2"
+              className="an-btn an-primary mt-2 text-xs gap-2"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
               <span>{t.btnAdd}</span>
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono text-xs border-collapse min-w-[400px]">
+          <div className="an-table-wrap">
+            <table className="an-table">
               <thead>
-                <tr className="border-b-2 border-border bg-surface-2/60 text-text-muted text-[10px] sm:text-[11px] uppercase tracking-wider">
-                  <th className="py-2.5 sm:py-3 px-2.5 sm:px-5">{t.thProvider}</th>
-                  <th className="py-2.5 sm:py-3 px-1.5 sm:px-3 text-center">{t.thStatus}</th>
-                  <th className="py-2.5 sm:py-3 px-1.5 sm:px-3 text-center">{t.thTotal}</th>
-                  <th className="py-2.5 sm:py-3 px-1.5 sm:px-3 text-center">{t.thActive}</th>
-                  <th className="py-2.5 sm:py-3 px-1.5 sm:px-3 text-center">{t.thLimited}</th>
-                  <th className="py-2.5 sm:py-3 px-1.5 sm:px-3 text-center">{t.thFailed}</th>
-                  <th className="hidden sm:table-cell py-2.5 sm:py-3 px-2 sm:px-3 text-right">{t.thPrompt}</th>
-                  <th className="hidden sm:table-cell py-2.5 sm:py-3 px-2 sm:px-3 text-right">{t.thCompletion}</th>
-                  <th className="py-2.5 sm:py-3 px-2.5 sm:px-5 text-right">{t.thTotalTokens}</th>
+                <tr>
+                  <th>{t.thProvider}</th>
+                  <th className="text-center">{t.thStatus}</th>
+                  <th className="text-center">{t.thTotal}</th>
+                  <th className="text-center">{t.thActive}</th>
+                  <th className="text-center">{t.thLimited}</th>
+                  <th className="text-center">{t.thFailed}</th>
+                  <th className="hidden sm:table-cell text-right">{t.thPrompt}</th>
+                  <th className="hidden sm:table-cell text-right">{t.thCompletion}</th>
+                  <th className="text-right">{t.thTotalTokens}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y-2 divide-border">
+              <tbody>
                 {pagedProviders.map((p) => {
                   const iconSrc = getProviderIconSrc(p.provider);
                   const isOnline = p.isFree || p.activeAccounts > 0 || p.limitedAccounts > 0;
@@ -649,11 +561,11 @@ export default function DashboardProviderOverview() {
                     <tr
                       key={p.provider}
                       onClick={() => router.push(`/dashboard/providers/${p.provider}`)}
-                      className="hover:bg-surface-2/40 transition-colors cursor-pointer"
+                      className="cursor-pointer"
                     >
-                      <td className="py-2 sm:py-3 px-2.5 sm:px-5">
+                      <td>
                         <div className="flex items-center gap-1.5 sm:gap-3">
-                          <div className="size-6 sm:size-8 rounded-lg bg-surface-2 border-2 border-border shadow-[1px_1px_0px_var(--color-border)] flex items-center justify-center shrink-0 overflow-hidden p-0.5 sm:p-1">
+                          <div className="size-6 sm:size-8 rounded-lg bg-[var(--t-raised)] border border-[var(--t-line)] flex items-center justify-center shrink-0 overflow-hidden p-0.5 sm:p-1">
                             {iconSrc ? (
                               <ProviderIcon
                                 src={iconSrc}
@@ -662,33 +574,33 @@ export default function DashboardProviderOverview() {
                                 className="object-contain"
                               />
                             ) : (
-                              <span className="material-symbols-outlined text-[14px] text-text-muted">
+                              <span className="material-symbols-outlined text-[14px] text-[var(--t-muted)]">
                                 hub
                               </span>
                             )}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1">
-                              <span className="font-bold text-text-main text-[11px] sm:text-sm truncate max-w-[80px] sm:max-w-none">{p.name}</span>
+                              <span className="font-bold text-[var(--t-ink)] text-[11px] sm:text-sm truncate max-w-[80px] sm:max-w-none">{p.name}</span>
                               {p.isFree && (
                                 <span className="shrink-0 px-1 py-0 rounded text-[8px] sm:text-[9px] font-black uppercase bg-amber-400/20 text-amber-500 border border-amber-400/30">FREE</span>
                               )}
                             </div>
-                            <div className="text-[9px] sm:text-[9.5px] text-text-muted uppercase truncate">
+                            <div className="text-[9px] sm:text-[9.5px] text-[var(--t-muted)] uppercase truncate">
                               {p.subtitle || p.provider}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-center">
+                      <td className="text-center">
                         {isOnline ? (
-                          <span className="inline-flex items-center gap-0.5 px-1 sm:px-2 py-0.5 rounded-md border border-border bg-[var(--color-success)]/15 text-[var(--color-success)] font-bold text-[9px] sm:text-[10px] shadow-[1px_1px_0px_var(--color-border)]">
+                          <span className="an-chip ok">
                             <span className="size-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
                             <span className="hidden sm:inline">{t.badgeOnline}</span>
                             <span className="sm:hidden">ON</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-0.5 px-1 sm:px-2 py-0.5 rounded-md border border-border bg-red-500/15 text-red-500 font-bold text-[9px] sm:text-[10px] shadow-[1px_1px_0px_var(--color-border)]">
+                          <span className="an-chip danger">
                             <span className="size-1.5 rounded-full bg-red-500" />
                             <span className="hidden sm:inline">{t.badgeOffline}</span>
                             <span className="sm:hidden">OFF</span>
@@ -697,55 +609,55 @@ export default function DashboardProviderOverview() {
                       </td>
 
                       {/* TOTAL AKUN */}
-                      <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-center">
-                        <span className="font-bold text-text-main text-[11px]">{p.totalAccounts}</span>
+                      <td className="text-center">
+                        <span className="font-bold text-[var(--t-ink)] text-[11px]">{p.totalAccounts}</span>
                       </td>
 
                       {/* AKUN AKTIF */}
-                      <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-center">
+                      <td className="text-center">
                         {p.isFree ? (
-                          <span className="px-1.5 py-0.5 rounded border border-amber-400/30 bg-amber-400/10 text-amber-500 font-bold text-[9px] uppercase tracking-wide">FREE</span>
+                          <span className="an-chip" style={{ background: "rgba(240,161,58,0.14)", color: "#f0a13a", borderColor: "rgba(240,161,58,0.3)" }}>FREE</span>
                         ) : p.activeAccounts > 0 ? (
                           <span className="font-bold text-[var(--color-success)] bg-[var(--color-success)]/10 px-1.5 py-0.5 rounded border border-[var(--color-success)]/30 text-[11px]">
                             {p.activeAccounts}
                           </span>
                         ) : (
-                          <span className="text-text-muted text-[11px]">0</span>
+                          <span className="text-[var(--t-muted)] text-[11px]">0</span>
                         )}
                       </td>
 
                       {/* AKUN LIMIT */}
-                      <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-center">
+                      <td className="text-center">
                         {p.limitedAccounts > 0 ? (
                           <span className="font-bold text-amber-500 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30 text-[11px]">
                             {p.limitedAccounts}
                           </span>
                         ) : (
-                          <span className="text-text-muted text-[11px]">—</span>
+                          <span className="text-[var(--t-muted)] text-[11px]">—</span>
                         )}
                       </td>
 
                       {/* AKUN MATI */}
-                      <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-center">
+                      <td className="text-center">
                         {p.failedAccounts > 0 ? (
                           <span className="font-bold text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/30 text-[11px]">
                             {p.failedAccounts}
                           </span>
                         ) : (
-                          <span className="text-text-muted text-[11px]">—</span>
+                          <span className="text-[var(--t-muted)] text-[11px]">—</span>
                         )}
                       </td>
 
-                      <td className="hidden sm:table-cell py-2 sm:py-3 px-2 sm:px-3 text-right text-text-muted">
+                      <td className="hidden sm:table-cell py-2 sm:py-3 px-2 sm:px-3 text-right text-[var(--t-muted)]">
                         {fmtNum(p.promptTokens)}
                       </td>
-                      <td className="hidden sm:table-cell py-2 sm:py-3 px-2 sm:px-3 text-right text-text-muted">
+                      <td className="hidden sm:table-cell py-2 sm:py-3 px-2 sm:px-3 text-right text-[var(--t-muted)]">
                         {fmtNum(p.completionTokens)}
                       </td>
-                      <td className="py-2 sm:py-3 px-2.5 sm:px-5 text-right font-bold text-text-main">
+                      <td className="text-right num font-bold text-[var(--t-ink)]">
                         <span className="text-[var(--color-primary)] text-[11px] sm:text-xs">{fmtNum(p.tokens)}</span>
                         {p.requests > 0 && (
-                          <span className="block text-[8.5px] sm:text-[9.5px] text-text-muted font-normal">
+                          <span className="block text-[8.5px] sm:text-[9.5px] text-[var(--t-muted)] font-normal">
                             {fmtNum(p.requests)} reqs
                           </span>
                         )}
@@ -760,23 +672,23 @@ export default function DashboardProviderOverview() {
 
         {/* Pagination — 5 provider per page */}
         {!loading && providers.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between gap-2 px-3.5 sm:px-5 py-2.5 border-t-2 border-border bg-surface-2/60 font-mono text-[11px]">
-            <span className="text-text-muted">
-              Hal. <span className="font-bold text-text-main">{safeProviderPage}</span> / {providerTotalPages}
+          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-t border-[var(--t-line-soft)] text-[11px]">
+            <span className="text-[var(--t-muted)]">
+              Hal. <span className="font-bold text-[var(--t-ink)]">{safeProviderPage}</span> / {providerTotalPages}
               <span className="hidden sm:inline"> · {providers.length} provider</span>
             </span>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setProviderPage((p) => Math.max(1, p - 1))}
                 disabled={safeProviderPage <= 1}
-                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+                className="an-btn an-ghost h-7 w-7 px-0 font-bold disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-[14px]">chevron_left</span>
               </button>
               <button
                 onClick={() => setProviderPage((p) => Math.min(providerTotalPages, p + 1))}
                 disabled={safeProviderPage >= providerTotalPages}
-                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+                className="an-btn an-ghost h-7 w-7 px-0 font-bold disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-[14px]">chevron_right</span>
               </button>
@@ -786,35 +698,36 @@ export default function DashboardProviderOverview() {
       </div>
 
       {/* Dedicated Table for Limited Accounts (Tabel Akun Terkena Limit) */}
-      <div className="bg-surface border-2 border-border rounded-xl shadow-[3px_4px_0px_var(--color-border)] overflow-hidden">
+      <div className="an-panel overflow-hidden">
         {/* Section Header */}
-        <div className="p-3.5 sm:p-5 border-b-2 border-border flex flex-wrap items-center justify-between gap-3 bg-surface-2">
+        <div className="an-panel-head flex-wrap">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="size-8 rounded-lg bg-amber-500/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-amber-500 shrink-0">
-              <span className="material-symbols-outlined text-[18px]">speed</span>
-            </div>
+            <span className="an-panel-ico" aria-hidden style={{ background: "rgba(240,161,58,0.14)", color: "#f0a13a", borderColor: "rgba(240,161,58,0.25)" }}>
+              <span className="material-symbols-outlined text-[19px]">speed</span>
+            </span>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="font-mono text-xs sm:text-sm md:text-base font-bold text-text-main uppercase tracking-wider truncate">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="an-panel-title">
                   {t.limitedSectionTitle}
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 font-mono text-[10px] font-bold">
+                <span className="an-chip" style={{ background: "rgba(240,161,58,0.14)", color: "#f0a13a", borderColor: "rgba(240,161,58,0.3)" }}>
                   {summary.totalLimitedAccounts} Node
                 </span>
               </div>
-              <p className="font-mono text-[10px] sm:text-[11px] text-text-muted truncate">
+              <p className="an-panel-sub">
                 {t.limitedSectionSub}
               </p>
             </div>
           </div>
 
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
             {/* Provider Filter */}
             <select
               value={providerFilter}
               onChange={(e) => setProviderFilter(e.target.value)}
-              className="h-8 px-2.5 rounded-lg border-2 border-border bg-surface font-mono text-xs font-bold text-text-main shadow-[1.5px_1.5px_0px_var(--color-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+              aria-label={t.allProviders}
+              className="an-select h-8 w-full text-xs"
             >
               <option value="all">{t.allProviders}</option>
               {providers
@@ -828,15 +741,16 @@ export default function DashboardProviderOverview() {
 
             {/* Search Input */}
             <div className="relative">
-              <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-text-muted text-[15px]">
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--t-muted)] text-[15px] pointer-events-none">
                 search
               </span>
               <input
                 type="text"
                 placeholder={t.searchAccount}
+                aria-label={t.searchAccount}
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                className="h-8 pl-7 pr-2.5 rounded-lg border-2 border-border bg-surface font-mono text-xs text-text-main placeholder:text-text-muted shadow-[1.5px_1.5px_0px_var(--color-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)] w-36 sm:w-48"
+                className="an-input h-8 pl-8 pr-2.5 py-0 text-xs w-full"
               />
             </div>
           </div>
@@ -845,34 +759,34 @@ export default function DashboardProviderOverview() {
         {/* Table Content */}
         {limitedAccountsList.length === 0 ? (
           <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center gap-2.5">
-            <div className="size-10 rounded-xl bg-[var(--color-success)]/15 border-2 border-border shadow-[1.5px_1.5px_0px_var(--color-border)] flex items-center justify-center text-[var(--color-success)]">
+            <div className="size-10 rounded-[12px] bg-[var(--t-ok-soft)] border border-[rgba(63,179,127,0.3)] flex items-center justify-center text-[var(--t-ok)]">
               <span className="material-symbols-outlined text-[20px]">check_circle</span>
             </div>
-            <p className="font-mono text-xs sm:text-sm font-bold text-text-main">
+            <p className="font-mono text-xs sm:text-sm font-bold text-[var(--t-ink)]">
               {t.emptyLimitedTitle}
             </p>
-            <p className="font-mono text-[11px] text-text-muted max-w-md">
+            <p className="font-mono text-[11px] text-[var(--t-muted)] max-w-md">
               {t.emptyLimitedSub}
             </p>
           </div>
         ) : filteredLimitedAccounts.length === 0 ? (
-          <div className="p-6 text-center font-mono text-xs text-text-muted">
+          <div className="p-6 text-center font-mono text-xs text-[var(--t-muted)]">
             Tidak ada akun limit yang cocok dengan filter pencarian.
           </div>
         ) : (
-          <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
-            <table className="w-full text-left font-mono text-xs border-collapse">
+          <div className="an-table-wrap max-h-[380px] overflow-y-auto">
+            <table className="an-table">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b-2 border-border bg-surface-2 text-text-muted text-[10px] sm:text-[11px] uppercase tracking-wider">
-                  <th className="py-2.5 px-3 sm:px-4">{t.thLimitProvider}</th>
-                  <th className="py-2.5 px-3 sm:px-4">{t.thLimitAccount}</th>
-                  <th className="py-2.5 px-2 sm:px-3">{t.thLimitType}</th>
-                  <th className="py-2.5 px-2 sm:px-3">{t.thLimitReset}</th>
-                  <th className="py-2.5 px-3 sm:px-4">{t.thLimitReason}</th>
-                  <th className="py-2.5 px-3 sm:px-4 text-center">{t.thLimitAction}</th>
+                <tr>
+                  <th>{t.thLimitProvider}</th>
+                  <th>{t.thLimitAccount}</th>
+                  <th>{t.thLimitType}</th>
+                  <th>{t.thLimitReset}</th>
+                  <th>{t.thLimitReason}</th>
+                  <th className="text-center">{t.thLimitAction}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y-2 divide-border">
+              <tbody>
                 {pagedLimitedAccounts.map((acc) => {
                   const iconSrc = getProviderIconSrc(acc.provider);
                   const isRechecking = recheckingId === acc.id;
@@ -886,66 +800,66 @@ export default function DashboardProviderOverview() {
                   const upstreamDetail =
                     parsedError.message && parsedError.message !== reasonText ? parsedError.message : null;
                   return (
-                    <tr key={acc.id} className="hover:bg-surface-2/40 transition-colors">
-                      <td className="py-2 px-3 sm:px-4 whitespace-nowrap">
+                    <tr key={acc.id}>
+                      <td className="whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="size-6 rounded bg-surface-2 border border-border flex items-center justify-center overflow-hidden p-0.5 shrink-0">
+                          <div className="size-6 rounded-md bg-[var(--t-raised)] border border-[var(--t-line)] flex items-center justify-center overflow-hidden p-0.5 shrink-0">
                             {iconSrc ? (
                               <ProviderIcon src={iconSrc} alt={acc.providerName} size={16} />
                             ) : (
-                              <span className="material-symbols-outlined text-[13px] text-text-muted">hub</span>
+                              <span className="material-symbols-outlined text-[13px] text-[var(--t-muted)]">hub</span>
                             )}
                           </div>
-                          <span className="font-bold text-text-main text-xs">{acc.providerName}</span>
+                          <span className="font-bold text-[var(--t-ink)] text-xs">{acc.providerName}</span>
                         </div>
                       </td>
 
-                      <td className="py-2 px-3 sm:px-4 whitespace-nowrap">
+                      <td className="whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-[13px] text-text-muted">
+                          <span className="material-symbols-outlined text-[13px] text-[var(--t-muted)]">
                             {acc.authType === "oauth" ? "lock" : "key"}
                           </span>
-                          <span className="font-bold text-text-main text-xs truncate max-w-[160px] sm:max-w-[220px]" title={acc.name}>
+                          <span className="font-bold text-[var(--t-ink)] text-xs truncate max-w-[160px] sm:max-w-[220px]" title={acc.name}>
                             {acc.name}
                           </span>
                         </div>
                         {acc.email && acc.email !== acc.name && (
-                          <div className="text-[10px] text-text-muted truncate max-w-[160px] sm:max-w-[220px]">
+                          <div className="text-[10px] text-[var(--t-muted)] truncate max-w-[160px] sm:max-w-[220px]">
                             {acc.email}
                           </div>
                         )}
                       </td>
 
-                      <td className="py-2 px-2 sm:px-3 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-600 font-bold text-[9px] shadow-[1px_1px_0px_var(--color-border)]">
-                          <span className="size-1 rounded-full bg-amber-500 shrink-0" />
+                      <td className="whitespace-nowrap">
+                        <span className="an-chip" style={{ background: "rgba(240,161,58,0.14)", color: "#f0a13a", borderColor: "rgba(240,161,58,0.35)" }}>
+                          <span className="size-1 rounded-full bg-[#f0a13a] shrink-0" />
                           {acc.limitType}
                         </span>
                       </td>
 
-                      <td className="py-2 px-2 sm:px-3 whitespace-nowrap text-text-muted text-[11px]">
-                        <span className="font-mono text-text-main font-semibold">
+                      <td className="whitespace-nowrap text-[var(--t-muted)] text-[11px]">
+                        <span className="font-mono text-[var(--t-ink)] font-semibold">
                           {formatResetAt(effectiveResetAt, t)}
                         </span>
                       </td>
 
-                      <td className="py-2 px-3 sm:px-4 max-w-[260px] sm:max-w-[340px]">
-                        <p className="text-[10.5px] text-text-main font-mono truncate" title={acc.lastError}>
+                      <td className="max-w-[260px] sm:max-w-[340px]">
+                        <p className="text-[10.5px] text-[var(--t-ink)] font-mono truncate" title={acc.lastError}>
                           {reasonText}
                         </p>
                         {upstreamDetail && (
-                          <p className="text-[9px] text-text-muted font-mono truncate" title={acc.lastError}>
+                          <p className="text-[9px] text-[var(--t-muted)] font-mono truncate" title={acc.lastError}>
                             {upstreamDetail}
                           </p>
                         )}
                       </td>
 
-                      <td className="py-2 px-3 sm:px-4 text-center whitespace-nowrap">
+                      <td className="text-center whitespace-nowrap">
                         <button
                           onClick={() => handleRecheckSingle(acc.id, acc.provider)}
                           disabled={isRechecking}
                           title="Cek ulang akun ini"
-                          className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-mono text-[10px] font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all inline-flex items-center gap-1 disabled:opacity-50"
+                          className="an-btn an-ghost h-7 px-2 text-[10px] font-medium gap-1 disabled:opacity-50"
                         >
                           <span className={`material-symbols-outlined text-[12px] ${isRechecking ? "animate-spin text-[var(--color-primary)]" : ""}`}>
                             {isRechecking ? "progress_activity" : "refresh"}
@@ -963,23 +877,23 @@ export default function DashboardProviderOverview() {
 
         {/* Pagination — 5 akun limit per page */}
         {filteredLimitedAccounts.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between gap-2 px-3.5 sm:px-5 py-2.5 border-t-2 border-border bg-surface-2/60 font-mono text-[11px]">
-            <span className="text-text-muted">
-              Hal. <span className="font-bold text-text-main">{safeLimitedPage}</span> / {limitedTotalPages}
+          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-t border-[var(--t-line-soft)] text-[11px]">
+            <span className="text-[var(--t-muted)]">
+              Hal. <span className="font-bold text-[var(--t-ink)]">{safeLimitedPage}</span> / {limitedTotalPages}
               <span className="hidden sm:inline"> · {filteredLimitedAccounts.length} akun</span>
             </span>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setLimitedPage((p) => Math.max(1, p - 1))}
                 disabled={safeLimitedPage <= 1}
-                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+                className="an-btn an-ghost h-7 w-7 px-0 font-bold disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-[14px]">chevron_left</span>
               </button>
               <button
                 onClick={() => setLimitedPage((p) => Math.min(limitedTotalPages, p + 1))}
                 disabled={safeLimitedPage >= limitedTotalPages}
-                className="px-2 py-1 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-main font-bold shadow-[1px_1px_0px_var(--color-border)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40 disabled:hover:translate-y-0 inline-flex items-center gap-0.5"
+                className="an-btn an-ghost h-7 w-7 px-0 font-bold disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-[14px]">chevron_right</span>
               </button>
@@ -990,3 +904,9 @@ export default function DashboardProviderOverview() {
     </div>
   );
 }
+
+
+
+
+
+

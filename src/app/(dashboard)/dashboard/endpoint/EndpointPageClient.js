@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
+import { Button, Input, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
+import AntaresModal from "@/shared/components/AntaresModal";
+import AntaresPanel from "@/shared/components/AntaresPanel";
+import AntaresButton from "@/shared/components/AntaresButton";
+import StarField from "@/shared/components/StarField";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useNotificationStore } from "@/store/notificationStore";
 import { translate } from "@/i18n/runtime";
@@ -698,7 +702,8 @@ export default function APIPageClient({ machineId }) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-8">
+      <div className="an-scope an-shell flex flex-col gap-6">
+        <div className="an-shell-bg"><StarField /></div>
         <CardSkeleton />
         <CardSkeleton />
       </div>
@@ -708,19 +713,39 @@ export default function APIPageClient({ machineId }) {
   const currentEndpoint = baseUrl;
 
   return (
-    <div className="flex flex-col gap-6 sm:gap-8">
+    <div className="an-scope an-shell flex flex-col gap-5 sm:gap-6">
+      {/* Antares star-field backdrop — identical to the login page */}
+      <div className="an-shell-bg" aria-hidden>
+        <StarField />
+      </div>
+
+      {/* ---- Hero ---- */}
+      <header className="flex flex-col gap-2 min-w-0">
+        <p className="an-eyebrow">
+          <span className="an-num">01</span>
+          <span className="an-rule" />
+          <span>RouterMod · AI Gateway</span>
+        </p>
+        <h1 className="an-h1 text-[clamp(1.6rem,4.6vw,2.3rem)]">
+          Endpoint<span className="an-dim mx-2">&amp;</span>Keys
+        </h1>
+        <p className="an-hint max-w-[70ch]">
+          Satu endpoint untuk seluruh model AI. Salin base URL, buat API key, lalu pakai
+          di klien OpenAI-compatible apa pun.
+        </p>
+      </header>
+
       {/* Real-time Provider Status & Lifetime Token Usage */}
       <DashboardProviderOverview />
 
       {/* Endpoint Card */}
-      <Card>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[var(--color-primary)]">dns</span>
-          Hostname & Port
-        </h2>
-
+      <AntaresPanel
+        icon="dns"
+        title="Hostname & Port"
+        subtitle="Base URL untuk semua request OpenAI-compatible"
+      >
         {/* Endpoint rows */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {/* Local */}
           <EndpointRow
             label="Local"
@@ -786,35 +811,36 @@ export default function APIPageClient({ machineId }) {
 
         {/* Tunnel dashboard access option */}
         {(tunnelEnabled || tsEnabled) && (
-          <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
+          <div className="mt-4 pt-4 border-t border-[var(--t-line-soft)] flex items-center gap-3">
             <Toggle
               checked={tunnelDashboardAccess}
               onChange={() => handleTunnelDashboardAccess(!tunnelDashboardAccess)}
             />
             <div className="flex items-center gap-1.5 min-w-0">
-              <p className="font-medium text-sm leading-tight">Izinkan akses dasbor melalui domain</p>
+              <p className="text-sm leading-tight">Izinkan akses dasbor melalui domain</p>
               <Tooltip text="Jika aktif, dashboard bisa diakses lewat domain *.toolwiz.id. Jika nonaktif, hanya endpoint API yang bisa diakses via domain publik." />
             </div>
           </div>
         )}
-      </Card>
+      </AntaresPanel>
 
       {/* API Keys */}
-      <Card id="require-api-key">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">vpn_key</span>
-            API Keys
-          </h2>
-          <Button icon="add" onClick={() => setShowAddModal(true)}>
-            Create Key
-          </Button>
-        </div>
-
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
-          <div>
+      <AntaresPanel
+        id="require-api-key"
+        icon="vpn_key"
+        title="API Keys"
+        subtitle="Kunci yang dipakai klien untuk mengakses endpoint"
+        action={
+          <AntaresButton icon="add" size="sm" onClick={() => setShowAddModal(true)}>
+            <span className="hidden sm:inline">Create Key</span>
+            <span className="sm:hidden">Add</span>
+          </AntaresButton>
+        }
+      >
+        <div className="flex items-center justify-between gap-4 pb-4 mb-1 border-b border-[var(--t-line-soft)]">
+          <div className="min-w-0">
             <p className="font-medium">Require API key</p>
-            <p className="text-sm text-text-muted">
+            <p className="text-sm text-[var(--t-muted)]">
               Requests without a valid key will be rejected
             </p>
           </div>
@@ -831,22 +857,22 @@ export default function APIPageClient({ machineId }) {
         )}
 
         {keys.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
-              <span className="material-symbols-outlined text-[32px]">vpn_key</span>
+          <div className="text-center py-10 sm:py-12">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] mb-4">
+              <span className="material-symbols-outlined text-[28px]">vpn_key</span>
             </div>
-            <p className="text-text-main font-medium mb-1">No API keys yet</p>
-            <p className="text-sm text-text-muted mb-4">Create your first API key to get started</p>
-            <Button icon="add" onClick={() => setShowAddModal(true)}>
+            <p className="font-medium mb-1">No API keys yet</p>
+            <p className="text-sm text-[var(--t-muted)] mb-4">Create your first API key to get started</p>
+            <AntaresButton icon="add" onClick={() => setShowAddModal(true)}>
               Create Key
-            </Button>
+            </AntaresButton>
           </div>
         ) : (
           <div className="flex flex-col">
             {keys.map((key) => (
               <div
                 key={key.id}
-                className={`group py-3 border-b border-[var(--color-border)]/30 last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
+                className={`group py-3 border-b border-[var(--t-line-soft)] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
               >
                 {/* Top row: name + actions */}
                 <div className="flex items-center justify-between gap-2 min-w-0">
@@ -854,7 +880,7 @@ export default function APIPageClient({ machineId }) {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => toggleKeyVisibility(key.id)}
-                      className="p-1 hover:bg-[var(--color-surface-3)] rounded text-text-muted hover:text-primary transition-all"
+                      className="p-1 hover:bg-[var(--t-raised)] rounded text-[var(--t-muted)] hover:text-[var(--t-ink)] transition-colors"
                       title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
                     >
                       <span className="material-symbols-outlined text-[15px]">
@@ -863,7 +889,7 @@ export default function APIPageClient({ machineId }) {
                     </button>
                     <button
                       onClick={() => copy(key.key, key.id)}
-                      className="p-1 hover:bg-[var(--color-surface-3)] rounded text-text-muted hover:text-primary transition-all"
+                      className="p-1 hover:bg-[var(--t-raised)] rounded text-[var(--t-muted)] hover:text-[var(--t-ink)] transition-colors"
                       title="Copy key"
                     >
                       <span className="material-symbols-outlined text-[15px]">
@@ -891,7 +917,7 @@ export default function APIPageClient({ machineId }) {
                     />
                     <button
                       onClick={() => handleDeleteKey(key.id)}
-                      className="p-1.5 hover:bg-[var(--color-danger)]/10 rounded text-[var(--color-danger)] transition-all"
+                      className="p-1.5 hover:bg-[var(--t-danger)]/10 rounded text-[var(--t-danger)] transition-all"
                       title="Delete key"
                     >
                       <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -899,12 +925,12 @@ export default function APIPageClient({ machineId }) {
                   </div>
                 </div>
                 {/* Key value */}
-                <code className="block mt-1.5 text-xs text-text-muted font-mono break-all leading-relaxed">
+                <code className="block mt-1.5 text-xs text-[var(--t-muted)] font-mono break-all leading-relaxed">
                   {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
                 </code>
                 {/* Meta */}
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <p className="text-xs text-text-muted">
+                  <p className="text-xs text-[var(--t-muted)]">
                     {translate("Created")} {new Date(key.createdAt).toLocaleDateString()}
                   </p>
                   {key.isActive === false && (
@@ -927,10 +953,10 @@ export default function APIPageClient({ machineId }) {
             ))}
           </div>
         )}
-      </Card>
+      </AntaresPanel>
 
       {/* Add Key Modal */}
-      <Modal
+      <AntaresModal
         isOpen={showAddModal}
         title="Create API Key"
         onClose={() => {
@@ -939,17 +965,17 @@ export default function APIPageClient({ machineId }) {
         }}
       >
         <div className="flex flex-col gap-4">
-          <Input
+          <Input variant="antares" 
             label="Key Name"
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
             placeholder="Kosongkan untuk auto (rmod-xxxxxx)"
           />
           <div className="flex gap-2">
-            <Button onClick={handleCreateKey} fullWidth>
+            <Button skin="antares" onClick={handleCreateKey} fullWidth>
               Create
             </Button>
-            <Button
+            <Button skin="antares" 
               onClick={() => {
                 setShowAddModal(false);
                 setNewKeyName("");
@@ -961,10 +987,10 @@ export default function APIPageClient({ machineId }) {
             </Button>
           </div>
         </div>
-      </Modal>
+      </AntaresModal>
 
       {/* Created Key Modal */}
-      <Modal
+      <AntaresModal
         isOpen={!!createdKey}
         title="API Key Created"
         onClose={() => setCreatedKey(null)}
@@ -979,12 +1005,12 @@ export default function APIPageClient({ machineId }) {
             </p>
           </div>
           <div className="flex gap-2">
-            <Input
+            <Input variant="antares" 
               value={createdKey || ""}
               readOnly
               className="flex-1 font-mono text-sm"
             />
-            <Button
+            <Button skin="antares" 
               variant="secondary"
               icon={copied === "created_key" ? "check" : "content_copy"}
               onClick={() => copy(createdKey, "created_key")}
@@ -992,63 +1018,63 @@ export default function APIPageClient({ machineId }) {
               {copied === "created_key" ? "Copied!" : "Copy"}
             </Button>
           </div>
-          <Button onClick={() => setCreatedKey(null)} fullWidth>
+          <Button skin="antares" onClick={() => setCreatedKey(null)} fullWidth>
             Done
           </Button>
         </div>
-      </Modal>
+      </AntaresModal>
 
       {/* Enable Tunnel Modal */}
-      <Modal
+      <AntaresModal
         isOpen={showEnableTunnelModal}
         title={translate("Enable Tunnel")}
         onClose={() => setShowEnableTunnelModal(false)}
       >
         <div className="flex flex-col gap-3.5">
-          <div className="bg-surface-2 border-2 border-border rounded-xl p-3.5 shadow-[2px_2px_0px_var(--color-border)]">
+          <div className="rounded-[10px] border border-[var(--t-line)] bg-[var(--t-raised)] p-3.5">
             <div className="flex items-start gap-3">
-              <div className="size-8 rounded-lg bg-[var(--color-primary)]/15 border border-border flex items-center justify-center text-[var(--color-primary)] shrink-0">
-                <span className="material-symbols-outlined text-[19px]">cloud_upload</span>
-              </div>
+              <span className="an-panel-ico shrink-0" aria-hidden>
+                <span className="material-symbols-outlined">cloud_upload</span>
+              </span>
               <div className="min-w-0">
-                <p className="font-mono text-xs sm:text-sm text-text-main font-bold mb-1 uppercase tracking-wide">
+                <p className="text-[13px] sm:text-sm font-medium mb-1 text-[var(--t-ink)]">
                   {translate("Cloudflare Tunnel")}
                 </p>
-                <p className="text-xs text-text-muted leading-relaxed">
+                <p className="text-xs text-[var(--t-muted)] leading-relaxed">
                   {translate("Expose your local 9Router to the internet. No port forwarding, no static IP needed. Share endpoint URL with your team or use it in Cursor, Cline, and other AI tools from anywhere.")}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {TUNNEL_BENEFITS.map((benefit) => (
-              <div key={benefit.title} className="flex flex-col items-center text-center p-3 rounded-xl border border-border bg-surface-2/60 shadow-[1.5px_1.5px_0px_var(--color-border)]">
-                <span className="material-symbols-outlined text-[20px] text-[var(--color-primary)] mb-1">{benefit.icon}</span>
-                <p className="text-xs font-bold font-mono text-text-main">{translate(benefit.title)}</p>
-                <p className="text-[11px] text-text-muted mt-0.5">{translate(benefit.desc)}</p>
+              <div key={benefit.title} className="flex flex-col items-center text-center p-3 rounded-[10px] border border-[var(--t-line)] bg-[var(--t-raised)]">
+                <span className="material-symbols-outlined text-[20px] text-[var(--t-star-ink)] mb-1">{benefit.icon}</span>
+                <p className="text-xs font-medium text-[var(--t-ink)]">{translate(benefit.title)}</p>
+                <p className="text-[11px] text-[var(--t-muted)] mt-0.5">{translate(benefit.desc)}</p>
               </div>
             ))}
           </div>
 
-          <div className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-surface-2/40 text-[11px] font-mono text-text-muted">
-            <span className="material-symbols-outlined text-[14px] text-primary shrink-0">info</span>
+          <div className="flex items-start gap-2 p-2.5 rounded-[10px] border border-[var(--t-line)] bg-[var(--t-raised)] text-[11px] text-[var(--t-muted)]">
+            <span className="material-symbols-outlined text-[14px] text-[var(--t-star-ink)] shrink-0">info</span>
             <span>Port 7844 (TCP/UDP) • Handshake ~10-30 detik</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-1">
-            <Button onClick={handleEnableTunnel} fullWidth>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+            <Button skin="antares" onClick={handleEnableTunnel} fullWidth>
               {translate("Start Tunnel")}
             </Button>
-            <Button onClick={() => setShowEnableTunnelModal(false)} variant="ghost" fullWidth>
+            <Button skin="antares" onClick={() => setShowEnableTunnelModal(false)} variant="ghost" fullWidth>
               {translate("Cancel")}
             </Button>
           </div>
         </div>
-      </Modal>
+      </AntaresModal>
 
       {/* Disable Cloudflare Tunnel Modal */}
-      <Modal
+      <AntaresModal
         isOpen={showDisableTunnelModal}
         title="Disable Tunnel"
         onClose={() => !tunnelLoading && setShowDisableTunnelModal(false)}
@@ -1056,16 +1082,16 @@ export default function APIPageClient({ machineId }) {
         <div className="flex flex-col gap-4">
           <p className="text-sm text-text-muted">The Cloudflare tunnel will be disconnected and your <strong>*.toolwiz.id domain will be deleted</strong>. Enabling again will generate a new domain.</p>
           <div className="flex gap-2">
-            <Button onClick={handleDisableTunnel} fullWidth disabled={tunnelLoading} variant="danger">
+            <Button skin="antares" onClick={handleDisableTunnel} fullWidth disabled={tunnelLoading} variant="danger">
               {tunnelLoading ? "Disabling..." : "Disable"}
             </Button>
-            <Button onClick={() => setShowDisableTunnelModal(false)} variant="ghost" fullWidth disabled={tunnelLoading}>Cancel</Button>
+            <Button skin="antares" onClick={() => setShowDisableTunnelModal(false)} variant="ghost" fullWidth disabled={tunnelLoading}>Cancel</Button>
           </div>
         </div>
-      </Modal>
+      </AntaresModal>
 
       {/* Tailscale Modal */}
-      <Modal
+      <AntaresModal
         isOpen={showTsModal}
         title="Tailscale Funnel"
         onClose={() => { if (!tsInstalling) { setShowTsModal(false); setTsSudoPassword(""); setTsStatus(null); } }}
@@ -1084,10 +1110,10 @@ export default function APIPageClient({ machineId }) {
             <div className="flex flex-col gap-3">
               <p className="text-sm text-text-muted">Tailscale is not installed. Install it to enable Funnel.</p>
               <div className="flex gap-2">
-                <Button onClick={handleInstallTailscale} fullWidth>
+                <Button skin="antares" onClick={handleInstallTailscale} fullWidth>
                   Install Tailscale
                 </Button>
-                <Button onClick={() => setShowTsModal(false)} variant="ghost" fullWidth>Cancel</Button>
+                <Button skin="antares" onClick={() => setShowTsModal(false)} variant="ghost" fullWidth>Cancel</Button>
               </div>
             </div>
           )}
@@ -1117,23 +1143,23 @@ export default function APIPageClient({ machineId }) {
                 Tailscale installed
               </div>
               <div className="flex gap-2">
-                <Button
+                <Button skin="antares" 
                   onClick={() => handleConnectTailscale()}
                   fullWidth
                 >
                   Connect
                 </Button>
-                <Button onClick={() => setShowTsModal(false)} variant="ghost" fullWidth>Cancel</Button>
+                <Button skin="antares" onClick={() => setShowTsModal(false)} variant="ghost" fullWidth>Cancel</Button>
               </div>
             </div>
           )}
 
           {tsStatus && <StatusAlert status={tsStatus} />}
         </div>
-      </Modal>
+      </AntaresModal>
 
       {/* Disable Tailscale Modal */}
-      <Modal
+      <AntaresModal
         isOpen={showDisableTsModal}
         title="Disable Tailscale"
         onClose={() => !tsLoading && setShowDisableTsModal(false)}
@@ -1141,13 +1167,13 @@ export default function APIPageClient({ machineId }) {
         <div className="flex flex-col gap-4">
           <p className="text-sm text-text-muted">Tailscale Funnel will be stopped. Remote access via Tailscale URL will stop working.</p>
           <div className="flex gap-2">
-            <Button onClick={handleDisableTailscale} fullWidth disabled={tsLoading} variant="danger">
+            <Button skin="antares" onClick={handleDisableTailscale} fullWidth disabled={tsLoading} variant="danger">
               {tsLoading ? "Disabling..." : "Disable"}
             </Button>
-            <Button onClick={() => setShowDisableTsModal(false)} variant="ghost" fullWidth disabled={tsLoading}>Cancel</Button>
+            <Button skin="antares" onClick={() => setShowDisableTsModal(false)} variant="ghost" fullWidth disabled={tsLoading}>Cancel</Button>
           </div>
         </div>
-      </Modal>
+      </AntaresModal>
 
       {/* Confirm Modal */}
       <ConfirmModal
@@ -1166,3 +1192,7 @@ export default function APIPageClient({ machineId }) {
 APIPageClient.propTypes = {
   machineId: PropTypes.string.isRequired,
 };
+
+
+
+

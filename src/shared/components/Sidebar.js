@@ -22,8 +22,9 @@ const navItems = [
   { href: "/dashboard/combos", label: "Combo & Vision Adapter", icon: "layers" },
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
   { href: "/dashboard/quota", label: "Cek Limit", icon: "data_usage" },
+  { href: "/dashboard/models", label: "Models", icon: "extension" },
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
-  { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
+  { href: "/dashboard/cli-tools", label: "Tool CLI", icon: "terminal" },
   { href: "/dashboard/agent", label: "AI Agent", icon: "smart_toy" },
 ];
 

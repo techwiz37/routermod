@@ -28,19 +28,20 @@ export async function getCustomModels() {
   return Object.values(all);
 }
 
-export async function addCustomModel({ providerAlias, id, type = "llm", name, caps, transport }) {
+export async function addCustomModel({ providerAlias, id, type = "llm", name, caps, transport, isFree }) {
   const k = customKey(providerAlias, id, type);
   const db = await getAdapter();
+  const freeFlag = typeof isFree === "boolean" ? { isFree } : {};
   let added = false;
   db.transaction(() => {
     const row = db.get(`SELECT value FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);
     if (row) {
       const prev = parseJson(row.value) || {};
-      const next = { ...prev, ...(name ? { name } : {}), ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) };
+      const next = { ...prev, ...(name ? { name } : {}), ...(caps ? { caps } : {}), ...(transport ? { transport } : {}), ...freeFlag };
       db.run(`UPDATE kv SET value = ? WHERE scope = 'customModels' AND key = ?`, [stringifyJson(next), k]);
       return;
     }
-    const value = stringifyJson({ providerAlias, id, type, name: name || id, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) });
+    const value = stringifyJson({ providerAlias, id, type, name: name || id, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}), ...freeFlag });
     db.run(`INSERT INTO kv(scope, key, value) VALUES('customModels', ?, ?)`, [k, value]);
     added = true;
   });

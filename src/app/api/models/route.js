@@ -3,7 +3,7 @@ import { getModelAliases, setModelAlias, getCustomModels } from "@/models";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { getProviderConnections } from "@/lib/db/repos/connectionsRepo";
 import { AI_MODELS } from "@/shared/constants/config";
-import { getProviderAlias } from "@/shared/constants/providers";
+import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
 export async function GET(request) {
@@ -68,14 +68,17 @@ export async function GET(request) {
       });
 
     const seenFull = new Set(models.map((m) => m.fullModel));
+    const seenRouted = new Set(models.map((m) => m.routedModel));
     const customModels = (await getCustomModels()).filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
       if (activeAliasSet && !activeAliasSet.has(m.providerAlias)) return false;
+      if (seenRouted.has(`${m.providerAlias}/${m.id}`)) return false;
       return !seenFull.has(`${m.providerAlias}/${m.id}`);
     });
     for (const m of customModels) {
       const fullModel = `${m.providerAlias}/${m.id}`;
-      const c = getCapabilitiesForModel(m.providerAlias, m.id);
+      const providerId = ALIAS_TO_ID[m.providerAlias] || m.providerAlias;
+      const c = getCapabilitiesForModel(providerId, m.id);
       models.push({
         provider: m.providerAlias,
         model: m.id,

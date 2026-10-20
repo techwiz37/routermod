@@ -1,7 +1,7 @@
 "use strict";
 
 
-const ANTIGRAVITY_IDE_VERSION = "2.11.0";
+const ANTIGRAVITY_IDE_VERSION = "2.22.0";
 const ANTIGRAVITY_IDE_VERSION_OVERRIDE_ENABLED = true;
 
 function shouldRewriteMetadata(metadata) {

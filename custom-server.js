@@ -104,7 +104,24 @@ function startBackgroundCookieRefreshFromCustomServer() {
     });
 }
 
-// Wrap Next standalone HTTP server: derive client IP from the TCP socket
+function startInitializeAppFromCustomServer() {
+  if (global.__appBootstrapped) return;
+  global.__appBootstrapped = true;
+  const modPath = path.join(__dirname, "src", "shared", "services", "initializeApp.js");
+  import(pathToFileURL(modPath).href)
+    .then((m) => {
+      try {
+        (m.default || m.initializeApp || m)();
+      } catch (e) {
+        console.error("[InitApp] start failed:", e && e.message ? e.message : e);
+      }
+    })
+    .catch((e) => {
+      console.error("[InitApp] import failed:", e && e.message ? e.message : e);
+    });
+}
+
+// Wrap Next standalone HTTP server...
 // (unspoofable) and strip client-supplied forwarding headers so downstream
 // rate-limiting keys on the real peer address instead of attacker-controlled XFF.
 http.createServer = (...args) => {
@@ -135,6 +152,7 @@ http.createServer = (...args) => {
     startBackgroundTokenRefreshFromCustomServer();
     startBackgroundConnectionHealthFromCustomServer();
     startBackgroundCookieRefreshFromCustomServer();
+    startInitializeAppFromCustomServer();
   });
   const origEmit = server.emit;
   // JBR 25 sends h2c upgrades that the HTTP/1.1 server would otherwise close.
@@ -186,14 +204,25 @@ http.createServer = (...args) => {
 };
 
 if (require.main === module) {
-  const standalone = path.join(__dirname, "server.js");
-  if (fs.existsSync(standalone)) {
-    require(standalone);
-  } else {
-    // Repo checkout has no standalone build next to us. `next start` builds its HTTP
-    // server in-process, so the wrapper above still sanitizes every request.
-    const nextBin = require.resolve("next/dist/bin/next");
-    process.argv = [process.argv[0], nextBin, "start", ...process.argv.slice(2)];
-    require(nextBin);
+  // Parse --port from argv (next start parses it, but standalone server.js uses PORT env).
+  const portArgIdx = process.argv.indexOf("--port");
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    process.env.PORT = process.env.PORT || process.argv[portArgIdx + 1];
   }
+  const standaloneCustom = path.join(__dirname, ".next", "standalone", "custom-server.js");
+  if (fs.existsSync(standaloneCustom)) {
+    // Delegate to the standalone build's custom-server (alias-rewritten, supports
+    // auto-resume tunnel on startup). Re-exec so it runs as the main module.
+    const { spawn } = require("child_process");
+    const child = spawn(process.execPath, [standaloneCustom, ...process.argv.slice(2)], {
+      stdio: "inherit",
+      env: { ...process.env, PORT: process.env.PORT || (process.argv[process.argv.indexOf("--port") + 1] || "1945") },
+      cwd: __dirname,
+    });
+    child.on("exit", (code) => process.exit(code ?? 0));
+    return;
+  }
+  const nextBin = require.resolve("next/dist/bin/next");
+  process.argv = [process.argv[0], nextBin, "start", ...process.argv.slice(2)];
+  require(nextBin);
 }

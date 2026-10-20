@@ -6,6 +6,7 @@ import { useNotificationStore } from "@/store/notificationStore";
 import Sidebar from "../Sidebar";
 import Header from "../Header";
 import PageLoadBadge from "../PageLoadBadge";
+import AntaresFooter from "../AntaresFooter";
 
 const TG_URL = "https://t.me/techwizdisc";
 const WA_URL = "https://chat.whatsapp.com/J40Gf92ksaT4Uma02CIMo3?s=cl&p=a&mlu=4&ilr=4";
@@ -115,6 +116,16 @@ export default function DashboardLayout({ children }) {
   const removeNotification = useNotificationStore((state) => state.removeNotification);
 
   useEffect(() => {
+    // Show the community invite once per browser session so it never blocks
+    // the dashboard controls on subsequent navigations.
+    let seen = false;
+    try {
+      seen = window.sessionStorage.getItem("routermod:community-shown") === "1";
+    } catch {}
+    if (seen) return;
+    try {
+      window.sessionStorage.setItem("routermod:community-shown", "1");
+    } catch {}
     const t = setTimeout(() => setShowCommunity(true), 800);
     return () => clearTimeout(t);
   }, []);
@@ -131,6 +142,7 @@ export default function DashboardLayout({ children }) {
       import("@/app/(dashboard)/dashboard/usage/components/TopModelsChart").catch(() => {});
       import("@/app/(dashboard)/dashboard/providers/page").catch(() => {});
       import("@/app/(dashboard)/dashboard/combos/page").catch(() => {});
+      import("@/app/(dashboard)/dashboard/models/page").catch(() => {});
       import("@/app/(dashboard)/dashboard/endpoint/EndpointPageClient").catch(() => {});
     };
     if (typeof window !== "undefined") {
@@ -205,28 +217,17 @@ export default function DashboardLayout({ children }) {
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
-        <div className={`flex-1 overflow-y-auto overflow-x-clip custom-scrollbar flex flex-col justify-between ${pathname === "/dashboard/basic-chat" ? "" : "p-3 sm:p-5 lg:p-8"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
-          <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "w-full max-w-7xl mx-auto flex-1 flex flex-col"}`}>{children}</div>
+        <div className="flex-1 overflow-y-auto overflow-x-clip custom-scrollbar flex flex-col">
+          <div
+            className={`flex-1 flex flex-col ${
+              pathname === "/dashboard/basic-chat" ? "overflow-hidden" : "p-3 sm:p-5 lg:p-7"
+            }`}
+          >
+            <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "w-full max-w-7xl mx-auto flex-1 flex flex-col"}`}>{children}</div>
+          </div>
 
-          {/* Unified Neobrutalism Footer */}
-          <footer className="mt-8 pt-4 pb-2 border-t-2 border-border flex flex-col items-center justify-center gap-1 font-mono text-center">
-            <div className="text-xs font-bold text-text-main flex items-center justify-center gap-2">
-              <span className="size-2 rounded-full bg-[var(--color-success)] animate-pulse" />
-              <span>Router Mod {new Date().getFullYear()}</span>
-            </div>
-            <div className="text-[11px] font-semibold text-text-muted">
-              Developed by{" "}
-              <a
-                href="https://github.com/techwiz37"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--color-primary)] hover:underline font-bold inline-flex items-center gap-0.5"
-              >
-                Techwiz
-                <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-              </a>
-            </div>
-          </footer>
+          {/* Unified Footer — same markup as the login screen */}
+          <AntaresFooter />
         </div>
       </main>
     </div>

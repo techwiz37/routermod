@@ -1,11 +1,14 @@
 import "open-sse/index.js";
 
-import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
+import { getProviderConnectionById } from "@/lib/localDb";
 import { getUsageForProvider } from "open-sse/services/usage.js";
-import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
-import { getExecutor } from "open-sse/executors/index.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { USAGE_APIKEY_PROVIDERS } from "@/shared/constants/providers";
+import { refreshAndUpdateCredentials } from "@/shared/services/refreshCredentials.js";
+
+// Re-exported for backwards compatibility: the implementation now lives in
+// shared/services so runtime schedulers can use it without a Next route import.
+export { refreshAndUpdateCredentials };
 
 const AUTH_EXPIRED_PATTERNS = ["expired", "authentication", "unauthorized", "401", "re-authorize"];
 function isAuthExpiredMessage(usage) {
@@ -14,96 +17,6 @@ function isAuthExpiredMessage(usage) {
   return AUTH_EXPIRED_PATTERNS.some((p) => msg.includes(p));
 }
 
-export async function refreshAndUpdateCredentials(connection, force = false, proxyOptions = null) {
-  const latest = connection.id ? await getProviderConnectionById(connection.id) : null;
-  if (latest) connection = latest;
-
-  const executor = getExecutor(connection.provider);
-
-  const credentials = {
-    accessToken: connection.accessToken,
-    refreshToken: connection.refreshToken,
-    idToken: connection.idToken,
-    expiresAt: connection.expiresAt || connection.tokenExpiresAt,
-    lastRefreshAt: connection.lastRefreshAt,
-    connectionId: connection.id,
-    providerSpecificData: connection.providerSpecificData,
-    copilotToken: connection.providerSpecificData?.copilotToken,
-    copilotTokenExpiresAt: connection.providerSpecificData?.copilotTokenExpiresAt,
-  };
-
-  const needsRefresh = force || executor.needsRefresh(credentials);
-
-  if (!needsRefresh) {
-    return { connection, refreshed: false };
-  }
-
-  const refreshResult = await executor.refreshCredentials(credentials, console, proxyOptions);
-
-  if (refreshResult && isUnrecoverableRefreshError(refreshResult)) {
-    throw new Error("Refresh token invalid or reused. Please re-authorize the connection.");
-  }
-
-  if (!refreshResult) {
-    if (connection.accessToken) {
-      return { connection, refreshed: false };
-    }
-    throw new Error("Failed to refresh credentials. Please re-authorize the connection.");
-  }
-
-  const now = new Date().toISOString();
-  const updateData = {
-    updatedAt: now,
-  };
-
-  if (refreshResult.accessToken) {
-    updateData.accessToken = refreshResult.accessToken;
-  }
-
-  if (refreshResult.refreshToken) {
-    updateData.refreshToken = refreshResult.refreshToken;
-  }
-
-  if (refreshResult.idToken) {
-    updateData.idToken = refreshResult.idToken;
-  }
-
-  if (refreshResult.lastRefreshAt) {
-    updateData.lastRefreshAt = refreshResult.lastRefreshAt;
-  }
-
-  if (refreshResult.expiresIn) {
-    updateData.expiresAt = new Date(Date.now() + refreshResult.expiresIn * 1000).toISOString();
-    updateData.expiresIn = refreshResult.expiresIn;
-  } else if (refreshResult.expiresAt) {
-    updateData.expiresAt = refreshResult.expiresAt;
-  }
-
-  const providerSpecificUpdates = {
-    ...(refreshResult.providerSpecificData || {}),
-    ...(refreshResult.copilotToken ? { copilotToken: refreshResult.copilotToken } : {}),
-    ...(refreshResult.copilotTokenExpiresAt ? { copilotTokenExpiresAt: refreshResult.copilotTokenExpiresAt } : {}),
-  };
-  if (Object.keys(providerSpecificUpdates).length > 0) {
-    updateData.providerSpecificData = {
-      ...(connection.providerSpecificData || {}),
-      ...providerSpecificUpdates,
-    };
-  }
-
-  await updateProviderConnection(connection.id, updateData);
-
-  const updatedConnection = {
-    ...connection,
-    ...updateData,
-    providerSpecificData: updateData.providerSpecificData || connection.providerSpecificData,
-  };
-
-  return {
-    connection: updatedConnection,
-    refreshed: true,
-  };
-}
 
 export async function GET(request, { params }) {
   let connection;

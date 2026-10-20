@@ -43,11 +43,11 @@ export default {
     { id: "openai/gpt-5.4", name: "GPT-5.4" },
     { id: "google/gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
     { id: "google/gemini-3.1-flash-lite", name: "Gemini 3.1 Flash Lite" },
-    { id: "cline-free/nemotron-3.5-super-vl", name: "Nemotron 3.5 Super VL (Free)" },
     // Free tier: not present in the /api/v1/models catalog — Cline publishes
     // these in its /api/v1/ai/cline/recommended-models feed (see
     // services/clinepassModels.js). Seeded here so they show on the provider
     // page without importing the full catalog. Daily quota, resets daily.
+    { id: "cline-free/nemotron-3.5-super-vl", name: "Nemotron 3.5 Super VL (Free)" },
     { id: "cline-free/step-5-preview", name: "Step 5 Preview (Free)" },
     { id: "cline-free/mimo-v2.6-flash", name: "Mimo V2.6 Flash (Free)" },
     { id: "cline-free/muse-spark-1.3-contributor", name: "Muse Spark 1.3 Contributor (Free)" },

@@ -19,6 +19,30 @@ import { fileURLToPath } from "node:url";
 
 const ALIAS_DIRS = ["lib", "shared", "models", "sse", "mitm", "bot", "i18n", "store"];
 
+// ESM marker: Node treats a ".js" file as CommonJS unless the nearest
+// package.json says "type":"module". The traced source trees are ESM-only, so
+// without this Node re-parses every file (MODULE_TYPELESS_PACKAGE_JSON warning)
+// and — worse — a stray CJS require() throws "require is not defined".
+const ESM_PACKAGE_JSON = JSON.stringify({ type: "module" }, null, 2) + "\n";
+
+function markAsEsm(dir) {
+  if (!fs.existsSync(dir)) return false;
+  const pkg = path.join(dir, "package.json");
+  try {
+    if (fs.existsSync(pkg)) {
+      const current = JSON.parse(fs.readFileSync(pkg, "utf8"));
+      if (current.type === "module") return false;
+      current.type = "module";
+      fs.writeFileSync(pkg, JSON.stringify(current, null, 2) + "\n");
+      return true;
+    }
+    fs.writeFileSync(pkg, ESM_PACKAGE_JSON);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function linkDir(target, linkPath) {
   try {
     if (fs.existsSync(linkPath) || fs.lstatSync(linkPath, { throwIfNoEntry: false })) {
@@ -95,10 +119,27 @@ export function fixStandaloneAlias({ projectRoot = process.cwd(), distDir = proc
   }
 
   // 1b. "open-sse" bare specifier.
-  const openSseSrc = path.join(projectRoot, "open-sse");
+  // Prefer the standalone's own traced copy: it ships the post-build alias
+  // rewrites and stays inside the standalone tree, so its "@/..." imports
+  // resolve through standalone/node_modules/@. Pointing at the project folder
+  // instead makes Node load the raw sources, whose "@/..." specifiers then
+  // resolve against the project root (no node_modules/@ there) and fail with
+  // "Cannot find package '@/lib'".
+  const tracedOpenSse = path.join(standaloneDir, "open-sse");
+  const openSseSrc = fs.existsSync(tracedOpenSse) ? tracedOpenSse : path.join(projectRoot, "open-sse");
   if (fs.existsSync(openSseSrc)) {
+    markAsEsm(openSseSrc);
     const res = linkDir(openSseSrc, path.join(nmDir, "open-sse"));
     if (res) console.log(`[standalone-alias] open-sse → ${openSseSrc} (${res})`);
+  }
+
+  // 1c. The traced source tree is ESM-only — mark it so Node stops
+  // re-parsing every module as CommonJS.
+  // Only the ESM-safe subtrees: src/mitm, src/bot and the two CJS files in
+  // src/lib are CommonJS and must keep the default (CJS) interpretation.
+  for (const esmDir of ["sse", "shared", "models", "store", "i18n", "lib", "app"]) {
+    const dir = path.join(srcDir, esmDir);
+    if (fs.existsSync(dir)) markAsEsm(dir);
   }
 
   // 2. Rewrite bare/relative ESM imports missing a file extension.

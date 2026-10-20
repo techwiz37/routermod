@@ -7,7 +7,6 @@ import PropTypes from "prop-types";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import HeaderMenu from "@/shared/components/HeaderMenu";
 import HeaderLanguage from "@/shared/components/HeaderLanguage";
-import ThemeToggle from "@/shared/components/ThemeToggle";
 import DonateModal from "@/shared/components/DonateModal";
 import Soft3DLogo from "@/shared/components/Soft3DLogo";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
@@ -120,9 +119,17 @@ const getPageInfo = (pathname) => {
     };
   if (pathname.includes("/cli-tools"))
     return {
-      title: "CLI Tools",
-      description: "Configure CLI tools",
+      title: "Tool CLI",
+      description: "Kelola tool CLI yang terhubung ke RouterMod",
       icon: "terminal",
+      breadcrumbs: [],
+    };
+  if (pathname.includes("/dashboard/agent"))
+    return {
+      title: "AI Agent",
+      description:
+        "Chat dengan model, kelola file project, dan jalankan command langsung",
+      icon: "smart_toy",
       breadcrumbs: [],
     };
   if (pathname.includes("/proxy-pools"))
@@ -295,7 +302,6 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
           <span className="material-symbols-outlined text-[17px]">volunteer_activism</span>
           <span className="hidden sm:inline">Donate</span>
         </button>
-        <ThemeToggle />
         <HeaderLanguage />
         <HeaderMenu onLogout={handleLogout} />
       </div>

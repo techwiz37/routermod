@@ -1,7 +1,9 @@
 {
-  "name": "routermod-app",
-  "version": "0.5.99",
+  "name": "routermod",
+  "version": "1.0.2",
   "description": "Routermod web dashboard",
+  "author": "techwiz37",
+  "publisher": "techwiz37",
   "private": true,
   "scripts": {
     "dev": "next dev --port 1945",

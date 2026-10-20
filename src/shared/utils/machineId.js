@@ -1,8 +1,14 @@
-import { machineIdSync } from 'node-machine-id';
+// node-machine-id ships a minified UMD bundle: its named exports are not
+// statically detectable, so `import { machineIdSync }` throws
+// "does not provide an export named 'machineIdSync'" under plain ESM.
+// Import the namespace and pick the function at runtime instead.
+import machineIdPkg from 'node-machine-id';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DATA_DIR } from '@/lib/dataDir';
+
+const { machineIdSync } = machineIdPkg || {};
 
 const MACHINE_ID_FILE = path.join(DATA_DIR, 'machine-id');
 const AUTH_DIR = path.join(DATA_DIR, 'auth');

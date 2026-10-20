@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { RequestLogger, CardSkeleton, SegmentedControl } from "@/shared/components";
+import { RequestLogger, CardSkeleton } from "@/shared/components";
+import AntaresSegmented from "@/shared/components/AntaresSegmented";
 import UsageStats from "@/shared/components/UsageStats";
 import RequestDetailsTab from "./components/RequestDetailsTab";
 import LiveServerTab from "./components/LiveServerTab";
@@ -43,10 +44,10 @@ function UsageContent() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
+    <div className="an-scope flex min-w-0 flex-col gap-5">
       {/* Tabs + period selector on same row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SegmentedControl
+        <AntaresSegmented
           options={[
             { value: "overview", label: "Ringkasan" },
             { value: "details", label: "Detail Permintaan" },
@@ -57,7 +58,7 @@ function UsageContent() {
           className="w-full sm:w-auto"
         />
         {activeTab === "overview" && (
-          <SegmentedControl
+          <AntaresSegmented
             options={PERIODS}
             value={period}
             onChange={setPeriod}

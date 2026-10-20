@@ -146,6 +146,9 @@ export async function upsertProvider(input) {
       baseUrl,
       apiKey: input.apiKey != null && input.apiKey !== "" ? input.apiKey : existing.apiKey,
       defaultModel: input.defaultModel ?? existing.defaultModel,
+      ...(Array.isArray(input.models) && input.models.length
+        ? { models: normalizeModels(input.models) }
+        : {}),
       updatedAt: now,
     };
     await writeRawProviders(providers);
@@ -210,6 +213,21 @@ export async function reloadModels(id) {
   return models;
 }
 
+/** Remember the model that answered, so the next turn starts there. */
+export async function rememberWorkingModel(providerId, model) {
+  if (!providerId || !model) return;
+  const providers = await readRawProviders();
+  const idx = providers.findIndex((p) => p.id === providerId);
+  if (idx === -1) return;
+  if (providers[idx].defaultModel === model) return;
+  providers[idx] = {
+    ...providers[idx],
+    defaultModel: model,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeRawProviders(providers);
+}
+
 export async function resolveModelTarget({ providerId, model } = {}) {
   const providers = await readRawProviders();
   if (!providers.length) throw new Error("No agent model provider configured");
@@ -227,5 +245,7 @@ export async function resolveModelTarget({ providerId, model } = {}) {
     apiKey: chosen.apiKey || "",
     model: chosenModel,
     providerId: chosen.id,
+    // Full list so the chat route can fall back when a model is gone.
+    models: normalizeModels(chosen.models).map((m) => m.id),
   };
 }

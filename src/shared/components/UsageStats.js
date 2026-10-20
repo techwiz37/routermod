@@ -13,6 +13,7 @@ import Badge from "./Badge";
 import Card from "./Card";
 import SegmentedControl from "./SegmentedControl";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
+import AntaresSegmented from "@/shared/components/AntaresSegmented";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import dynamic from "next/dynamic";
 const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
@@ -41,37 +42,40 @@ function TimeAgo({ timestamp }) {
 
 function RecentRequests({ requests = [] }) {
   return (
-    <Card className="flex min-w-0 flex-col overflow-hidden border-2 shadow-[2.5px_2.5px_0_var(--color-border)] h-[280px] sm:h-[340px] lg:h-full lg:min-h-[300px]" padding="none">
-      {/* Header */}
-      <div className="px-3.5 py-2.5 border-b-2 border-border shrink-0 bg-surface-2 flex items-center gap-2">
-        <span className="material-symbols-outlined text-[15px] text-primary">bolt</span>
-        <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Live Request Feed</span>
-      </div>
+    <section className="an-panel flex min-w-0 flex-col overflow-hidden h-[300px] sm:h-[360px] lg:h-full lg:min-h-[320px] lg:max-h-[560px]">
+      <header className="an-panel-head">
+        <span className="an-panel-ico" aria-hidden>
+          <span className="material-symbols-outlined">bolt</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="an-panel-title">Live Request Feed</h2>
+          <p className="an-panel-sub">Request yang sedang masuk</p>
+        </div>
+      </header>
 
       {!requests.length ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-text-muted">
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-[var(--t-muted)]">
           <span className="material-symbols-outlined text-[32px] opacity-30">chat_bubble_outline</span>
           <span className="text-xs font-medium">Belum ada request masuk</span>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        <div className="an-feed flex-1 overflow-y-auto">
           {requests.map((r, i) => {
             const ok = !r.status || r.status === "ok" || r.status === "success";
             const modelShort = (r.model || "").split("/").pop();
             return (
-              <div
-                key={i}
-                className="flex items-start gap-3 px-4 py-2.5 border-b border-border/50 hover:bg-surface-2 transition-colors last:border-b-0"
-              >
-                <div className={`mt-0.5 size-2 shrink-0 rounded-full ${ok ? "bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.6)]" : "bg-red-400"}`} />
+              <div key={i} className="an-feed-row">
+                <span
+                  className={`an-feed-dot ${ok ? "bg-[var(--t-ok)]" : "bg-[var(--t-danger)]"}`}
+                />
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[11px] font-bold text-text-main truncate" title={r.model}>{modelShort}</div>
-                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-text-muted font-mono">
-                    <span className="text-primary">{fmt(r.promptTokens)}↑</span>
-                    <span className="text-emerald-500">{fmt(r.completionTokens)}↓</span>
+                  <div className="an-feed-model" title={r.model}>{modelShort}</div>
+                  <div className="an-feed-meta">
+                    <span className="text-[var(--t-star-ink)]">{fmt(r.promptTokens)}↑</span>
+                    <span className="text-[var(--t-ok)]">{fmt(r.completionTokens)}↓</span>
                   </div>
                 </div>
-                <div className="shrink-0 text-[10px] text-text-muted font-mono whitespace-nowrap">
+                <div className="an-feed-time">
                   <TimeAgo timestamp={r.timestamp} />
                 </div>
               </div>
@@ -79,7 +83,7 @@ function RecentRequests({ requests = [] }) {
           })}
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -111,7 +115,7 @@ function getGroupKey(item, keyField) {
   switch (keyField) {
     case "rawModel": return item.rawModel || "Unknown Model";
     case "accountName": return item.accountName || `Account ${item.connectionId?.slice(0, 8)}...` || "Unknown Account";
-    case "keyName": return item.keyName || "Unknown Key";
+    case "keyName": return item.apiKeyMasked ? `${item.keyName} (${item.apiKeyMasked})` : item.keyName || "Unknown Key";
     case "endpoint": return item.endpoint || "Unknown Endpoint";
     default: return item[keyField] || "Unknown";
   }
@@ -383,7 +387,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           ),
           renderDetailCells: (item) => (
             <>
-              <td className="px-6 py-3 font-medium">{item.keyName}</td>
+              <td className="px-6 py-3 font-medium font-mono text-xs">{item.apiKeyMasked || item.keyName}</td>
               <td className="px-6 py-3">{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
@@ -431,11 +435,11 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <div className="an-scope flex min-w-0 flex-col gap-5">
       {/* Period selector (hidden when controlled by parent) */}
       {!hidePeriodSelector && (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
-          <SegmentedControl
+          <AntaresSegmented
             options={PERIODS}
             value={period}
             onChange={setPeriod}
@@ -481,15 +485,14 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           <select
             value={tableView}
             onChange={(e) => setTableView(e.target.value)}
-            className="w-full rounded-lg border-2 border-border bg-surface px-3 py-1.5 text-sm font-bold text-text-main shadow-[2px_2px_0_var(--color-border)] focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
-            style={{ colorScheme: 'auto' }}
+            className="an-select w-full sm:w-auto"
           >
             {TABLE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
           <div className="flex items-center gap-2">
-            <SegmentedControl
+            <AntaresSegmented
               options={[
                 { value: "costs", label: "Biaya" },
                 { value: "tokens", label: "Token" },

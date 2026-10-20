@@ -5,8 +5,12 @@ import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import { useNotificationStore } from "@/store/notificationStore";
+import { translate } from "@/i18n/runtime";
+import ModelListPagination from "./ModelListPagination";
 
-function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onDeleteAlias, onEdit, onTest, testStatus, isTesting }) {
+const MODELS_PER_PAGE = 5;
+
+function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onDeleteAlias, onEdit, onTest, testStatus, isTesting, isFree, isPaid }) {
   const [editing, setEditing] = useState(false);
   const [draftId,   setDraftId]   = useState(modelId);
   const [draftName, setDraftName] = useState(modelName || modelId);
@@ -39,7 +43,19 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
           {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{modelName || modelId}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium truncate">{modelName || modelId}</p>
+            {isFree === true && (
+              <span className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-bold text-green-500">
+                FREE
+              </span>
+            )}
+            {isPaid === true && (
+              <span className="shrink-0 rounded bg-sidebar px-1.5 py-0.5 text-[10px] font-bold text-text-muted/70">
+                PAID
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
             {/* Copy */}
@@ -122,12 +138,13 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onEditAlias, onEditCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onEditAlias, onEditCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic, detectFilter = "all" }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [testingModelId, setTestingModelId] = useState(null);
   const [modelTestResults, setModelTestResults] = useState({});
+  const [modelsPage, setModelsPage] = useState(1);
   const addNotification = useNotificationStore((s) => s.addNotification);
 
   const handleTestModel = async (modelId) => {
@@ -175,6 +192,24 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     providerAlias: providerStorageAlias,
     type: "llm",
   });
+
+  // The All / Free / Paid filter also applies to the list below. "Paid" keeps
+  // models whose pricing is unknown too — those are almost never free.
+  const visibleModels = detectFilter === "all"
+    ? allModels
+    : detectFilter === "free"
+      ? allModels.filter((m) => m.isFree === true)
+      : allModels.filter((m) => m.isFree !== true);
+  const hiddenCount = allModels.length - visibleModels.length;
+  const unknownCount = detectFilter === "paid"
+    ? visibleModels.filter((m) => typeof m.isFree !== "boolean").length
+    : 0;
+
+  const totalPages = Math.max(1, Math.ceil(visibleModels.length / MODELS_PER_PAGE));
+  const safePage = Math.min(modelsPage, totalPages);
+  const pagedModels = visibleModels.slice((safePage - 1) * MODELS_PER_PAGE, safePage * MODELS_PER_PAGE);
+
+  useEffect(() => { setModelsPage(1); }, [detectFilter]);
 
   const handleAdd = async () => {
     if (!newModel.trim() || adding) return;
@@ -236,7 +271,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-text-muted">
-        Add {isAnthropic ? "Anthropic" : "OpenAI"}-compatible models manually or import them from the /models endpoint.
+        Add models manually, or import them from the /models endpoint.
       </p>
 
       <div className="flex items-end gap-2 flex-wrap">
@@ -262,27 +297,54 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
 
       {!canImport && (
         <p className="text-xs text-text-muted">
-          Add a connection to enable importing models.
+          Add a connection to enable importing models.{" "}
+          Auto-detect Models works without one if this endpoint allows anonymous access.
         </p>
       )}
 
       {allModels.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {allModels.map(({ id, alias, source, name }) => (
-            <CompatibleModelRow
-              key={`${source}-${providerStorageAlias}/${id}`}
-              modelId={id}
-              modelName={name}
-              fullModel={`${providerDisplayAlias}/${id}`}
-              copied={copied}
-              onCopy={onCopy}
-              onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
-              onEdit={(vals) => source === "custom" ? onEditCustomModel?.(id, vals) : onEditAlias?.(id, vals)}
-              onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
-              testStatus={modelTestResults[id]}
-              isTesting={testingModelId === id}
-            />
-          ))}
+        <div className="flex flex-col">
+          {hiddenCount > 0 && (
+            <p className="mb-2 rounded-md bg-sidebar px-2.5 py-1.5 text-[11px] text-text-muted">
+              {hiddenCount} {translate("models hidden by this filter")}
+            </p>
+          )}
+          {unknownCount > 0 && (
+            <p className="mb-2 rounded-md bg-sidebar px-2.5 py-1.5 text-[11px] text-text-muted">
+              {unknownCount} {translate("models without pricing info included")}
+            </p>
+          )}
+
+          <div className="flex flex-col gap-3">
+            {pagedModels.map(({ id, alias, source, name, isFree }) => (
+              <CompatibleModelRow
+                key={`${source}-${providerStorageAlias}/${id}`}
+                modelId={id}
+                modelName={name}
+                fullModel={`${providerDisplayAlias}/${id}`}
+                copied={copied}
+                onCopy={onCopy}
+                isFree={isFree === true}
+                isPaid={isFree === false}
+                onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
+                onEdit={(vals) => source === "custom" ? onEditCustomModel?.(id, vals) : onEditAlias?.(id, vals)}
+                onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
+                testStatus={modelTestResults[id]}
+                isTesting={testingModelId === id}
+              />
+            ))}
+            {pagedModels.length === 0 && (
+              <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-text-muted">
+                {translate("No models match this filter")}
+              </p>
+            )}
+          </div>
+
+          <ModelListPagination
+            page={safePage}
+            totalPages={totalPages}
+            onPageChange={setModelsPage}
+          />
         </div>
       )}
     </div>
@@ -306,4 +368,5 @@ CompatibleModelsSection.propTypes = {
     isActive: PropTypes.bool,
   })).isRequired,
   isAnthropic: PropTypes.bool,
+  detectFilter: PropTypes.oneOf(["all", "free", "paid"]),
 };

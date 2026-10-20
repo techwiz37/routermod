@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Card, Button, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
+import { Button, Input, Modal, ConfirmModal } from "@/shared/components";
+import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
 import {
@@ -469,76 +470,138 @@ export default function TokenSaverClient() {
       : "bg-warning/15 text-warning";
 
   return (
-    <div className="space-y-6">
-      <Card id="rtk">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">
-              bolt
-            </span>
-            Token Saver
-          </h2>
+    <div className="an-scope flex min-w-0 flex-col gap-5">
+      {/* Hero */}
+      <section className="an-panel an-hero">
+        <div className="an-hero-main">
+          <span className="an-hero-eyebrow">Token Saver</span>
+          <h1 className="an-hero-title">Hemat Token, Tetap Kontekstual</h1>
+          <p className="an-hero-sub">
+            Empat lapisan kompresi yang aktif otomatis di belakang layar: tool output,
+            context prompt, balasan LLM, dan gaya kode. Hemat token tanpa mengubah
+            perilak model.
+          </p>
         </div>
-        <div className="flex items-center justify-between pt-2 pb-4 border-b border-border gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">
-              Compress tool output{" "}
+        <div className="an-hero-stats">
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">bolt</span>
+              RTK
+            </span>
+            <span className="an-stat-value">{rtkEnabled ? "On" : "Off"}</span>
+            <span className="an-stat-foot">kompres output tool</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">compress</span>
+              Headroom
+            </span>
+            <span className="an-stat-value">{headroomEnabled ? "On" : "Off"}</span>
+            <span className="an-stat-foot">kompres konteks prompt</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">short_text</span>
+              Caveman
+            </span>
+            <span className="an-stat-value">{cavemanEnabled ? "On" : "Off"}</span>
+            <span className="an-stat-foot">balasan LLM ringkas</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">code</span>
+              Ponytail
+            </span>
+            <span className="an-stat-value">{ponytailEnabled ? "On" : "Off"}</span>
+            <span className="an-stat-foot">gaya kode minimal</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Feature cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+        {/* RTK */}
+        <section className="an-panel flex flex-col">
+          <header className="an-panel-head an-panel-head-stack">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">bolt</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Compress tool output</h2>
+              <p className="an-panel-sub">
+                git/grep/ls/tree/logs → 60-90% fewer input tokens
+              </p>
+            </div>
+            <div className="an-panel-actions">
+              <AntaresSwitch
+                on={rtkEnabled}
+                onChange={(next) => handleRtkEnabled(next)}
+                label={rtkEnabled ? "On" : "Off"}
+                ariaLabel="Toggle RTK"
+              />
+            </div>
+          </header>
+          <div className="an-panel-pad flex flex-wrap items-center gap-2">
+            <a
+              href="https://github.com/rtk-ai/rtk"
+              target="_blank"
+              rel="noreferrer"
+              className="an-chip hover:!text-[var(--t-ink)]"
+            >
+              <span className="material-symbols-outlined">open_in_new</span>
+              <span>RTK</span>
+            </a>
+            <span className="an-chip ok">
+              <span className="size-1.5 rounded-full bg-[var(--t-ok)] shrink-0" />
+              <span>60-90% lebih sedikit token masukan</span>
+            </span>
+          </div>
+        </section>
+        {/* Headroom */}
+        <section className="an-panel flex flex-col">
+          <header className="an-panel-head an-panel-head-stack">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">compress</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Compress context</h2>
+              <p className="an-panel-sub">
+                Compress prompts via /v1/compress before routing to the model
+              </p>
+            </div>
+            <div className="an-panel-actions">
+              <span className={`an-chip ${headroomRunning ? "ok" : ""}`}>
+                <span>{headroomStatusLabel}</span>
+              </span>
+              <AntaresSwitch
+                on={headroomEnabled}
+                onChange={(next) => handleHeadroomEnabled(next)}
+                label={headroomEnabled ? "On" : "Off"}
+                ariaLabel="Toggle Headroom"
+              />
+            </div>
+          </header>
+          <div className="an-panel-pad flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <a
-                href="https://github.com/rtk-ai/rtk"
+                href="https://github.com/chopratejas/headroom"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-normal text-primary underline hover:opacity-80"
+                className="an-chip hover:!text-[var(--t-ink)]"
               >
-                (RTK)
+                <span className="material-symbols-outlined">open_in_new</span>
+                <span>Headroom</span>
               </a>
-            </p>
-            <p className="text-sm text-text-muted">
-              git/grep/ls/tree/logs → 60-90% fewer input tokens
-            </p>
-          </div>
-          <Toggle
-            checked={rtkEnabled}
-            onChange={() => handleRtkEnabled(!rtkEnabled)}
-          />
-        </div>
-        <div className="flex items-center justify-between py-4 gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <p className="font-medium">
-                Compress context{" "}
-                <a
-                  href="https://github.com/chopratejas/headroom"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-normal text-primary underline hover:opacity-80"
-                >
-                  (Headroom)
-                </a>
-              </p>
-              <span
-                className={`text-xs px-2 py-0.5 rounded ${headroomRunning ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
-              >
-                {headroomStatusLabel}
-              </span>
               <button
                 type="button"
                 onClick={() => setShowHeadroomInstallModal(true)}
-                className="text-xs text-primary underline hover:opacity-80"
+                className="an-btn an-ghost h-7 px-3 text-[11px]"
               >
                 {headroomRunning ? "Manage" : "Setup"}
               </button>
             </div>
-            <p className="text-sm text-text-muted mt-1">
-              Compress prompts via /v1/compress before routing to the model
-            </p>
-          </div>
-          <Toggle
-            checked={headroomEnabled}
-            onChange={() => handleHeadroomEnabled(!headroomEnabled)}
-          />
-        </div>
-        {headroomStatus.installed && (
-          <div className="mb-3 ml-1 pl-3 pb-4 border-l-2 border-border">
+            {headroomStatus.installed && (
+          <div className="flex flex-col gap-2 border-t border-[var(--t-line-soft)] pt-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-text-muted">
                 Compression extras
@@ -557,21 +620,21 @@ export default function TokenSaverClient() {
                   return (
                     <div
                       key={extra}
-                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-success/40 bg-success/5 text-text"
+                      className="an-chip !h-auto !px-2 !py-1 gap-1.5"
                       title={extraTitle}
                     >
-                      <Toggle
-                        size="sm"
-                        checked={active}
+                      <AntaresSwitch
+                        on={active}
                         disabled={restartingProxy}
-                        onChange={() => toggleExtraActive(extra, !active)}
+                        onChange={(next) => toggleExtraActive(extra, next)}
+                        ariaLabel={`Toggle ${extra}`}
                       />
                       <span className="font-medium">[{extra}]</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveExtra(extra)}
                         disabled={removingExtra === extra}
-                        className="ml-1 text-error underline hover:opacity-80 disabled:opacity-50"
+                        className="ml-1 text-[var(--t-danger)] underline hover:opacity-80 disabled:opacity-50"
                         title={`Uninstall [${extra}]`}
                       >
                         {removingExtra === extra ? "Uninstalling…" : "Uninstall"}
@@ -583,10 +646,10 @@ export default function TokenSaverClient() {
                 return (
                   <label
                     key={extra}
-                    className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded border cursor-pointer transition-colors ${
+                    className={`an-chip !h-auto !px-2 !py-1 gap-1.5 cursor-pointer ${
                       pending
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-text-muted hover:bg-surface-2"
+                        ? "accent"
+                        : ""
                     }`}
                     title={extraTitle}
                   >
@@ -605,7 +668,7 @@ export default function TokenSaverClient() {
                 <button
                   onClick={handleInstallExtras}
                   disabled={extrasActionLoading}
-                  className="text-xs px-2.5 py-1 rounded bg-primary text-white hover:opacity-90 disabled:opacity-50"
+                  className="an-btn an-primary h-7 px-3 text-[11px] disabled:opacity-50"
                 >
                   {extrasActionLoading
                     ? "Installing…"
@@ -614,17 +677,17 @@ export default function TokenSaverClient() {
               )}
             </div>
             {extrasActionError && (
-              <p className="text-xs text-error mt-1">{extrasActionError}</p>
+              <p className="text-xs text-[var(--t-danger)] mt-1">{extrasActionError}</p>
             )}
             {restartingProxy && (
-              <p className="text-xs text-text-muted mt-1">Restarting proxy…</p>
+              <p className="text-xs text-[var(--t-muted)] mt-1">Restarting proxy…</p>
             )}
             {(extrasActionLoading || removingExtra) && installLog && (
-              <pre className="mt-2 max-h-32 overflow-auto rounded bg-surface-2 p-2 text-[10px] leading-tight text-text-muted whitespace-pre-wrap">
+              <pre className="mt-2 max-h-32 overflow-auto rounded-[10px] border border-[var(--t-line)] bg-[var(--t-raised)] p-2 text-[10px] leading-tight text-[var(--t-muted)] whitespace-pre-wrap">
                 {installLog}
               </pre>
             )}
-            <p className="text-xs text-text-muted mt-1">
+            <p className="text-xs text-[var(--t-muted)] mt-1">
               Installing adds the package; use <code>on</code>/<code>off</code>{" "}
               to activate it (restarts the proxy). Default install is{" "}
               <code>[proxy]</code> only (SmartCrusher for JSON). Adding{" "}
@@ -634,108 +697,123 @@ export default function TokenSaverClient() {
               adds ~1 GB (torch + huggingface-hub).
             </p>
           </div>
-        )}
-        <div className="flex items-center justify-between pt-4 border-t border-border gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">
-              Compress LLM output{" "}
+            )}
+          </div>
+        </section>
+
+        {/* Caveman */}
+        <section className="an-panel flex flex-col">
+          <header className="an-panel-head an-panel-head-stack">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">short_text</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Compress LLM output</h2>
+              <p className="an-panel-sub">
+                Terse-style system prompt → ~65% fewer output tokens (up to 87%)
+              </p>
+            </div>
+            <div className="an-panel-actions">
+              <AntaresSwitch
+                on={cavemanEnabled}
+                onChange={(next) => handleCavemanEnabled(next)}
+                label={cavemanEnabled ? "On" : "Off"}
+                ariaLabel="Toggle Caveman"
+              />
+            </div>
+          </header>
+          <div className="an-panel-pad flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <a
                 href="https://github.com/JuliusBrussee/caveman"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-normal text-primary underline hover:opacity-80"
+                className="an-chip hover:!text-[var(--t-ink)]"
               >
-                (Caveman)
+                <span className="material-symbols-outlined">open_in_new</span>
+                <span>Caveman</span>
               </a>
-            </p>
-            <p className="text-sm text-text-muted">
-              Terse-style system prompt → ~65% fewer output tokens (up to 87%)
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {cavemanEnabled && (
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1.5">
+              {cavemanEnabled && (
+                <div className="an-segmented !rounded-[10px]">
                   {visibleCavemanLevels.map((lvl) => (
                     <button
                       key={lvl.id}
+                      type="button"
                       onClick={() => handleCavemanLevel(lvl.id)}
-                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
-                        cavemanLevel === lvl.id
-                          ? "bg-primary text-white border-primary"
-                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
-                      }`}
                       title={lvl.desc}
+                      className={`an-segmented-btn ${cavemanLevel === lvl.id ? "active" : ""}`}
                     >
                       {lvl.label}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-primary">
-                  {
-                    CAVEMAN_LEVELS.find((lvl) => lvl.id === cavemanLevel)
-                      ?.desc
-                  }
-                </p>
-              </div>
+              )}
+            </div>
+            {cavemanEnabled && (
+              <p className="text-[11px] text-[var(--t-star-ink)]">
+                {CAVEMAN_LEVELS.find((lvl) => lvl.id === cavemanLevel)?.desc}
+              </p>
             )}
-            <Toggle
-              checked={cavemanEnabled}
-              onChange={() => handleCavemanEnabled(!cavemanEnabled)}
-            />
           </div>
-        </div>
-        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">
-              Lazy senior dev{" "}
+        </section>
+
+        {/* Ponytail */}
+        <section className="an-panel flex flex-col">
+          <header className="an-panel-head an-panel-head-stack">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">code</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Lazy senior dev</h2>
+              <p className="an-panel-sub">
+                Bias the model toward minimal code: YAGNI, reuse stdlib,
+                deletion over addition
+              </p>
+            </div>
+            <div className="an-panel-actions">
+              <AntaresSwitch
+                on={ponytailEnabled}
+                onChange={(next) => handlePonytailEnabled(next)}
+                label={ponytailEnabled ? "On" : "Off"}
+                ariaLabel="Toggle Ponytail"
+              />
+            </div>
+          </header>
+          <div className="an-panel-pad flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <a
                 href="https://github.com/DietrichGebert/ponytail"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-normal text-primary underline hover:opacity-80"
+                className="an-chip hover:!text-[var(--t-ink)]"
               >
-                (Ponytail)
+                <span className="material-symbols-outlined">open_in_new</span>
+                <span>Ponytail</span>
               </a>
-            </p>
-            <p className="text-sm text-text-muted">
-              Bias the model toward minimal code: YAGNI, reuse stdlib,
-              deletion over addition
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {ponytailEnabled && (
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1.5">
+              {ponytailEnabled && (
+                <div className="an-segmented !rounded-[10px]">
                   {PONYTAIL_LEVELS.map((lvl) => (
                     <button
                       key={lvl.id}
+                      type="button"
                       onClick={() => handlePonytailLevel(lvl.id)}
-                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
-                        ponytailLevel === lvl.id
-                          ? "bg-primary text-white border-primary"
-                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
-                      }`}
                       title={lvl.desc}
+                      className={`an-segmented-btn ${ponytailLevel === lvl.id ? "active" : ""}`}
                     >
                       {lvl.label}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-primary">
-                  {
-                    PONYTAIL_LEVELS.find((lvl) => lvl.id === ponytailLevel)
-                      ?.desc
-                  }
-                </p>
-              </div>
+              )}
+            </div>
+            {ponytailEnabled && (
+              <p className="text-[11px] text-[var(--t-star-ink)]">
+                {PONYTAIL_LEVELS.find((lvl) => lvl.id === ponytailLevel)?.desc}
+              </p>
             )}
-            <Toggle
-              checked={ponytailEnabled}
-              onChange={() => handlePonytailEnabled(!ponytailEnabled)}
-            />
           </div>
-        </div>
+        </section>
+
         {/* PXPIPE hidden from UI — experimental, not exposed to users yet */}
         {false && (
         <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
@@ -775,14 +853,15 @@ export default function TokenSaverClient() {
               conversations.
             </p>
           </div>
-          <Toggle
-            checked={pxpipeEnabled}
+          <AntaresSwitch
+            on={pxpipeEnabled}
             disabled={!pxpipeStatus.installed}
-            onChange={() => handlePxpipeEnabled(!pxpipeEnabled)}
+            onChange={(next) => handlePxpipeEnabled(next)}
+            ariaLabel="Toggle PXPIPE"
           />
         </div>
         )}
-      </Card>
+      </div>
 
       <Modal
         isOpen={showHeadroomInstallModal}

@@ -17,24 +17,22 @@ import {
   coerceResponsesOutput,
 } from "../translator/formats/responsesApi.js";
 
-const OPENCODE_UA = "opencode/latest/2.0.24/cli";
+// OpenCode v2 UA shape: opencode/<channel>/<version>/<client>. Upstream rejects
+// the v1 "opencode/1.18.x" form with 403 FreeTierError since 2026-10-14.
+const OPENCODE_UA = "opencode/latest/2.0.26/cli";
+const OPENCODE_CLIENT = "cli";
 const MAX_SESSION_LENGTH = 256;
 const MAX_TOOL_NAME_LEN = 128;
 const SESSION_HEADER = "x-opencode-session";
 const SESSION_FIELD = "_opencodeSession";
-const REQ_FIELD = "_opencodeRequest";
 export const OPENCODE_SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
-export const OPENCODE_REQUEST_RE = /^msg_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
 const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 function hasValidOpencodeVersion(ua) {
-  const m = String(ua || "").match(/opencode\/(\d+)\.(\d+)(?:\.(\d+))?/i);
-  if (!m) return false;
-  const major = parseInt(m[1], 10);
-  const minor = parseInt(m[2], 10);
-  return major > 1 || (major === 1 && minor >= 17);
+  const m = String(ua || "").match(/^opencode\/[a-z0-9-]+\/(\d+)\.\d+\.\d+\/[a-z0-9-]+$/i);
+  return !!m && parseInt(m[1], 10) >= 2;
 }
-// Models served by /zen/v1/responses; every other model stays on /chat/completions.
+// Models served by /inference/v1/responses; every other model stays on /chat/completions.
 const RESPONSES_MODELS = new Set([
   "muse-spark-1.2-contributor-free",
   "muse-spark-1.3-contributor-free",
@@ -43,6 +41,18 @@ const MESSAGES_MODELS = new Set(["union-alpha"]);
 
 let lastTimestamp = 0;
 let counter = 0;
+
+// Session prefix = 12 hex of ~(timeMs * 0x1000 + counter), low 48 bits, like the CLI.
+// Upstream decodes it and rejects a non-small counter with 403 FreeTierError
+// (live probes: counter 0–16 pass, >=100 fail), so the counter must stay real.
+const SESSION_PREFIX_MASK = (1n << 48n) - 1n;
+const SESSION_TIME_MASK = (1n << 36n) - 1n;
+
+function descendingTimeHex(time, counterValue) {
+  return (~(BigInt(time) * 0x1000n + BigInt(counterValue)) & SESSION_PREFIX_MASK)
+    .toString(16)
+    .padStart(12, "0");
+}
 
 function unstableRandom() {
   const bytes = crypto.randomBytes(14);
@@ -59,15 +69,7 @@ export function generateSessionId(timestamp = Date.now()) {
     counter = 0;
   }
   counter++;
-
-  const current = BigInt(timestamp) * 0x1000n + BigInt(counter);
-  const value = ~current;
-  const time = Array.from({ length: 6 }, (_, index) =>
-    Number((value >> BigInt(40 - 8 * index)) & 0xffn)
-      .toString(16)
-      .padStart(2, "0")
-  ).join("");
-  return `ses_${time}${unstableRandom()}`;
+  return `ses_${descendingTimeHex(timestamp, counter)}${unstableRandom()}`;
 }
 
 export function generateRequestId(timestamp = Date.now()) {
@@ -162,61 +164,6 @@ export function stableSessionId(credentials) {
   return sessionId;
 }
 
-function lastUserText(body) {
-  try {
-    if (!body || typeof body !== "object") return "";
-    const arr = Array.isArray(body.messages)
-      ? body.messages
-      : Array.isArray(body.input)
-        ? body.input
-        : null;
-    if (!arr) return typeof body.input === "string" ? body.input.slice(-600) : "";
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const msg = arr[i];
-      if (!msg) continue;
-      if (msg.role && msg.role !== "user") continue;
-      const content = msg.content;
-      if (typeof content === "string" && content.trim()) return content.trim().slice(-600);
-      if (Array.isArray(content)) {
-        const text = content
-          .map((part) => (typeof part === "string" ? part : part?.text || part?.input_text || ""))
-          .join(" ")
-          .trim();
-        if (text) return text.slice(-600);
-      }
-    }
-  } catch {
-    return "";
-  }
-  return "";
-}
-
-// The real CLI sends the current user message id (stable per turn, same on
-// retries) as x-opencode-request. Derive it deterministically from the
-// session plus the last user message so retries share the id.
-export function deriveRequestId(sessionId, body) {
-  const text = lastUserText(body);
-  if (!text) return generateRequestId();
-  const digest = crypto
-    .createHash("sha256")
-    .update(`opencode-req\0${sessionId || ""}\0${text}`)
-    .digest();
-  const timeHex = digest.subarray(0, 6).toString("hex");
-  let randomPart = "";
-  for (let i = 6; i < 20; i++) {
-    randomPart += BASE62_CHARS[digest[i] % 62];
-  }
-  const id = `msg_${timeHex}${randomPart}`;
-  return OPENCODE_REQUEST_RE.test(id) ? id : generateRequestId();
-}
-
-function normalizeRequestId(value) {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim();
-  if (!normalized || normalized.length > MAX_SESSION_LENGTH) return null;
-  return OPENCODE_REQUEST_RE.test(normalized) ? normalized : null;
-}
-
 function bodyHasSessionHints(body) {
   try {
     if (!body || typeof body !== "object") return false;
@@ -295,18 +242,6 @@ function resolveOpencodeSession(body, credentials, providerSessionId, clientTool
   }
 
   return stableSessionId(credentials);
-}
-
-function resolveOpencodeRequestId(body, credentials, sessionId) {
-  const raw = credentials?.rawHeaders || {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (key.toLowerCase() === "x-opencode-request") {
-      const normalized = normalizeRequestId(value);
-      if (normalized) return normalized;
-      break;
-    }
-  }
-  return deriveRequestId(sessionId, body);
 }
 
 function normalizeResponsesTools(body) {
@@ -407,7 +342,6 @@ export class OpenCodeExecutor extends BaseExecutor {
     return {
       ...sourceCredentials,
       [SESSION_FIELD]: session,
-      [REQ_FIELD]: resolveOpencodeRequestId(body, sourceCredentials, session),
     };
   }
 
@@ -534,43 +468,56 @@ export class OpenCodeExecutor extends BaseExecutor {
           headers,
           timeout: 120000,
         }, (res) => {
-          const chunks = [];
-          res.on("data", c => chunks.push(c));
-          res.on("end", () => {
-            const fullText = Buffer.concat(chunks).toString("utf8");
-            const webStream = require("stream").Readable.toWeb(res);
-            const response = {
-              ok: true,
-              status: res.statusCode,
-              statusText: res.statusMessage,
-              headers: new Map(Object.entries(res.headers)),
-              body: require("stream").Readable.toWeb(res),
-              async text() { return fullText; },
-              async json() { return JSON.parse(fullText); },
-              async arrayBuffer() { return Buffer.from(fullText).buffer; },
-            };
-            const isRateLimited = res.statusCode === 429;
-            if (res.statusCode >= 400 && !isRateLimited) {
-              console.log("[OPENCODE DIRECT] ERROR", res.statusCode, fullText);
-              reject(new Error(`HTTP ${res.statusCode}: ${fullText}`));
-            } else {
-              const response = {
-                ok: true,
-                status: res.statusCode,
-                statusText: res.statusMessage,
-                headers: new Map(Object.entries(res.headers)),
-                body: require("stream").Readable.toWeb(res),
-                async text() { return fullText; },
-                async json() { return JSON.parse(fullText); },
-                async arrayBuffer() { return Buffer.from(fullText).buffer; },
-              };
-              if (isRateLimited) {
-                response.rateLimited = true;
-                try { response.rateLimitBody = JSON.parse(fullText); } catch {}
-              }
-              resolve({ response, url: `https://opencode.ai${path}`, headers, transformedBody, rateLimited: isRateLimited, sessionId: sid });
-            }
-          });
+          const isRateLimited = res.statusCode === 429;
+          const isError = res.statusCode >= 400 && !isRateLimited;
+
+          if (isError) {
+            const errChunks = [];
+            res.on("data", (c) => errChunks.push(c));
+            res.on("end", () => {
+              const errText = Buffer.concat(errChunks).toString("utf8");
+              reject(new Error(`HTTP ${res.statusCode}: ${errText.slice(0, 2000)}`));
+            });
+            res.on("error", reject);
+            return;
+          }
+
+          // Fan out the upstream stream: one copy feeds the live streaming consumer,
+          // the other is buffered so text()/json() work for non-streaming callers.
+          const out = new PassThrough({ highWaterMark: 64 * 1024 * 1024 });
+          const bufferedChunks = [];
+          let bufferedText = null;
+          let streamDone = false;
+          let markDone;
+          const donePromise = new Promise((r) => { markDone = r; });
+          res.on("data", (c) => { bufferedChunks.push(c); out.write(c); });
+          const finish = () => {
+            if (streamDone) return;
+            streamDone = true;
+            bufferedText = Buffer.concat(bufferedChunks).toString("utf8");
+            out.end();
+            markDone();
+          };
+          res.on("end", finish);
+          res.on("error", (e) => { if (!streamDone) out.destroy(e); });
+
+          const response = {
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            statusText: res.statusMessage,
+            headers: new Map(Object.entries(res.headers)),
+            body: out,
+            async text() { await donePromise; return bufferedText; },
+            async json() { return JSON.parse(await this.text()); },
+            async arrayBuffer() { await donePromise; return Buffer.from(bufferedText); },
+          };
+          if (isRateLimited) {
+            response.rateLimited = true;
+            donePromise.then(() => {
+              try { response.rateLimitBody = JSON.parse(bufferedText); } catch {}
+            });
+          }
+          resolve({ response, url: `https://opencode.ai${path}`, headers, transformedBody, rateLimited: isRateLimited, sessionId: sid });
         });
         req.on("error", reject);
         req.on("timeout", () => req.destroy(new Error("timeout")));
@@ -589,9 +536,11 @@ export class OpenCodeExecutor extends BaseExecutor {
   }
 
   buildUrl(model) {
+    // Free tier moved from /zen/v1 to /inference/v1 (OpenCode v2); /zen/v1 now
+    // answers every free request with 403 FreeTierError.
     const base = this.config.baseUrl;
-    if (isResponsesModel(model)) return `${base}/zen/v1/responses`;
-    if (isMessagesModel(model)) return `${base}/zen/v1/messages`;
+    if (isResponsesModel(model)) return `${base}/inference/v1/responses`;
+    if (isMessagesModel(model)) return `${base}/inference/v1/messages`;
     return `${base}/inference/v1/chat/completions`;
   }
 
@@ -604,8 +553,6 @@ export class OpenCodeExecutor extends BaseExecutor {
     const isOpencodeDownstream = hasValidOpencodeVersion(downstreamUa);
 
     const session = credentials?.[SESSION_FIELD] || this.prepareRequestCredentials({ credentials })[SESSION_FIELD];
-    const downstreamReq = normalizeRequestId(lower["x-opencode-request"]);
-    const requestId = credentials?.[REQ_FIELD] || downstreamReq || generateRequestId();
 
     // Stable 40-hex project ID derived from session (reused per identity)
     const projectId = crypto.createHash("sha256").update(`opencode-project\0${session}`).digest("hex").slice(0, 40);
@@ -616,17 +563,18 @@ export class OpenCodeExecutor extends BaseExecutor {
     const b3 = `${traceId}-${spanId}-1-${crypto.randomBytes(8).toString("hex")}`;
     const traceparent = `00-${traceId}-${spanId}-01`;
 
+    // Mirrors the v2 CLI. Upstream needs x-opencode-session-id next to
+    // x-opencode-session, and rejects any x-opencode-request (v1 only) with 403.
     const headers = {
       "Content-Type": "application/json",
       "Authorization": "Bearer public",
       "User-Agent": isOpencodeDownstream ? downstreamUa : OPENCODE_UA,
-      "x-opencode-client": "cli",
+      "x-opencode-client": lower["x-opencode-client"] || OPENCODE_CLIENT,
       "x-opencode-session": session,
       "x-opencode-session-id": session,
       "x-session-affinity": session,
       "x-session-id": session,
-      "x-opencode-request": requestId,
-      "x-opencode-project": projectId,
+      "x-opencode-project": lower["x-opencode-project"] || "global",
       "b3": b3,
       "traceparent": traceparent,
       "Accept": "*/*",

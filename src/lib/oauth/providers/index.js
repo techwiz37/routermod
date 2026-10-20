@@ -30,6 +30,7 @@ import zed from "./zed.js";
 import glm from "./glm.js";
 import minimaxCode from "./minimax-code.js";
 import minimaxCodeGlobal from "./minimax-code-global.js";
+import nous from "./nous.js";
 
 const PROVIDERS = {
   claude,
@@ -59,6 +60,7 @@ const PROVIDERS = {
   glm,
   "minimax-code": minimaxCode,
   "minimax-code-global": minimaxCodeGlobal,
+  nous,
 };
 
 export { PROVIDERS };

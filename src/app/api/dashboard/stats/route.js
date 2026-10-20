@@ -197,30 +197,6 @@ export async function GET(request) {
       }
     }
 
-    for (const [pid, pUsage] of Object.entries(byProviderUsage)) {
-      if (!providerMap[pid] && pUsage.requests > 0) {
-        const provMeta2 = AI_PROVIDERS[pid] || {};
-        const isFree2 = FREE_PROVIDER_IDS.has(pid) || !!(provMeta2.noAuth);
-        const isCompat2 =
-          isOpenAICompatibleProvider(pid) || isAnthropicCompatibleProvider(pid);
-        providerMap[pid] = {
-          provider: pid,
-          name: isCompat2 ? (nodeNameMap[pid] || pid) : provMeta2.name || pid,
-          subtitle: isCompat2 ? (nodePrefixMap[pid] || null) : null,
-          icon: provMeta2.icon || pid,
-          isFree: isFree2,
-          totalAccounts: 0,
-          activeAccounts: 0,
-          limitedAccounts: 0,
-          failedAccounts: 0,
-          tokens: 0,
-          promptTokens: 0,
-          completionTokens: 0,
-          requests: 0,
-        };
-      }
-    }
-
     let overallTokens = 0;
     let overallRequests = 0;
     let overallTotalAccounts = 0;
@@ -228,30 +204,39 @@ export async function GET(request) {
     let overallLimitedAccounts = 0;
     let overallFailedAccounts = 0;
 
-    const providersList = Object.values(providerMap).map((item) => {
-      const u = byProviderUsage[item.provider] || {};
-      const prompt = u.promptTokens || 0;
-      const completion = u.completionTokens || 0;
-      const totalTok = prompt + completion;
-      const reqCount = u.requests || 0;
+    // Track overall tokens & requests across all usage history
+    for (const [, pUsage] of Object.entries(byProviderUsage)) {
+      const prompt = pUsage.promptTokens || 0;
+      const completion = pUsage.completionTokens || 0;
+      overallTokens += prompt + completion;
+      overallRequests += pUsage.requests || 0;
+    }
 
-      item.tokens = totalTok;
-      item.promptTokens = prompt;
-      item.completionTokens = completion;
-      item.requests = reqCount;
+    // Only list providers that actually have accounts or are free/noAuth
+    const providersList = Object.values(providerMap)
+      .filter((item) => item.isFree || item.totalAccounts > 0)
+      .map((item) => {
+        const u = byProviderUsage[item.provider] || {};
+        const prompt = u.promptTokens || 0;
+        const completion = u.completionTokens || 0;
+        const totalTok = prompt + completion;
+        const reqCount = u.requests || 0;
 
-      overallTokens += totalTok;
-      overallRequests += reqCount;
-      // Skip free/noAuth providers from account counts (no real accounts to track)
-      if (!item.isFree) {
-        overallTotalAccounts += item.totalAccounts;
-        overallActiveAccounts += item.activeAccounts;
-        overallLimitedAccounts += item.limitedAccounts;
-        overallFailedAccounts += item.failedAccounts;
-      }
+        item.tokens = totalTok;
+        item.promptTokens = prompt;
+        item.completionTokens = completion;
+        item.requests = reqCount;
 
-      return item;
-    });
+        // Skip free/noAuth providers from account counts (no real accounts to track)
+        if (!item.isFree) {
+          overallTotalAccounts += item.totalAccounts;
+          overallActiveAccounts += item.activeAccounts;
+          overallLimitedAccounts += item.limitedAccounts;
+          overallFailedAccounts += item.failedAccounts;
+        }
+
+        return item;
+      });
 
     providersList.sort((a, b) => {
       if (b.activeAccounts !== a.activeAccounts) return b.activeAccounts - a.activeAccounts;

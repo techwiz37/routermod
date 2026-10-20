@@ -2,24 +2,23 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Card } from "@/shared/components";
 
 function getStatus(status, tool) {
-  if (tool?.configType === "guide") return { label: "Guide", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" };
-  if (!status) return { label: "Unknown", cls: "bg-gray-500/10 text-gray-500" };
-  if (!status.installed) return { label: "Not installed", cls: "bg-gray-500/10 text-gray-500" };
-  if (status.has9Router) return { label: "Connected", cls: "bg-green-500/10 text-green-600 dark:text-green-400" };
-  return { label: "Not configured", cls: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" };
+  if (tool?.configType === "guide") return { label: "Guide", tone: "accent" };
+  if (!status) return { label: "Unknown", tone: "" };
+  if (!status.installed) return { label: "Not installed", tone: "" };
+  if (status.has9Router) return { label: "Connected", tone: "ok" };
+  return { label: "Not configured", tone: "danger" };
 }
 
 export default function ToolSummaryCard({ toolId, tool, status }) {
   const s = getStatus(status, tool);
   return (
-    <Link href={`/dashboard/cli-tools/${toolId}`} className="block">
-      <Card padding="sm" className="h-full overflow-hidden hover:border-primary/50 transition-colors cursor-pointer">
+    <Link href={`/dashboard/cli-tools/${toolId}`} className="group block h-full">
+      <article className="an-pcard h-full cursor-pointer">
         <div className="flex h-full flex-col gap-2">
           <div className="flex items-center gap-3">
-            <div className="size-8 flex items-center justify-center shrink-0">
+            <div className="an-conn-ico !size-9 !w-9 !h-9 !rounded-[10px]">
               {tool.image ? (
                 <Image src={tool.image} alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
               ) : tool.icon ? (
@@ -27,13 +26,17 @@ export default function ToolSummaryCard({ toolId, tool, status }) {
               ) : null}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-medium text-sm truncate">{tool.name}</h3>
-              <span className={`inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full ${s.cls}`}>{s.label}</span>
+              <h3 className="an-conn-name">{tool.name}</h3>
+              <div className="an-conn-chips">
+                <span className={`an-chip ${s.tone}`}>{s.label}</span>
+              </div>
             </div>
-            <span className="material-symbols-outlined text-text-muted text-[18px] shrink-0">chevron_right</span>
+            <span className="material-symbols-outlined text-[18px] text-[var(--t-dim)] group-hover:text-[var(--t-star-ink)] transition-colors shrink-0">
+              chevron_right
+            </span>
           </div>
         </div>
-      </Card>
+      </article>
     </Link>
   );
 }
