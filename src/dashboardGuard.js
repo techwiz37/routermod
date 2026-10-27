@@ -33,6 +33,7 @@ const PUBLIC_API_PATHS = [
   "/api/tunnel/status",
   "/api/tunnel/gate-status",
   "/api/public",
+  "/api/usage/logs",
 ];
 
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex", "/responses"];

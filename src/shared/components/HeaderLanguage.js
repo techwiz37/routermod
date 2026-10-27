@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
 import { LOCALE_FLAGS } from "@/shared/constants/locales";
 import LanguageSwitcher from "./LanguageSwitcher";
+import { reloadTranslations } from "@/i18n/runtime";
 
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return "en";
@@ -32,8 +33,8 @@ export default function HeaderLanguage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: newLocale }),
       });
+      await reloadTranslations();
     } catch {}
-    window.location.reload();
   };
 
   return (

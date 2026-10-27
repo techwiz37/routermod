@@ -1415,5 +1415,18 @@
   "Singapore": "新加坡",
   "Europe · Amsterdam": "欧洲 · 阿姆斯特丹",
   "Russia": "俄罗斯",
-  "India": "印度"
+  "India": "印度",
+  "Prefix updated": "Prefix updated",
+  "Updated": "Updated",
+  "model alias": "model alias",
+  "model aliases": "model aliases",
+  "Prefix saved": "Prefix saved",
+  "Failed to update prefix": "Failed to update prefix",
+  "Unknown error": "Unknown error",
+  "Prefix updated count": "Prefix updated count",
+  "Deteksi Model Otomatis": "Auto-detect Models",
+  "Test Semua": "Test All",
+  "Stop Test": "Stop Test",
+  "Stop Testing...": "Stopping...",
+  "Test Selesai": "Test Complete"
 }

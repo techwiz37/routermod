@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { isAgentEnabled, isTerminalEnabled, getTerminalTimeoutMs, resolveInsideRoot } from "@/lib/agent/config";
+import { cleanCommandOutput } from "@/lib/agent/ansi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,8 +64,8 @@ export async function POST(request) {
       resolve(NextResponse.json({
         ok: false,
         timedOut: true,
-        stdout,
-        stderr: stderr + `\n[agent] command exceeded ${timeoutMs}ms and was killed`,
+        stdout: cleanCommandOutput(stdout),
+        stderr: cleanCommandOutput(stderr) + `\n[agent] command exceeded ${timeoutMs}ms and was killed`,
         code: null,
       }, { status: 200 }));
     }, timeoutMs);
@@ -90,8 +91,8 @@ export async function POST(request) {
       resolve(NextResponse.json({
         ok: code === 0,
         code,
-        stdout,
-        stderr,
+        stdout: cleanCommandOutput(stdout),
+        stderr: cleanCommandOutput(stderr),
         truncated: stdout.length >= MAX_OUT || stderr.length >= MAX_OUT,
       }, { status: 200 }));
     });

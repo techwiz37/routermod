@@ -243,7 +243,10 @@ export async function resolveModelTarget({ providerId, model } = {}) {
   return {
     baseUrl: normalizeBaseUrl(chosen.baseUrl),
     apiKey: chosen.apiKey || "",
+    name: chosen.name || "",
     model: chosenModel,
+    // Model that is known to answer - used as the first fallback.
+    defaultModel: chosen.defaultModel || "",
     providerId: chosen.id,
     // Full list so the chat route can fall back when a model is gone.
     models: normalizeModels(chosen.models).map((m) => m.id),

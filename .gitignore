@@ -98,6 +98,8 @@ graphify-out/*
 .oauth-session.json
 .dev-server.log
 .dev-server-err.log
+dev-out.log
+dev-err.log
 .start-dev.ps1
 start-dev-silent.cjs
 debug.log
@@ -110,8 +112,3 @@ debug.log
 # Local sensitive data (credentials in plain text)
 antigravity-accounts.txt
 free-proxy-list.txt
-
-# Local database files (runtime state lives in DATA_DIR)
-src/lib/db/*.sqlite
-src/lib/db/*.sqlite-journal
-src/lib/db/*.db

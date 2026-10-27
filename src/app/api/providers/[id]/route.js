@@ -6,6 +6,7 @@ import {
   deleteProviderConnection,
 } from "@/models";
 import { toProviderConnectionResponse, usesAwsCredentialForm } from "@/lib/providerConnectionResponse";
+import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
 
 function normalizeProxyConfig(body = {}) {
   const hasAnyProxyField =
@@ -22,7 +23,7 @@ function normalizeProxyConfig(body = {}) {
   if (enabled && !url) {
     return {
       hasAnyProxyField: true,
-      error: "Connection proxy URL is required when connection proxy is enabled",
+      error: localizedProviderMessage("en", "connectionProxyRequired"),
     };
   }
 
@@ -50,7 +51,7 @@ async function normalizeProxyPoolUpdate(proxyPoolIdInput) {
 
   const proxyPool = await getProxyPoolById(proxyPoolId);
   if (!proxyPool) {
-    return { hasProxyPoolField: true, error: "Proxy pool not found" };
+      return { hasProxyPoolField: true, error: localizedProviderMessage("en", "proxyPoolNotFound") };
   }
 
   return { hasProxyPoolField: true, proxyPoolId };
@@ -61,22 +62,24 @@ function shouldMergeProviderSpecificData(existing, incoming, hasLegacyProxy, has
 }
 
 export async function GET(request, { params }) {
+  const locale = getRequestLocale(request);
   try {
     const { id } = await params;
     const connection = await getProviderConnectionById(id);
 
     if (!connection) {
-      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "connectionNotFound") }, { status: 404 });
     }
 
     return NextResponse.json({ connection: toProviderConnectionResponse(connection) });
   } catch (error) {
     console.log("Error fetching connection:", error);
-    return NextResponse.json({ error: "Failed to fetch connection" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "failedFetchConnection") }, { status: 500 });
   }
 }
 
 export async function PUT(request, { params }) {
+  const locale = getRequestLocale(request);
   try {
     const { id } = await params;
     const body = await request.json();
@@ -95,17 +98,17 @@ export async function PUT(request, { params }) {
 
     const existing = await getProviderConnectionById(id);
     if (!existing) {
-      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "connectionNotFound") }, { status: 404 });
     }
 
     const proxyConfig = normalizeProxyConfig(body);
     if (proxyConfig.error) {
-      return NextResponse.json({ error: proxyConfig.error }, { status: 400 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "connectionProxyRequired") }, { status: 400 });
     }
 
     const proxyPoolResult = await normalizeProxyPoolUpdate(body.proxyPoolId);
     if (proxyPoolResult.error) {
-      return NextResponse.json({ error: proxyPoolResult.error }, { status: 400 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "proxyPoolNotFound") }, { status: 400 });
     }
 
     const updateData = {};
@@ -160,22 +163,23 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ connection: toProviderConnectionResponse(updated) });
   } catch (error) {
     console.log("Error updating connection:", error);
-    return NextResponse.json({ error: "Failed to update connection" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "failedUpdateConnection") }, { status: 500 });
   }
 }
 
 export async function DELETE(request, { params }) {
+  const locale = getRequestLocale(request);
   try {
     const { id } = await params;
 
     const deleted = await deleteProviderConnection(id);
     if (!deleted) {
-      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "connectionNotFound") }, { status: 404 });
     }
 
-    return NextResponse.json({ message: "Connection deleted successfully" });
+    return NextResponse.json({ message: localizedProviderMessage(locale, "connectionDeleted") });
   } catch (error) {
     console.log("Error deleting connection:", error);
-    return NextResponse.json({ error: "Failed to delete connection" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "failedDeleteConnection") }, { status: 500 });
   }
 }

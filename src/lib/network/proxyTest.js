@@ -18,6 +18,16 @@ const DEFAULT_TEST_URLS = [
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
+// The upstream the proxy pool is actually used for. A proxy can be perfectly
+// alive and still useless: Cloudflare (opencode.ai sits behind it) blocks the
+// datacenter ranges these proxies exit from with a plain 403, so the request
+// never reaches the API.
+const DEFAULT_UPSTREAM_URL = "https://opencode.ai/";
+
+// Status codes that mean "the exit IP is blocked" rather than "the request
+// was wrong" — 403 from Cloudflare, 451 from a legal block.
+const BLOCKED_STATUS_CODES = new Set([403, 451]);
+
 function getErrorMessage(err) {
   if (!err) return "Unknown error";
   const base = err?.message || String(err);
@@ -229,6 +239,151 @@ export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs } = {}) {
       error: `Semua target gagal: ${errors.slice(0, 3).join("; ")}${hint}`,
       errors,
     };
+  } finally {
+    try {
+      await dispatcher?.close?.();
+    } catch {
+    }
+  }
+}
+
+/**
+ * Check that the proxy can actually reach the upstream it is used for.
+ *
+ * The connectivity check above only proves the proxy answers — it says nothing
+ * about the exit IP. Cloudflare blocks the datacenter ranges free proxies exit
+ * from, and a pool that is only tested for connectivity fills up with entries
+ * that look healthy and then fail every single request with a 403.
+ *
+ * A plain GET on the upstream root is enough: an IP block hits every path,
+ * while the free-tier quota error only shows up on the inference endpoint.
+ *
+ * The probe runs a few times on purpose: a pool proxy rotates its exit IP per
+ * connection, so one attempt can land on a blocked IP while the next one
+ * works. Only a proxy that fails every attempt is really useless.
+ */
+export async function probeUpstreamThroughProxy({
+  proxyUrl,
+  targetUrl,
+  timeoutMs,
+  attempts,
+} = {}) {
+  const normalizedProxyUrl = normalizeString(proxyUrl);
+  if (!normalizedProxyUrl) {
+    return { ok: false, status: 400, error: "proxyUrl is required" };
+  }
+
+  const target = normalizeString(targetUrl) || DEFAULT_UPSTREAM_URL;
+  const timeoutMsRaw = Number(timeoutMs);
+  const normalizedTimeoutMs =
+    Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0
+      ? Math.min(timeoutMsRaw, 30000)
+      : 12000;
+  const attemptsRaw = Number(attempts);
+  const totalAttempts =
+    Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.min(attemptsRaw, 10) : 3;
+
+  const results = [];
+
+  for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+    const result = await probeUpstreamOnce({
+      proxyUrl: normalizedProxyUrl,
+      target,
+      timeoutMs: normalizedTimeoutMs,
+    });
+    results.push(result);
+    // One working connection is enough - the proxy is usable.
+    if (result.ok) break;
+  }
+
+  const okCount = results.filter((r) => r.ok).length;
+  const blockedCount = results.filter((r) => r.blocked).length;
+  const last = results[results.length - 1] || {};
+
+  return {
+    ok: okCount > 0,
+    // Blocked on every attempt: the exit IPs of this proxy are all refused.
+    blocked: okCount === 0 && blockedCount === results.length && results.length > 0,
+    status: last.status ?? null,
+    server: last.server ?? null,
+    attempts: results.length,
+    okCount,
+    blockedCount,
+    errors: results.map((r) => r.error).filter(Boolean),
+    error: last.error || null,
+  };
+}
+
+/** One connection through the proxy to the upstream. */
+async function probeUpstreamOnce({ proxyUrl, target, timeoutMs }) {
+  let dispatcher;
+  try {
+    try {
+      dispatcher = new ProxyAgent({ uri: proxyUrl });
+    } catch (err) {
+      return {
+        ok: false,
+        blocked: false,
+        status: 400,
+        error: `Invalid proxy URL: ${err?.message || String(err)}`,
+      };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const startedAt = Date.now();
+
+    try {
+      const res = await undiciFetch(target, {
+        method: "GET",
+        dispatcher,
+        signal: controller.signal,
+        redirect: "manual",
+        headers: {
+          "User-Agent": "9Router",
+          Accept: "*/*",
+        },
+      });
+      const elapsedMs = Date.now() - startedAt;
+      const server = res.headers?.get?.("server") || null;
+      try {
+        await res.text();
+      } catch {
+        /* drain only */
+      }
+
+      if (BLOCKED_STATUS_CODES.has(res.status)) {
+        return {
+          ok: false,
+          blocked: true,
+          status: res.status,
+          server,
+          elapsedMs,
+          error: `IP proxy diblokir (HTTP ${res.status}${server ? ` dari ${server}` : ""}) saat mengakses ${target}`,
+        };
+      }
+
+      return {
+        ok: true,
+        blocked: false,
+        status: res.status,
+        server,
+        elapsedMs,
+      };
+    } catch (err) {
+      const timedOut = err?.name === "AbortError";
+      return {
+        ok: false,
+        blocked: false,
+        status: 502,
+        elapsedMs: Date.now() - startedAt,
+        error: timedOut
+          ? `timeout ${timeoutMs}ms saat mengakses ${target}`
+          : getErrorMessage(err),
+      };
+    } finally {
+      clearTimeout(timer);
+    }
   } finally {
     try {
       await dispatcher?.close?.();

@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import AntaresStat from "@/shared/components/AntaresStat";
-import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc, getCompatibleIconSrc } from "@/shared/utils/providerIcon";
 import { LOCALE_COOKIE } from "@/i18n/config";
 
-const CHECK_INTERVAL_SEC = 5;
+const CHECK_INTERVAL_SEC = 180;
 const PAGE_SIZE = 5;
 
 const TEXT = {
@@ -304,7 +304,7 @@ export default function DashboardProviderOverview() {
     }
   };
 
-  // Realtime live check every 5 seconds & on focus/events
+  // Realtime live check every 3 minutes & on focus/events
   useEffect(() => {
     fetchStats(false);
 
@@ -555,7 +555,7 @@ export default function DashboardProviderOverview() {
               </thead>
               <tbody>
                 {pagedProviders.map((p) => {
-                  const iconSrc = getProviderIconSrc(p.provider);
+                  const iconSrc = getCompatibleIconSrc(p.provider) || getProviderIconSrc(p.provider);
                   const isOnline = p.isFree || p.activeAccounts > 0 || p.limitedAccounts > 0;
                   return (
                     <tr
@@ -788,7 +788,7 @@ export default function DashboardProviderOverview() {
               </thead>
               <tbody>
                 {pagedLimitedAccounts.map((acc) => {
-                  const iconSrc = getProviderIconSrc(acc.provider);
+                  const iconSrc = getCompatibleIconSrc(acc.provider) || getProviderIconSrc(acc.provider);
                   const isRechecking = recheckingId === acc.id;
                   const parsedError = parseUpstreamError(acc.lastError);
                   const reasonText = humanizeLimit(parsedError, t);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { PROVIDERS } from "open-sse/config/providers.js";
 import { resolveProviderAlias } from "open-sse/services/model.js";
+import { formatProviderMessage, getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
 
 export const dynamic = "force-dynamic";
 
@@ -23,25 +24,25 @@ function normalizeOverride({ headers }) {
 
   if (headers !== undefined && headers !== null) {
     if (typeof headers !== "object" || Array.isArray(headers)) {
-      return { error: "headers must be an object" };
+       return { error: "headersMustObject" };
     }
     const entries = Object.entries(headers).filter(([, v]) => v !== "" && v != null);
     if (entries.length > MAX_HEADERS) {
-      return { error: `Too many headers (max ${MAX_HEADERS})` };
+       return { error: "tooManyHeaders" };
     }
     const clean = {};
     for (const [name, value] of entries) {
       if (!HEADER_NAME_RE.test(name)) {
-        return { error: `Invalid header name: ${name}` };
+         return { error: "invalidHeaderName", values: { name } };
       }
       if (typeof value !== "string" || /[\r\n]/.test(value)) {
-        return { error: `Invalid value for header ${name}` };
+         return { error: "invalidHeaderValue", values: { name } };
       }
       if (value.length > MAX_HEADER_VALUE_LENGTH) {
-        return { error: `Header ${name} value too long (max ${MAX_HEADER_VALUE_LENGTH})` };
+         return { error: "headerValueTooLong", values: { name, max: MAX_HEADER_VALUE_LENGTH } };
       }
       if (BLOCKED_HEADERS.has(name.toLowerCase())) {
-        return { error: `Header ${name} cannot be overridden` };
+         return { error: "headerCannotOverride", values: { name } };
       }
       clean[name] = value;
     }
@@ -67,7 +68,7 @@ export async function GET(request, { params }) {
     });
   } catch (error) {
     console.log("Error getting provider overrides:", error);
-    return NextResponse.json({ error: "Failed to get overrides" }, { status: 500 });
+      return NextResponse.json({ error: localizedProviderMessage(getRequestLocale(request), "failedFetchOverrides") }, { status: 500 });
   }
 }
 
@@ -76,9 +77,9 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const canonical = resolveProviderAlias(id);
     const body = await request.json().catch(() => ({}));
-    const { override, error } = normalizeOverride(body);
+    const { override, error, values } = normalizeOverride(body);
     if (error) {
-      return NextResponse.json({ error }, { status: 400 });
+      return NextResponse.json({ error: formatProviderMessage(getRequestLocale(request), error, values) }, { status: 400 });
     }
     const current = await readOverrides();
     const next = { ...current };
@@ -88,6 +89,6 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ headers: override?.headers || {} });
   } catch (error) {
     console.log("Error saving provider overrides:", error);
-    return NextResponse.json({ error: "Failed to save overrides" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(getRequestLocale(request), "failedSaveOverrides") }, { status: 500 });
   }
 }

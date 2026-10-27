@@ -4,11 +4,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import {
   Card,
-  CardSkeleton,
   Button,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc, getCompatibleIconSrc } from "@/shared/utils/providerIcon";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
   FREE_PROVIDERS,
@@ -24,6 +23,7 @@ import { onLocaleChange, translate } from "@/i18n/runtime";
 import ModelAvailabilityBadge from "./components/ModelAvailabilityBadge";
 import AddCompatibleModal from "./components/AddCompatibleModal";
 import { STATUS_FILTER_OPTIONS, matchesStatusFilter } from "./utils";
+import Soft3DLogo from "@/shared/components/Soft3DLogo";
 
 // Items rendered per page for every provider list on this page.
 const PAGE_SIZE = 5;
@@ -145,7 +145,7 @@ function getStatusDisplay(connected, error, errorCode) {
       <span key="connected" className="an-chip ok">
         <span className="size-1.5 rounded-full bg-[var(--t-ok)] animate-pulse shrink-0" />
         <span>{connected}</span>
-        <span>Connected</span>
+        <span>{translate("Connected")}</span>
       </span>,
     );
   }
@@ -154,13 +154,13 @@ function getStatusDisplay(connected, error, errorCode) {
       <span key="error" className="an-chip danger">
         <span className="size-1.5 rounded-full bg-[var(--t-danger)] shrink-0" />
         <span>{error}</span>
-        <span>Error</span>
+        <span>{translate("Error")}</span>
         {errorCode && <span>({errorCode})</span>}
       </span>,
     );
   }
   if (parts.length === 0) {
-    return <span className="an-chip">No connections</span>;
+    return <span className="an-chip">{translate("No connections")}</span>;
   }
   return parts;
 }
@@ -409,12 +409,12 @@ export default function ProvidersPage() {
       setTestResults(data);
       if (data.summary) {
         const { passed, failed, total } = data.summary;
-        if (failed === 0) notify.success(`All ${total} tests passed`);
-        else notify.warning(`${passed}/${total} passed, ${failed} failed`);
+        if (failed === 0) notify.success(`${translate("All tests passed")}: ${total}`);
+        else notify.warning(`${passed}/${total} ${translate("passed")}, ${failed} ${translate("failed")}`);
       }
     } catch (error) {
       setTestResults({ error: "Test request failed" });
-      notify.error("Provider test failed");
+      notify.error(translate("Provider test failed"));
     } finally {
       setTestingMode(null);
     }
@@ -435,11 +435,13 @@ export default function ProvidersPage() {
     ) {
       if (!seenDynamic.has(pid)) {
         seenDynamic.add(pid);
+        const displayName = c.providerSpecificData?.nodeName || c.name || pid;
+        const compatSrc = getCompatibleIconSrc(pid);
         dynamicCustomProviders.push({
           id: pid,
-          name: c.providerSpecificData?.nodeName || pid,
+          name: displayName,
           color: "#10A37F",
-          textIcon: (pid.slice(0, 2) || "CP").toUpperCase(),
+          textIcon: compatSrc ? "" : (pid.slice(0, 2) || "CP").toUpperCase(),
           apiType: c.providerSpecificData?.apiType || "chat",
         });
       }
@@ -453,7 +455,7 @@ export default function ProvidersPage() {
         id: node.id,
         name: node.name || "OpenAI Compatible",
         color: "#10A37F",
-        textIcon: "OC",
+        textIcon: getCompatibleIconSrc(node.id) ? "" : "OC",
         apiType: node.apiType,
       })),
     ...dynamicCustomProviders,
@@ -467,7 +469,7 @@ export default function ProvidersPage() {
       id: node.id,
       name: node.name || "Anthropic Compatible",
       color: "#D97757",
-      textIcon: "AC",
+      textIcon: getCompatibleIconSrc(node.id) ? "" : "AC",
     }))
     .filter(
       (p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")),
@@ -564,7 +566,7 @@ export default function ProvidersPage() {
         name: info?.name || providerId,
         color: info?.color,
         textIcon: info?.textIcon,
-        iconSrc: getProviderIconSrc(providerId),
+        iconSrc: getCompatibleIconSrc(providerId) || getProviderIconSrc(providerId),
         authTypes,
         total: stats.total,
         connected: stats.connected,
@@ -591,7 +593,12 @@ export default function ProvidersPage() {
       register(key, info, "apikey");
     }
     for (const node of providerNodes) {
-      const info = { name: node.name || node.id, color: "#10A37F" };
+      const isAnthropic = node.type === "anthropic-compatible";
+      const info = {
+        name: node.name || node.id,
+        color: isAnthropic ? "#D97757" : "#10A37F",
+        textIcon: isAnthropic ? "AC" : "OC",
+      };
       register(node.id, info, "apikey");
     }
 
@@ -599,15 +606,6 @@ export default function ProvidersPage() {
       (a, b) => b.connected - a.connected || a.name.localeCompare(b.name)
     );
   }, [connections, providerNodes]);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-8">
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
-    );
-  }
 
   const hasAnyResult =
     oauthEntries.length > 0 ||
@@ -733,7 +731,7 @@ export default function ProvidersPage() {
         >
           {STATUS_FILTER_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {translate(option.label)}
             </option>
           ))}
         </select>
@@ -1098,14 +1096,14 @@ function ActiveProvidersPanel({
                 <span className="an-chip ok">
                   <span className="size-1.5 rounded-full bg-[var(--t-ok)] shrink-0" />
                   <span>{item.connected}</span>
-                  <span>Connected</span>
+                  <span>{translate("Connected")}</span>
                 </span>
               )}
               {item.error > 0 && (
                 <span className="an-chip danger">
                   <span className="size-1.5 rounded-full bg-[var(--t-danger)] shrink-0" />
                   <span>{item.error}</span>
-                  <span>Error</span>
+                  <span>{translate("Error")}</span>
                 </span>
               )}
               {item.connected === 0 && item.error === 0 && (
@@ -1340,11 +1338,8 @@ function ApiKeyProviderCard({
   const isAnthropicCompatible = providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
 
   const getIconPath = () => {
-    if (isCompatible && provider.apiType)
-      return provider.apiType === "responses"
-        ? "/providers/oai-r.png"
-        : "/providers/oai-cc.png";
-    if (isAnthropicCompatible) return "/providers/anthropic-m.png";
+    if (isCompatible || isAnthropicCompatible)
+      return getCompatibleIconSrc(provider.id);
     return getProviderIconSrc(provider.id);
   };
 

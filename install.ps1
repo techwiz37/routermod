@@ -1,8 +1,8 @@
 # install.ps1 — RouterMod installer for Windows
-# Usage: .\install.ps1 [-Port 1945] [-DataDir "C:\..."] [-Password changeme]
+# Usage: .\install.ps1 [-Port 1337] [-DataDir "C:\..."] [-Password changeme]
 # Run as Administrator recommended (for Chocolatey / system installs)
 param(
-  [int]   $Port     = 1945,
+  [int]   $Port     = 1337,
   [string]$DataDir  = "$env:APPDATA\routermod",
   [string]$Password = "changeme"
 )

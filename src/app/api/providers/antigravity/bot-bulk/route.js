@@ -180,7 +180,7 @@ export async function POST(request) {
   if (!fs.existsSync(RUNNER))
     return NextResponse.json({ error: "Bot runner tidak tersedia di server." }, { status: 500 });
 
-  const host = request.headers.get("host") || "localhost:1945";
+  const host = request.headers.get("host") || "localhost:1337";
   const proto = request.headers.get("x-forwarded-proto") || "http";
   const baseUrl = process.env.BASE_URL || `${proto}://${host}`;
 

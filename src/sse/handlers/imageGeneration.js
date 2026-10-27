@@ -18,7 +18,7 @@ import { saveRequestUsage } from "@/lib/usageDb.js";
 
 const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui"]);
 
-function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoint, usage }) {
+function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoint, usage, duration }) {
   if (!usage || typeof usage !== "object") return;
   const promptTokens = usage.prompt_tokens;
   const completionTokens = usage.completion_tokens;
@@ -35,6 +35,7 @@ function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoi
     endpoint: endpoint || null,
     tokens: usage,
     status: "success",
+    duration: duration || 0,
   }).catch(() => {});
 }
 
@@ -124,6 +125,7 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    const requestStartTime = Date.now();
     const result = await handleImageGenerationCore({
       body,
       modelInfo: { provider, model },
@@ -146,6 +148,7 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
           apiKey,
           endpoint,
           usage,
+          duration: Date.now() - requestStartTime,
         });
       },
       onRequestSuccess: async () => {

@@ -27,6 +27,33 @@ import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
 
+function appendSystemPrompt(body, prompt) {
+  if (!prompt || typeof prompt !== "string" || !prompt.trim() || !body || typeof body !== "object") return body;
+  const next = { ...body };
+  const text = prompt.trim();
+  if (typeof next.instructions === "string") {
+    next.instructions = next.instructions ? `${next.instructions}\n\n${text}` : text;
+  } else if (typeof next.system === "string") {
+    next.system = next.system ? `${next.system}\n\n${text}` : text;
+  } else if (Array.isArray(next.system)) {
+    next.system = [...next.system, { type: "text", text }];
+  } else if (Array.isArray(next.messages)) {
+    const messages = next.messages.map((message) => ({ ...message }));
+    const systemMessage = messages.find((message) => message?.role === "system");
+    if (systemMessage) {
+      if (typeof systemMessage.content === "string") {
+        systemMessage.content = systemMessage.content ? `${systemMessage.content}\n\n${text}` : text;
+      } else if (Array.isArray(systemMessage.content)) {
+        systemMessage.content = [...systemMessage.content, { type: "text", text }];
+      }
+    } else {
+      messages.unshift({ role: "system", content: text });
+    }
+    next.messages = messages;
+  }
+  return next;
+}
+
 export async function handleChat(request, clientRawRequest = null) {
   let body;
   try {
@@ -243,10 +270,22 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
+    const requestBody = appendSystemPrompt(
+      body,
+      refreshedCredentials.providerSpecificData?.systemPrompt,
+    );
+    const credentialsForChat = {
+      ...refreshedCredentials,
+      providerSpecificData: {
+        ...(refreshedCredentials.providerSpecificData || {}),
+        systemPrompt: null,
+        systemPromptApplied: true,
+      },
+    };
     const result = await handleChatCore({
-      body: { ...body, model: `${provider}/${model}` },
+      body: { ...requestBody, model: `${provider}/${model}` },
       modelInfo: { provider, model },
-      credentials: refreshedCredentials,
+      credentials: credentialsForChat,
       log,
       clientRawRequest,
       connectionId: credentials.connectionId,

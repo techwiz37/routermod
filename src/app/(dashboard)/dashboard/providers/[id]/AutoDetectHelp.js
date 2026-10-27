@@ -29,11 +29,6 @@ export default function AutoDetectHelp({ onClose }) {
           </li>
           <li>RouterMod&apos;s built-in catalog — offline fallback.</li>
         </ol>
-        <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--t-muted)]">
-          The All / Free / Paid filter decides what gets imported and which models
-          the list below shows. Models without pricing info stay visible under All
-          only.
-        </p>
       </div>
 
       <button

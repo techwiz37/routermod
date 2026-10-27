@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getModelNames, setModelName, deleteModelName } from "@/models";
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,7 @@ export async function GET() {
   try {
     return NextResponse.json({ names: await getModelNames() });
   } catch {
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load model names" }, { status: 500 });
   }
 }
 

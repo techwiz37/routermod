@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-PORT="${PORT:-1945}"
+PORT="${PORT:-1337}"
 DATA_DIR="${DATA_DIR:-$HOME/.local/share/routermod}"
 INITIAL_PASSWORD="${INITIAL_PASSWORD:-changeme}"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"

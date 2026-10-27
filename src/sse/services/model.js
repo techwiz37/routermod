@@ -1,4 +1,4 @@
-import { getModelAliases, getComboByName, getProviderNodes } from "@/lib/localDb";
+import { getModelAliases, getCustomModels, getModelNames, getComboByName, getProviderNodes, getSettings } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
 
@@ -30,7 +30,50 @@ export async function resolveModelAlias(alias) {
 export async function getModelInfo(modelStr) {
   const parsed = parseModel(modelStr);
 
+  try {
+    const aliases = await getModelAliases();
+    const customModels = await getCustomModels();
+    const modelNames = await getModelNames();
+    const requestedProvider = parsed.providerAlias || "";
+    const requestedModel = String(parsed.model || "");
+    const aliasedTarget = aliases[requestedModel];
+    if (parsed.isAlias && aliasedTarget) {
+      return getModelInfoCore(requestedModel, aliases);
+    }
+    const fullAliasTarget = Object.values(aliases).find((value) =>
+      value === `${requestedProvider}/${requestedModel}`
+    );
+    if (fullAliasTarget) return getModelInfoCore(Object.keys(aliases).find((key) => aliases[key] === fullAliasTarget), aliases);
+    const custom = customModels.find((entry) => {
+      if (!entry?.providerAlias || !entry?.id) return false;
+      if (entry.providerAlias !== requestedProvider && entry.providerAlias !== parsed.provider) return false;
+      return entry.name === requestedModel;
+    });
+    if (custom) return { provider: custom.providerAlias, model: custom.id };
+    const namedModel = Object.entries(modelNames).find(([key, name]) => {
+      const slash = key.indexOf("/");
+      return slash > 0 && key.slice(0, slash) === requestedProvider && name === requestedModel;
+    });
+    if (namedModel) {
+      return { provider: requestedProvider, model: namedModel[0].slice(requestedProvider.length + 1) };
+    }
+  } catch (e) {
+    console.log("getModelInfo: failed to resolve custom model name:", e);
+  }
+
   if (!parsed.isAlias) {
+    try {
+      const settings = await getSettings();
+      const prefixes = settings.providerPrefixes || {};
+      const overriddenProvider = Object.keys(prefixes).find(
+        (k) => prefixes[k] === parsed.providerAlias,
+      );
+      if (overriddenProvider) {
+        return { provider: overriddenProvider, model: parsed.model };
+      }
+    } catch (e) {
+      console.log("getModelInfo: failed to read provider prefixes:", e);
+    }
     if (!RESERVED_PROVIDER_PREFIXES.has(parsed.providerAlias)) {
       const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
       const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);

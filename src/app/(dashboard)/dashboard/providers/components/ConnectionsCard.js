@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import PropTypes from "prop-types";
 import { Card, Badge, Button, Modal, Select, Toggle, EditConnectionModal, ConfirmModal } from "@/shared/components";
+import { translate } from "@/i18n/runtime";
+import { useNotificationStore } from "@/store/notificationStore";
 
 function CooldownTimer({ until }) {
   const [remaining, setRemaining] = useState("");
@@ -32,6 +34,7 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [updatingProxy, setUpdatingProxy] = useState(false);
   const [isCooldown, setIsCooldown] = useState(false);
+  const addNotification = useNotificationStore((state) => state.addNotification);
   const proxyDropdownRef = useRef(null);
 
   const proxyPoolMap = new Map((proxyPools || []).map((p) => [p.id, p]));
@@ -97,6 +100,15 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
     finally { setUpdatingProxy(false); setShowProxyDropdown(false); }
   };
 
+  const showConnectionError = () => {
+    addNotification({
+      type: "error",
+      title: translate("Connection error"),
+      message: connection.lastError,
+      duration: 8000,
+    });
+  };
+
   return (
     <div className={`group flex flex-col gap-3 p-2 rounded-lg sm:flex-row sm:items-center sm:justify-between hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${connection.isActive === false ? "opacity-60" : ""}`}>
       <div className="flex w-full min-w-0 flex-1 items-start gap-3 sm:items-center">
@@ -118,7 +130,15 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
             {hasAnyProxy && <Badge variant={proxyBadgeVariant} size="sm">Proxy</Badge>}
             {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}
             {connection.lastError && connection.isActive !== false && (
-              <span className="text-xs text-red-500 truncate max-w-[300px]" title={connection.lastError}>{connection.lastError}</span>
+              <button
+                type="button"
+                onClick={showConnectionError}
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-500/15 hover:text-amber-400"
+                title={translate("Show connection error")}
+                aria-label={translate("Show connection error")}
+              >
+                <span className="text-sm leading-none">⚠️</span>
+              </button>
             )}
             <span className="text-xs text-text-muted">#{connection.priority}</span>
           </div>

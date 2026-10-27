@@ -6,6 +6,8 @@ import PropTypes from "prop-types";
 import { Tooltip } from "@/shared/components";
 import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import CooldownTimer from "./CooldownTimer";
+import { translate } from "@/i18n/runtime";
+import { useNotificationStore } from "@/store/notificationStore";
 
 export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null }) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
@@ -13,6 +15,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const proxyDropdownRef = useRef(null);
   const proxyBtnRef = useRef(null);
   const [proxyDropdownStyle, setProxyDropdownStyle] = useState(null);
+  const addNotification = useNotificationStore((state) => state.addNotification);
 
   const proxyPoolMap = new Map((proxyPools || []).map((pool) => [pool.id, pool]));
   const boundProxyPoolId = connection.providerSpecificData?.proxyPoolId || null;
@@ -129,6 +132,15 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
     : connection.name?.trim() && connection.displayName?.trim() && connection.name.trim() !== connection.displayName.trim()
       ? connection.displayName.trim()
       : null;
+
+  const showConnectionError = () => {
+    addNotification({
+      type: "error",
+      title: translate("Connection error"),
+      message: connection.lastError,
+      duration: 8000,
+    });
+  };
 
   const [isCooldown, setIsCooldown] = useState(false);
 
@@ -254,9 +266,15 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
             )}
             {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}
             {connection.lastError && connection.isActive !== false && (
-              <span className="an-conn-meta !text-[var(--t-danger)]" title={connection.lastError}>
-                {connection.lastError}
-              </span>
+              <button
+                type="button"
+                onClick={showConnectionError}
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-500/15 hover:text-amber-400"
+                title={translate("Show connection error")}
+                aria-label={translate("Show connection error")}
+              >
+                <span className="text-sm leading-none">⚠️</span>
+              </button>
             )}
             <span className="an-conn-meta">#{connection.priority}</span>
             {connection.globalPriority && (

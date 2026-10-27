@@ -216,8 +216,9 @@ if (require.main === module) {
     const { spawn } = require("child_process");
     const child = spawn(process.execPath, [standaloneCustom, ...process.argv.slice(2)], {
       stdio: "inherit",
-      env: { ...process.env, PORT: process.env.PORT || (process.argv[process.argv.indexOf("--port") + 1] || "1945") },
+      env: { ...process.env, PORT: process.env.PORT || (process.argv[process.argv.indexOf("--port") + 1] || "1337") },
       cwd: __dirname,
+      windowsHide: true,
     });
     child.on("exit", (code) => process.exit(code ?? 0));
     return;

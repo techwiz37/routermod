@@ -103,6 +103,7 @@ export async function handleSystemone(request) {
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    const requestStartTime = Date.now();
     const result = await handleSystemoneCore({
       body,
       modelInfo: { provider, model },
@@ -126,6 +127,7 @@ export async function handleSystemone(request) {
             total_tokens: result.usage.prompt_tokens + result.usage.completion_tokens,
           },
           status: "success",
+          duration: Date.now() - requestStartTime,
         }).catch(() => {});
       }
       return result.response;

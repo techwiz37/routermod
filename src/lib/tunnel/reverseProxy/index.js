@@ -7,7 +7,7 @@ import https from "https";
 import { DATA_DIR } from "@/lib/dataDir.js";
 
 const IS_WIN = process.platform === "win32";
-const APP_PORT = parseInt(process.env.PORT || "1945", 10);
+const APP_PORT = parseInt(process.env.PORT || "1337", 10);
 
 
 const PROXY_DIR   = path.join(DATA_DIR, "proxy");

@@ -111,6 +111,7 @@ export async function handleEmbeddings(request) {
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    const requestStartTime = Date.now();
     const result = await handleEmbeddingsCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
@@ -139,6 +140,7 @@ export async function handleEmbeddings(request) {
           endpoint: url.pathname,
           tokens: usage,
           status: "success",
+          duration: Date.now() - requestStartTime,
         }).catch(() => {});
       }
       return result.response;

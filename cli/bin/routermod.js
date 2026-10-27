@@ -5,7 +5,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 
-const PORT = process.env.PORT || 1945;
+const PORT = process.env.PORT || 1337;
 const DATA_DIR = path.join(os.homedir(), ".routermod");
 const INSTALL_DIR = path.join(DATA_DIR, "app");
 const REPO = "https://github.com/techwiz37/routermod.git";
@@ -22,10 +22,7 @@ function install() {
   console.log("[routermod] Installing app...");
   fs.mkdirSync(INSTALL_DIR, { recursive: true });
   run(`git clone --depth 1 ${REPO} "${INSTALL_DIR}"`);
-  // Full install (including devDependencies) is required: the production build
-  // needs tailwindcss + @tailwindcss/postcss + postcss, which live in
-  // devDependencies. A --production install would fail at `npm run build`.
-  run("npm install --include=dev", { cwd: INSTALL_DIR });
+  run("npm install --production", { cwd: INSTALL_DIR });
   run("npm run build", { cwd: INSTALL_DIR });
 }
 

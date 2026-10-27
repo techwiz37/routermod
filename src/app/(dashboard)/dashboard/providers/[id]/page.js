@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc, getCompatibleIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal } from "@/shared/components";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
@@ -64,6 +64,7 @@ export default function ProviderDetailPage() {
   const [connListMaxH, setConnListMaxH] = useState(0);
   const [loading, setLoading] = useState(true);
   const [providerNode, setProviderNode] = useState(null);
+  const [prefixOverride, setPrefixOverride] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
@@ -81,7 +82,6 @@ export default function ProviderDetailPage() {
   const [modelNames, setModelNames] = useState({});
   const [customModels, setCustomModels] = useState([]);
   const [detectingModels, setDetectingModels] = useState(false);
-  const [detectFilter, setDetectFilter] = useState("all"); // "all" | "free" | "paid"
   const [modelsPage, setModelsPage] = useState(1);
   const [showDetectHelp, setShowDetectHelp] = useState(false);
   const [headerImgError, setHeaderImgError] = useState(false);
@@ -117,6 +117,7 @@ export default function ProviderDetailPage() {
   const stopTestAllRef = useRef(false);
   const [healthSummary, setHealthSummary] = useState(null); // { unavailable: N, total: N }
   const [deletingInvalid, setDeletingInvalid] = useState(false);
+  const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -170,6 +171,10 @@ export default function ProviderDetailPage() {
     triggerApiKeyConnection();
   };
 
+
+  const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
+  const isAnthropicCompatible = isAnthropicCompatibleProvider(providerId);
+  const isCompatible = isOpenAICompatible || isAnthropicCompatible;
   const providerInfo = providerNode
     ? {
         id: providerNode.id,
@@ -180,7 +185,16 @@ export default function ProviderDetailPage() {
         baseUrl: providerNode.baseUrl,
         type: providerNode.type,
       }
-    : (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId] || WEB_COOKIE_PROVIDERS[providerId]);
+    : (isOpenAICompatible || isAnthropicCompatible)
+      ? {
+          id: providerId,
+          name: isAnthropicCompatible ? "Anthropic Compatible" : "OpenAI Compatible",
+          color: isAnthropicCompatible ? "#D97757" : "#10A37F",
+          textIcon: isAnthropicCompatible ? "AC" : "OC",
+          apiType: isOpenAICompatible ? "chat" : undefined,
+          authModes: ["apikey"],
+        }
+      : (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId] || WEB_COOKIE_PROVIDERS[providerId]);
   const authModes = providerInfo?.authModes || [];
   const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || authModes.includes("oauth");
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
@@ -190,10 +204,31 @@ export default function ProviderDetailPage() {
     ? liveModels
     : staticModels;
   const providerAlias = getProviderAlias(providerId);
-  
-  const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
-  const isAnthropicCompatible = isAnthropicCompatibleProvider(providerId);
-  const isCompatible = isOpenAICompatible || isAnthropicCompatible;
+
+  const providerStorageAlias = isCompatible ? providerId : providerAlias;
+  const providerNameForDisplay = providerNode?.name || (isAnthropicCompatible ? "Anthropic Compatible" : "OpenAI Compatible");
+  const providerDisplayAlias = isCompatible
+    ? (providerNode?.prefix || (providerNode?.name ? providerNode.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : providerId))
+    : (prefixOverride || providerAlias);
+  const modelPrefix = providerDisplayAlias;
+
+  const [prefixDraft, setPrefixDraft] = useState(modelPrefix || "");
+  const [savingPrefix, setSavingPrefix] = useState(false);
+  const [systemPromptModel, setSystemPromptModel] = useState("");
+  const [systemPromptDraft, setSystemPromptDraft] = useState("");
+  const [systemPrompts, setSystemPrompts] = useState({});
+  const [allSystemPrompts, setAllSystemPrompts] = useState({});
+  const [savingSystemPrompt, setSavingSystemPrompt] = useState(false);
+
+  useEffect(() => {
+    setPrefixDraft(modelPrefix || "");
+  }, [modelPrefix]);
+
+  useEffect(() => {
+    const prompt = systemPrompts[systemPromptModel] || "";
+    setSystemPromptDraft(prompt);
+  }, [systemPromptModel, systemPrompts]);
+
   const hasDualAuthModes = !isCompatible && isOAuth && supportsApiKeyAuth;
   const oauthConnectionLabel =
     providerId === "xai" ? "Grok Build OAuth"
@@ -210,7 +245,6 @@ export default function ProviderDetailPage() {
     const levels = getThinkingLevels(providerId, modelId);
     return levels && levels.includes(thinkingMode) ? thinkingMode : null;
   };
-  const providerStorageAlias = isCompatible ? providerId : providerAlias;
   const providerThinkingLevels = (() => {
     const set = new Set();
     const seen = new Set();
@@ -229,10 +263,6 @@ export default function ProviderDetailPage() {
     }
     return set.size ? ["auto", ...[...set]] : null;
   })();
-  const providerDisplayAlias = isCompatible
-    ? (providerNode?.prefix || providerId)
-    : providerAlias;
-
   const fetchDisabledModels = useCallback(async () => {
     try {
       const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}`, { cache: "no-store" });
@@ -262,36 +292,6 @@ export default function ProviderDetailPage() {
       if (res.ok) await fetchDisabledModels();
     } catch (error) {
       console.log("Error enabling model:", error);
-    }
-  };
-
-  const handleDisableAll = async (ids) => {
-    if (!ids.length) return;
-    setConfirmState({
-      title: "Disable All Models",
-      message: `Disable all ${ids.length} model(s)?`,
-      onConfirm: async () => {
-        setConfirmState(null);
-        try {
-          const res = await fetch("/api/models/disabled", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ providerAlias: providerStorageAlias, ids }),
-          });
-          if (res.ok) await fetchDisabledModels();
-        } catch (error) {
-          console.log("Error disabling all models:", error);
-        }
-      }
-    });
-  };
-
-  const handleEnableAll = async () => {
-    try {
-      const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}`, { method: "DELETE" });
-      if (res.ok) await fetchDisabledModels();
-    } catch (error) {
-      console.log("Error enabling all models:", error);
     }
   };
 
@@ -411,6 +411,11 @@ export default function ProviderDetailPage() {
       const nodesData = await nodesRes.json();
       const proxyPoolsData = await proxyPoolsRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      setPrefixOverride(settingsData.providerPrefixes?.[providerId] || null);
+      const storedPrompts = settingsData.providerModelSystemPrompts?.[providerStorageAlias] || {};
+      setAllSystemPrompts(settingsData.providerModelSystemPrompts || {});
+      setSystemPrompts(storedPrompts);
+      setSystemPromptModel((current) => current || Object.keys(storedPrompts)[0] || "");
       if (connectionsRes.ok) {
         const filtered = (connectionsData.connections || []).filter(c => c.provider === providerId);
         setConnections(filtered);
@@ -447,7 +452,7 @@ export default function ProviderDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [providerId, isCompatible]);
+  }, [providerId, isCompatible, providerStorageAlias]);
 
   const fetchHealthSummary = useCallback(async () => {
     try {
@@ -460,8 +465,8 @@ export default function ProviderDetailPage() {
     const invalids = connections.filter(isInvalidConnection);
     if (!invalids.length) return;
     setConfirmState({
-      title: `Delete ${invalids.length} Invalid Connection${invalids.length > 1 ? "s" : ""}`,
-      message: `Delete ${invalids.length} connection${invalids.length > 1 ? "s" : ""} with errors? This cannot be undone.`,
+      title: `${translate("Delete")} ${invalids.length} ${translate(invalids.length > 1 ? "Invalid Connections" : "Invalid Connection")}`,
+      message: `${translate("Delete")} ${invalids.length} ${translate(invalids.length > 1 ? "connections" : "connection")} ${translate("with errors? This cannot be undone.")}`,
       onConfirm: async () => {
         setConfirmState(null);
         setDeletingInvalid(true);
@@ -489,7 +494,8 @@ export default function ProviderDetailPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setProviderNode(data.node);
+        const updatedNode = data.node || { ...providerNode, ...formData, id: providerId };
+        setProviderNode(updatedNode);
         await fetchConnections();
         setShowEditNodeModal(false);
       }
@@ -597,11 +603,21 @@ export default function ProviderDetailPage() {
     fetchCustomModels();
     fetchModelNames();
     fetchDisabledModels();
+    const onProvidersChanged = () => { fetchConnections(); };
+    const handleStorage = (e) => {
+      if (e.key === "routermod:providers-changed") { fetchConnections(); }
+    };
+    window.addEventListener("routermod:providers-changed", onProvidersChanged);
+    window.addEventListener("storage", handleStorage);
     const refreshInterval = setInterval(() => {
       fetchConnections();
       fetchHealthSummary();
     }, 5 * 60 * 1000);
-    return () => clearInterval(refreshInterval);
+    return () => {
+      clearInterval(refreshInterval);
+      window.removeEventListener("routermod:providers-changed", onProvidersChanged);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, [fetchConnections, fetchHealthSummary, fetchAliases, fetchCustomModels, fetchModelNames, fetchDisabledModels]);
 
   useEffect(() => {
@@ -716,38 +732,10 @@ export default function ProviderDetailPage() {
     return !tokens.some((token) => NON_CHAT_MODEL_TOKENS.has(token));
   };
 
-  const DETECT_FILTER_KEY = "routermod_autodetect_filter";
-  const DETECT_FILTER_OPTIONS = [
-    { value: "all", label: "All" },
-    { value: "free", label: "Free" },
-    { value: "paid", label: "Paid" },
-  ];
-
-  // Remember the "Free / Paid / All" pick across visits.
-  useEffect(() => {
-    try {
-      const stored = typeof window !== "undefined" ? window.localStorage.getItem(DETECT_FILTER_KEY) : null;
-      if (stored === "free" || stored === "paid") setDetectFilter(stored);
-    } catch {
-      /* localStorage unavailable — keep default */
-    }
-  }, []);
-
-  const changeDetectFilter = (value) => {
-    setDetectFilter(value);
-    try {
-      window.localStorage.setItem(DETECT_FILTER_KEY, value);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  // A different filter or provider starts the list back at page 1.
-  useEffect(() => { setModelsPage(1); }, [detectFilter, providerId]);
+  useEffect(() => { setModelsPage(1); }, [providerId]);
 
   // Detects every model this provider exposes and registers the missing ones in
   // one bulk request — no more adding models one by one.
-  // `detectFilter` narrows the import to free models, paid models, or everything.
   const handleAutoDetectModels = async ({ auto = false } = {}) => {
     if (detectingModels) return;
     setDetectingModels(true);
@@ -782,8 +770,13 @@ export default function ProviderDetailPage() {
         for (const prefix of stripPrefixes) {
           if (prefix && modelId.startsWith(prefix)) modelId = modelId.slice(prefix.length);
         }
-        if (!modelId || seen.has(modelId) || knownIds.has(modelId)) continue;
-        if (disabledModelIds.includes(modelId)) continue;
+        const disabledModel = disabledModelIds.some((disabledId) => (
+          disabledId === modelId
+          || disabledId === `${providerStorageAlias}/${modelId}`
+          || disabledId === `${providerAlias}/${modelId}`
+          || disabledId === `${providerId}/${modelId}`
+        ));
+        if (!modelId || seen.has(modelId) || (knownIds.has(modelId) && !disabledModel)) continue;
         if (!isChatModelId(modelId)) continue;
         seen.add(modelId);
 
@@ -794,28 +787,13 @@ export default function ProviderDetailPage() {
           ? rawName.trim().replace(/^models\//, "")
           : "";
         // free === true|false when the endpoint exposes pricing, null otherwise.
-        const free = typeof entry === "object" && typeof entry?.free === "boolean" ? entry.free : null;
         detected.push({
           id: modelId,
           ...(displayName && displayName !== modelId ? { name: displayName } : {}),
-          ...(free === null ? {} : { free }),
         });
       }
 
-      // Free / Paid filter — models with unknown pricing are dropped unless the
-      // filter would remove everything (then they are kept so the import is useful).
-      let filterNote = null;
-      let picked = detected;
-      if (detectFilter !== "all") {
-        picked = detected.filter((m) => (detectFilter === "free" ? m.free === true : m.free === false));
-        if (picked.length === 0) {
-          const unknown = detected.filter((m) => m.free === null || m.free === undefined);
-          if (unknown.length > 0) {
-            picked = unknown;
-            filterNote = "unknown";
-          }
-        }
-      }
+      const picked = detected;
 
       if (picked.length === 0) {
         if (!auto) {
@@ -827,6 +805,22 @@ export default function ProviderDetailPage() {
           });
         }
         return;
+      }
+
+      const disabledDetectedIds = picked
+        .filter((entry) => disabledModelIds.some((disabledId) => (
+          disabledId === entry.id
+          || disabledId === `${providerStorageAlias}/${entry.id}`
+          || disabledId === `${providerAlias}/${entry.id}`
+          || disabledId === `${providerId}/${entry.id}`
+        )))
+        .map((entry) => entry.id);
+      if (disabledDetectedIds.length > 0) {
+        await Promise.all(disabledDetectedIds.map((modelId) => fetch(
+          `/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}&id=${encodeURIComponent(modelId)}`,
+          { method: "DELETE" },
+        )));
+        await fetchDisabledModels();
       }
 
       const bulkRes = await fetch("/api/models/custom", {
@@ -841,17 +835,10 @@ export default function ProviderDetailPage() {
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
 
       const added = bulkData?.added ?? picked.length;
-      const filterSuffix = detectFilter === "free"
-        ? ` · ${translate("Free")}`
-        : detectFilter === "paid"
-          ? ` · ${translate("Paid")}`
-          : "";
       addNotification({
         type: "success",
         title: translate("Models detected"),
-        message: `${translate("Successfully added")} ${added} ${translate("models")}${filterSuffix}${
-          filterNote === "unknown" ? ` · ${translate("No pricing data available")}` : ""
-        }`,
+        message: `${translate("Successfully added")} ${added} ${translate("models")}`,
         duration: 5000,
       });
     } catch (error) {
@@ -867,31 +854,138 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Run auto-detect on its own the first time a provider shows no models at all
-  // (fresh compatible node, or a connection that was just added).
-  const autoDetectAttemptRef = useRef(null);
-  useEffect(() => {
-    if (loading || !providerInfo) return;
-    const hasConnection = connections.length > 0;
-    const hasBaseUrl = !!providerNode?.baseUrl;
-    if (!hasConnection && !hasBaseUrl) return;
+  const handleBulkPrefixChange = async (newPrefix) => {
+    if (!newPrefix.trim()) return;
+    const currentPrefix = providerNode?.prefix || providerDisplayAlias;
+    if (currentPrefix === newPrefix.trim()) return;
+    try {
+      const res = await fetch("/api/models/bulk-prefix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerAlias: providerStorageAlias, oldPrefix: currentPrefix, newPrefix: newPrefix.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await Promise.all([fetchAliases(), fetchCustomModels(), fetchModelNames()]);
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+        if (isCompatible) {
+          try {
+            const nodeRes = await fetch(`/api/provider-nodes/${providerId}`, { cache: "no-store" });
+            if (nodeRes.ok) {
+              const nodeData = await nodeRes.json();
+              if (nodeData.node) {
+                setProviderNode(nodeData.node);
+              } else if (providerNode) {
+                setProviderNode((prev) => ({ ...prev, prefix: newPrefix.trim() }));
+              }
+            } else if (providerNode) {
+              setProviderNode((prev) => ({ ...prev, prefix: newPrefix.trim() }));
+            }
+          } catch {
+            if (providerNode) {
+              setProviderNode((prev) => ({ ...prev, prefix: newPrefix.trim() }));
+            }
+          }
+        } else {
+          setPrefixOverride(newPrefix.trim() === providerAlias ? null : newPrefix.trim());
+        }
+        addNotification({
+          type: "success",
+          title: translate("Prefix updated"),
+          message: data.total > 0
+            ? translate("Prefix updated count").replace("{updated}", data.updated).replace("{total}", data.total)
+            : translate("Prefix saved"),
+          duration: 4000,
+        });
+      } else {
+        const data = await res.json();
+        addNotification({
+          type: "error",
+          title: translate("Failed to update prefix"),
+          message: data.error || translate("Unknown error"),
+          duration: 6000,
+        });
+      }
+    } catch (error) {
+      console.log("Error updating prefix:", error);
+      addNotification({
+        type: "error",
+        title: translate("Failed to update prefix"),
+        message: error?.message || translate("Unknown error"),
+        duration: 6000,
+      });
+    }
+  };
 
-    const existingRows = getProviderCustomModelRows({
-      customModels,
-      modelAliases,
-      providerAlias: providerStorageAlias,
-      builtInModels: models,
-      type: "llm",
-    });
-    if (existingRows.length > 0 || models.length > 0) return;
+  const handleSaveSystemPrompt = async () => {
+    const newPrompt = systemPromptDraft.trim() || null;
+    if (!systemPromptModel) return;
+    const nextPrompts = { ...systemPrompts };
+    if (newPrompt) nextPrompts[systemPromptModel] = newPrompt;
+    else delete nextPrompts[systemPromptModel];
+    setSavingSystemPrompt(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerModelSystemPrompts: { ...allSystemPrompts, [providerStorageAlias]: nextPrompts },
+        }),
+      });
+      if (res.ok) {
+        setSystemPrompts(nextPrompts);
+        addNotification({
+          type: "success",
+          title: translate("System prompt saved"),
+          message: translate("The system prompt was saved successfully."),
+          duration: 4000,
+        });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addNotification({
+          type: "error",
+          title: translate("Failed to save system prompt"),
+          message: data.error || translate("Unknown error"),
+          duration: 6000,
+        });
+      }
+    } catch (error) {
+      console.log("Error saving system prompt:", error);
+      addNotification({
+        type: "error",
+        title: translate("Failed to save system prompt"),
+        message: error?.message || translate("Unknown error"),
+        duration: 6000,
+      });
+    } finally {
+      setSavingSystemPrompt(false);
+    }
+  };
 
-    const attemptKey = `${providerId}:${connections.length}:${hasBaseUrl}`;
-    if (autoDetectAttemptRef.current === attemptKey) return;
-    autoDetectAttemptRef.current = attemptKey;
-
-    handleAutoDetectModels({ auto: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, providerInfo, connections, providerNode, customModels, modelAliases, models, providerId, providerStorageAlias]);
+  // Auto-detect disabled — only runs when user clicks the button
+  // const autoDetectAttemptRef = useRef(null);
+  // useEffect(() => {
+  //   if (loading || !providerInfo) return;
+  //   const hasConnection = connections.length > 0;
+  //   const hasBaseUrl = !!providerNode?.baseUrl;
+  //   if (!hasConnection && !hasBaseUrl) return;
+  //
+  //   const existingRows = getProviderCustomModelRows({
+  //     customModels,
+  //     modelAliases,
+  //     providerAlias: providerStorageAlias,
+  //     builtInModels: models,
+  //     type: "llm",
+  //   });
+  //   if (existingRows.length > 0 || models.length > 0) return;
+  //
+  //   const attemptKey = `${providerId}:${connections.length}:${hasBaseUrl}`;
+  //   if (autoDetectAttemptRef.current === attemptKey) return;
+  //   autoDetectAttemptRef.current = attemptKey;
+  //
+  //   handleAutoDetectModels({ auto: true });
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [loading, providerInfo, connections, providerNode, customModels, modelAliases, models, providerId, providerStorageAlias]);
 
   const handleEditCustomModel = async (modelId, { modelId: newId, name }, type = "llm", providerAliasOverride = providerStorageAlias) => {
     try {
@@ -1141,8 +1235,8 @@ export default function ProviderDetailPage() {
 
   const handleDelete = async (id) => {
     setConfirmState({
-      title: "Delete Connection",
-      message: "Delete this connection?",
+      title: translate("Delete Connection"),
+      message: translate("Delete this connection?"),
       onConfirm: async () => {
         setConfirmState(null);
         try {
@@ -1165,8 +1259,8 @@ export default function ProviderDetailPage() {
     const count = selectedConnectionIds.length;
     if (count === 0) return;
     setConfirmState({
-      title: `Delete ${count} Connection${count > 1 ? "s" : ""}`,
-      message: `Delete ${count} connection${count > 1 ? "s" : ""}? This cannot be undone.`,
+      title: `${translate("Delete")} ${count} ${translate(count > 1 ? "Connections" : "Connection")}`,
+      message: `${translate("Delete")} ${count} ${translate(count > 1 ? "connections" : "connection")}? ${translate("This cannot be undone.")}`,
       onConfirm: async () => {
         setConfirmState(null);
         let failed = 0;
@@ -1186,7 +1280,7 @@ export default function ProviderDetailPage() {
         try {
           localStorage.setItem("routermod:providers-changed", String(Date.now()));
         } catch {}
-        if (failed > 0) alert(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
+        if (failed > 0) alert(`${translate("Deleted")} ${idsToDelete.length - failed} ${translate("connection(s)")}, ${failed} ${translate("failed")}.`);
       }
     });
   };
@@ -1270,6 +1364,30 @@ export default function ProviderDetailPage() {
       }
     } catch (error) {
       console.log("Error updating connection status:", error);
+    }
+  };
+
+  const handleBulkStatusUpdate = async (isActive) => {
+    if (bulkStatusUpdating || connections.length === 0) return;
+    setBulkStatusUpdating(true);
+    setConnections((prev) => prev.map((connection) => ({ ...connection, isActive })));
+    try {
+      const results = await Promise.all(
+        connections.map(async (connection) => {
+          const response = await fetch(`/api/providers/${connection.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive }),
+          });
+          return response.ok;
+        })
+      );
+      if (results.some((ok) => !ok)) await fetchConnections();
+      window.dispatchEvent(new CustomEvent("routermod:providers-changed"));
+    } catch {
+      await fetchConnections();
+    } finally {
+      setBulkStatusUpdating(false);
     }
   };
 
@@ -1366,7 +1484,7 @@ export default function ProviderDetailPage() {
           failed += 1;
         }
       }
-      if (failed > 0) alert(`Updated with ${failed} failed request(s).`);
+      if (failed > 0) alert(`${translate("Updated with")} ${failed} ${translate("failed request(s)")}.`);
       await fetchConnections();
       setShowBulkProxyModal(false);
     } finally {
@@ -1382,7 +1500,7 @@ export default function ProviderDetailPage() {
   const handleApplyOneToOne = () => {
     const activePools = proxyPools.filter((p) => p.isActive === true);
     if (activePools.length === 0) {
-      alert("No active proxy pools available.");
+      alert(translate("No active proxy pools available."));
       return;
     }
     const targets = connections.map((c, i) => ({
@@ -1499,7 +1617,7 @@ export default function ProviderDetailPage() {
     <Modal
       isOpen={showBulkProxyModal}
       onClose={closeBulkProxyModal}
-      title={`Apply Proxy (${connections.length} connections)`}
+       title={`${translate("Apply Proxy")} (${connections.length} ${translate("connections")})`}
     >
       <div className="flex flex-col gap-3">
         <div className="flex flex-col">
@@ -1509,7 +1627,7 @@ export default function ProviderDetailPage() {
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="material-symbols-outlined text-text-muted text-[18px]">sync_alt</span>
-            <span className="text-sm text-text-main">One-to-one (rotate)</span>
+           <span className="text-sm text-text-main">{translate("One-to-one (rotate)")}</span>
           </button>
           <button
             onClick={() => handleApplySinglePool(null)}
@@ -1517,7 +1635,7 @@ export default function ProviderDetailPage() {
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="material-symbols-outlined text-text-muted text-[18px]">link_off</span>
-            <span className="text-sm text-text-main">None (unbind all)</span>
+             <span className="text-sm text-text-main">{translate("None (unbind all)")}</span>
           </button>
           {proxyPools.map((pool) => (
             <button
@@ -1535,10 +1653,10 @@ export default function ProviderDetailPage() {
           ))}
         </div>
 
-        {bulkUpdatingProxy && <p className="text-xs text-text-muted">Applying...</p>}
+         {bulkUpdatingProxy && <p className="text-xs text-text-muted">{translate("Applying...")}</p>}
 
         <Button skin="antares" onClick={closeBulkProxyModal} variant="ghost" fullWidth disabled={bulkUpdatingProxy}>
-          Cancel
+           {translate("Cancel")}
         </Button>
       </div>
     </Modal>
@@ -1594,8 +1712,6 @@ export default function ProviderDetailPage() {
       return;
     }
 
-    if (isCompatible) return;
-
     const customModelRows = getProviderCustomModelRows({
       customModels,
       modelAliases,
@@ -1635,7 +1751,7 @@ export default function ProviderDetailPage() {
     const fail = Object.values(results).filter((v) => v === "error").length;
     addNotification({
       type: pass > 0 && fail === 0 ? "success" : fail > 0 && pass === 0 ? "error" : "info",
-      title: "Test Selesai",
+      title: translate("Test Selesai"),
       message: `${pass} model OK · ${fail} model gagal · dari ${allModelIds.length} total`,
       duration: 8000,
     });
@@ -1664,8 +1780,20 @@ export default function ProviderDetailPage() {
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
-          detectFilter={detectFilter}
-        />
+          modelPrefix={providerDisplayAlias}
+          onBulkPrefixChange={handleBulkPrefixChange}
+          onTestAllModels={handleTestAllModels}
+           onDeleteAllModels={handleDeleteAllModels}
+           testAllRunning={testAllRunning}
+           testAllStopping={testAllStopping}
+           systemPromptModel={systemPromptModel}
+           setSystemPromptModel={setSystemPromptModel}
+           systemPromptDraft={systemPromptDraft}
+           setSystemPromptDraft={setSystemPromptDraft}
+           systemPrompts={systemPrompts}
+           savingSystemPrompt={savingSystemPrompt}
+           onSaveSystemPrompt={handleSaveSystemPrompt}
+         />
       );
     }
     const allModels = [
@@ -1683,29 +1811,100 @@ export default function ProviderDetailPage() {
       type: "llm",
     });
 
-    // All / Free / Paid filter, then 5 rows per page (custom rows first).
-    const passesFilter = (flag) => {
-      if (detectFilter === "all") return true;
-      if (detectFilter === "free") return flag === true;
-      return flag !== true; // paid: real paid rows plus rows with unknown pricing
-    };
     const listItems = [
-      ...customModelRows.filter((m) => passesFilter(m.isFree === true)).map((m) => ({ kind: "custom", model: m })),
-      ...displayModels.filter((m) => passesFilter(typeof m.isFree === "boolean" ? m.isFree : undefined)).map((m) => ({ kind: "builtin", model: m })),
+      ...customModelRows.map((m) => ({ kind: "custom", model: m })),
+      ...displayModels.map((m) => ({ kind: "builtin", model: m })),
     ];
     const totalPages = Math.max(1, Math.ceil(listItems.length / MODELS_PER_PAGE));
     const safePage = Math.min(modelsPage, totalPages);
     const pagedList = listItems.slice((safePage - 1) * MODELS_PER_PAGE, safePage * MODELS_PER_PAGE);
-    const hiddenCount = (customModelRows.length + displayModels.length) - listItems.length;
 
     return (
       <>
-      <div className="flex flex-wrap gap-3">
-        {hiddenCount > 0 && (
-          <p className="w-full rounded-md bg-sidebar px-2.5 py-1.5 text-[11px] text-text-muted">
-            {hiddenCount} {translate("models hidden by this filter")}
+      {handleBulkPrefixChange && (
+        <div className="an-panel an-scope mb-3">
+          <div className="an-panel-pad">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-base text-primary">tag</span>
+             <span className="text-xs font-bold uppercase tracking-wide text-text-muted">{translate("Global Model Prefix")}</span>
+          </div>
+          <p className="text-[11px] text-text-muted mb-3">
+             {translate("Sets the display prefix for all models in this provider. Models will appear as")}{" "}
+            <code className="font-mono text-primary">{prefixDraft ? prefixDraft + "/" : ""}&lt;model-id&gt;</code>.
           </p>
-        )}
+          <div className="flex gap-2 items-center">
+            <input
+              type="text"
+              value={prefixDraft}
+              onChange={(e) => setPrefixDraft(e.target.value)}
+              placeholder={providerDisplayAlias}
+              className="flex-1 rounded border border-border bg-bg px-2.5 py-1.5 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+               title={translate("Set prefix for all models in this provider")}
+            />
+            <button
+              onClick={async () => {
+                if (!prefixDraft.trim() || savingPrefix) return;
+                setSavingPrefix(true);
+                await handleBulkPrefixChange(prefixDraft.trim());
+                setSavingPrefix(false);
+              }}
+              disabled={!prefixDraft.trim() || prefixDraft.trim() === modelPrefix || savingPrefix}
+              className="shrink-0 rounded border-2 border-primary bg-primary px-3 py-1.5 text-[11px] font-bold text-white hover:bg-primary-hover transition-colors shadow-[1.5px_1.5px_0px_var(--color-border)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+               {savingPrefix ? translate("Saving...") : translate("Apply")}
+            </button>
+          </div>
+          {modelPrefix && prefixDraft !== modelPrefix && (
+            <p className="mt-2 text-[10px] text-warning">
+               {translate("Unsaved change — current prefix is")} <code className="font-mono">{modelPrefix}</code>
+            </p>
+          )}
+          </div>
+        </div>
+      )}
+      <div className="an-panel an-scope mb-3">
+        <div className="an-panel-pad">
+        <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+          <span className="an-panel-ico" aria-hidden>
+            <span className="material-symbols-outlined text-base">text_fields</span>
+          </span>
+            <div className="min-w-0">
+               <span className="an-panel-title block">{translate("System Prompt")}</span>
+               <span className="mt-0.5 block text-[11px] leading-4 text-text-muted">{translate("Special instructions for the selected model")}</span>
+            </div>
+          </div>
+           <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">{translate("MODEL-SPECIFIC")}</span>
+        </div>
+         <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted" htmlFor="system-prompt-model">{translate("Target model")}</label>
+        <div className="relative mb-4">
+          <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-primary"><span className="material-symbols-outlined text-[18px]">smart_toy</span></span>
+          <select id="system-prompt-model" value={systemPromptModel} onChange={(e) => setSystemPromptModel(e.target.value)} className="an-select system-prompt-select h-11 w-full font-mono text-xs">
+             <option value="">{translate("Choose a model to configure")}</option>
+            {[...new Set([...models.map((model) => model.id), ...kiloFreeModels.map((model) => model.id), ...customModels.filter((model) => (model.type || model.kind || "llm") === "llm" && model.providerAlias === providerStorageAlias).map((model) => model.id)].filter(Boolean))].map((modelId) => <option key={modelId} value={modelId}>{modelId}</option>)}
+          </select>
+        </div>
+        <label className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted" htmlFor="system-prompt-textarea">
+           <span>{translate("System instructions")}</span>
+          <span className="font-normal normal-case tracking-normal text-text-muted/60">{systemPromptDraft.length}/4000</span>
+        </label>
+         <textarea id="system-prompt-textarea" maxLength={4000} value={systemPromptDraft} onChange={(e) => setSystemPromptDraft(e.target.value)} placeholder={translate("Example: You are model XX from Techwiz. Explain answers clearly and accurately.")} rows={5} className="an-input system-prompt-textarea min-h-[132px] w-full resize-y !rounded-xl !border-border/80 !bg-bg text-sm leading-6 placeholder:text-text-muted/45 focus:!border-primary/70" />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <button
+            onClick={handleSaveSystemPrompt}
+            disabled={!systemPromptModel || savingSystemPrompt}
+            className="an-btn an-primary h-9 rounded-[10px] px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            <span className="material-symbols-outlined text-[16px]">{savingSystemPrompt ? "progress_activity" : "save"}</span>
+             {savingSystemPrompt ? translate("Saving...") : translate("Save prompt")}
+          </button>
+          {systemPromptModel && systemPrompts[systemPromptModel] !== systemPromptDraft.trim() && (
+             <p className="text-[10px] text-warning">{translate("Unsaved system prompt changes")}</p>
+          )}
+        </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-3">
         {/* Custom models first */}
         {pagedList.filter((item) => item.kind === "custom").map(({ model }) => (
           <ModelRow
@@ -1732,6 +1931,7 @@ export default function ProviderDetailPage() {
             isFree={typeof model.isFree === "boolean" ? model.isFree : undefined}
             caps={getCaps(`${providerId}/${model.id}`)}
             thinkingSuffix={resolveThinkingSuffix(model.id)}
+            prefix={providerDisplayAlias}
           />
         ))}
 
@@ -1760,6 +1960,7 @@ export default function ProviderDetailPage() {
               onDisable={() => handleDisableModel(model.id)}
               caps={getCaps(`${providerId}/${model.id}`)}
               thinkingSuffix={resolveThinkingSuffix(model.id)}
+              prefix={providerDisplayAlias}
             />
           );
         })}
@@ -1865,15 +2066,6 @@ export default function ProviderDetailPage() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-8">
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
-    );
-}
-
   if (!providerInfo) {
     return (
       <div className="text-center py-20">
@@ -1886,11 +2078,8 @@ export default function ProviderDetailPage() {
   }
 
   const getHeaderIconPath = () => {
-    if (isOpenAICompatible && providerInfo.apiType) {
-      return providerInfo.apiType === "responses" ? "/providers/oai-r.png" : "/providers/oai-cc.png";
-    }
-    if (isAnthropicCompatible) {
-      return "/providers/anthropic-m.png";
+    if (isOpenAICompatible || isAnthropicCompatible) {
+      return getCompatibleIconSrc(providerInfo.id);
     }
     return getProviderIconSrc(providerInfo.id);
   };
@@ -1950,27 +2139,6 @@ export default function ProviderDetailPage() {
             </div>
           </div>
 
-          <div className="an-pdetail-actions">
-            {(providerInfo.notice?.apiKeyUrl ||
-              providerInfo.notice?.signupUrl ||
-              providerInfo.website) && (
-              <a
-                href={
-                  providerInfo.notice?.apiKeyUrl ||
-                  providerInfo.notice?.signupUrl ||
-                  providerInfo.website
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5"
-              >
-                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                {providerInfo.notice?.apiKeyUrl
-                  ? translate("Get API Key")
-                  : translate("Sign up / Learn more")}
-              </a>
-            )}
-          </div>
         </div>
       </section>
 
@@ -1984,16 +2152,17 @@ export default function ProviderDetailPage() {
         <AntaresNotice
           variant="info"
           icon="info"
-          action={
-            providerInfo.notice.apiKeyUrl ? (
-              <a
-                href={providerInfo.notice.apiKeyUrl}
+           actionBelow
+           action={
+             (providerInfo.notice.apiKeyUrl || providerInfo.notice.signupUrl || providerInfo.website) ? (
+               <a
+                 href={providerInfo.notice.apiKeyUrl || providerInfo.notice.signupUrl || providerInfo.website}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5"
               >
                 <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                {translate("Get API Key")}
+                 {providerInfo.notice.apiKeyUrl ? translate("Get API Key") : translate("Sign up / Learn more")}
               </a>
             ) : null
           }
@@ -2007,7 +2176,7 @@ export default function ProviderDetailPage() {
           <div className="an-panel-pad">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <h2 className="an-sec-title">{isAnthropicCompatible ? "Anthropic Compatible Details" : "OpenAI Compatible Details"}</h2>
+              <h2 className="an-sec-title">{providerNameForDisplay}</h2>
               <p className="break-all text-sm text-text-muted">
                 {isAnthropicCompatible ? "Messages API" : (providerNode.apiType === "responses" ? "Responses API" : "Chat Completions")} · {(providerNode.baseUrl || "").replace(/\/$/, "")}/
                 {isAnthropicCompatible ? "messages" : (providerNode.apiType === "responses" ? "responses" : "chat/completions")}
@@ -2041,7 +2210,7 @@ export default function ProviderDetailPage() {
                 onClick={async () => {
                   setConfirmState({
                     title: "Delete Compatible Node",
-                    message: `Delete this ${isAnthropicCompatible ? "Anthropic" : "OpenAI"} Compatible node?`,
+                    message: `Delete this ${providerNameForDisplay} node?`,
                     onConfirm: async () => {
                       setConfirmState(null);
                       try {
@@ -2065,6 +2234,15 @@ export default function ProviderDetailPage() {
               </Button>
             </div>
           </div>
+          {providerNode.systemPrompt && (
+            <div className="mt-4 p-3 rounded-md bg-[var(--t-surface-raised)] border border-[var(--t-border)]">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="material-symbols-outlined text-[16px] text-text-muted">terminal</span>
+                <span className="text-sm font-medium text-text-primary">{translate("System Prompt")}</span>
+              </div>
+              <p className="text-sm text-text-secondary whitespace-pre-wrap break-words">{providerNode.systemPrompt}</p>
+            </div>
+          )}
           </div>
         </section>
       )}
@@ -2074,7 +2252,7 @@ export default function ProviderDetailPage() {
         <NoAuthProxyCard providerId={providerId} />
       ) : (
         <section className="an-panel">
-          <header className="an-panel-head">
+          <header className="an-panel-head an-panel-head-stack an-provider-connections-head">
             <span className="an-panel-ico" aria-hidden>
               <span className="material-symbols-outlined">link</span>
             </span>
@@ -2097,17 +2275,39 @@ export default function ProviderDetailPage() {
                 <button
                   type="button"
                   onClick={() => setShowBulkProxyModal(true)}
-                  className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5"
+                  className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 shrink-0"
                 >
                   <span className="material-symbols-outlined text-[14px]">lan</span>
                   {translate("Apply Proxy")}
                 </button>
               )}
+              {connections.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkStatusUpdate(true)}
+                    disabled={bulkStatusUpdating}
+                    className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 shrink-0 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">power</span>
+                    {translate("Enable all sessions")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkStatusUpdate(false)}
+                    disabled={bulkStatusUpdating}
+                    className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 shrink-0 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">power_off</span>
+                    {translate("Disable all sessions")}
+                  </button>
+                </>
+              )}
               {selectedConnectionIds.length > 0 && (
                 <button
                   type="button"
                   onClick={handleBulkDelete}
-                  className="an-btn h-8 px-3 text-[11px] gap-1.5 border border-[rgba(232,0,31,0.32)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)]"
+                  className="an-btn h-8 px-3 text-[11px] gap-1.5 border border-[rgba(232,0,31,0.32)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] shrink-0"
                 >
                   <span className="material-symbols-outlined text-[14px]">delete</span>
                   {translate("Delete Selected")}
@@ -2119,7 +2319,7 @@ export default function ProviderDetailPage() {
                   type="button"
                   onClick={handleDeleteInvalid}
                   disabled={deletingInvalid}
-                  className="an-btn h-8 px-3 text-[11px] gap-1.5 border border-[rgba(232,0,31,0.32)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] disabled:opacity-50"
+                  className="an-btn h-8 px-3 text-[11px] gap-1.5 border border-[rgba(232,0,31,0.32)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] disabled:opacity-50 shrink-0"
                 >
                   <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
                   {translate("Remove invalid")}
@@ -2130,7 +2330,7 @@ export default function ProviderDetailPage() {
                 <button
                   type="button"
                   onClick={handleRunOneByOneTest}
-                  className="an-btn an-primary h-8 px-3 text-[11px] gap-1.5"
+                  className="an-btn an-primary h-8 px-3 text-[11px] gap-1.5 shrink-0"
                 >
                   <span className="material-symbols-outlined text-[14px]">sync</span>
                   {translate("Test all")}
@@ -2408,31 +2608,6 @@ export default function ProviderDetailPage() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div
-              className="flex items-center gap-1.5"
-              title="Filter the model list — and what auto-detect imports"
-            >
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-                Filter
-              </span>
-              <div className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
-                {DETECT_FILTER_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => changeDetectFilter(opt.value)}
-                    aria-pressed={detectFilter === opt.value}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                      detectFilter === opt.value
-                        ? "bg-primary text-white shadow-sm"
-                        : "bg-transparent text-text-muted hover:bg-sidebar hover:text-text-main"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <button
               type="button"
               onClick={() => setShowDetectHelp((v) => !v)}
@@ -2455,9 +2630,9 @@ export default function ProviderDetailPage() {
               onClick={() => handleAutoDetectModels()}
               title="Fetch every model this provider exposes and add the missing ones"
             >
-              Auto-detect Models
+              {translate("Deteksi Model Otomatis")}
             </Button>
-            {!isCompatible && (connections.length > 0 || isFreeNoAuth) && (() => {
+            {(() => {
               const customRows = getProviderCustomModelRows({
                 customModels, modelAliases, providerAlias: providerStorageAlias, builtInModels: models, type: "llm",
               });
@@ -2469,12 +2644,6 @@ export default function ProviderDetailPage() {
                 .map((m) => m.id);
               const customIdSet = new Set(customRows.map((m) => m.id));
               const activeIds = [...customRows.map((m) => m.id), ...builtInIds.filter((id) => !customIdSet.has(id))];
-              const disabledBuiltIn = [
-                ...models,
-                ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-              ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
-                .filter((m) => disabledModelIds.includes(m.id))
-                .map((m) => m.id);
               return (
                 <>
                   {activeIds.length > 0 && (
@@ -2485,17 +2654,7 @@ export default function ProviderDetailPage() {
                       onClick={handleTestAllModels}
                       disabled={testAllStopping}
                     >
-                      {testAllRunning ? (testAllStopping ? "Menghentikan..." : "Stop Test") : `Test Semua (${activeIds.length})`}
-                    </Button>
-                  )}
-                  {disabledBuiltIn.length > 0 && (
-                    <Button skin="antares" size="sm" variant="secondary" icon="restart_alt" onClick={handleEnableAll}>
-                      Active All
-                    </Button>
-                  )}
-                  {activeIds.length > 0 && (
-                    <Button skin="antares" size="sm" variant="secondary" icon="block" onClick={() => handleDisableAll(activeIds)}>
-                      Disable All
+                      {testAllRunning ? (testAllStopping ? translate("Stop Testing...") : translate("Stop Test")) : `${translate("Test Semua")} (${activeIds.length})`}
                     </Button>
                   )}
                   <Button skin="antares" size="sm" variant="danger" icon="delete_sweep" onClick={handleDeleteAllModels}>
@@ -2534,42 +2693,6 @@ export default function ProviderDetailPage() {
         {providerId === "zed" && !!liveModelsError && (
           <p className="text-xs text-red-500 mb-3 break-words">{liveModelsError}</p>
         )}
-        {testAllRunning && (() => {
-          const customRows2 = getProviderCustomModelRows({
-            customModels, modelAliases, providerAlias: providerStorageAlias, builtInModels: models, type: "llm",
-          });
-          const builtInIds2 = [
-            ...models,
-            ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-          ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
-            .filter((m) => !disabledModelIds.includes(m.id))
-            .map((m) => m.id);
-          const customIdSet2 = new Set(customRows2.map((m) => m.id));
-          const allIds = [...customRows2.map((m) => m.id), ...builtInIds2.filter((id) => !customIdSet2.has(id))];
-          const doneCount = allIds.filter((id) => modelTestResults[id] === "ok" || modelTestResults[id] === "error").length;
-          const passCount = allIds.filter((id) => modelTestResults[id] === "ok").length;
-          const failCount = allIds.filter((id) => modelTestResults[id] === "error").length;
-          const pct = allIds.length > 0 ? Math.round((doneCount / allIds.length) * 100) : 0;
-          return (
-            <div className="mb-3 rounded-lg border-2 border-border bg-surface-2 p-3 shadow-[2px_2px_0_var(--color-border)]">
-              <div className="flex items-center justify-between text-xs font-bold mb-2">
-                <span className="text-text-muted uppercase tracking-wider">Testing Models...</span>
-                <span className="font-mono">{doneCount}/{allIds.length} ({pct}%)</span>
-              </div>
-              <div className="h-2 w-full rounded-full border border-border bg-surface overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <div className="flex gap-3 mt-2 text-[11px] font-mono">
-                <span className="text-emerald-500">✓ {passCount} sukses</span>
-                <span className="text-red-500">✗ {failCount} gagal</span>
-                <span className="text-text-muted">{allIds.length - doneCount} menunggu</span>
-              </div>
-            </div>
-          );
-        })()}
         {renderModelsSection()}
           </div>
         </section>

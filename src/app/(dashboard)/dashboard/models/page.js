@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { CardSkeleton } from "@/shared/components";
 import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/shared/constants/models";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import { getCurrentLocale, onLocaleChange, translate } from "@/i18n/runtime";
 
 const LLM_KIND = "llm";
 
@@ -22,14 +23,24 @@ export default function ModelsPage() {
   const [testResults, setTestResults] = useState({});
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("");
+  const [modelNames, setModelNames] = useState({});
+  const [, setLocaleVersion] = useState(0);
+
+  useEffect(() => onLocaleChange(() => setLocaleVersion((value) => value + 1)), []);
+
+  const localizedOptions = useMemo(() => ({
+    cache: "no-store",
+    headers: { "Accept-Language": getCurrentLocale(), "x-locale": getCurrentLocale() },
+  }), []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [providersRes, disabledRes] = await Promise.all([
-        fetch("/api/providers/client?pageSize=100", { cache: "no-store" }),
-        fetch("/api/models/disabled", { cache: "no-store" }),
+      const [providersRes, disabledRes, namesRes] = await Promise.all([
+        fetch("/api/providers/client?pageSize=100", localizedOptions),
+        fetch("/api/models/disabled", localizedOptions),
+        fetch("/api/models/name", localizedOptions),
       ]);
 
       let providersData = [];
@@ -42,15 +53,18 @@ export default function ModelsPage() {
       if (disabledRes.ok) {
         disabledData = await disabledRes.json();
       }
+      let namesData = {};
+      if (namesRes.ok) namesData = await namesRes.json();
 
       setProviders(providersData);
       setDisabled(disabledData.disabled || disabledData || {});
+      setModelNames(namesData.names || {});
     } catch (err) {
       setError(err.message || "Gagal memuat data models");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [localizedOptions]);
 
   useEffect(() => {
     fetchData();
@@ -145,13 +159,7 @@ export default function ModelsPage() {
     return p ? p.name || providerId : providerId;
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <CardSkeleton />
-      </div>
-    );
-  }
+  const displayModelName = (alias, model) => modelNames[`${alias}/${model.id}`] || model.name || model.id;
 
   // Group providers
   const providerMap = new Map();
@@ -171,7 +179,10 @@ export default function ModelsPage() {
   const filteredProviders = filter
     ? [...providerMap.entries()].filter(([pid, info]) =>
         info.name.toLowerCase().includes(filter.toLowerCase()) ||
-        pid.toLowerCase().includes(filter.toLowerCase()),
+        pid.toLowerCase().includes(filter.toLowerCase()) ||
+        getProviderModels(pid).some((model) =>
+          `${displayModelName(info.alias, model)} ${model.id}`.toLowerCase().includes(filter.toLowerCase())
+        ),
       )
     : [...providerMap.entries()];
 
@@ -184,10 +195,9 @@ export default function ModelsPage() {
             <span className="material-symbols-outlined">model_training</span>
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="an-panel-title">Models</h2>
+            <h2 className="an-panel-title">{translate("Model Control Center")}</h2>
             <p className="an-panel-sub">
-              Kelola model yang tersedia per provider. Model yang dimatikan tidak
-              akan muncul di daftar model API.
+              {translate("Manage provider models and control which models are exposed through the API.")}
             </p>
           </div>
           <div className="an-panel-actions">
@@ -208,9 +218,9 @@ export default function ModelsPage() {
                 type="text"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Cari provider atau model..."
+                placeholder={translate("Search providers or models...")}
                 className="an-input"
-                aria-label="Cari provider atau model"
+                aria-label={translate("Search providers or models")}
               />
             </div>
             <button
@@ -219,7 +229,7 @@ export default function ModelsPage() {
               className="an-btn an-ghost h-[38px] px-3 text-[11px] gap-1.5"
             >
               <span className="material-symbols-outlined text-[14px]">refresh</span>
-              Refresh
+              {translate("Refresh")}
             </button>
           </div>
         </div>
@@ -234,10 +244,10 @@ export default function ModelsPage() {
           return (
             <section
               key={providerId}
-              className="an-panel flex flex-col min-w-0 overflow-hidden"
+              className="an-panel flex min-w-0 flex-col overflow-hidden border border-[var(--t-line)] bg-[radial-gradient(circle_at_top_right,rgba(232,0,31,0.08),transparent_42%),var(--t-panel)] shadow-[0_16px_44px_rgba(0,0,0,0.12)]"
             >
               {/* Card header */}
-              <div className="an-conn-head">
+              <div className="an-conn-head border-b border-[var(--t-line-soft)]">
                 <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-full sm:basis-auto">
                   <div className="an-conn-ico !size-8 !w-8 !h-8 !rounded-[9px]">
                     <ProviderIcon
@@ -251,13 +261,13 @@ export default function ModelsPage() {
                   </div>
                   <div className="min-w-0">
                     <h3 className="an-conn-name">{info.name}</h3>
-                    <p className="an-conn-sub">
-                      {info.alias} - {info.connections.length} koneksi
+                     <p className="an-conn-sub">
+                       {info.alias} · {info.connections.length} {translate("connections")}
                     </p>
                   </div>
                 </div>
                 <span className={`an-chip ${isProviderActive ? "ok" : ""} shrink-0 ml-auto`}>
-                  {isProviderActive ? "Aktif" : "Tidak Aktif"}
+                   {isProviderActive ? translate("Active") : translate("Inactive")}
                 </span>
               </div>
 
@@ -267,10 +277,10 @@ export default function ModelsPage() {
                   <span className="material-symbols-outlined text-[40px] opacity-20 mb-2">
                     device_unknown
                   </span>
-                  <p className="text-sm">Tidak ada model statis</p>
+                   <p className="text-sm">{translate("No static models")}</p>
                 </div>
               ) : (
-                <div className="an-conn-list !gap-0 flex-1 min-h-[200px] max-h-[420px] overflow-y-auto">
+               <div className="an-conn-list !gap-0 flex-1 min-h-[200px] max-h-[420px] overflow-y-auto">
                   {models.map((model) => {
                     const modelId = model.id;
                     const isDisabledModel = isDisabled(info.alias, modelId);
@@ -294,18 +304,18 @@ export default function ModelsPage() {
                         <div className="flex-1 min-w-0 basis-full sm:basis-auto">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[13px] font-medium text-[var(--t-ink)] truncate">
-                              {model.name || modelId}
+                               {displayModelName(info.alias, model)}
                             </span>
                             {isDisabledModel && (
                               <span className="an-chip !h-auto !px-1.5 !py-0.5 !text-[9px] danger shrink-0">
-                                Dimatikan
+                                 {translate("Disabled")}
                               </span>
                             )}
                             {testResult && (
                               <span
                                 className={"an-chip !h-auto !px-1.5 !py-0.5 !text-[9px] shrink-0 " + (testResult.ok ? "ok" : "danger")}
                               >
-                                {testResult.ok ? "OK " + testResult.latency + "ms" : "Gagal"}
+                                 {testResult.ok ? "OK " + testResult.latency + "ms" : translate("Failed")}
                               </span>
                             )}
                           </div>
@@ -321,7 +331,7 @@ export default function ModelsPage() {
                             onClick={() => testModel(modelId, info.alias, kind)}
                             disabled={isTesting || isDisabledModel || !isProviderActive}
                             title="Test model"
-                            aria-label={`Test ${model.name || modelId}`}
+                            aria-label={`${translate("Test")} ${displayModelName(info.alias, model)}`}
                             className="an-conn-btn disabled:opacity-40"
                           >
                             <span className="material-symbols-outlined">
@@ -332,9 +342,9 @@ export default function ModelsPage() {
                             on={!isDisabledModel}
                             onChange={() => toggleModel(info.alias, modelId, isDisabledModel)}
                             disabled={isSaving || !isProviderActive}
-                            label={isDisabledModel ? "Off" : "On"}
-                            title={isDisabledModel ? "Aktifkan model" : "Matikan model"}
-                            ariaLabel={`Toggle ${model.name || modelId}`}
+                             label={isDisabledModel ? translate("Off") : translate("On")}
+                             title={isDisabledModel ? translate("Enable model") : translate("Disable model")}
+                             ariaLabel={`${translate("Toggle")} ${displayModelName(info.alias, model)}`}
                           />
                         </div>
                       </div>
@@ -346,7 +356,7 @@ export default function ModelsPage() {
               {!isProviderActive && (
                 <div className="px-4 py-3 bg-[var(--t-raised)] border-t border-[var(--t-line-soft)]">
                   <p className="text-xs text-[var(--t-muted)]">
-                    Tidak ada koneksi aktif untuk provider ini. Model tidak akan tersedia di API sampai ada koneksi aktif.
+                     {translate("No active connection for this provider. Models will remain unavailable in the API until a connection is active.")}
                   </p>
                 </div>
               )}
@@ -360,8 +370,8 @@ export default function ModelsPage() {
           <span className="material-symbols-outlined text-[64px] opacity-20 mb-3">
             search_off
           </span>
-          <p className="text-sm font-medium">Tidak ada provider yang cocok</p>
-          <p className="text-xs mt-1">Coba ubah kata kunci pencarian</p>
+           <p className="text-sm font-medium">{translate("No matching providers")}</p>
+           <p className="text-xs mt-1">{translate("Try changing your search")}</p>
         </div>
       )}
     </div>

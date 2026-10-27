@@ -1,13 +1,38 @@
-import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
+import {
+  getProviderConnections,
+  validateApiKey,
+  updateProviderConnection,
+  getSettings,
+  getProxyPools,
+  getProviderNodeById,
+} from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
-import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
+import {
+  resolveProviderId,
+  getProviderAlias,
+  FREE_PROVIDERS,
+  isOpenAICompatibleProvider,
+  isAnthropicCompatibleProvider,
+  isCustomEmbeddingProvider,
+} from "@/shared/constants/providers.js";
 import { getAntigravityQuotaCache, getAntigravityModelQuota } from "./antigravityQuota.js";
 import { REFRESH_REJECTED_PREFIX } from "./tokenRefresh.js";
 import * as log from "../utils/logger.js";
 
 let selectionMutex = Promise.resolve();
+
+function getModelSystemPrompt(settings, provider, model, requestedModel) {
+  const promptSettings = settings?.providerModelSystemPrompts || {};
+  const providerId = resolveProviderId(provider);
+  const providerPromptMap = promptSettings[provider]
+    || promptSettings[providerId]
+    || promptSettings[getProviderAlias(providerId)]
+    || {};
+  const requestedModelId = String(requestedModel || model || "").split("/").pop();
+  return providerPromptMap?.[requestedModelId] || providerPromptMap?.[requestedModel] || null;
+}
 
 const GITHUB_MONTHLY_USAGE_LIMIT = "you've reached your additional usage limit for your plan";
 
@@ -35,13 +60,16 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     if (FREE_PROVIDERS[providerId]?.noAuth) {
       const settings = await getSettings();
+      const systemPrompt = getModelSystemPrompt(settings, provider, model, requestedModel);
       const override = (settings.providerStrategies || {})[providerId] || {};
       const strategy = override.rotateStrategy || "none";
       let pickedId = override.proxyPoolId || null;
       if (strategy !== "none") {
         const allPools = await getProxyPools({ isActive: true });
-        const poolIds = allPools.filter(p => p.proxyUrl).map(p => p.id);
-        pickedId = pickProxyPoolId(poolIds, strategy, providerId);
+        // Pass the whole pool objects: the rotation groups them by exit IP so
+        // it really changes the egress address instead of only the port.
+        const usablePools = allPools.filter((p) => p.proxyUrl && p.isActive !== false);
+        pickedId = pickProxyPoolId(usablePools, strategy, providerId);
       }
       const resolvedProxy = await resolveConnectionProxyConfig({ proxyPoolId: pickedId || "" });
       return {
@@ -56,6 +84,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           connectionProxyPoolId: resolvedProxy.proxyPoolId || null,
           vercelRelayUrl: resolvedProxy.vercelRelayUrl || "",
           strictProxy: resolvedProxy.strictProxy === true,
+          systemPrompt,
         },
       };
     }
@@ -177,6 +206,12 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
 
+    const node = isOpenAICompatibleProvider(provider) || isAnthropicCompatibleProvider(provider) || isCustomEmbeddingProvider(provider)
+      ? await getProviderNodeById(provider).catch(() => null)
+      : null;
+    const nodeSystemPrompt = node?.systemPrompt || null;
+    const modelSystemPrompt = getModelSystemPrompt(settings, provider, model, requestedModel);
+
     return {
       authType: connection.authType,
       apiKey: connection.apiKey,
@@ -191,6 +226,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       copilotToken: connection.providerSpecificData?.copilotToken,
       providerSpecificData: {
         ...(connection.providerSpecificData || {}),
+        systemPrompt: modelSystemPrompt || connection.providerSpecificData?.systemPrompt || nodeSystemPrompt,
         connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
         connectionProxyUrl: resolvedProxy.connectionProxyUrl,
         connectionNoProxy: resolvedProxy.connectionNoProxy,

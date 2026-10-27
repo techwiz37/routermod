@@ -1,0 +1,2 @@
+(function(){var r=document.documentElement;var t='dark';try{var s=localStorage.getItem('theme');if(s){var p=JSON.parse(s);if(p&&p.state&&p.state.theme)t=p.state.theme}else{t='dark'}if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}}catch(e){}if(t==='dark'){r.classList.add('dark');r.style.colorScheme='dark'}else{r.classList.remove('dark');r.style.colorScheme='light'}})();
+(function(){var r=document.documentElement;var b=document.body;r.style.background='#08090c';b.style.background='#08090c'})()

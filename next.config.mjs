@@ -31,7 +31,7 @@ const nextConfig = {
   // @aws-sdk/credential-providers must stay external for the same class of reason: it reads
   // ~/.aws/config and the SSO token cache from disk at runtime and resolves its credential
   // plugins by dynamic require, neither of which survives bundling.
-  serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite", "open", "@aws-sdk/credential-providers"],
+  serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite", "open", "@aws-sdk/credential-providers", "puppeteer-core", "wreq-js"],
   turbopack: {
     root: tracingRoot
   },
@@ -44,6 +44,8 @@ const nextConfig = {
   },
   env: {},
   experimental: {
+    // Security upgrade agent flag
+    agentUpgrade: "security",
     // #1529/#1572: LLM clients can send long context or base64 image payloads through /v1 rewrites.
     proxyClientMaxBodySize,
     // Cache fetch responses across HMR refreshes for faster dev reloads.

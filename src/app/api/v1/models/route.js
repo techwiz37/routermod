@@ -7,7 +7,7 @@ import {
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
 } from "@/shared/constants/providers";
-import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
+import { getProviderConnections, getCombos, getCustomModels, getModelAliases, getModelNames, getSettings } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { getKeyAccessContext, filterModelsListForKey } from "@/sse/services/keyAccess.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
@@ -51,7 +51,58 @@ function comboSeatCapabilities(seat) {
   return getCapabilitiesForModel(ALIAS_TO_PROVIDER_ID[alias] || alias, seat.slice(slash + 1));
 }
 
+/**
+ * OpenCode Zen publishes a live model catalogue. The free tier ("opencode")
+ * serves the models flagged as free; the paid tier ("opencode-zen") serves
+ * the whole catalogue.
+ */
+const OPENCODE_ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models";
+const OPENCODE_GO_MODELS_URL = "https://opencode.ai/zen/go/v1/models";
+
+async function fetchOpenCodeModels(url, { freeOnly = false } = {}) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "opencode/1.18.31",
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    const list = parseOpenAIStyleModels(data);
+    if (!list.length) return null;
+
+    // The seeded free models are the only ids without a "-free" suffix that
+    // the free tier can serve.
+    const seeded = new Set(
+      (PROVIDER_MODELS[PROVIDER_ID_TO_ALIAS.opencode] || PROVIDER_MODELS.oc || []).map(
+        (m) => m.id
+      )
+    );
+    const isFree = (id) => /-free$/.test(id) || seeded.has(id);
+
+    const models = list
+      .map((m) => (typeof m === "string" ? m : m?.id))
+      .filter((id) => typeof id === "string" && id.trim() !== "")
+      .filter((id) => (freeOnly ? isFree(id) : true))
+      .map((id) => ({ id, name: id }));
+    return models.length ? { models } : null;
+  } catch {
+    return null;
+  }
+}
+
 const LIVE_MODEL_RESOLVERS = {
+  // Free tier: only the free models, refreshed from the live catalogue.
+  opencode: async () => fetchOpenCodeModels(OPENCODE_ZEN_MODELS_URL, { freeOnly: true }),
+  // Paid Zen tier: the full catalogue (needs an API key).
+  "opencode-zen": async () => fetchOpenCodeModels(OPENCODE_ZEN_MODELS_URL),
+  // OpenCode Go lane.
+  "opencode-go": async () => fetchOpenCodeModels(OPENCODE_GO_MODELS_URL),
   kiro: async (conn) => {
     const result = await resolveKiroModels({
       accessToken: conn.accessToken,
@@ -318,6 +369,13 @@ export async function buildModelsList(kindFilter, options = {}) {
     console.log("Could not fetch model aliases");
   }
 
+  let modelNames = {};
+  try {
+    modelNames = await getModelNames();
+  } catch (e) {
+    console.log("Could not fetch model names");
+  }
+
   let disabledByAlias = {};
   try {
     disabledByAlias = await getDisabledModels();
@@ -325,6 +383,7 @@ export async function buildModelsList(kindFilter, options = {}) {
     console.log("Could not fetch disabled models");
   }
   const isDisabled = (alias, modelId) => Array.isArray(disabledByAlias[alias]) && disabledByAlias[alias].includes(modelId);
+  const isDisabledForProvider = (providerAliases, modelId) => providerAliases.some((alias) => isDisabled(alias, modelId));
 
   const activeConnectionByProvider = new Map();
   for (const conn of connections) {
@@ -394,6 +453,7 @@ export async function buildModelsList(kindFilter, options = {}) {
 
       const modelId = String(customModel.id).trim();
       if (!modelId) continue;
+      if (isDisabledForProvider([providerAlias], modelId)) continue;
 
       models.push({
         id: `${providerAlias}/${modelId}`,
@@ -402,12 +462,15 @@ export async function buildModelsList(kindFilter, options = {}) {
       });
     }
   } else {
+    const settingsForPrefix = await getSettings().catch(() => ({}));
+    const providerPrefixes = settingsForPrefix?.providerPrefixes || {};
     for (const [providerId, conn] of activeConnectionByProvider.entries()) {
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
 
       const staticAlias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
       const outputAlias = (
         conn?.providerSpecificData?.prefix
+        || providerPrefixes?.[providerId]
         || getProviderAlias(providerId)
         || staticAlias
       ).trim();
@@ -526,10 +589,15 @@ export async function buildModelsList(kindFilter, options = {}) {
 
         const staticModel = providerModels.find((m) => m.id === modelId);
         const customModel = customModels.find((m) => m.id === modelId);
-        const displayName = customModel?.name || staticModel?.name || modelId;
+        const fullModel = `${outputAlias}/${modelId}`;
+        const legacyAlias = Object.entries(modelAliases || {}).find(([, value]) =>
+          value === fullModel || value === `${staticAlias}/${modelId}` || value === `${providerId}/${modelId}`
+        )?.[0];
+        const displayName = customModel?.name || legacyAlias || modelNames[fullModel] || modelNames[`${staticAlias}/${modelId}`] || staticModel?.name || modelId;
+        const publicModelId = legacyAlias || (customModel?.name ? displayName : `${outputAlias}/${modelId}`);
 
         const model = {
-          id: `${outputAlias}/${modelId}`,
+          id: publicModelId.includes("/") ? publicModelId : `${outputAlias}/${publicModelId}`,
           object: "model",
           name: displayName,
           owned_by: outputAlias,

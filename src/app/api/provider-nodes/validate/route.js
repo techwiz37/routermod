@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 import { isLocalRequest } from "@/dashboardGuard";
+import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
 
 const fetchWithTimeout = (url, options, timeout = 10000) => {
   return Promise.race([
@@ -48,22 +49,23 @@ const getChatErrorMessage = (status) => {
 
 export async function POST(request) {
   try {
+    const locale = getRequestLocale(request);
     const body = await request.json();
     const { baseUrl, apiKey, type, modelId } = body;
 
     if (!baseUrl || !apiKey) {
-      return NextResponse.json({ error: "Base URL and API key required" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "baseUrlApiKeyRequired") }, { status: 400 });
     }
 
     if (!isValidUrl(baseUrl)) {
-      return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "invalidUrl") }, { status: 400 });
     }
 
     if (!isLocalRequest(request)) {
       try {
         assertPublicUrl(baseUrl);
       } catch {
-        return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
+        return NextResponse.json({ error: localizedProviderMessage(locale, "urlNotAllowed") }, { status: 400 });
       }
     }
 

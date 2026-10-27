@@ -6,6 +6,7 @@ import { Card, Button, Modal } from "@/shared/components";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { translate } from "@/i18n/runtime";
 
 export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
   const borderColor = testStatus === "ok" ? "border-green-500/40" : testStatus === "error" ? "border-red-500/40" : "border-border";
@@ -29,7 +30,7 @@ export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCusto
               </span>
             </button>
             <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-              {isTesting ? "Testing..." : "Test"}
+               {isTesting ? translate("Testing...") : translate("Test")}
             </span>
           </div>
         )}
@@ -38,12 +39,12 @@ export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCusto
             <span className="material-symbols-outlined text-sm">{copied === `model-${model.id}` ? "check" : "content_copy"}</span>
           </button>
           <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-            {copied === `model-${model.id}` ? "Copied!" : "Copy"}
+             {copied === `model-${model.id}` ? translate("Copied!") : translate("Copy")}
           </span>
         </div>
         {isFree && <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">FREE</span>}
         {isCustom && (
-          <button onClick={onDeleteAlias} className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" title="Remove custom model">
+           <button onClick={onDeleteAlias} className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" title={translate("Remove custom model")}>
             <span className="material-symbols-outlined text-sm">close</span>
           </button>
         )}
@@ -75,22 +76,22 @@ function AddCustomModelModal({ isOpen, onSave, onClose }) {
   };
 
   return (
-    <Modal isOpen={isOpen} title="Add Custom Model" onClose={onClose}>
+     <Modal isOpen={isOpen} title={translate("Add Custom Model")} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div>
-          <label className="text-xs text-text-muted mb-1 block">Model ID</label>
+           <label className="text-xs text-text-muted mb-1 block">{translate("Model ID")}</label>
           <input
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
             value={modelId}
             onChange={(e) => setModelId(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            placeholder="e.g. tts-1-hd"
+             placeholder={translate("e.g. tts-1-hd")}
             autoFocus
           />
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleSave} fullWidth disabled={!modelId.trim()}>Add</Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
+           <Button onClick={handleSave} fullWidth disabled={!modelId.trim()}>{translate("Add")}</Button>
+           <Button onClick={onClose} variant="ghost" fullWidth>{translate("Cancel")}</Button>
         </div>
       </div>
     </Modal>
@@ -185,10 +186,10 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
       });
       const data = await res.json();
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
-      setTestError(data.ok ? "" : (data.error || "Model not reachable"));
+       setTestError(data.ok ? "" : (data.error || translate("Model not reachable")));
     } catch {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
-      setTestError("Network error");
+       setTestError(translate("Network error"));
     } finally { setTestingModelId(null); }
   };
 

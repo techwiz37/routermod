@@ -426,6 +426,7 @@ export class DevinCliExecutor extends BaseExecutor {
           stdio: ["pipe", "pipe", "pipe"],
           // On Windows, devin.exe may need shell resolution
           shell: process.platform === "win32",
+          windowsHide: true,
         });
 
         let spawnError = null;

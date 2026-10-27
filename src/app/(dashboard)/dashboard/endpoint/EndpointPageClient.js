@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { Button, Input, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
+import { Button, Input, Toggle, ConfirmModal } from "@/shared/components";
 import AntaresModal from "@/shared/components/AntaresModal";
 import AntaresPanel from "@/shared/components/AntaresPanel";
 import AntaresButton from "@/shared/components/AntaresButton";
 import StarField from "@/shared/components/StarField";
+import Soft3DLogo from "@/shared/components/Soft3DLogo";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useNotificationStore } from "@/store/notificationStore";
 import { translate } from "@/i18n/runtime";
@@ -35,6 +36,9 @@ export default function APIPageClient({ machineId }) {
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [showModelsModal, setShowModelsModal] = useState(false);
+  const [fetchedModelsData, setFetchedModelsData] = useState(null);
+  const [fetchingModelKey, setFetchingModelKey] = useState(null);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [requireLogin, setRequireLogin] = useState(true);
@@ -186,7 +190,10 @@ export default function APIPageClient({ machineId }) {
     try {
       const [settingsData, statusRes] = await Promise.all([
         useSettingsStore.getState().fetchSettings(),
-        fetch("/api/tunnel/status", { cache: "no-store" })
+        fetch("/api/tunnel/status", { 
+          cache: "no-store",
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        })
       ]);
       if (settingsData) {
         setRequireApiKey(settingsData.requireApiKey || false);
@@ -237,7 +244,9 @@ export default function APIPageClient({ machineId }) {
   const fetchData = async () => {
     try {
       const fetchKeys = async () => {
-        const res = await fetch("/api/keys");
+        const res = await fetch("/api/keys", {
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
         if (!res.ok) return [];
         const data = await res.json();
         return data.keys || [];
@@ -250,6 +259,7 @@ export default function APIPageClient({ machineId }) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ _autoProvision: true }),
+            signal: AbortSignal.timeout(10000) // 10 second timeout
           });
           if (createRes.ok) existing = await fetchKeys();
         } catch { /* fall through to empty render */ }
@@ -285,7 +295,9 @@ export default function APIPageClient({ machineId }) {
       }
       if ((Date.now() - start) % 10000 < TUNNEL_PING_INTERVAL_MS) {
         try {
-          const statusRes = await fetch("/api/tunnel/status");
+          const statusRes = await fetch("/api/tunnel/status", {
+            signal: AbortSignal.timeout(5000) // 5 second timeout
+          });
           if (statusRes.ok) {
             const status = await statusRes.json();
             if (!status.tunnel?.enabled && !status.tunnel?.running) {
@@ -580,12 +592,12 @@ export default function APIPageClient({ machineId }) {
         setTsEnabled(false);
         setTsUrl("");
         setShowDisableTsModal(false);
-        addNotification({ type: "success", title: "Tailscale Disabled", message: "Tailscale dinonaktifkan" });
+        addNotification({ type: "success", title: translate("Tailscale Disabled"), message: translate("Tailscale disabled") });
       } else {
-        addNotification({ type: "error", title: "Tailscale Error", message: data.error || "Failed to disable Tailscale" });
+        addNotification({ type: "error", title: translate("Tailscale Error"), message: data.error || translate("Failed to disable Tailscale") });
       }
     } catch (e) {
-      addNotification({ type: "error", title: "Tailscale Error", message: e.message });
+      addNotification({ type: "error", title: translate("Tailscale Error"), message: e.message });
     } finally {
       setTsLoading(false);
     }
@@ -645,6 +657,25 @@ export default function APIPageClient({ machineId }) {
     });
   };
 
+  const fetchModelsForKey = async (key) => {
+    setFetchingModelKey(key.id);
+    setFetchedModelsData(null);
+    try {
+      const res = await fetch(`${window.location.origin}/v1/models`, {
+        headers: { Authorization: `Bearer ${key.key}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json();
+      setFetchedModelsData(data);
+      setShowModelsModal(true);
+    } catch (error) {
+      setFetchedModelsData({ error: { message: error.message, type: "request_error" } });
+      setShowModelsModal(true);
+    } finally {
+      setFetchingModelKey(null);
+    }
+  };
+
   const handleToggleKey = async (id, isActive) => {
     try {
       const res = await fetch(`/api/keys/${id}`, {
@@ -702,10 +733,15 @@ export default function APIPageClient({ machineId }) {
 
   if (loading) {
     return (
-      <div className="an-scope an-shell flex flex-col gap-6">
+      <div className="an-scope an-shell flex items-center justify-center min-h-screen">
         <div className="an-shell-bg"><StarField /></div>
-        <CardSkeleton />
-        <CardSkeleton />
+        <div className="lf-loading-wrap">
+          <Soft3DLogo className="size-10" />
+          <div className="lf-loading-dots">
+            <span /><span /><span />
+          </div>
+          <p className="lf-loading-text">{translate("Memuat dashboard...")}</p>
+        </div>
       </div>
     );
   }
@@ -741,14 +777,14 @@ export default function APIPageClient({ machineId }) {
       {/* Endpoint Card */}
       <AntaresPanel
         icon="dns"
-        title="Hostname & Port"
-        subtitle="Base URL untuk semua request OpenAI-compatible"
+        title="API Endpoint"
+        subtitle="Alamat akses untuk seluruh request OpenAI-compatible"
       >
         {/* Endpoint rows */}
         <div className="flex flex-col gap-3">
           {/* Local */}
           <EndpointRow
-            label="Local"
+            label="Local endpoint"
             url={currentEndpoint}
             copyId="local_url"
             copied={copied}
@@ -921,6 +957,16 @@ export default function APIPageClient({ machineId }) {
                       title="Delete key"
                     >
                       <span className="material-symbols-outlined text-[16px]">delete</span>
+                    </button>
+                    <button
+                      onClick={() => fetchModelsForKey(key)}
+                      disabled={fetchingModelKey === key.id || !key.isActive}
+                      className="p-1.5 hover:bg-[var(--t-accent-soft)] rounded text-[var(--t-accent)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Fetch models"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {fetchingModelKey === key.id ? "progress_activity" : "model_training"}
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -1184,6 +1230,41 @@ export default function APIPageClient({ machineId }) {
         message={confirmState?.message}
         variant="danger"
       />
+
+      {/* Fetch Models Modal */}
+      <AntaresModal
+        isOpen={showModelsModal}
+        title="Fetched Models"
+        onClose={() => { setShowModelsModal(false); setFetchedModelsData(null); }}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-[var(--t-muted)]">
+            {fetchedModelsData && fetchedModelsData.object === "list"
+              ? `${fetchedModelsData.data?.length ?? 0} models returned`
+              : fetchedModelsData?.error?.message ?? ""}
+          </p>
+          {fetchedModelsData?.data && fetchedModelsData.data.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {fetchedModelsData.data.map((m, i) => (
+                <div key={i} className="font-mono text-xs text-[var(--t-muted)]">{m.id}</div>
+              ))}
+            </div>
+          )}
+          {fetchedModelsData?.data && fetchedModelsData.data.length > 0 && (
+            <Button
+              skin="antares"
+              icon={copied === "fetched_models" ? "check" : "content_copy"}
+              onClick={() => {
+                const ids = fetchedModelsData.data.map(m => m.id).join("\n");
+                copy(ids, "fetched_models");
+              }}
+              variant="ghost"
+            >
+              {copied === "fetched_models" ? "Copied!" : "Copy All"}
+            </Button>
+          )}
+        </div>
+      </AntaresModal>
     </div>
   );
 }

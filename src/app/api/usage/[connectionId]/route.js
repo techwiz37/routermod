@@ -5,6 +5,7 @@ import { getUsageForProvider } from "open-sse/services/usage.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { USAGE_APIKEY_PROVIDERS } from "@/shared/constants/providers";
 import { refreshAndUpdateCredentials } from "@/shared/services/refreshCredentials.js";
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 
 // Re-exported for backwards compatibility: the implementation now lives in
 // shared/services so runtime schedulers can use it without a Next route import.
@@ -20,6 +21,8 @@ function isAuthExpiredMessage(usage) {
 
 export async function GET(request, { params }) {
   let connection;
+  const locale = getRequestLocale(request);
+  const msg = (en, id) => locale === "id" ? id : en;
   try {
     const { connectionId } = await params;
     const force = new URL(request.url).searchParams.get("force") === "1";
@@ -27,7 +30,7 @@ export async function GET(request, { params }) {
 
     connection = await getProviderConnectionById(connectionId);
     if (!connection) {
-      return Response.json({ error: "Connection not found" }, { status: 404 });
+       return Response.json({ error: msg("Connection not found", "Koneksi tidak ditemukan") }, { status: 404 });
     }
 
     const isOAuth = connection.authType === "oauth";
@@ -37,7 +40,7 @@ export async function GET(request, { params }) {
       isApikeyAuth && USAGE_APIKEY_PROVIDERS.includes(connection.provider);
 
     if (!isOAuth && !isApikeyEligible) {
-      return Response.json({ message: "Usage not available for this connection" });
+       return Response.json({ message: msg("Usage not available for this connection", "Penggunaan tidak tersedia untuk koneksi ini") });
     }
 
     const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData);
@@ -56,7 +59,7 @@ export async function GET(request, { params }) {
       } catch (refreshError) {
         console.error("[Usage API] Credential refresh failed:", refreshError);
         return Response.json({
-          error: `Credential refresh failed: ${refreshError.message}`
+           error: `${msg("Credential refresh failed", "Pembaruan kredensial gagal")}: ${refreshError.message}`
         }, { status: 401 });
       }
     }
@@ -77,6 +80,6 @@ export async function GET(request, { params }) {
   } catch (error) {
     const provider = connection?.provider ?? "unknown";
     console.warn(`[Usage] ${provider}: ${error.message}`);
-    return Response.json({ error: error.message }, { status: 500 });
+     return Response.json({ error: error.message || msg("Failed to fetch quota", "Gagal mengambil kuota") }, { status: 500 });
   }
 }

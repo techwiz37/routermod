@@ -273,12 +273,12 @@ export async function saveRequestUsage(entry) {
       }
 
       db.run(
-        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta, duration) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson({}),
+          stringifyJson(tokens), stringifyJson({}), entry.duration || 0,
         ]
       );
 
@@ -363,13 +363,36 @@ export async function getUsageStats(period = "all") {
     if (k.key) apiKeyMap[k.key.trim()] = { name: k.name, id: k.id, createdAt: k.createdAt };
   }
 
+  // Keep internal routing IDs out of the overview and show the configured
+  // public/custom model name instead.
+  let modelNames = {};
+  let modelAliases = {};
+  let customModels = [];
+  try {
+    const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
+    [modelNames, modelAliases, customModels] = await Promise.all([
+      getModelNames(), getModelAliases(), getCustomModels(),
+    ]);
+  } catch {}
+  const displayModel = (provider, model) => {
+    const raw = String(model || "");
+    const slash = raw.indexOf("/");
+    const providerKey = slash > 0 ? raw.slice(0, slash) : String(provider || "");
+    const modelId = slash > 0 ? raw.slice(slash + 1) : raw;
+    const fullModel = `${providerKey}/${modelId}`;
+    const custom = customModels.find((entry) => entry?.providerAlias === providerKey && String(entry.id) === modelId);
+    if (custom?.name) return custom.name;
+    const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
+    return alias || modelNames[fullModel] || raw;
+  };
+
   const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status FROM usageHistory ORDER BY id DESC LIMIT 100`);
   const seen = new Set();
   const recentRequests = recentRows
     .map((r) => {
       const t = parseJson(r.tokens, {}) || {};
       return {
-        timestamp: r.timestamp, model: r.model, provider: r.provider || "",
+        timestamp: r.timestamp, model: displayModel(r.provider, r.model), provider: r.provider || "",
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
@@ -778,10 +801,37 @@ export async function getRecentLogs(limit = 200) {
       for (const c of connections) connMap[c.id] = c.name || c.email || "";
     } catch {}
 
+    let modelNames = {};
+    let modelAliases = {};
+    let customModels = [];
+    try {
+      const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
+      [modelNames, modelAliases, customModels] = await Promise.all([
+        getModelNames(),
+        getModelAliases(),
+        getCustomModels(),
+      ]);
+    } catch {}
+
+    const displayModel = (provider, model) => {
+      const raw = String(model || "");
+      const slash = raw.indexOf("/");
+      const providerKey = slash > 0 ? raw.slice(0, slash) : String(provider || "");
+      const modelId = slash > 0 ? raw.slice(slash + 1) : raw;
+      const fullModel = `${providerKey}/${modelId}`;
+      const custom = customModels.find((entry) =>
+        entry?.providerAlias === providerKey && String(entry.id) === modelId
+      );
+      if (custom?.name) return `${providerKey}/${custom.name}`;
+      const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
+      if (alias) return alias;
+      return modelNames[fullModel] ? `${providerKey}/${modelNames[fullModel]}` : raw;
+    };
+
     return rows.map((r) => {
       const ts = formatLogDate(new Date(r.timestamp));
       const p = r.provider?.toUpperCase() || "-";
-      const m = r.model || "-";
+      const m = displayModel(r.provider, r.model) || "-";
       const account = connMap[r.connectionId] || (r.connectionId ? r.connectionId.slice(0, 8) : "-");
       const tk = r.tokens ? parseJson(r.tokens, {}) : {};
       const sent = r.promptTokens ?? tk.prompt_tokens ?? "-";

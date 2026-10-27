@@ -12,6 +12,7 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
     name: "",
     prefix: "",
     baseUrl: DEFAULT_BASE_URL,
+    systemPrompt: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [checkKey, setCheckKey] = useState("");
@@ -29,9 +30,10 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
         name: node.name || "",
         prefix: node.prefix || "",
         baseUrl: node.baseUrl || DEFAULT_BASE_URL,
+        systemPrompt: node.systemPrompt || "",
       });
     } else {
-      setFormData({ name: "", prefix: "", baseUrl: DEFAULT_BASE_URL });
+      setFormData({ name: "", prefix: "", baseUrl: DEFAULT_BASE_URL, systemPrompt: "" });
     }
   }, [isOpen, isEdit, node]);
 
@@ -45,6 +47,7 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
         name: formData.name,
         prefix: formData.prefix,
         baseUrl: formData.baseUrl,
+        systemPrompt: formData.systemPrompt || null,
       };
       if (!isEdit) payload.type = "custom-embedding";
 
@@ -130,6 +133,14 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
           placeholder="https://api.voyageai.com/v1"
           hint="Most embedding APIs are OpenAI-compatible: Voyage, Cohere, Jina, Mistral, Together..."
         />
+        <textarea
+          value={formData.systemPrompt}
+          onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+          placeholder="Kamu adalah ai devtalk yang dibuat oleh Techwiz. model kamu bernama asolole"
+          rows={3}
+          className="w-full rounded-md border border-input-border bg-input text-text-primary text-sm px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        <p className="text-xs text-text-muted">Optional. System prompt injected into every request for this provider. Leave empty to use the default system prompt.</p>
         <Input
           label="API Key (for Check)"
           type="password"

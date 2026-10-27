@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Button, Badge, Input, Modal, Select } from "@/shared/components";
+import { Button, Badge, Input, Select } from "@/shared/components";
+import AntaresModal from "@/shared/components/AntaresModal";
+import { translate } from "@/i18n/runtime";
 
 export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose, isAnthropic }) {
   const [formData, setFormData] = useState({
@@ -76,40 +78,46 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
   if (!node) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Edit ${isAnthropic ? "Anthropic" : "OpenAI"} Compatible`} onClose={onClose}>
+    <AntaresModal
+      isOpen={isOpen}
+      title={`Edit ${node?.name || (isAnthropic ? "Anthropic" : "OpenAI")}${node?.name ? `: ${node.name}` : " Compatible"}`}
+       subtitle={translate("Update endpoint details and validate the provider connection.")}
+      onClose={onClose}
+      size="lg"
+    >
       <div className="flex flex-col gap-4">
         <Input
-          label="Name"
+           label={translate("Name")}
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder={`${isAnthropic ? "Anthropic" : "OpenAI"} Compatible (Prod)`}
-          hint="Required. A friendly label for this node."
+           hint={translate("Required. A friendly label for this node.")}
         />
         <Input
-          label="Prefix"
+           label={translate("Prefix")}
           value={formData.prefix}
           onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
           placeholder={isAnthropic ? "ac-prod" : "oc-prod"}
-          hint="Required. Used as the provider prefix for model IDs."
+           hint={translate("Required. Used as the provider prefix for model IDs.")}
         />
         {!isAnthropic && (
           <Select
-            label="API Type"
+             label={translate("API Type")}
             options={apiTypeOptions}
             value={formData.apiType}
             onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
           />
         )}
         <Input
-          label="Base URL"
+           label={translate("Base URL")}
           value={formData.baseUrl}
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
-          hint={`Use the base URL (ending in /v1) for your ${isAnthropic ? "Anthropic" : "OpenAI"}-compatible API.`}
+           hint={translate("Use the base URL (ending in /v1) for your compatible API.")}
         />
         <div className="flex gap-2">
           <Input
-            label="API Key (for Check)"
+             label={translate("API Key (for Check)")}
             type="password"
             value={checkKey}
             onChange={(e) => setCheckKey(e.target.value)}
@@ -117,32 +125,32 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           />
           <div className="pt-6">
             <Button onClick={handleValidate} disabled={!checkKey || validating || !formData.baseUrl.trim()} variant="secondary">
-              {validating ? "Checking..." : "Check"}
+               {validating ? translate("Checking...") : translate("Check")}
             </Button>
           </div>
         </div>
-        <Input
-          label="Model ID (optional)"
+         <Input
+           label={translate("Model ID (optional)")}
           value={checkModelId}
           onChange={(e) => setCheckModelId(e.target.value)}
           placeholder="e.g. my-model-id"
-          hint="If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead."
+           hint={translate("If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead.")}
         />
         {validationResult && (
           <Badge variant={validationResult === "success" ? "success" : "error"}>
-            {validationResult === "success" ? "Valid" : "Invalid"}
+             {validationResult === "success" ? translate("Valid") : translate("Invalid")}
           </Badge>
         )}
         <div className="flex gap-2">
           <Button onClick={handleSubmit} fullWidth disabled={!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || saving}>
-            {saving ? "Saving..." : "Save"}
+             {saving ? translate("Saving...") : translate("Save")}
           </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>
-            Cancel
+             {translate("Cancel")}
           </Button>
         </div>
       </div>
-    </Modal>
+    </AntaresModal>
   );
 }
 

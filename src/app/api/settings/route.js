@@ -4,6 +4,7 @@ import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import { writeGate } from "@/lib/tunnel/shared/state";
 import bcrypt from "bcryptjs";
+import { getRequestLocale, localizedAuthMessage } from "@/lib/i18n/requestLocale";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -37,6 +38,7 @@ export async function GET() {
 
 export async function PATCH(request) {
   try {
+    const locale = getRequestLocale(request);
     const body = await request.json();
 
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
@@ -47,15 +49,15 @@ export async function PATCH(request) {
 
       if (currentHash) {
         if (!body.currentPassword) {
-          return NextResponse.json({ error: "Current password required" }, { status: 400 });
+          return NextResponse.json({ error: localizedAuthMessage(locale, "currentPasswordRequired") }, { status: 400 });
         }
         const isValid = await bcrypt.compare(body.currentPassword, currentHash);
         if (!isValid) {
-          return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
+          return NextResponse.json({ error: localizedAuthMessage(locale, "invalidCurrentPassword") }, { status: 401 });
         }
       } else {
         if (body.currentPassword && body.currentPassword !== "merdeka") {
-           return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
+            return NextResponse.json({ error: localizedAuthMessage(locale, "invalidCurrentPassword") }, { status: 401 });
         }
       }
 

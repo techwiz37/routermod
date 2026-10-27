@@ -5,24 +5,54 @@ function normalizeString(value) {
   return String(value).trim();
 }
 
-const rotateState = new Map(); // providerId → { index }
+const rotateState = new Map(); // providerId → { groupIndex, bucketIndex, ip }
 
-export function pickProxyPoolId(poolIds, strategy, providerId) {
-  if (!poolIds || poolIds.length === 0) return null;
-  if (poolIds.length === 1) return poolIds[0];
+const idOf = (pool) => (typeof pool === "string" ? pool : pool?.id);
+const exitIpOf = (pool) => (typeof pool === "string" ? "" : pool?.exitIp || "");
+
+/**
+ * Pick the proxy pool for a provider.
+ *
+ * `pools` may be a list of ids or a list of pool objects. For the
+ * round-robin strategy the pools are grouped by their exit IP: rotating
+ * between ports of the same proxy server keeps one egress IP and would
+ * not help against an IP based limit, so the rotation walks over the
+ * distinct IPs first.
+ */
+export function pickProxyPoolId(pools, strategy, providerId) {
+  const list = (Array.isArray(pools) ? pools : []).filter(Boolean);
+  if (list.length === 0) return null;
+  if (list.length === 1) return idOf(list[0]);
 
   if (strategy === "round-robin") {
-    const state = rotateState.get(providerId) || { index: -1 };
-    state.index = (state.index + 1) % poolIds.length;
+    const groups = new Map();
+    for (const pool of list) {
+      const key = exitIpOf(pool) || `pool:${idOf(pool)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(pool);
+    }
+    const keys = [...groups.keys()];
+    const state = rotateState.get(providerId) || { groupIndex: -1, bucketIndex: 0, ip: "" };
+    let groupIndex = (state.groupIndex + 1) % keys.length;
+    // Prefer another IP than the previous request.
+    if (keys.length > 1 && keys[groupIndex] === state.ip) {
+      groupIndex = (groupIndex + 1) % keys.length;
+    }
+    const key = keys[groupIndex];
+    const bucket = groups.get(key);
+    const pick = bucket[state.bucketIndex % bucket.length];
+    state.groupIndex = groupIndex;
+    state.bucketIndex = (state.bucketIndex + 1) % bucket.length;
+    state.ip = key;
     rotateState.set(providerId, state);
-    return poolIds[state.index];
+    return idOf(pick);
   }
 
   if (strategy === "random") {
-    return poolIds[Math.floor(Math.random() * poolIds.length)];
+    return idOf(list[Math.floor(Math.random() * list.length)]);
   }
 
-  return poolIds[0]; // "none" or unknown
+  return idOf(list[0]); // "none" or unknown
 }
 
 function normalizeLegacyProxy(providerSpecificData = {}) {

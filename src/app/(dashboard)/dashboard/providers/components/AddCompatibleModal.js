@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Badge, Button, Input, Modal, Select } from "@/shared/components";
+import { Badge, Button, Input, Select } from "@/shared/components";
+import AntaresModal from "@/shared/components/AntaresModal";
+import { onLocaleChange, translate } from "@/i18n/runtime";
 
 const VARIANT_CONFIG = {
   openai: {
@@ -49,6 +51,9 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   const [checkModelId, setCheckModelId] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
+  const [, bumpLocale] = useState(0);
+
+  useEffect(() => onLocaleChange(() => bumpLocale((value) => value + 1)), []);
 
   useEffect(() => {
     if (config.hasApiType) {
@@ -109,7 +114,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
       const data = await res.json();
       setValidationResult(data);
     } catch {
-      setValidationResult({ valid: false, error: "Network error" });
+      setValidationResult({ valid: false, error: translate("Network error") });
     } finally {
       setValidating(false);
     }
@@ -121,7 +126,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     if (valid) {
       return (
         <>
-          <Badge variant="success">Valid</Badge>
+          <Badge variant="success">{translate("Valid")}</Badge>
           {method === "chat" && (
             <span className="text-sm text-text-muted">(via inference test)</span>
           )}
@@ -130,56 +135,62 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     }
     return (
       <div className="flex flex-col gap-1">
-        <Badge variant="error">Invalid</Badge>
+          <Badge variant="error">{translate("Invalid")}</Badge>
         {error && <span className="text-sm text-red-500">{error}</span>}
       </div>
     );
   };
 
   return (
-    <Modal isOpen={isOpen} title={config.title} onClose={onClose}>
+    <AntaresModal
+      isOpen={isOpen}
+       title={translate(config.title)}
+       subtitle={translate("Configure endpoint, model prefix, and connection validation.")}
+      onClose={onClose}
+      size="lg"
+    >
       <div className="flex flex-col gap-4">
         <Input
-          label="Name"
+           label={translate("Name")}
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder={config.namePlaceholder}
-          hint="Required. A friendly label for this node."
+           hint={translate("Required. A friendly label for this node.")}
         />
         <Input
-          label="Prefix"
+           label={translate("Prefix")}
           value={formData.prefix}
           onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
           placeholder={config.prefixPlaceholder}
-          hint="Required. Used as the provider prefix for model IDs."
+           hint={translate("Required. Used as the provider prefix for model IDs.")}
         />
         {config.hasApiType && (
           <Select
-            label="API Type"
+             label={translate("API Type")}
             options={API_TYPE_OPTIONS}
             value={formData.apiType}
             onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
           />
         )}
         <Input
-          label="Base URL"
+           label={translate("Base URL")}
           value={formData.baseUrl}
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder={config.defaultBaseUrl}
-          hint={config.baseUrlHint}
+           hint={translate(config.baseUrlHint)}
         />
         <Input
-          label="API Key (for Check)"
+           label={translate("API Key (for Check)")}
           type="password"
           value={checkKey}
           onChange={(e) => setCheckKey(e.target.value)}
         />
         <Input
-          label="Model ID (optional)"
+           label={translate("Model ID (optional)")}
           value={checkModelId}
           onChange={(e) => setCheckModelId(e.target.value)}
           placeholder={config.modelIdPlaceholder}
-          hint="If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead."
+           hint={translate("If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead.")}
         />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button
@@ -188,7 +199,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
             variant="secondary"
             className="w-full sm:w-auto"
           >
-            {validating ? "Checking..." : "Check"}
+             {validating ? translate("Checking...") : translate("Check")}
           </Button>
           {renderValidationResult()}
         </div>
@@ -203,14 +214,14 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
               submitting
             }
           >
-            {submitting ? "Creating..." : "Create"}
+             {submitting ? translate("Creating...") : translate("Create")}
           </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>
-            Cancel
+             {translate("Cancel")}
           </Button>
         </div>
       </div>
-    </Modal>
+    </AntaresModal>
   );
 }
 

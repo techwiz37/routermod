@@ -10,6 +10,7 @@ import { resolveSessionId } from "../utils/sessionManager.js";
 import { isMuseSparkModel } from "../providers/models/helpers.js";
 import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
 import { ANTHROPIC_API_VERSION } from "../providers/shared.js";
+import { resolveProxyTarget, openProxyTunnel, isProxyBlocked, noteProxyBlocked, clearProxyBlocked } from "../utils/proxyTunnel.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -25,6 +26,23 @@ const MAX_SESSION_LENGTH = 256;
 const MAX_TOOL_NAME_LEN = 128;
 const SESSION_HEADER = "x-opencode-session";
 const SESSION_FIELD = "_opencodeSession";
+/**
+ * Tell the two 403 flavours apart.
+ *
+ * - "blocked": an HTML error page - Cloudflare (or the proxy's own nginx)
+ *   refused the exit IP. A new connection through a pool proxy lands on
+ *   another exit IP, so this one is worth a retry.
+ * - "free-tier": the JSON FreeTierError (or its encrypted blob) - the request
+ *   reached the API and the free tier rejected it. Rotating the session and
+ *   backing off is what clears that.
+ */
+function classifyForbidden(rawBody) {
+  const text = String(rawBody || "").trim();
+  if (!text) return "blocked";
+  if (text.startsWith("<")) return "blocked";
+  return "free-tier";
+}
+
 export const OPENCODE_SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
 const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
@@ -330,6 +348,33 @@ function normalizeOpencodeReasoning(model, body) {
   delete body.reasoning_effort;
 }
 
+
+// The streaming handler pipes providerResponse.body with pipeThrough(), which
+// only exists on the Web Streams API. A bare Node PassThrough has no
+// pipeThrough(), so every oc/* request died with an unhandled TypeError and
+// the client saw HTTP 500 with an empty body. Wrap the Node stream lazily so
+// the non-streaming path (text()/json()) keeps its buffered fan-out.
+function nodeStreamToWeb(nodeStream) {
+  return new ReadableStream({
+    start(controller) {
+      nodeStream.on("data", (chunk) => {
+        try {
+          controller.enqueue(new Uint8Array(chunk));
+        } catch { /* stream already closed */ }
+      });
+      nodeStream.on("end", () => {
+        try { controller.close(); } catch { /* already closed */ }
+      });
+      nodeStream.on("error", (err) => {
+        try { controller.error(err); } catch { /* already errored */ }
+      });
+    },
+    cancel() {
+      nodeStream.destroy();
+    },
+  });
+}
+
 export class OpenCodeExecutor extends BaseExecutor {
   constructor() {
     super("opencode", PROVIDERS.opencode);
@@ -411,16 +456,27 @@ export class OpenCodeExecutor extends BaseExecutor {
   }
 
   async execute(args) {
-    const { model, body, stream, credentials, signal } = args;
+    const { model, body, stream, credentials, signal, proxyOptions } = args;
     const transformedBody = this.transformRequest(model, body, stream, credentials);
 
     // Exact replica of working bypass test (bypass_test.js)
     const B62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     function rnd() { const b = crypto.randomBytes(14); let s = ""; for (let i = 0; i < 14; i++) s += B62[b[i] % 62]; return s; }
     function newSid() { const c = BigInt(Date.now()) * 4096n + 1n, v = ~c; const t = Array.from({ length: 6 }, (_, i) => Number((v >> BigInt(40 - 8 * i)) & 0xffn).toString(16).padStart(2, "0")).join(""); return "ses_" + t + rnd(); }
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 4;
+    // A pool proxy rotates its exit IP per connection, so one blocked IP is
+    // worth exactly one more tunnel - not a full backoff.
+    const MAX_PROXY_BLOCK_RETRIES = 1;
+    // Handshake + response headers. A working proxy answers in well under a
+    // second; a stalled one must not hold the request hostage.
+    const SETUP_TIMEOUT_MS = 20000;
+    // Backoff grows fast: the free tier rejects a second concurrent request
+    // from the same egress IP, and the first one can run for 10+ seconds.
+    const RETRY_BACKOFF_MS = [2000, 5000, 10000];
     const isResponses = isResponsesModel(model);
 
+    // Set to false when the proxy IP turns out to be blocked upstream.
+    let useProxy = true;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       const sid = newSid();
       const id = crypto.randomBytes(16).toString("hex");
@@ -459,75 +515,269 @@ export class OpenCodeExecutor extends BaseExecutor {
         requestBody = JSON.stringify(transformedBody);
       }
 
-      const result = await new Promise((resolve, reject) => {
-        const req = https.request({
-          hostname: "opencode.ai",
-          port: 443,
-          path,
-          method: "POST",
-          headers,
-          timeout: 120000,
-        }, (res) => {
-          const isRateLimited = res.statusCode === 429;
-          const isError = res.statusCode >= 400 && !isRateLimited;
+      // Route through the proxy pool when one is configured. The pool is
+      // picked per request by the credential resolver, so the egress IP
+      // rotates and the free tier does not answer 429.
+      const upstreamUrl = `https://opencode.ai${path}`;
+      let proxyTarget = useProxy ? resolveProxyTarget(proxyOptions || {}, upstreamUrl) : null;
+      const strictProxy = proxyOptions?.strictProxy === true;
 
-          if (isError) {
-            const errChunks = [];
-            res.on("data", (c) => errChunks.push(c));
-            res.on("end", () => {
-              const errText = Buffer.concat(errChunks).toString("utf8");
-              reject(new Error(`HTTP ${res.statusCode}: ${errText.slice(0, 2000)}`));
-            });
-            res.on("error", reject);
-            return;
-          }
+      // A pool proxy rotates its exit IP per connection, so one refused
+      // request is not enough to condemn it - only a streak of them is.
+      if (proxyTarget && isProxyBlocked(proxyTarget)) {
+        console.warn(
+          `[OPENCODE PROXY] proxy ${proxyTarget.host}:${proxyTarget.port} ditolak berulang, pakai koneksi langsung`
+        );
+        proxyTarget = null;
+      }
 
-          // Fan out the upstream stream: one copy feeds the live streaming consumer,
-          // the other is buffered so text()/json() work for non-streaming callers.
-          const out = new PassThrough({ highWaterMark: 64 * 1024 * 1024 });
-          const bufferedChunks = [];
-          let bufferedText = null;
-          let streamDone = false;
-          let markDone;
-          const donePromise = new Promise((r) => { markDone = r; });
-          res.on("data", (c) => { bufferedChunks.push(c); out.write(c); });
-          const finish = () => {
-            if (streamDone) return;
-            streamDone = true;
-            bufferedText = Buffer.concat(bufferedChunks).toString("utf8");
-            out.end();
-            markDone();
-          };
-          res.on("end", finish);
-          res.on("error", (e) => { if (!streamDone) out.destroy(e); });
+      const openTunnel = async () => {
+        if (!proxyTarget) return null;
+        try {
+          const socket = await openProxyTunnel(proxyTarget, "opencode.ai", 443);
+          console.log(
+            `[OPENCODE PROXY] tunnel via ${proxyTarget.host}:${proxyTarget.port} pool=${proxyOptions?.proxyPoolId || "none"}`
+          );
+          return socket;
+        } catch (e) {
+          if (strictProxy) throw e;
+          console.warn(
+            `[OPENCODE PROXY] tunnel failed (${e?.message}), falling back to direct`
+          );
+          // A proxy that cannot even open the tunnel is as useless as one
+          // whose exit IP is blocked - count it so the rotation drops it.
+          noteProxyBlocked(proxyTarget);
+          return null;
+        }
+      };
 
-          const response = {
-            ok: res.statusCode >= 200 && res.statusCode < 300,
-            status: res.statusCode,
-            statusText: res.statusMessage,
-            headers: new Map(Object.entries(res.headers)),
-            body: out,
-            async text() { await donePromise; return bufferedText; },
-            async json() { return JSON.parse(await this.text()); },
-            async arrayBuffer() { await donePromise; return Buffer.from(bufferedText); },
-          };
-          if (isRateLimited) {
-            response.rateLimited = true;
-            donePromise.then(() => {
-              try { response.rateLimitBody = JSON.parse(bufferedText); } catch {}
-            });
-          }
-          resolve({ response, url: `https://opencode.ai${path}`, headers, transformedBody, rateLimited: isRateLimited, sessionId: sid });
+      let tunnelSocket = await openTunnel();
+
+      // One upstream call. `socket` decides whether the request leaves through
+      // the proxy tunnel or straight from this host.
+      const performRequest = (socket) =>
+        new Promise((resolve, reject) => {
+          // The socket timeout of https.request only starts once the TLS
+          // handshake is done. A proxy that accepts the CONNECT and then
+          // stalls would hang the request forever, so the setup phase gets
+          // its own watchdog.
+          let setupTimedOut = false;
+          const setupTimer = setTimeout(() => {
+            setupTimedOut = true;
+            try {
+              req.destroy();
+            } catch {
+              /* ignore */
+            }
+            // Settle the promise here instead of waiting for the request's
+            // error event - a socket that stalls mid-handshake never emits
+            // one, and the caller would hang with it.
+            if (socket) {
+              resolve({ proxyFailed: true, reason: "stalled" });
+            } else {
+              reject(new Error("timeout saat menghubungi upstream"));
+            }
+          }, SETUP_TIMEOUT_MS);
+          const req = https.request({
+            ...(socket
+              ? { socket, servername: "opencode.ai", agent: false }
+              : { hostname: "opencode.ai", port: 443 }),
+            path,
+            method: "POST",
+            headers,
+            timeout: 120000,
+          }, (res) => {
+            // The response headers are here: the setup phase is over and the
+            // socket timeout takes over for the stream.
+            clearTimeout(setupTimer);
+            const isRateLimited = res.statusCode === 429;
+            // The free tier answers concurrent/over-quota requests with an
+            // encrypted 403 (FreeTierError) instead of 429. Rotating the session
+            // and backing off like the 429 path does clears it, so treat 403 as
+            // retryable too instead of failing the request outright.
+            const isRetryable = isRateLimited || res.statusCode === 403;
+            const isError = res.statusCode >= 400 && !isRetryable;
+
+            if (isError) {
+              const errChunks = [];
+              res.on("data", (c) => errChunks.push(c));
+              res.on("end", () => {
+                const errText = Buffer.concat(errChunks).toString("utf8");
+                reject(new Error(`HTTP ${res.statusCode}: ${errText.slice(0, 2000)}`));
+              });
+              res.on("error", reject);
+              return;
+            }
+
+            // A free-tier 403 carries an encrypted blob instead of a readable
+            // error body. Drain it and answer with a clean JSON error so the
+            // client can parse the failure instead of choking on binary noise.
+            if (res.statusCode === 403) {
+              // The body tells the two flavours apart: an HTML page means the
+              // exit IP was blocked (Cloudflare or the proxy's own nginx), a
+              // JSON error means the request reached the API and the free
+              // tier rejected it.
+              const bodyChunks = [];
+              res.on("data", (c) => {
+                if (bodyChunks.length < 16) bodyChunks.push(c);
+              });
+              res.on("end", () => {
+                const raw = Buffer.concat(bodyChunks).toString("utf8");
+                if (socket && classifyForbidden(raw) === "blocked") {
+                  // Cloudflare refused this exit IP. A fresh tunnel lands on
+                  // another exit IP, so let the caller retry right away.
+                  resolve({ proxyFailed: true, reason: "blocked" });
+                  return;
+                }
+                const clean = JSON.stringify({
+                  error: {
+                    message: "OpenCode free tier rejected the request (403 FreeTierError).",
+                    type: "server_error",
+                    code: "free_tier_error",
+                  },
+                });
+                const response = {
+                  ok: false,
+                  status: 403,
+                  statusText: res.statusMessage,
+                  headers: new Map(Object.entries(res.headers)),
+                  body: null,
+                  async text() { return clean; },
+                  async json() { return JSON.parse(clean); },
+                  async arrayBuffer() { return Buffer.from(clean); },
+                };
+                response.rateLimited = true;
+                resolve({
+                  response,
+                  url: `https://opencode.ai${path}`,
+                  headers,
+                  transformedBody,
+                  rateLimited: true,
+                  sessionId: sid,
+                });
+              });
+              res.on("error", reject);
+              return;
+            }
+
+            // Fan out the upstream stream: one copy feeds the live streaming consumer,
+            // the other is buffered so text()/json() work for non-streaming callers.
+            const out = new PassThrough({ highWaterMark: 64 * 1024 * 1024 });
+            const bufferedChunks = [];
+            let bufferedText = null;
+            let streamDone = false;
+            let markDone;
+            const donePromise = new Promise((r) => { markDone = r; });
+            res.on("data", (c) => { bufferedChunks.push(c); out.write(c); });
+            const finish = () => {
+              if (streamDone) return;
+              streamDone = true;
+              bufferedText = Buffer.concat(bufferedChunks).toString("utf8");
+              out.end();
+              markDone();
+            };
+            res.on("end", finish);
+            res.on("error", (e) => { if (!streamDone) out.destroy(e); });
+
+            let webBody = null;
+            const response = {
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              statusText: res.statusMessage,
+              headers: new Map(Object.entries(res.headers)),
+              get body() { return webBody || (webBody = nodeStreamToWeb(out)); },
+              async text() { await donePromise; return bufferedText; },
+              async json() { return JSON.parse(await this.text()); },
+              async arrayBuffer() { await donePromise; return Buffer.from(bufferedText); },
+            };
+            if (isRetryable) {
+              response.rateLimited = true;
+              donePromise.then(() => {
+                try { response.rateLimitBody = JSON.parse(bufferedText); } catch {}
+              });
+            }
+            resolve({ response, url: `https://opencode.ai${path}`, headers, transformedBody, rateLimited: isRetryable, sessionId: sid });
+          });
+          req.on("error", (e) => {
+            clearTimeout(setupTimer);
+            if (socket) {
+              try {
+                socket.destroy();
+              } catch {
+                /* ignore */
+              }
+            }
+            // The proxy stalled before the response headers arrived. That is
+            // a proxy failure, not a request failure - the caller can still
+            // fall back to a direct connection.
+            if (setupTimedOut && socket) {
+              resolve({ proxyFailed: true, reason: "stalled" });
+              return;
+            }
+            reject(e);
+          });
+          req.on("timeout", () => req.destroy(new Error("timeout")));
+          req.end(requestBody);
         });
-        req.on("error", reject);
-        req.on("timeout", () => req.destroy(new Error("timeout")));
-        req.end(requestBody);
-      });
+
+      let result = await performRequest(tunnelSocket);
+
+      // The proxy failed us - Cloudflare refused the exit IP, or it stalled
+      // during the handshake. The pool rotates the exit IP per connection, so
+      // a fresh tunnel can land on a working one. Retry right away - no
+      // backoff, no wasted retry slot.
+      let blockedTries = 0;
+      while (result?.proxyFailed && proxyTarget && blockedTries < MAX_PROXY_BLOCK_RETRIES) {
+        blockedTries += 1;
+        try {
+          tunnelSocket?.destroy();
+        } catch {
+          /* ignore */
+        }
+        if (noteProxyBlocked(proxyTarget)) {
+          console.warn(
+            `[OPENCODE PROXY] proxy ${proxyTarget.host}:${proxyTarget.port} gagal berulang, dilewati`
+          );
+          proxyTarget = null;
+          break;
+        }
+        tunnelSocket = await openTunnel();
+        if (!tunnelSocket) break;
+        result = await performRequest(tunnelSocket);
+      }
+
+      if (result?.proxyFailed) {
+        // Still failing - the proxy is useless for this request, go direct.
+        try {
+          tunnelSocket?.destroy();
+        } catch {
+          /* ignore */
+        }
+        tunnelSocket = null;
+        if (strictProxy) {
+          // Strict pools must never silently fall back to a direct connection.
+          throw new Error(
+            `[OPENCODE PROXY] proxy ${proxyTarget?.host}:${proxyTarget?.port} ditolak upstream (403) dan strictProxy=1`
+          );
+        }
+        console.warn(
+          result?.reason === "stalled"
+            ? "[OPENCODE PROXY] proxy macet saat handshake, lanjut koneksi langsung"
+            : "[OPENCODE PROXY] IP proxy diblokir Cloudflare (403), lanjut koneksi langsung"
+        );
+        useProxy = false;
+        result = await performRequest(null);
+      }
+
+      // The proxy answered - it is healthy, so drop any refusal streak.
+      if (result?.response?.ok && proxyTarget) {
+        clearProxyBlocked(proxyTarget);
+      }
 
       if (!result.rateLimited) return result;
-      // Rate limited — rotate session & retry
+      // Rate limited / free-tier blocked — rotate session & retry
       if (attempt < MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        await new Promise(r => setTimeout(r, RETRY_BACKOFF_MS[attempt] ?? 10000));
         continue;
       }
       // Last attempt rate limited — return anyway (upstream will handle)

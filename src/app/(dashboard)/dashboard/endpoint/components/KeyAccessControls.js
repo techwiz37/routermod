@@ -5,7 +5,7 @@ import PropTypes from "prop-types";
 import { Toggle, Button } from "@/shared/components";
 import Modal from "@/shared/components/Modal";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc, getCompatibleIconSrc, getDynamicProviderName } from "@/shared/utils/providerIcon";
 import { getProviderByAlias } from "@/shared/constants/providers";
 import { useNotificationStore } from "@/store/notificationStore";
 import { getCurrentLocale, translate } from "@/i18n/runtime";
@@ -32,26 +32,43 @@ const TOAST_TEXT = {
 };
 const tt = () => TOAST_TEXT[getCurrentLocale()] || TOAST_TEXT.id;
 
-function providerMeta(aliasOrId) {
+function providerMeta(aliasOrId, dynamicNames = {}) {
   const p = getProviderByAlias(aliasOrId);
   const id = p?.id || aliasOrId;
+  const dynamicName = getDynamicProviderName(id);
+  const iconSrc = getCompatibleIconSrc(id) || getProviderIconSrc(id);
+  const name =
+    p?.name ||
+    dynamicNames[id]?.name ||
+    dynamicName ||
+    (dynamicNames[id]?.prefix ? `${String(dynamicNames[id].prefix).toUpperCase()} (Custom)` : null) ||
+    aliasOrId?.toUpperCase() ||
+    "Unknown";
   return {
     id,
-    name: p?.name || aliasOrId?.toUpperCase() || "Unknown",
-    iconSrc: getProviderIconSrc(id),
+    name,
+    iconSrc,
     fallbackIcon: p?.icon || "hub",
     color: p?.color || null,
   };
 }
 
-function groupByProvider(models) {
+function groupByProvider(models, dynamicNames = {}) {
   const map = {};
   for (const m of models) {
     const p = m.provider || "unknown";
-    if (!map[p]) map[p] = { provider: p, meta: providerMeta(p), models: [] };
+    if (!map[p]) map[p] = { provider: p, meta: providerMeta(p, dynamicNames), models: [] };
     map[p].models.push(m);
   }
   return Object.values(map).sort((a, b) => a.meta.name.localeCompare(b.meta.name));
+}
+
+function getDisplayModelId(m, dynamicNames = {}) {
+  const node = dynamicNames[m.provider];
+  if (node?.prefix) {
+    return `${node.prefix}/${m.model}`;
+  }
+  return m.routedModel || m.fullModel || `${m.provider}/${m.model}`;
 }
 
 function TestBadge({ result }) {
@@ -237,6 +254,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const [selectedModels, setSelectedModels] = useState(() => new Set(access.allow));
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [providerGroups, setProviderGroups] = useState([]);
+  const [dynamicNames, setDynamicNames] = useState({});
   const [testResults, setTestResults] = useState({});
   const [activeProvider, setActiveProvider] = useState(null);
   const [modelQuery, setModelQuery] = useState("");
@@ -260,12 +278,18 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   const loadModels = useCallback(() => {
     setLoading(true);
-    return fetch("/api/models?activeOnly=true")
-      .then(async (r) => {
-        const data = await r.json();
-        const models = data.models || [];
+    return Promise.all([
+      fetch("/api/models?activeOnly=true").then(async (r) => (await r.json()).models || []),
+      fetch("/api/provider-nodes").then(async (r) => (await r.json()).nodes || []).catch(() => []),
+    ])
+      .then(([models, nodes]) => {
+        const names = {};
+        for (const n of nodes) {
+          if (n?.id) names[n.id] = { name: n.name, prefix: n.prefix };
+        }
+        setDynamicNames(names);
         setAllModels(models);
-        setProviderGroups(groupByProvider(models));
+        setProviderGroups(groupByProvider(models, names));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -520,9 +544,10 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                       </span>
                     )}
                     {visibleModels.map(m => {
-                      const id = m.routedModel || `${m.provider}/${m.model}`;
-                      const on = selectedModels.has(id);
-                      const res = testResults[id];
+                      const internalId = m.routedModel || `${m.provider}/${m.model}`;
+                       const id = getDisplayModelId(m, dynamicNames);
+                       const on = selectedModels.has(internalId);
+                       const res = testResults[internalId];
                       const busy = res === "pending";
                       return (
                         <div
@@ -534,7 +559,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                           }`}
                         >
                           <button
-                            onClick={() => handleToggleModel(id, !on)}
+                            onClick={() => handleToggleModel(internalId, !on)}
                             className="flex items-center gap-2 cursor-pointer text-left"
                           >
                             <span
@@ -559,7 +584,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                                 : <span className="text-[9px] font-mono text-[var(--color-text-muted)]">not tested yet</span>
                             }
                             <button
-                              onClick={() => handleTestModel(id, m.name || m.model)}
+                              onClick={() => handleTestModel(internalId, m.name || m.model)}
                               disabled={busy}
                               title="Test model"
                               className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-primary)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 shadow-[2px_2px_0_var(--color-border)] hover:shadow-[3px_3px_0_var(--color-border)] transition-all"

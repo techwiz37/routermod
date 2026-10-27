@@ -22,6 +22,7 @@ if (!state.emitter) {
 
 if (!state.pendingLines) state.pendingLines = [];
 if (!state.flushTimer) state.flushTimer = null;
+if (typeof state.nextId !== "number") state.nextId = 1;
 
 const FLUSH_INTERVAL_MS = 100;
 const MAX_BATCH_LINES = 50;
@@ -40,11 +41,6 @@ function scheduleFlush() {
   state.flushTimer?.unref?.();
 }
 
-function toLogLine(level, args) {
-  const prefix = `[${level.toUpperCase()}]`;
-  return `${prefix} ${args.map(formatArg).join(" ")}`;
-}
-
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
 function stripAnsi(str) {
@@ -61,13 +57,35 @@ function formatArg(arg) {
   }
 }
 
-function appendLine(line) {
-  state.logs.push(line);
+function nowStamp() {
+  const d = new Date();
+  const hh = d.getHours().toString().padStart(2, "0");
+  const mm = d.getMinutes().toString().padStart(2, "0");
+  const ss = d.getSeconds().toString().padStart(2, "0");
+  const ms = d.getMilliseconds().toString().padStart(3, "0");
+  return `${hh}:${mm}:${ss}.${ms}`;
+}
+
+/**
+ * A captured console line keeps its own timestamp, level and message so the
+ * dashboard can show when the line really happened (not when it was received).
+ */
+function toLogEntry(level, args) {
+  return {
+    id: state.nextId++,
+    time: nowStamp(),
+    level: level.toUpperCase(),
+    message: args.map(formatArg).join(" "),
+  };
+}
+
+function appendEntry(entry) {
+  state.logs.push(entry);
   const maxLines = CONSOLE_LOG_CONFIG.maxLines;
   if (state.logs.length > maxLines) {
     state.logs = state.logs.slice(-maxLines);
   }
-  state.pendingLines.push(line);
+  state.pendingLines.push(entry);
   if (state.pendingLines.length >= MAX_BATCH_LINES) {
     if (state.flushTimer) {
       clearTimeout(state.flushTimer);
@@ -85,7 +103,11 @@ export function initConsoleLogCapture() {
   for (const level of consoleLevels) {
     state.originals[level] = console[level];
     console[level] = (...args) => {
-      appendLine(toLogLine(level, args));
+      try {
+        appendEntry(toLogEntry(level, args));
+      } catch {
+        /* never break the app because of the log capture */
+      }
       state.originals[level](...args);
     };
   }
@@ -99,6 +121,8 @@ export function getConsoleLogs() {
 
 export function clearConsoleLogs() {
   state.logs = [];
+  state.pendingLines = [];
+  state.nextId = 1;
   state.emitter.emit("clear");
 }
 

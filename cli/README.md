@@ -9,7 +9,7 @@ npm install -g routermod
 routermod
 ```
 
-Buka **http://localhost:1945** — password default: `merdeka`
+Buka **http://localhost:1337** — password default: `merdeka`
 
 ## Fitur
 
@@ -21,7 +21,7 @@ Buka **http://localhost:1945** — password default: `merdeka`
 
 ## Konfigurasi
 
-Server berjalan di port `1945` secara default. Ubah via environment variable:
+Server berjalan di port `1337` secara default. Ubah via environment variable:
 
 ```bash
 PORT=3000 routermod

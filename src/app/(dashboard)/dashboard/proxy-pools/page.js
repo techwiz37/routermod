@@ -47,6 +47,11 @@ export default function ProxyPoolsPage() {
   const [netlifyForm, setNetlifyForm] = useState({ netlifyToken: "", projectName: "netlify-relay" });
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  // Result of the last import: saved / failed / skipped proxies.
+  const [importResult, setImportResult] = useState(null);
+  // Live progress while the proxies are being tested.
+  const [importProgress, setImportProgress] = useState(null);
+  const [saveProgress, setSaveProgress] = useState(null);
   const [deploying, setDeploying] = useState(false);
   const [testingId, setTestingId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -108,6 +113,35 @@ export default function ProxyPoolsPage() {
     resetForm();
   };
 
+  // Start the import job and follow its progress until it is finished.
+  const runImport = async (entries, onProgress) => {
+    const res = await fetch("/api/proxy-pools/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Gagal menguji proxy");
+
+    const jobId = data.jobId;
+    const total = data.total || entries.length;
+    const started = Date.now();
+
+    for (;;) {
+      const tick = await fetch(`/api/proxy-pools/import?jobId=${encodeURIComponent(jobId)}`)
+        .then((r) => r.json())
+        .catch(() => null);
+      if (!tick) {
+        await new Promise((r) => setTimeout(r, 600));
+        continue;
+      }
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      onProgress?.({ ...tick, total: tick.total || total, elapsed });
+      if (tick.status !== "running") return tick;
+      await new Promise((r) => setTimeout(r, 600));
+    }
+  };
+
   const handleSave = async () => {
     const payload = {
       name: formData.name.trim(),
@@ -122,24 +156,64 @@ export default function ProxyPoolsPage() {
     setSaving(true);
     try {
       const isEdit = !!editingProxyPool;
-      const res = await fetch(isEdit ? `/api/proxy-pools/${editingProxyPool.id}` : "/api/proxy-pools", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
 
-      if (res.ok) {
+      if (isEdit) {
+        // Editing keeps the stored state - no test needed.
+        const res = await fetch(`/api/proxy-pools/${editingProxyPool.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          await fetchProxyPools();
+          closeFormModal();
+          notify.success("Proxy pool diperbarui");
+        } else {
+          const data = await res.json();
+          notify.error(data.error || "Gagal menyimpan proxy pool");
+        }
+        return;
+      }
+
+      // New pool: test it first, only a working proxy is stored.
+      const data = await runImport(
+        [
+          {
+            name: payload.name,
+            proxyUrl: payload.proxyUrl,
+            noProxy: payload.noProxy,
+            strictProxy: payload.strictProxy,
+          },
+        ],
+        (progress) => setSaveProgress(progress)
+      );
+
+      if (!data) {
+        notify.error("Gagal menyimpan proxy pool");
+        return;
+      }
+
+      if ((data.createdCount || 0) > 0) {
         await fetchProxyPools();
         closeFormModal();
-        notify.success(editingProxyPool ? "Proxy pool updated" : "Proxy pool created");
+        const created = data.created?.[0];
+        const exit = created?.exitIp ? ` · exit ${created.exitIp}${created.exitCountry ? ` (${created.exitCountry})` : ""}` : "";
+        notify.success(`Proxy tersimpan & aktif${exit}`);
       } else {
-        const data = await res.json();
-        notify.error(data.error || "Failed to save proxy pool");
+        const skippedReason = data.skipped?.[0]?.reason || "";
+        if (skippedReason) {
+          notify.warning(`Proxy tidak disimpan: ${skippedReason}`);
+        } else {
+          const reason = data.failed?.[0]?.error || "Proxy tidak merespons";
+          notify.error(`Proxy gagal, tidak disimpan: ${reason}`);
+        }
       }
     } catch (error) {
       console.log("Error saving proxy pool:", error);
+      notify.error("Gagal menyimpan proxy pool");
     } finally {
       setSaving(false);
+      setSaveProgress(null);
     }
   };
 
@@ -272,6 +346,38 @@ export default function ProxyPoolsPage() {
     });
   };
 
+  const deleteFailedPools = async () => {
+    if (failedPools.length === 0) return;
+    setConfirmState({
+      title: "Hapus Proxy Gagal",
+      message: `Hapus ${failedPools.length} proxy yang gagal health check? Proxy yang masih terikat ke koneksi akan dilewati.`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        setBulkBusy(true);
+        try {
+          let ok = 0; let blocked = 0; let failed = 0;
+          for (const pool of failedPools) {
+            try {
+              const res = await fetch(`/api/proxy-pools/${pool.id}`, { method: "DELETE" });
+              if (res.ok) ok += 1;
+              else if (res.status === 409) blocked += 1;
+              else failed += 1;
+            } catch {
+              failed += 1;
+            }
+          }
+          await fetchProxyPools();
+          clearSelection();
+          notify.success(
+            `Dihapus ${ok}${blocked ? `, ${blocked} masih terpakai` : ""}${failed ? `, ${failed} gagal` : ""}`
+          );
+        } finally {
+          setBulkBusy(false);
+        }
+      },
+    });
+  };
+
   const handleHealthCheck = async () => {
     const targets = selectedIds.length > 0
       ? proxyPools.filter((p) => selectedIds.includes(p.id))
@@ -341,6 +447,8 @@ export default function ProxyPoolsPage() {
 
   const openBatchImportModal = () => {
     setBatchImportText("");
+    setImportResult(null);
+    setImportProgress(null);
     setShowBatchImportModal(true);
   };
 
@@ -563,35 +671,30 @@ export default function ProxyPoolsPage() {
       let skipped = 0;
       let failed = 0;
 
-      for (const entry of parsedEntries) {
-        const dedupeKey = `${entry.proxyUrl}|||`;
-        if (existingKeys.has(dedupeKey)) {
-          skipped += 1;
-          continue;
-        }
+      // The server tests every proxy and only stores the working ones.
+      const data = await runImport(
+        parsedEntries.map((entry) => ({
+          name: entry.name,
+          proxyUrl: entry.proxyUrl,
+          noProxy: "",
+        })),
+        (progress) => setImportProgress(progress)
+      );
 
-        const res = await fetch("/api/proxy-pools", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: entry.name,
-            proxyUrl: entry.proxyUrl,
-            noProxy: "",
-            isActive: true,
-          }),
-        });
-
-        if (res.ok) {
-          created += 1;
-          existingKeys.add(dedupeKey);
-        } else {
-          failed += 1;
-        }
+      if (!data) {
+        notify.error("Import gagal");
+        return;
       }
 
+      created = data.createdCount || 0;
+      failed = data.failedCount || 0;
+      skipped = data.skippedCount || 0;
+      setImportResult(data);
       await fetchProxyPools();
-      setShowBatchImportModal(false);
-      notify.success(`Batch import completed: Created ${created}, Skipped ${skipped}, Failed ${failed}`);
+      if (created === 0 && failed === 0) setShowBatchImportModal(false);
+      notify.success(
+        `Import selesai: ${created} tersimpan, ${failed} gagal, ${skipped} dilewati`
+      );
     } catch (error) {
       console.log("Error batch importing proxies:", error);
       notify.error("Batch import failed");
@@ -605,17 +708,46 @@ export default function ProxyPoolsPage() {
     [proxyPools]
   );
 
-  if (loading) {
-    return (
-      <div className="an-scope flex min-w-0 flex-col gap-5">
-        <div className="an-panel h-[150px] animate-pulse" />
-        <div className="an-panel h-[320px] animate-pulse" />
-      </div>
-    );
-  }
+  // Pools whose health check failed - they can be removed in one click.
+  const failedPools = useMemo(
+    () => proxyPools.filter((p) => p.testStatus === "error" || p.testStatus === "failed"),
+    [proxyPools]
+  );
+
+  // Pools that share one exit IP rotate without changing the egress
+  // address, so the rotation cannot help against an IP based limit.
+  const sharedExitIp = useMemo(() => {
+    const byIp = new Map();
+    for (const pool of proxyPools) {
+      if (pool.isActive !== true || !pool.exitIp) continue;
+      const list = byIp.get(pool.exitIp) || [];
+      list.push(pool);
+      byIp.set(pool.exitIp, list);
+    }
+    const shared = [...byIp.entries()].filter(([, list]) => list.length > 1);
+    if (shared.length === 0) return null;
+    const [ip, list] = shared.sort((a, b) => b[1].length - a[1].length)[0];
+    return { ip, count: list.length };
+  }, [proxyPools]);
 
   return (
     <div className="an-scope flex min-w-0 flex-col gap-5">
+      {sharedExitIp ? (
+        <section className="an-notice warn">
+          <span className="an-notice-ico" aria-hidden>
+            <span className="material-symbols-outlined">warning</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] leading-relaxed">
+              <span className="font-medium">{sharedExitIp.count} proxy aktif memakai IP keluar yang sama</span>
+              {` (${sharedExitIp.ip}). Rotasi hanya ganti port, bukan IP, jadi tidak membantu `}
+              <span className="font-medium">limit berbasis IP</span>
+              {`. Tambahkan proxy dengan IP keluar berbeda agar rotasi benar-benar berganti.`}
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       {/* Hero */}
       <section className="an-panel an-hero">
         <div className="an-hero-main">
@@ -663,11 +795,19 @@ export default function ProxyPoolsPage() {
             </span>
             <span className="an-stat-foot">pool sehat</span>
           </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">error</span>
+              Gagal
+            </span>
+            <span className="an-stat-value">{failedPools.length}</span>
+            <span className="an-stat-foot">proxy mati</span>
+          </div>
         </div>
       </section>
 
       {/* Toolbar */}
-      <div className="an-toolbar">
+      <div className="an-toolbar an-toolbar-wrap">
         <div className="relative" ref={relayMenuRef}>
           <div className="relative" ref={relayMenuRef}>
             <button
@@ -740,6 +880,19 @@ export default function ProxyPoolsPage() {
             {healthChecking
               ? `Memeriksa ${healthProgress.current}/${healthProgress.total}`
               : "Cek Semua"}
+          </button>
+          <button
+            type="button"
+            onClick={deleteFailedPools}
+            disabled={healthChecking || bulkBusy || failedPools.length === 0}
+            title="Hapus semua proxy yang gagal health check"
+            className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5 disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
+            Hapus Gagal
+            {failedPools.length > 0 ? (
+              <span className="an-chip danger !h-auto !px-1.5 !py-0 !text-[9px]">{failedPools.length}</span>
+            ) : null}
           </button>
           <button type="button" onClick={openBatchImportModal} className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5">
             <span className="material-symbols-outlined text-[14px]">upload</span>
@@ -963,9 +1116,79 @@ export default function ProxyPoolsPage() {
             </p>
           </div>
 
+          {importProgress && importProgress.status === "running" ? (
+            <div className="an-panel !rounded-[10px] p-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2 text-[11.5px]">
+                <span className="font-medium inline-flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[14px] text-primary animate-spin">progress_activity</span>
+                  Menguji proxy {importProgress.done}/{importProgress.total}
+                </span>
+                <span className="text-text-muted tabular-nums">
+                  {importProgress.done > 0 ? `${importProgress.percent}% · ` : ""}
+                  {importProgress.elapsed} dtk
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--t-raised)] relative">
+                {importProgress.done > 0 ? (
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-primary shadow-[0_0_12px_var(--t-accent)] transition-[width] duration-300 ease-out"
+                    style={{ width: `${Math.max(4, Math.min(99, importProgress.percent || 0))}%` }}
+                  />
+                ) : (
+                  <div className="an-progress-strip absolute inset-y-0 left-0 w-1/3 rounded-full bg-primary shadow-[0_0_12px_var(--t-accent)]" />
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-text-muted">
+                <span className="an-chip ok !h-auto !px-1.5 !py-0">{importProgress.ok || 0} lolos</span>
+                <span className="an-chip danger !h-auto !px-1.5 !py-0">{importProgress.failed || 0} gagal</span>
+                <span className="an-chip !h-auto !px-1.5 !py-0">{importProgress.skipped || 0} dilewati</span>
+                <span>
+                  {Math.max(0, (importProgress.total || 0) - (importProgress.done || 0))} proxy sedang diuji
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {importResult ? (
+            <div className="an-panel !rounded-[10px] p-3 flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="an-chip ok">
+                  <span>{importResult.createdCount || 0}</span> <span>tersimpan</span>
+                </span>
+                <span className="an-chip danger">
+                  <span>{importResult.failedCount || 0}</span> <span>gagal</span>
+                </span>
+                <span className="an-chip">
+                  <span>{importResult.skippedCount || 0}</span> <span>dilewati</span>
+                </span>
+                <span className="text-[11px] text-text-muted">
+                  hanya proxy yang lolos tes yang tersimpan
+                </span>
+              </div>
+              {Array.isArray(importResult.failed) && importResult.failed.length > 0 ? (
+                <div className="flex flex-col gap-1 max-h-[160px] overflow-y-auto">
+                  {importResult.failed.map((f, i) => (
+                    <div
+                      key={`${f.proxyUrl}-${i}`}
+                      className="flex items-start gap-2 text-[11px] leading-relaxed text-text-muted"
+                    >
+                      <span className="material-symbols-outlined text-[13px] text-[var(--t-danger)] shrink-0 mt-0.5">
+                        error
+                      </span>
+                      <span className="min-w-0">
+                        <span className="font-mono break-all">{f.proxyUrl}</span>
+                        {f.error ? <span> — {f.error}</span> : null}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button fullWidth onClick={handleBatchImport} disabled={!batchImportText.trim() || importing}>
-              {importing ? "Importing..." : "Import"}
+              {importing ? "Menguji proxy…" : "Import & Test"}
             </Button>
             <Button fullWidth variant="ghost" onClick={closeBatchImportModal} disabled={importing}>
               Cancel
@@ -1256,13 +1479,36 @@ export default function ProxyPoolsPage() {
             />
           </div>
 
+          {saveProgress && saveProgress.status === "running" ? (
+            <div className="an-panel !rounded-[10px] p-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2 text-[11.5px]">
+                <span className="font-medium inline-flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[14px] text-primary animate-spin">progress_activity</span>
+                  Menguji proxy...
+                </span>
+                <span className="text-text-muted tabular-nums">
+                  {saveProgress.elapsed} dtk
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--t-raised)] relative">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary shadow-[0_0_12px_var(--t-accent)] transition-[width] duration-300 ease-out"
+                  style={{ width: `${Math.max(6, Math.min(92, (saveProgress.elapsed || 0) * 9))}%` }}
+                />
+              </div>
+              <p className="text-[10.5px] text-text-muted">
+                Mengecek proxy ke beberapa target - yang lolos tes saja yang disimpan.
+              </p>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button
               fullWidth
               onClick={handleSave}
               disabled={!formData.name.trim() || !formData.proxyUrl.trim() || saving}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? (editingProxyPool ? "Menyimpan..." : "Menguji & menyimpan...") : "Save"}
             </Button>
             <Button fullWidth variant="ghost" onClick={closeFormModal} disabled={saving}>
               Cancel

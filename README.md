@@ -15,9 +15,8 @@ A full redesign of [9Router](https://github.com/decolua/9router) — Neobrutalis
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
 [![Based On](https://img.shields.io/badge/based%20on-9Router-crimson)](https://github.com/decolua/9router)
-[![Port](https://img.shields.io/badge/default%20port-1945-orange)](#quick-start)
+[![Port](https://img.shields.io/badge/default%20port-1337-orange)](#quick-start)
 [![Stack](https://img.shields.io/badge/Next.js%20+%20React%2019-black?logo=nextdotjs)](#tech-stack)
-[![Version](https://img.shields.io/badge/release-v1.0.2-blue)](https://github.com/techwiz37/routermod/releases)
 
 [Quick Start](#-quick-start) · [What's New](#-whats-different-from-9router) · [Features](#-features) · [Setup](#-setup) · [API](#-api)
 
@@ -30,24 +29,24 @@ A full redesign of [9Router](https://github.com/decolua/9router) — Neobrutalis
 
 ## RouterMod — Panduan Bahasa Indonesia
 
-RouterMod adalah fork dari 9Router yang di-redesign ulang dari nol. UI-nya memakai tema **Antares Neobrutalism** dengan aksen Cyber Crimson, tunneling ke domain publik otomatis, dan berbagai fitur tambahan yang bikin pengalaman sehari-hari jauh lebih enak.
+RouterMod adalah fork dari 9Router yang di-redesign ulang dari nol. UI-nya pakai tema Neobrutalism 3D dengan aksen Cyber Crimson, tunneling ke domain publik otomatis, dan berbagai fitur tambahan yang bikin pengalaman sehari-hari jauh lebih enak.
 
 ### Mulai Cepat
 
 ```bash
 git clone <repo> routermod && cd routermod
 npm install
-npm run dev          # dev mode, port 1945
+npm run dev          # dev mode, port 1337
 # atau production:
 node rebuild.js      # build + PM2 restart otomatis
 ```
 
-Buka `http://localhost:1945` · Password default: `merdeka`
+Buka `http://localhost:1337` · Password default: `merdeka`
 
 ### Integrasi ke Claude Code / Cline / Cursor
 
 ```
-Endpoint : http://localhost:1945/v1
+Endpoint : http://localhost:1337/v1
 API Key  : ambil dari Dashboard → Endpoint
 Model    : kr/claude-sonnet-4.5
 ```
@@ -59,26 +58,22 @@ Model    : kr/claude-sonnet-4.5
 | **Rename / re-prefix model** | Tidak bisa | Edit prefix, model ID, display name per model |
 | **Custom model CRUD** | Terbatas | Edit ID, nama, hapus; fetch live dari `/models` |
 | **Disable/enable model** | Tidak ada | Nonaktifkan model tertentu; Bulk Disable/Enable All |
-| **Halaman Models terpisah** | Tidak ada | Toggle on/off + test model per provider |
 | **Strategi routing provider** | Fixed | Toggle Round Robin + Sticky limit yang bisa diatur |
 | **Thinking mode** | Tidak ada | Pilih level reasoning per provider |
 | **Proxy per connection** | Tidak ada | Assign proxy pool per connection; bulk assign |
 | **Deploy proxy relay** | Tidak ada | Deploy ke Vercel / CF / Netlify / Deno langsung dari dashboard |
 | **Custom headers** | Tidak ada | Override header per provider, diff-on-save |
 | **Whitelist model per API key** | Tidak ada | Batasi tiap API key hanya ke model/combo tertentu |
-| **Auto-ping quota reset** | Tidak ada | Ping otomatis saat reset 5 jam + jadwal terjadwal |
+| **Auto-ping quota reset** | Tidak ada | Ping otomatis saat reset 5 jam |
 | **Reorder priority connection** | Tidak ada | Drag atau panah atas/bawah untuk atur urutan fallback |
 | **Bulk import akun** | Tidak ada | Import massal Codex, Grok CLI, Antigravity |
 | **Test semua model** | Satu per satu | Jalankan semua sekaligus, progress bar, bisa distop |
-| **Auto-detect provider** | Tidak ada | Deteksi base URL + daftar model provider custom |
 | **Suggested models** | Tidak ada | Chip model belum dikonfigurasi — klik langsung tambah |
 | **Tunneling publik** | Tidak ada | CF Tunnel + CF DNS + Caddy/Nginx, subdomain persisten |
 | **Dashboard access gate** | Tidak ada | Blokir dashboard di domain publik, API tetap jalan |
 | **Live server monitoring** | Tidak ada | CPU/RAM/disk/host, auto-refresh 3 detik |
 | **OAuth flow** | Copy-paste URL manual | Auto-buka tab baru |
 | **Status free provider** | Offline jika 0 akun | Selalu ONLINE + tampil `∞` |
-| **OpenCode free tier** | Tidak ada | Rotasi session otomatis + retry 429 (3x) |
-| **Public stats API** | Tidak ada | Endpoint JSON publik untuk banner statistik |
 
 ### Tunneling Publik
 
@@ -104,13 +99,13 @@ Biaya: Rp 0
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/techwiz37/routermod.git
+git clone <repo-url> routermod
 cd routermod
 npm install
 npm run dev
 ```
 
-Open `http://localhost:1945` — default password is `merdeka`.
+Open `http://localhost:1337` — default password is `merdeka`.
 
 **Production with PM2:**
 
@@ -121,7 +116,7 @@ node rebuild.js   # stops PM2 → builds → restarts
 **Wire up your AI tool:**
 
 ```
-Endpoint : http://localhost:1945/v1
+Endpoint : http://localhost:1337/v1
 API Key  : grab one from Dashboard → Endpoint tab
 Model    : kr/claude-sonnet-4.5
 ```
@@ -137,7 +132,6 @@ RouterMod keeps everything that makes 9Router good and fills in the gaps that ma
 | **Model rename / re-prefix** | Not possible | Edit prefix, model ID, and display name per model |
 | **Custom model CRUD** | Basic add only | Full edit — change ID, name, delete; live fetch from `/models` |
 | **Model disable / enable** | Not available | Disable per-model; bulk Disable All / Enable All |
-| **Dedicated Models page** | Not available | Per-provider model manager — on/off switch + test button per model |
 | **Provider routing strategy** | Fixed | Round Robin toggle + configurable Sticky limit |
 | **Thinking mode per provider** | Not available | Auto / low / medium / high dropdown per provider |
 | **Proxy per connection** | Not available | Assign a proxy pool per connection; bulk rotate or single pool |
@@ -145,20 +139,15 @@ RouterMod keeps everything that makes 9Router good and fills in the gaps that ma
 | **Custom headers per provider** | Not available | Override or add headers per provider; diff-on-save |
 | **API key model whitelist** | Not available | Restrict each API key to specific models or combos |
 | **Auto-ping on quota reset** | Not available | Per-connection toggle — fires on 5-hour reset automatically |
-| **Scheduled quota ping** | Not available | Cron-style schedule per connection for proactive warm-up |
 | **Connection priority reorder** | Not available | Arrow up/down to reorder fallback priority |
 | **Bulk account import** | Not available | Bulk import for Codex, Grok CLI, Antigravity |
-| **Auto-detect custom providers** | Not available | Paste a base URL → auto-detect API type and list live models |
 | **Test all models at once** | One at a time | Run all models in sequence, live progress bar, stop anytime |
 | **Suggested models** | Not available | Chips for unconfigured models (≥200k ctx, free) — click to add |
-| **OpenCode free tier** | Not available | Direct HTTPS relay, rotating `ses_*` session, 3 retries on 429 |
 | **Public tunneling** | Not available | CF Tunnel + CF DNS + Caddy/Nginx; subdomain persists across restarts |
 | **Dashboard access gate** | No control | Block web UI on public domain, keep API open |
-| **Public stats API** | Not available | JSON endpoint for public stat banners and uptime badges |
 | **Live server monitoring** | Not available | CPU, RAM, disk, host info — auto-refreshes every 3s |
 | **OAuth flow** | Copy & paste URL manually | Auto-opens in new tab |
 | **Free provider status** | Offline when 0 accounts | Always ONLINE + shows `∞` |
-| **Mobile dashboard** | Broken layout | Scrollable sidebar, drawer-aware layout, no clipped menus |
 
 ---
 
@@ -184,14 +173,6 @@ RouterMod keeps everything that makes 9Router good and fills in the gaps that ma
 
 | Feature | Description |
 |---|---|
-| 🎛️ **Antares Design System** | 156 touch points rebuilt into a single Antares skin — 3D offset shadows, Cyber Crimson accent, dark mode, and a switchable surface theme |
-| 🌌 **Starfield Background** | Subtle animated star layer behind the shell for a non-flat, depth-rich look |
-| 🧩 **Models Management Page** | Dedicated per-provider model table: on/off switch, capability badges, and a one-click test for every model |
-| 🔍 **Model Search Filter** | Instant fuzzy search across every model of every provider, with provider grouping and kind filters |
-| 🕵️ **Auto-Detect Providers** | Drop in any OpenAI-compatible or Anthropic-compatible base URL — RouterMod detects the API type and fetches the live model list |
-| 🧠 **OpenCode Free Tier** | Works end-to-end for chat completions and the Responses API, with automatic session rotation and 3 retries on upstream `FreeUsageLimitError` (429) |
-| ⏰ **Scheduled Quota Ping** | Recurring per-connection warm-up so a sleeping provider is already healthy when the next request lands |
-| 🔁 **Credential Refresh Service** | Background job that re-authenticates expiring connections before they break a live request |
 | 🌐 **Auto CF Tunneling** | Persistent public subdomain via Cloudflare Tunnel + DNS |
 | 🔀 **Auto Reverse Proxy** | Caddy (Windows) / Nginx (Linux) — zero manual config |
 | 🔒 **Dashboard Access Gate** | Block web UI on public domain, keep API accessible |
@@ -199,23 +180,16 @@ RouterMod keeps everything that makes 9Router good and fills in the gaps that ma
 | ♾️ **Free Provider Status** | noAuth providers always show ONLINE + `∞` account count |
 | 📡 **Live Server Tab** | CPU, RAM, disk I/O, host info — auto-refreshes every 3s |
 | 👥 **Antigravity Bulk Import** | Import accounts in bulk via `email|password` format |
-| 🖼️ **Vision Adapters** | Combo-level vision adapter so non-vision models can consume images |
-| 🔌 **Embedding Providers** | Dedicated embedding pipeline (including GitHub) for vector workloads |
-| 🤖 **AI Agent Workspace** | Built-in agent with project-scoped roots and configurable terminal access |
-| 🛠️ **CLI Tool Cards** | One-click config writers for Claude Code, Codex, OpenCode, Cline, Cursor, Antigravity, Kilo, Droid and more |
-| 📊 **Public Stats API** | Read-only JSON endpoint for public stat banners |
-| 📬 **Contact Page** | Built-in community/contact hub inside the dashboard |
 | 🎨 **Neobrutalism UI** | 3D offset-shadow theme, Cyber Crimson accent, dark mode |
 | 🔔 **Community Links** | Telegram + WhatsApp on every dashboard visit |
 | 🌍 **OAuth Auto Popup** | No manual URL step — OAuth opens automatically |
-| 📱 **Mobile-First Layout** | Sidebar scrolls top-to-bottom, drawer never clips, tables stay readable on a phone |
 
 ---
 
 ## 🌐 Supported Providers
 
 ### 🔐 OAuth (login once, auto-refresh forever)
-Claude Code · Antigravity · Codex · GitHub Copilot · Cursor · Kiro AI · Xiaomi Mimo · Zed · Nous
+Claude Code · Antigravity · Codex · GitHub Copilot · Cursor · Kiro AI · Xiaomi Mimo · Zed
 
 ### 🆓 Free Tier (no API key needed)
 
@@ -223,41 +197,16 @@ Claude Code · Antigravity · Codex · GitHub Copilot · Cursor · Kiro AI · Xi
 |---|---|---|
 | **Kiro AI** | Claude 4.5, GLM-5, MiniMax | ~50 credits/month |
 | **OpenCode Free** | Auto-fetched from opencode.ai | No sign-up required |
-| **Cline Free** | 460+ live catalog models | Rotating session, auto-retry on capacity limit |
 | **Vertex AI** | Gemini 3 Pro, DeepSeek, GLM | $300 free credits for new GCP accounts |
 
 ### 🔑 API Key (40+ providers)
 OpenRouter · OpenAI · Anthropic · Gemini · DeepSeek · Groq · xAI · Mistral · GLM · MiniMax · Kimi · Perplexity · Together AI · Fireworks · Cerebras · Cohere · NVIDIA · SiliconFlow · Nebius · Hyperbolic · and more
-
-### 🔌 Custom (OpenAI-compatible / Anthropic-compatible)
-Add your own endpoint with a name and a prefix — RouterMod handles the routing, model listing, key scoping and failure fallback for you.
 
 ---
 
 ## 🛠️ Supported CLI Tools
 
 Claude Code · OpenClaw · Codex · OpenCode · Cursor · Antigravity · Cline · Continue · Roo · Copilot · Kilo Code · Droid · Grok Build · Devin CLI · DeepSeek TUI · Qwen Code · jcode · and more
-
----
-
-## 🖥️ Dashboard Modules
-
-| Module | What it does |
-|---|---|
-| **Dashboard** | Endpoint info, provider health, token history, hostname/port rows |
-| **Provider** | Add, connect, configure, and scope every provider instance |
-| **Combo & Vision Adapter** | Chain models with fallback and route images through vision models |
-| **Usage** | Token/cost analytics, per-provider limits, request detail drill-down |
-| **Cek Limit** | Live quota cards per account, bulk enable/disable, auto-ping config |
-| **Models** | Per-provider model manager — on/off switch, capability badges, test |
-| **Token Saver** | Toggle RTK compression, Caveman mode, and Ponytail prompts |
-| **Tool CLI** | Generate ready-to-paste config for every supported CLI tool |
-| **AI Agent** | Project-scoped agent workspace with optional terminal access |
-| **Console Log** | Live request/response log stream from the router |
-| **Translator** | Inspect protocol translation between client and upstream formats |
-| **Proxy Pools** | Manage proxy pools, health-check proxies, bulk assign |
-| **Skills** | Reusable routing recipes and model presets |
-| **Contact** | Community links and support page |
 
 ---
 
@@ -268,7 +217,7 @@ Claude Code · OpenClaw · Codex · OpenCode · Cursor · Antigravity · Cline �
 Copy `.env.example` to `.env.local`:
 
 ```env
-PORT=1945
+PORT=1337
 HOSTNAME=0.0.0.0
 NODE_ENV=production
 JWT_SECRET=change-this-to-something-long-and-random
@@ -299,14 +248,14 @@ pm2 logs routermod   # live logs
 **Claude Code / Cline / Cursor / Roo:**
 ```json
 {
-  "baseUrl": "http://localhost:1945/v1",
+  "baseUrl": "http://localhost:1337/v1",
   "apiKey": "sk-from-dashboard"
 }
 ```
 
 **Codex CLI:**
 ```bash
-export OPENAI_BASE_URL="http://localhost:1945/v1"
+export OPENAI_BASE_URL="http://localhost:1337/v1"
 export OPENAI_API_KEY="sk-from-dashboard"
 ```
 
@@ -350,13 +299,13 @@ Monthly cost: $0
 
 ```bash
 # Chat completions
-curl http://localhost:1945/v1/chat/completions \
+curl http://localhost:1337/v1/chat/completions \
   -H "Authorization: Bearer <api-key>" \
   -H "Content-Type: application/json" \
   -d '{"model":"kr/claude-sonnet-4.5","messages":[{"role":"user","content":"hi"}],"stream":true}'
 
 # List available models
-curl http://localhost:1945/v1/models \
+curl http://localhost:1337/v1/models \
   -H "Authorization: Bearer <api-key>"
 ```
 
@@ -382,5 +331,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-  <sub>Fork of 9Router · Neobrutalism UI · Auto CF Tunneling · Port 1945</sub>
+  <sub>Fork of 9Router · Neobrutalism UI · Auto CF Tunneling · Port 1337</sub>
 </div>

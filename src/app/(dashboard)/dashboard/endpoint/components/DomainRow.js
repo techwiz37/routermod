@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/shared/components";
+import { useEffect, useState, useRef } from "react";
 
 export default function DomainRow({
   tunnelEnabled, tunnelLoading, tunnelReachable, tunnelEverReachable,
@@ -14,6 +15,17 @@ export default function DomainRow({
   const isActive   = tunnelEnabled && !tunnelLoading && tunnelReachable;
   const isWaiting  = tunnelEnabled && !tunnelLoading && !tunnelReachable;
   const isError    = tunnelStatus?.type === "error";
+  const [timedOut, setTimedOut] = useState(false);
+  const startRef = useRef(Date.now());
+
+  // Stop "Checking domain…" spinner after 30s if still not reachable
+  useEffect(() => {
+    if ((isWaiting || tunnelChecking) && !timedOut) {
+      startRef.current = Date.now();
+      const id = setTimeout(() => setTimedOut(true), 30000);
+      return () => clearTimeout(id);
+    }
+  }, [isWaiting, tunnelChecking, timedOut]);
 
   const iconBtn = (onClick, icon, title, extra = "") => (
     <button onClick={onClick} title={title} aria-label={title}
@@ -65,8 +77,11 @@ export default function DomainRow({
       </>
     );
   } else if (isWaiting) {
-    content = statusBox("progress_activity",
-      tunnelEverReachable ? "Reconnecting…" : "Checking domain…", "warn", true);
+    const waitingText = timedOut
+      ? "Domain not reachable"
+      : (tunnelEverReachable ? "Reconnecting…" : "Checking domain…");
+    const waitingTone = timedOut ? "danger" : "warn";
+    content = statusBox("error_outline", waitingText, waitingTone, timedOut);
     actions = offBtn(onDisable, "Disable & delete domain");
   } else if (tunnelLoading) {
     content = statusBox("progress_activity",
@@ -93,7 +108,7 @@ export default function DomainRow({
 
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
-      <span className={`an-chip self-start ${tunnelEnabled ? "accent" : ""}`}>Domain</span>
+      <span className={`an-chip self-start ${tunnelEnabled ? "accent" : ""}`}>Public endpoint</span>
       <div className="flex items-center gap-1.5 min-w-0">
         {content}
         <div className="flex items-center gap-1 shrink-0">{actions}</div>

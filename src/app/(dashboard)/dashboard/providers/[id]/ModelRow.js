@@ -87,11 +87,12 @@ export default function ModelRow({
   testStatus, isCustom, isFree,
   onDeleteAlias, onTest, isTesting,
   onDisable, onEdit, providerAlias,
-  caps, thinkingSuffix,
+  caps, thinkingSuffix, prefix,
 }) {
   const rawModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   const displayName = model.name || alias || null;
   const displayModel = rawModel;
+  const modelPath = `${prefix || providerAlias || "model"}/${displayName || rawModel}`;
   const [editing, setEditing] = useState(false);
 
   const borderColor = testStatus === "ok"  ? "border-green-500/40"
@@ -103,7 +104,7 @@ export default function ModelRow({
 
   return (
     <div className={`group w-full sm:w-auto min-w-0 max-w-full rounded-lg border px-3 py-2 ${borderColor} hover:bg-sidebar/50`}>
-      <div className="flex min-w-0 items-start gap-2 sm:items-center">
+      <div className="flex min-w-0 items-start gap-2">
         <span
           className="material-symbols-outlined shrink-0 text-base mt-0.5 sm:mt-0"
           style={iconColor ? { color: iconColor } : undefined}
@@ -111,22 +112,15 @@ export default function ModelRow({
           {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
         </span>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {/* Primary label: display name if set, else model path */}
-          {displayName ? (
-            <>
-              <span className="w-fit max-w-full break-all text-xs font-semibold text-text-main sm:max-w-[360px] sm:truncate">
-                {displayName}
-              </span>
-              <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-[10px] text-text-muted/70 sm:max-w-[360px] sm:truncate">
-                {displayModel}
-              </code>
-            </>
-          ) : (
-            <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px] sm:truncate">
-              {displayModel}
-            </code>
-          )}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="w-full min-w-0 break-all text-xs font-semibold text-text-main">
+            <span className="text-primary">#{prefix || "model"}</span>
+            <span className="px-1 text-text-muted">-</span>
+            {displayName || displayModel}
+          </span>
+          <code className="w-full min-w-0 break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-[10px] text-text-muted/70">
+            {modelPath}
+          </code>
           <span className="flex min-w-0 items-center gap-1 pl-0.5">
             {isFree === true && (
               <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-bold text-green-500">
@@ -142,76 +136,39 @@ export default function ModelRow({
           </span>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-          {/* Test */}
-          {onTest && (
-            <div className="relative shrink-0 group/btn">
-              <button
-                onClick={onTest}
-                disabled={isTesting}
-                className={`rounded p-0.5 text-text-muted transition-opacity hover:bg-sidebar hover:text-primary ${isTesting ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"}`}
-              >
-                <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-                  {isTesting ? "progress_activity" : "science"}
-                </span>
-              </button>
-              <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                {isTesting ? "Testing..." : "Test"}
-              </span>
-            </div>
-          )}
+      </div>
 
-          {/* Edit */}
-          {onEdit && (
-            <div className="relative shrink-0 group/btn">
-              <button
-                onClick={() => setEditing((v) => !v)}
-                className={`rounded p-0.5 transition-colors hover:bg-sidebar opacity-100 sm:opacity-0 sm:group-hover:opacity-100 ${editing ? "text-primary" : "text-text-muted hover:text-primary"}`}
-                title="Edit model"
-              >
-                <span className="material-symbols-outlined text-sm">edit</span>
-              </button>
-              <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                Edit
-              </span>
-            </div>
-          )}
-
-          {/* Copy */}
-          <div className="relative shrink-0 group/btn">
-            <button
-              onClick={() => onCopy(displayModel, `model-${model.id}`)}
-              className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
-            >
-              <span className="material-symbols-outlined text-sm">
-                {copied === `model-${model.id}` ? "check" : "content_copy"}
-              </span>
-            </button>
-            <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-              {copied === `model-${model.id}` ? "Copied!" : "Copy"}
+      <div className="mt-2 flex min-h-7 items-center justify-end gap-1 border-t border-border/60 pt-1.5">
+        {onTest && (
+          <button onClick={onTest} disabled={isTesting} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={isTesting ? "Testing..." : "Test"}>
+            <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
+              {isTesting ? "progress_activity" : "science"}
             </span>
-          </div>
-
-          {/* Delete / disable */}
-          {isCustom ? (
-            <button
-              onClick={onDeleteAlias}
-              className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
-              title="Remove"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
-          ) : onDisable ? (
-            <button
-              onClick={onDisable}
-              className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
-              title="Disable"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
-          ) : null}
-        </div>
+          </button>
+        )}
+        <button onClick={() => onCopy(displayModel, `model-${model.id}`)} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={copied === `model-${model.id}` ? "Copied!" : "Copy"}>
+          <span className="material-symbols-outlined text-sm">
+            {copied === `model-${model.id}` ? "check" : "content_copy"}
+          </span>
+        </button>
+        {onEdit && (
+          <button
+            onClick={() => setEditing((v) => !v)}
+            className={`rounded p-1 ${editing ? "text-primary" : "text-text-muted hover:bg-sidebar hover:text-primary"}`}
+            title="Edit model"
+          >
+              <span className="material-symbols-outlined text-sm">edit</span>
+          </button>
+        )}
+        {isCustom ? (
+          <button onClick={onDeleteAlias} className="rounded p-1 text-text-muted hover:bg-red-500/10 hover:text-red-500" title="Remove">
+              <span className="material-symbols-outlined text-sm">delete</span>
+          </button>
+        ) : onDisable ? (
+          <button onClick={onDisable} className="rounded p-1 text-text-muted hover:bg-red-500/10 hover:text-red-500" title="Disable">
+            <span className="material-symbols-outlined text-sm">delete</span>
+          </button>
+        ) : null}
       </div>
 
       {/* Edit popover — inline below row */}
@@ -249,4 +206,5 @@ ModelRow.propTypes = {
   providerAlias: PropTypes.string,
   caps: PropTypes.object,
   thinkingSuffix: PropTypes.string,
+  prefix: PropTypes.string,
 };

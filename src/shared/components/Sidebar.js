@@ -114,7 +114,7 @@ export default function Sidebar({ onClose }) {
           </div>
           <span className="font-mono text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--color-success)] bg-surface border-2 border-border px-2 py-0.5 rounded-md shadow-[2px_2px_0px_var(--color-border)] flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-[var(--color-success)] animate-pulse"></span>
-            PORT :1945
+            PORT :1337
           </span>
         </div>
 

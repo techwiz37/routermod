@@ -45,6 +45,7 @@ import AutoPingScheduleModal from "@/app/(dashboard)/dashboard/providers/[id]/Au
 import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
 import { USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { getCurrentLocale, onLocaleChange, translate } from "@/i18n/runtime";
 
 const KIRO_METHOD_LABELS = {
   "builder-id": "AWS Builder ID",
@@ -148,7 +149,9 @@ function formatTimeRemaining(value) {
 }
 
 export default function ProviderLimits() {
+  const [, setLocaleVersion] = useState(0);
   const { copied, copy } = useCopyToClipboard();
+  useEffect(() => onLocaleChange(() => setLocaleVersion((value) => value + 1)), []);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -266,7 +269,12 @@ export default function ProviderLimits() {
         `[ProviderLimits] Fetching quota for ${provider} (${connectionId})`,
       );
       const url = `/api/usage/${connectionId}${force ? "?force=1" : ""}`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          "Accept-Language": getCurrentLocale(),
+          "x-locale": getCurrentLocale(),
+        },
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -813,7 +821,7 @@ export default function ProviderLimits() {
   };
 
   const selectedProviderLabel =
-    providerFilter === "all" ? "All providers" : providerLabel(providerFilter);
+    providerFilter === "all" ? translate("All providers") : providerLabel(providerFilter);
   const hasEligibleConnections = totals.eligibleConnections > 0;
   const hasVisibleConnections = sortedConnections.length > 0;
   const emptyState = getConnectionsEmptyMessage(
@@ -865,23 +873,42 @@ export default function ProviderLimits() {
   return (
     <div className="an-scope flex min-w-0 flex-col gap-5">
       {/* Header Controls */}
-      <section className="an-panel">
+        <section className="an-panel overflow-visible border border-[var(--t-line)] bg-[radial-gradient(circle_at_top_right,rgba(232,0,31,0.12),transparent_38%),var(--t-panel)] shadow-[0_18px_50px_rgba(0,0,0,0.14)]">
         <header className="an-panel-head">
-          <span className="an-panel-ico" aria-hidden>
+            <span className="an-panel-ico !bg-[var(--t-accent-soft)] !text-[var(--t-star-ink)]" aria-hidden>
             <span className="material-symbols-outlined">speed</span>
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="an-panel-title">Cek Limit</h2>
-            <p className="an-panel-sub">
+            <h2 className="an-panel-title">{translate("Quota control center")}</h2>
+            <p className="an-panel-sub flex flex-wrap items-center gap-x-1">
               <span>{totals.eligibleConnections}</span>{" "}
-              <span>akun terpantau</span>{" · "}
+               <span>{translate("accounts monitored")}</span>{" · "}
               <span>{providerFilter === "all" ? providerOptions.length : 1}</span>{" "}
-              <span>provider</span>
+               <span>{translate("providers")}</span>
             </p>
           </div>
         </header>
-        <div className="an-panel-pad">
-          <div className="an-toolbar">
+          <div className="an-panel-pad">
+           <div className="flex flex-col gap-3">
+             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+               <div className="rounded-xl border border-[var(--t-line-soft)] bg-[var(--t-raised)] px-3 py-2.5">
+                 <div className="text-[10px] uppercase tracking-wider text-[var(--t-muted)]">{translate("Accounts")}</div>
+                 <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--t-ink)]">{totals.eligibleConnections}</div>
+               </div>
+               <div className="rounded-xl border border-[var(--t-line-soft)] bg-[var(--t-raised)] px-3 py-2.5">
+                 <div className="text-[10px] uppercase tracking-wider text-[var(--t-muted)]">{translate("Providers")}</div>
+                 <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--t-ink)]">{providerFilter === "all" ? providerOptions.length : 1}</div>
+               </div>
+               <div className="rounded-xl border border-[var(--t-line-soft)] bg-[var(--t-raised)] px-3 py-2.5">
+                 <div className="text-[10px] uppercase tracking-wider text-[var(--t-muted)]">{translate("Auto-refresh")}</div>
+                 <div className={`mt-1 text-sm font-semibold ${autoRefresh ? "text-[var(--t-ok)]" : "text-[var(--t-muted)]"}`}>{autoRefresh ? translate("Active") : translate("Paused")}</div>
+               </div>
+               <div className="rounded-xl border border-[var(--t-line-soft)] bg-[var(--t-raised)] px-3 py-2.5">
+                 <div className="text-[10px] uppercase tracking-wider text-[var(--t-muted)]">{translate("Next refresh")}</div>
+                 <div className="mt-1 text-sm font-semibold tabular-nums text-[var(--t-ink)]">{autoRefresh ? `${countdown}s` : "—"}</div>
+               </div>
+             </div>
+           <div className="an-toolbar flex-wrap">
           <div className="relative">
             <button
               type="button"
@@ -937,7 +964,7 @@ export default function ProviderLimits() {
                     <span className="material-symbols-outlined text-[22px]">
                       apps
                     </span>
-                    <span className="font-medium">All providers</span>
+                    <span className="font-medium">{translate("All providers")}</span>
                     {providerFilter === "all" && (
                       <span className="material-symbols-outlined ml-auto text-[20px]">
                         check
@@ -995,7 +1022,7 @@ export default function ProviderLimits() {
           >
             {ACCOUNT_FILTER_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {translate(option.label)}
               </option>
             ))}
           </select>
@@ -1009,7 +1036,7 @@ export default function ProviderLimits() {
             >
               {QUOTA_SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {translate(option.label)}
                 </option>
               ))}
             </select>
@@ -1025,7 +1052,7 @@ export default function ProviderLimits() {
             <span className="material-symbols-outlined text-[14px]">
               hourglass_top
             </span>
-            <span className="hidden sm:inline">Expiring first</span>
+             <span className="hidden sm:inline">{translate("Expiring first")}</span>
           </button>
 
           {/* Bulk: disable depleted */}
@@ -1037,7 +1064,7 @@ export default function ProviderLimits() {
             title="Disable connections with depleted quota on the current page"
           >
             <span className="material-symbols-outlined text-[14px]">block</span>
-            <span className="hidden sm:inline">Turn off Empty</span>
+             <span className="hidden sm:inline">{translate("Turn off Empty")}</span>
           </button>
 
           {/* Bulk: enable available */}
@@ -1051,7 +1078,7 @@ export default function ProviderLimits() {
             <span className="material-symbols-outlined text-[14px]">
               check_circle
             </span>
-            <span className="hidden sm:inline">Turn on Available</span>
+             <span className="hidden sm:inline">{translate("Turn on Available")}</span>
           </button>
 
           {/* Auto-refresh toggle */}
@@ -1068,7 +1095,7 @@ export default function ProviderLimits() {
               {autoRefresh ? "toggle_on" : "toggle_off"}
             </span>
             <span className="hidden text-[var(--t-ink)] sm:inline">
-              Auto-refresh
+               {translate("Auto-refresh")}
             </span>
             {autoRefresh && (
               <span className="text-[10px] text-[var(--t-dim)] tabular-nums">
@@ -1092,9 +1119,10 @@ export default function ProviderLimits() {
               refresh
             </span>
           </button>
-          </div>
-        </div>
-      </section>
+           </div>
+         </div>
+         </div>
+       </section>
 
       {/* Provider cards: 2 columns, compact */}
       {expiringFirst && (

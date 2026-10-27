@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Card, Button } from "@/shared/components";
 import { CONSOLE_LOG_CONFIG } from "@/shared/constants/config";
 
 const LEVELS = {
@@ -13,20 +12,6 @@ const LEVELS = {
 };
 
 const ALL_FILTERS = ["ALL", "LOG", "INFO", "WARN", "ERROR", "DEBUG"];
-
-let globalIdx = 0;
-
-function parseLine(raw) {
-  const levelMatch = raw.match(/^\[(LOG|INFO|WARN|ERROR|DEBUG)\]\s*/i);
-  const level = levelMatch ? levelMatch[1].toUpperCase() : "LOG";
-  const message = levelMatch ? raw.slice(levelMatch[0].length) : raw;
-  const now = new Date();
-  const hh = now.getHours().toString().padStart(2, "0");
-  const mm = now.getMinutes().toString().padStart(2, "0");
-  const ss = now.getSeconds().toString().padStart(2, "0");
-  const ms = now.getMilliseconds().toString().padStart(3, "0");
-  return { id: globalIdx++, level, message, time: `${hh}:${mm}:${ss}.${ms}` };
-}
 
 function LogRow({ entry }) {
   const s = LEVELS[entry.level] || LEVELS.LOG;
@@ -50,38 +35,85 @@ export default function ConsoleLogClient() {
   const [autoScroll, setAutoScroll] = useState(true);
   const logRef = useRef(null);
 
-  const addLines = useCallback((lines) => {
+  // Merge server entries by id so the live stream and the polling fallback
+  // can run side by side without duplicating rows.
+  const merge = useCallback((incoming) => {
+    if (!Array.isArray(incoming) || incoming.length === 0) return;
     setEntries((prev) => {
-      const parsed = lines.map(parseLine);
-      const next = [...prev, ...parsed];
-      return next.length > CONSOLE_LOG_CONFIG.maxLines ? next.slice(-CONSOLE_LOG_CONFIG.maxLines) : next;
+      const byId = new Map();
+      for (const e of prev) byId.set(e.id, e);
+      for (const e of incoming) {
+        if (!e || typeof e.id !== "number") continue;
+        byId.set(e.id, e);
+      }
+      const next = [...byId.values()].sort((a, b) => a.id - b.id);
+      const max = CONSOLE_LOG_CONFIG.maxLines;
+      return next.length > max ? next.slice(-max) : next;
     });
   }, []);
 
   const handleClear = async () => {
-    try { await fetch("/api/translator/console-logs", { method: "DELETE" }); } catch {}
+    setEntries([]);
+    try {
+      await fetch("/api/translator/console-logs", { method: "DELETE" });
+    } catch {
+      /* ignore */
+    }
   };
 
+  // Live stream (works when the proxy forwards SSE frames).
   useEffect(() => {
-    globalIdx = 0;
+    let closed = false;
     const es = new EventSource("/api/translator/console-logs/stream");
-    es.onopen = () => setConnected(true);
+    es.onopen = () => {
+      if (!closed) setConnected(true);
+    };
     es.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === "init") {
-        globalIdx = 0;
-        setEntries(msg.logs.slice(-CONSOLE_LOG_CONFIG.maxLines).map(parseLine));
-      } else if (msg.type === "line") {
-        addLines([msg.line]);
-      } else if (msg.type === "lines") {
-        addLines(msg.lines);
-      } else if (msg.type === "clear") {
-        setEntries([]);
+      let msg;
+      try {
+        msg = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      if (msg.type === "init") merge(msg.logs);
+      else if (msg.type === "line") merge([msg.line]);
+      else if (msg.type === "lines") merge(msg.lines);
+      else if (msg.type === "clear") setEntries([]);
+    };
+    es.onerror = () => {
+      if (!closed) setConnected(false);
+    };
+    return () => {
+      closed = true;
+      try {
+        es.close();
+      } catch {
+        /* ignore */
       }
     };
-    es.onerror = () => setConnected(false);
-    return () => es.close();
-  }, [addLines]);
+  }, [merge]);
+
+  // Polling fallback: some proxies buffer SSE, so the log is fetched as well.
+  useEffect(() => {
+    let stopped = false;
+    const pull = async () => {
+      try {
+        const res = await fetch("/api/translator/console-logs", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (stopped) return;
+        if (Array.isArray(data?.logs)) merge(data.logs);
+      } catch {
+        /* ignore */
+      }
+    };
+    pull();
+    const timer = setInterval(pull, CONSOLE_LOG_CONFIG.pollIntervalMs || 2000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [merge]);
 
   useEffect(() => {
     if (!autoScroll || !logRef.current) return;
@@ -96,11 +128,14 @@ export default function ConsoleLogClient() {
 
   const filtered = entries.filter((e) => {
     if (filter !== "ALL" && e.level !== filter) return false;
-    if (search && !e.message.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !(e.message || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const counts = entries.reduce((acc, e) => { acc[e.level] = (acc[e.level] || 0) + 1; return acc; }, {});
+  const counts = entries.reduce((acc, e) => {
+    acc[e.level] = (acc[e.level] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="an-scope flex flex-col gap-4" style={{ height: "calc(100vh - 120px)" }}>
@@ -119,9 +154,9 @@ export default function ConsoleLogClient() {
             </p>
           </div>
           <div className="an-panel-actions">
-            <span className={`an-chip ${connected ? "ok" : "danger"}`}>
-              <span className={`size-1.5 rounded-full shrink-0 ${connected ? "bg-[var(--t-ok)] animate-pulse" : "bg-[var(--t-danger)]"}`} />
-              <span>{connected ? "live" : "terputus"}</span>
+            <span className={`an-chip ${connected ? "ok" : ""}`}>
+              <span className={`size-1.5 rounded-full shrink-0 ${connected ? "bg-[var(--t-ok)] animate-pulse" : "bg-[var(--t-dim)]"}`} />
+              <span>{connected ? "live" : " polled"}</span>
             </span>
           </div>
         </header>

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Input, Modal, ConfirmModal } from "@/shared/components";
 import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
-import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
+import { getCurrentLocale, onLocaleChange, translate } from "@/i18n/runtime";
 import {
   WENYAN_LOCALES,
   CAVEMAN_LEVELS,
@@ -12,6 +12,7 @@ import {
 } from "../endpoint/endpointConstants";
 
 export default function TokenSaverClient() {
+  const t = translate;
   const [rtkEnabled, setRtkEnabledState] = useState(true);
   const [headroomEnabled, setHeadroomEnabled] = useState(false);
   const [headroomUrl, setHeadroomUrl] = useState("http://localhost:8787");
@@ -439,14 +440,14 @@ export default function TokenSaverClient() {
 
   const headroomRunning = !!headroomStatus.running;
   const headroomStatusLabel = headroomStatus.loading
-    ? "Checking…"
+    ? t("Checking…")
     : headroomRunning
-      ? "Running"
+      ? t("Running")
       : headroomStatus.localUrl !== false && !headroomStatus.installed
-        ? "Not installed"
+        ? t("Not installed")
         : headroomStatus.localUrl !== false
-          ? "Stopped"
-          : "External";
+          ? t("Stopped")
+          : t("External");
   const headroomLocalUrl = headroomStatus.localUrl !== false;
   const headroomCanStart = !!headroomStatus.canStart;
   const headroomManaged =
@@ -454,32 +455,30 @@ export default function TokenSaverClient() {
 
   const pxpipeHealthy = pxpipeHealth?.healthy === true;
   const pxpipeStatusLabel = pxpipeStatus.loading
-    ? "Checking…"
+    ? t("Checking…")
     : pxpipeStatus.installing
-      ? "Installing…"
+      ? t("Installing…")
       : !pxpipeStatus.installed
-        ? "Not installed"
+        ? t("Not installed")
         : pxpipeHealthy
-          ? "Healthy"
+          ? t("Healthy")
           : pxpipeStatus.running
-            ? "Running"
-            : "Stopped";
+            ? t("Running")
+            : t("Stopped");
   const pxpipeChipClass =
     pxpipeHealthy || pxpipeStatus.running
       ? "bg-success/15 text-success"
       : "bg-warning/15 text-warning";
 
   return (
-    <div className="an-scope flex min-w-0 flex-col gap-5">
+    <div className="an-scope token-saver-page flex min-w-0 flex-col gap-5">
       {/* Hero */}
       <section className="an-panel an-hero">
         <div className="an-hero-main">
-          <span className="an-hero-eyebrow">Token Saver</span>
-          <h1 className="an-hero-title">Hemat Token, Tetap Kontekstual</h1>
+          <span className="an-hero-eyebrow">{t("Token Saver")}</span>
+          <h1 className="an-hero-title">{t("Save tokens without losing context")}</h1>
           <p className="an-hero-sub">
-            Empat lapisan kompresi yang aktif otomatis di belakang layar: tool output,
-            context prompt, balasan LLM, dan gaya kode. Hemat token tanpa mengubah
-            perilak model.
+            {t("Use four focused compression layers for tool output, prompts, model responses, and code style. Reduce token usage while keeping the model behavior intact.")}
           </p>
         </div>
         <div className="an-hero-stats">
@@ -488,32 +487,32 @@ export default function TokenSaverClient() {
               <span className="material-symbols-outlined">bolt</span>
               RTK
             </span>
-            <span className="an-stat-value">{rtkEnabled ? "On" : "Off"}</span>
-            <span className="an-stat-foot">kompres output tool</span>
+            <span className="an-stat-value">{rtkEnabled ? t("On") : t("Off")}</span>
+            <span className="an-stat-foot">{t("tool output")}</span>
           </div>
           <div className="an-stat">
             <span className="an-stat-label">
               <span className="material-symbols-outlined">compress</span>
               Headroom
             </span>
-            <span className="an-stat-value">{headroomEnabled ? "On" : "Off"}</span>
-            <span className="an-stat-foot">kompres konteks prompt</span>
+            <span className="an-stat-value">{headroomEnabled ? t("On") : t("Off")}</span>
+            <span className="an-stat-foot">{t("prompt context")}</span>
           </div>
           <div className="an-stat">
             <span className="an-stat-label">
               <span className="material-symbols-outlined">short_text</span>
               Caveman
             </span>
-            <span className="an-stat-value">{cavemanEnabled ? "On" : "Off"}</span>
-            <span className="an-stat-foot">balasan LLM ringkas</span>
+            <span className="an-stat-value">{cavemanEnabled ? t("On") : t("Off")}</span>
+            <span className="an-stat-foot">{t("shorter responses")}</span>
           </div>
           <div className="an-stat">
             <span className="an-stat-label">
               <span className="material-symbols-outlined">code</span>
               Ponytail
             </span>
-            <span className="an-stat-value">{ponytailEnabled ? "On" : "Off"}</span>
-            <span className="an-stat-foot">gaya kode minimal</span>
+            <span className="an-stat-value">{ponytailEnabled ? t("On") : t("Off")}</span>
+            <span className="an-stat-foot">{t("minimal code style")}</span>
           </div>
         </div>
       </section>
@@ -527,17 +526,17 @@ export default function TokenSaverClient() {
               <span className="material-symbols-outlined">bolt</span>
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="an-panel-title">Compress tool output</h2>
+              <h2 className="an-panel-title">{t("Compress tool output")}</h2>
               <p className="an-panel-sub">
-                git/grep/ls/tree/logs → 60-90% fewer input tokens
+                {t("Reduce repetitive output from git, grep, ls, tree, and logs by 60–90%.")}
               </p>
             </div>
             <div className="an-panel-actions">
               <AntaresSwitch
                 on={rtkEnabled}
                 onChange={(next) => handleRtkEnabled(next)}
-                label={rtkEnabled ? "On" : "Off"}
-                ariaLabel="Toggle RTK"
+                label={rtkEnabled ? t("On") : t("Off")}
+                ariaLabel={t("Toggle RTK")}
               />
             </div>
           </header>
@@ -553,7 +552,7 @@ export default function TokenSaverClient() {
             </a>
             <span className="an-chip ok">
               <span className="size-1.5 rounded-full bg-[var(--t-ok)] shrink-0" />
-              <span>60-90% lebih sedikit token masukan</span>
+              <span>{t("60–90% fewer input tokens")}</span>
             </span>
           </div>
         </section>
@@ -564,9 +563,9 @@ export default function TokenSaverClient() {
               <span className="material-symbols-outlined">compress</span>
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="an-panel-title">Compress context</h2>
+              <h2 className="an-panel-title">{t("Compress prompt context")}</h2>
               <p className="an-panel-sub">
-                Compress prompts via /v1/compress before routing to the model
+                {t("Compress prompts through /v1/compress before routing them to the model.")}
               </p>
             </div>
             <div className="an-panel-actions">
@@ -576,8 +575,8 @@ export default function TokenSaverClient() {
               <AntaresSwitch
                 on={headroomEnabled}
                 onChange={(next) => handleHeadroomEnabled(next)}
-                label={headroomEnabled ? "On" : "Off"}
-                ariaLabel="Toggle Headroom"
+                label={headroomEnabled ? t("On") : t("Off")}
+                ariaLabel={t("Toggle Headroom")}
               />
             </div>
           </header>
@@ -597,7 +596,7 @@ export default function TokenSaverClient() {
                 onClick={() => setShowHeadroomInstallModal(true)}
                 className="an-btn an-ghost h-7 px-3 text-[11px]"
               >
-                {headroomRunning ? "Manage" : "Setup"}
+                {headroomRunning ? t("Manage") : t("Set up")}
               </button>
             </div>
             {headroomStatus.installed && (
@@ -708,17 +707,17 @@ export default function TokenSaverClient() {
               <span className="material-symbols-outlined">short_text</span>
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="an-panel-title">Compress LLM output</h2>
+              <h2 className="an-panel-title">{t("Compress model responses")}</h2>
               <p className="an-panel-sub">
-                Terse-style system prompt → ~65% fewer output tokens (up to 87%)
+                {t("A concise response style can reduce output tokens by about 65%, and up to 87% in some cases.")}
               </p>
             </div>
             <div className="an-panel-actions">
               <AntaresSwitch
                 on={cavemanEnabled}
                 onChange={(next) => handleCavemanEnabled(next)}
-                label={cavemanEnabled ? "On" : "Off"}
-                ariaLabel="Toggle Caveman"
+                label={cavemanEnabled ? t("On") : t("Off")}
+                ariaLabel={t("Toggle Caveman")}
               />
             </div>
           </header>
@@ -764,18 +763,17 @@ export default function TokenSaverClient() {
               <span className="material-symbols-outlined">code</span>
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="an-panel-title">Lazy senior dev</h2>
+              <h2 className="an-panel-title">{t("Minimal code style")}</h2>
               <p className="an-panel-sub">
-                Bias the model toward minimal code: YAGNI, reuse stdlib,
-                deletion over addition
+                {t("Guide the model toward smaller solutions: YAGNI, standard-library reuse, and deletion over addition.")}
               </p>
             </div>
             <div className="an-panel-actions">
               <AntaresSwitch
                 on={ponytailEnabled}
                 onChange={(next) => handlePonytailEnabled(next)}
-                label={ponytailEnabled ? "On" : "Off"}
-                ariaLabel="Toggle Ponytail"
+                label={ponytailEnabled ? t("On") : t("Off")}
+                ariaLabel={t("Toggle Ponytail")}
               />
             </div>
           </header>

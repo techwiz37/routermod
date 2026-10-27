@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
+import { getDisabledModels, enableModels } from "@/lib/disabledModelsDb";
 import { CAPACITY_META, isSttTransport } from "@/shared/constants/models";
 
 export const dynamic = "force-dynamic";
@@ -39,12 +40,15 @@ export async function POST(request) {
         return NextResponse.json({ error: "providerAlias required" }, { status: 400 });
       }
       const seen = new Set();
+      const disabledByAlias = await getDisabledModels();
+      const disabledIds = new Set(disabledByAlias[providerAlias] || []);
       let added = 0;
       for (const entry of models) {
         const raw = typeof entry === "string" ? entry : entry?.id;
         const modelId = typeof raw === "string" ? raw.trim() : "";
         if (!modelId || seen.has(modelId)) continue;
         seen.add(modelId);
+        if (disabledIds.has(modelId)) await enableModels(providerAlias, [modelId]);
         const modelType = (typeof entry === "object" && entry?.type) || "llm";
         const cleanCaps = sanitizeCaps(typeof entry === "object" ? entry?.caps : null);
         const cleanTransport = sanitizeTransport(typeof entry === "object" ? entry?.transport : null, modelType);

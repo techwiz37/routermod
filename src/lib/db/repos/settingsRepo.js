@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   providerStrategies: {},
   quotaVisibility: {},
   comboStrategy: "fallback",
+  modelPrefix: "openrouter",
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},
   capacityAdapter: {
@@ -63,6 +64,7 @@ const DEFAULT_SETTINGS = {
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
   providerOverrides: {},
+  providerPrefixes: {},
 };
 
 async function readRaw() {

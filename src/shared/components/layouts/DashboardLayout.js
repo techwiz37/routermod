@@ -7,6 +7,7 @@ import Sidebar from "../Sidebar";
 import Header from "../Header";
 import PageLoadBadge from "../PageLoadBadge";
 import AntaresFooter from "../AntaresFooter";
+import { onLocaleChange, translate } from "@/i18n/runtime";
 
 const TG_URL = "https://t.me/techwizdisc";
 const WA_URL = "https://chat.whatsapp.com/J40Gf92ksaT4Uma02CIMo3?s=cl&p=a&mlu=4&ilr=4";
@@ -25,14 +26,14 @@ function CommunityPopup({ onClose }) {
               <span className="material-symbols-outlined text-[18px] text-[var(--color-primary)]">groups</span>
             </div>
             <div>
-              <p className="font-mono font-bold text-text-main text-sm uppercase tracking-wider leading-tight">RouterMod Community</p>
-              <p className="text-[10px] text-text-muted font-mono">Join &amp; hang out with us</p>
+              <p className="font-mono font-bold text-text-main text-sm uppercase tracking-wider leading-tight">{translate("RouterMod Community")}</p>
+              <p className="text-[10px] text-text-muted font-mono">{translate("Join & hang out with us")}</p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="size-7 rounded-lg border-2 border-border bg-surface flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-2 shadow-[1.5px_1.5px_0_var(--color-border)] transition-all active:translate-y-px"
-            aria-label="Tutup"
+            aria-label={translate("Close")}
           >
             <span className="material-symbols-outlined text-[16px]">close</span>
           </button>
@@ -41,7 +42,7 @@ function CommunityPopup({ onClose }) {
         {/* Body */}
         <div className="p-4 flex flex-col gap-3">
           <p className="text-xs text-text-muted leading-relaxed">
-            Join the RouterMod community — ask questions, swap configs, get the latest feature news, and help each other out.
+            {translate("Join the RouterMod community — ask questions, swap configs, get the latest feature news, and help each other out.")}
           </p>
 
           {/* Telegram */}
@@ -112,8 +113,13 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCommunity, setShowCommunity] = useState(false);
   const pathname = usePathname();
+  // Halaman yang dipakai seperti aplikasi (tinggi penuh, tanpa footer).
+  const isWorkspace = pathname === "/dashboard/basic-chat" || pathname === "/dashboard/agent";
   const notifications = useNotificationStore((state) => state.notifications);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
+  const [, setLocaleVersion] = useState(0);
+
+  useEffect(() => onLocaleChange(() => setLocaleVersion((version) => version + 1)), []);
 
   useEffect(() => {
     // Show the community invite once per browser session so it never blocks
@@ -157,7 +163,7 @@ export default function DashboardLayout({ children }) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
-      <PageLoadBadge />
+      {!isWorkspace && <PageLoadBadge />}
       {showCommunity && <CommunityPopup onClose={dismissCommunity} />}
       <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
         {notifications.map((n) => {
@@ -170,15 +176,15 @@ export default function DashboardLayout({ children }) {
               <div className="flex items-start gap-2">
                 <span className="material-symbols-outlined text-[18px] leading-5">{style.icon}</span>
                 <div className="min-w-0 flex-1">
-                  {n.title ? <p className="text-xs font-semibold mb-0.5">{n.title}</p> : null}
-                  <p className="text-xs whitespace-pre-wrap break-words">{n.message}</p>
+                  {n.title ? <p className="text-xs font-semibold mb-0.5">{translate(n.title)}</p> : null}
+                  <p className="text-xs whitespace-pre-wrap break-words">{translate(n.message)}</p>
                 </div>
                 {n.dismissible ? (
                   <button
                     type="button"
                     onClick={() => removeNotification(n.id)}
                     className="text-current/70 hover:text-current"
-                    aria-label="Dismiss notification"
+                     aria-label={translate("Dismiss notification")}
                   >
                     <span className="material-symbols-outlined text-[16px]">close</span>
                   </button>
@@ -217,17 +223,19 @@ export default function DashboardLayout({ children }) {
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
-        <div className="flex-1 overflow-y-auto overflow-x-clip custom-scrollbar flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-clip custom-scrollbar flex flex-col">
           <div
-            className={`flex-1 flex flex-col ${
-              pathname === "/dashboard/basic-chat" ? "overflow-hidden" : "p-3 sm:p-5 lg:p-7"
+            className={`flex flex-col ${
+              isWorkspace ? "flex-1 min-h-0 overflow-hidden p-2 sm:p-4 lg:p-6" : "p-3 sm:p-5 lg:p-7"
             }`}
           >
-            <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "w-full max-w-7xl mx-auto flex-1 flex flex-col"}`}>{children}</div>
+            <div className={`${isWorkspace ? "flex-1 w-full h-full min-h-0 flex flex-col" : "w-full max-w-7xl mx-auto"}`}>
+              {children}
+            </div>
           </div>
 
-          {/* Unified Footer — same markup as the login screen */}
-          <AntaresFooter />
+          {/* Footer — shown on all non-workspace pages */}
+          {isWorkspace ? null : <AntaresFooter />}
         </div>
       </main>
     </div>

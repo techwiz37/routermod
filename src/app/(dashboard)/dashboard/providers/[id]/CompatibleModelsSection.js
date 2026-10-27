@@ -10,7 +10,7 @@ import ModelListPagination from "./ModelListPagination";
 
 const MODELS_PER_PAGE = 5;
 
-function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onDeleteAlias, onEdit, onTest, testStatus, isTesting, isFree, isPaid }) {
+function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onDeleteAlias, onEdit, onTest, testStatus, isTesting, isFree, isPaid, prefix }) {
   const [editing, setEditing] = useState(false);
   const [draftId,   setDraftId]   = useState(modelId);
   const [draftName, setDraftName] = useState(modelName || modelId);
@@ -38,13 +38,13 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
 
   return (
     <div className={`group flex flex-col gap-0 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-start gap-3">
         <span className="material-symbols-outlined text-base text-text-muted shrink-0" style={iconColor ? { color: iconColor } : undefined}>
           {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
         </span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-medium truncate">{modelName || modelId}</p>
+          <div className="min-w-0">
+            <p className="break-all text-sm font-medium"><span className="text-primary">#{prefix || "model"}</span><span className="px-1 text-text-muted">-</span>{modelName || modelId}</p>
             {isFree === true && (
               <span className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-bold text-green-500">
                 FREE
@@ -56,57 +56,24 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-            <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-            {/* Copy */}
-            <div className="relative group/btn">
-              <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary">
-                <span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span>
-              </button>
-              <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                {copied === `model-${modelId}` ? "Copied!" : "Copy"}
-              </span>
-            </div>
-            {/* Test */}
-            {onTest && (
-              <div className="relative group/btn">
-                <button onClick={onTest} disabled={isTesting} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors">
-                  <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-                    {isTesting ? "progress_activity" : "science"}
-                  </span>
-                </button>
-                <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                  {isTesting ? "Testing..." : "Test"}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-        {/* Action buttons */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          {onEdit && (
-            <button
-              onClick={() => editing ? setEditing(false) : startEdit()}
-              className={`p-1 rounded opacity-0 group-hover:opacity-100 transition-all hover:bg-sidebar ${editing ? "text-primary" : "text-text-muted hover:text-primary"}`}
-              title="Edit"
-            >
-              <span className="material-symbols-outlined text-sm">edit</span>
-            </button>
-          )}
-          <button onClick={onDeleteAlias} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-red-500" title="Remove model">
-            <span className="material-symbols-outlined text-sm">delete</span>
-          </button>
+          <code className="mt-1 block break-all text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{`${prefix || "model"}/${modelName || modelId}`}</code>
         </div>
       </div>
 
-      {/* Edit popover */}
+      <div className="mt-2 flex min-h-7 items-center justify-end gap-1 border-t border-border/60 pt-1.5">
+         {onTest && <button onClick={onTest} disabled={isTesting} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={isTesting ? translate("Testing...") : translate("Test")}><span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>{isTesting ? "progress_activity" : "science"}</span></button>}
+         <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={copied === `model-${modelId}` ? translate("Copied!") : translate("Copy")}><span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span></button>
+         {onEdit && <button onClick={() => editing ? setEditing(false) : startEdit()} className={`rounded p-1 ${editing ? "text-primary" : "text-text-muted hover:bg-sidebar hover:text-primary"}`} title={translate("Edit")}><span className="material-symbols-outlined text-sm">edit</span></button>}
+         <button onClick={onDeleteAlias} className="rounded p-1 text-red-500 hover:bg-red-500/10" title={translate("Delete model")}><span className="material-symbols-outlined text-sm">delete</span></button>
+      </div>
+
       {editing && (
         <form
           onSubmit={commitEdit}
           className="mt-2 flex flex-col gap-2 rounded-lg border-2 border-border bg-surface p-3 shadow-[3px_3px_0px_var(--color-border)]"
         >
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Model ID</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Original ID</span>
             <input
               ref={firstRef}
               value={draftId}
@@ -114,22 +81,24 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
               className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
               placeholder="e.g. gpt-4o-mini"
             />
+            <span className="text-[10px] text-text-muted/60 mt-0.5">ID asli dari provider — ubah hanya jika perlu.</span>
           </label>
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Display Name</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Custom ID</span>
             <input
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
               className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
               placeholder="e.g. GPT-4o Mini"
             />
+            <span className="text-[10px] text-text-muted/60 mt-0.5">ID yang dipakai di API — ini yang tampil di daftar model.</span>
           </label>
           <div className="flex items-center gap-1.5 justify-end">
             <button type="button" onClick={() => setEditing(false)} className="px-2.5 py-1 rounded border border-border text-[11px] text-text-muted hover:bg-surface-2 transition-colors">
-              Cancel
+               {translate("Cancel")}
             </button>
             <button type="submit" className="px-2.5 py-1 rounded border-2 border-primary bg-primary text-[11px] font-bold text-white hover:bg-primary-hover transition-colors shadow-[1.5px_1.5px_0px_var(--color-border)]">
-              Save
+               {translate("Save")}
             </button>
           </div>
         </form>
@@ -138,14 +107,20 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onEditAlias, onEditCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic, detectFilter = "all" }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onEditAlias, onEditCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic, modelPrefix, onBulkPrefixChange, systemPromptModel, setSystemPromptModel, systemPromptDraft, setSystemPromptDraft, systemPrompts, savingSystemPrompt, onSaveSystemPrompt }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [testingModelId, setTestingModelId] = useState(null);
   const [modelTestResults, setModelTestResults] = useState({});
   const [modelsPage, setModelsPage] = useState(1);
+  const [prefixDraft, setPrefixDraft] = useState(modelPrefix || "");
+  const [savingPrefix, setSavingPrefix] = useState(false);
   const addNotification = useNotificationStore((s) => s.addNotification);
+
+  useEffect(() => {
+    setPrefixDraft(modelPrefix || "");
+  }, [modelPrefix]);
 
   const handleTestModel = async (modelId) => {
     if (testingModelId) return;
@@ -193,29 +168,19 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     type: "llm",
   });
 
-  // The All / Free / Paid filter also applies to the list below. "Paid" keeps
-  // models whose pricing is unknown too — those are almost never free.
-  const visibleModels = detectFilter === "all"
-    ? allModels
-    : detectFilter === "free"
-      ? allModels.filter((m) => m.isFree === true)
-      : allModels.filter((m) => m.isFree !== true);
-  const hiddenCount = allModels.length - visibleModels.length;
-  const unknownCount = detectFilter === "paid"
-    ? visibleModels.filter((m) => typeof m.isFree !== "boolean").length
-    : 0;
+  const visibleModels = allModels;
 
   const totalPages = Math.max(1, Math.ceil(visibleModels.length / MODELS_PER_PAGE));
   const safePage = Math.min(modelsPage, totalPages);
   const pagedModels = visibleModels.slice((safePage - 1) * MODELS_PER_PAGE, safePage * MODELS_PER_PAGE);
 
-  useEffect(() => { setModelsPage(1); }, [detectFilter]);
+  useEffect(() => { setModelsPage(1); }, [allModels.length]);
 
   const handleAdd = async () => {
     if (!newModel.trim() || adding) return;
     const modelId = newModel.trim();
     if (allModels.some((model) => model.id === modelId)) {
-      alert("Model already exists for this provider.");
+       alert(translate("Model already exists for this provider."));
       return;
     }
 
@@ -240,12 +205,12 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
       const res = await fetch(`/api/providers/${activeConnection.id}/models`);
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Failed to import models");
+         alert(data.error || translate("Failed to import models"));
         return;
       }
       const models = data.models || [];
       if (models.length === 0) {
-        alert("No models returned from /models.");
+         alert(translate("No models returned from /models."));
         return;
       }
       let importedCount = 0;
@@ -257,7 +222,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         importedCount += 1;
       }
       if (importedCount === 0) {
-        alert("No new models were added.");
+         alert(translate("No new models were added."));
       }
     } catch (error) {
       console.log("Error importing models:", error);
@@ -270,9 +235,85 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-text-muted">
-        Add models manually, or import them from the /models endpoint.
-      </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+           <p className="text-sm text-text-muted">
+             {translate("Add models manually, or import them from the /models endpoint.")}
+        </p>
+        {onBulkPrefixChange && (
+          <div className="rounded-lg border-2 border-border bg-surface p-4 shadow-[3px_3px_0px_var(--color-border)]">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-base text-primary">tag</span>
+               <span className="text-xs font-bold uppercase tracking-wide text-text-muted">{translate("Global Model Prefix")}</span>
+            </div>
+            <p className="text-[11px] text-text-muted mb-3">
+               {translate("Sets the display prefix for all models in this provider. Models will appear as")}{" "}
+              <code className="font-mono text-primary">{prefixDraft ? prefixDraft + "/" : ""}&lt;model-id&gt;</code>.
+            </p>
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={prefixDraft}
+                onChange={(e) => setPrefixDraft(e.target.value)}
+                placeholder={providerDisplayAlias}
+                className="flex-1 rounded border border-border bg-bg px-2.5 py-1.5 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+                title="Set prefix for all models in this provider"
+              />
+              <button
+                onClick={async () => {
+                  if (!prefixDraft.trim() || savingPrefix) return;
+                  setSavingPrefix(true);
+                  await onBulkPrefixChange(prefixDraft.trim());
+                  setSavingPrefix(false);
+                }}
+                disabled={!prefixDraft.trim() || prefixDraft.trim() === modelPrefix || savingPrefix}
+                className="shrink-0 rounded border-2 border-primary bg-primary px-3 py-1.5 text-[11px] font-bold text-white hover:bg-primary-hover transition-colors shadow-[1.5px_1.5px_0px_var(--color-border)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+              >
+                 {savingPrefix ? translate("Saving...") : translate("Apply")}
+              </button>
+            </div>
+            {modelPrefix && prefixDraft !== modelPrefix && (
+              <p className="mt-2 text-[10px] text-warning">
+                 {translate("Unsaved change — current prefix is")} <code className="font-mono">{modelPrefix}</code>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="an-panel an-scope mb-3">
+        <div className="an-panel-pad">
+          <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="an-panel-ico" aria-hidden><span className="material-symbols-outlined text-base">text_fields</span></span>
+               <div className="min-w-0"><span className="an-panel-title block">{translate("System Prompt")}</span><span className="mt-0.5 block text-[11px] leading-4 text-text-muted">{translate("Special instructions for the selected model")}</span></div>
+            </div>
+             <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">{translate("MODEL-SPECIFIC")}</span>
+          </div>
+           <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted" htmlFor="compatible-system-prompt-model">{translate("Target model")}</label>
+          <div className="relative mb-4">
+            <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-primary"><span className="material-symbols-outlined text-[18px]">smart_toy</span></span>
+            <select id="compatible-system-prompt-model" value={systemPromptModel} onChange={(e) => setSystemPromptModel(e.target.value)} className="an-select system-prompt-select h-11 w-full font-mono text-xs">
+               <option value="">{translate("Choose a model to configure")}</option>
+              {allModels.map(({ id }) => <option key={id} value={id}>{id}</option>)}
+            </select>
+          </div>
+           <label className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted" htmlFor="compatible-system-prompt-textarea"><span>{translate("System instructions")}</span><span className="font-normal normal-case tracking-normal text-text-muted/60">{systemPromptDraft.length}/4000</span></label>
+           <textarea id="compatible-system-prompt-textarea" maxLength={4000} value={systemPromptDraft} onChange={(e) => setSystemPromptDraft(e.target.value)} placeholder={translate("Example: You are model XX from Techwiz. Explain answers clearly and accurately.")} rows={5} className="an-input system-prompt-textarea min-h-[132px] w-full resize-y !rounded-xl !border-border/80 !bg-bg text-sm leading-6 placeholder:text-text-muted/45 focus:!border-primary/70" />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <button
+              onClick={onSaveSystemPrompt}
+              disabled={!systemPromptModel || savingSystemPrompt}
+              className="an-btn an-primary h-9 rounded-[10px] px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              <span className="material-symbols-outlined text-[16px]">{savingSystemPrompt ? "progress_activity" : "save"}</span>
+               {savingSystemPrompt ? translate("Saving...") : translate("Save prompt")}
+            </button>
+            {systemPromptModel && systemPrompts[systemPromptModel] !== systemPromptDraft.trim() && (
+               <p className="text-[10px] text-warning">{translate("Unsaved system prompt changes")}</p>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="flex items-end gap-2 flex-wrap">
         <div className="flex-1 min-w-[240px]">
@@ -291,7 +332,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
           {adding ? "Adding..." : "Add"}
         </Button>
         <Button size="sm" variant="secondary" icon="download" onClick={handleImport} disabled={!canImport || importing}>
-          {importing ? "Importing..." : "Import from /models"}
+           {importing ? translate("Importing...") : translate("Import from /models")}
         </Button>
       </div>
 
@@ -304,17 +345,6 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
 
       {allModels.length > 0 && (
         <div className="flex flex-col">
-          {hiddenCount > 0 && (
-            <p className="mb-2 rounded-md bg-sidebar px-2.5 py-1.5 text-[11px] text-text-muted">
-              {hiddenCount} {translate("models hidden by this filter")}
-            </p>
-          )}
-          {unknownCount > 0 && (
-            <p className="mb-2 rounded-md bg-sidebar px-2.5 py-1.5 text-[11px] text-text-muted">
-              {unknownCount} {translate("models without pricing info included")}
-            </p>
-          )}
-
           <div className="flex flex-col gap-3">
             {pagedModels.map(({ id, alias, source, name, isFree }) => (
               <CompatibleModelRow
@@ -331,6 +361,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
                 onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
                 testStatus={modelTestResults[id]}
                 isTesting={testingModelId === id}
+                prefix={modelPrefix}
               />
             ))}
             {pagedModels.length === 0 && (
@@ -368,5 +399,10 @@ CompatibleModelsSection.propTypes = {
     isActive: PropTypes.bool,
   })).isRequired,
   isAnthropic: PropTypes.bool,
-  detectFilter: PropTypes.oneOf(["all", "free", "paid"]),
+  modelPrefix: PropTypes.string,
+  onBulkPrefixChange: PropTypes.func,
+  onTestAllModels: PropTypes.func,
+  onDeleteAllModels: PropTypes.func,
+  testAllRunning: PropTypes.bool,
+  testAllStopping: PropTypes.bool,
 };

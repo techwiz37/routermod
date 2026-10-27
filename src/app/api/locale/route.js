@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { LOCALE_COOKIE, normalizeLocale, isSupportedLocale } from "@/i18n/config";
+import { getRequestLocale, localizedAuthMessage } from "@/lib/i18n/requestLocale";
 
 export async function POST(request) {
   try {
@@ -8,7 +9,7 @@ export async function POST(request) {
     
     if (!locale || !isSupportedLocale(locale)) {
       return NextResponse.json(
-        { error: "Invalid locale" },
+        { error: localizedAuthMessage(getRequestLocale(request), "invalidLocale") },
         { status: 400 }
       );
     }
@@ -23,7 +24,7 @@ export async function POST(request) {
     return NextResponse.json({ success: true, locale: normalized });
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to set locale" },
+      { error: localizedAuthMessage(getRequestLocale(request), "localeFailed") },
       { status: 500 }
     );
   }

@@ -5,6 +5,55 @@ import { dbg } from "../utils/debugLog.js";
 import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE } from "../providers/shared.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 
+const FIRST_CHUNK_TIMEOUT_MS = Number(process.env.UPSTREAM_FIRST_CHUNK_TIMEOUT_MS) || 45000;
+const STREAM_IDLE_TIMEOUT_MS = Number(process.env.UPSTREAM_STREAM_IDLE_TIMEOUT_MS) || 60000;
+
+export async function guardStream(response, { firstChunkMs = FIRST_CHUNK_TIMEOUT_MS, idleMs = STREAM_IDLE_TIMEOUT_MS } = {}) {
+  const reader = response.body.getReader();
+  const readWithin = (ms, what) => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`upstream stream stalled: no ${what} for ${ms}ms`)), ms);
+    reader.read().then(
+      (result) => { clearTimeout(timer); resolve(result); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+
+  let first;
+  try {
+    first = await readWithin(firstChunkMs, "first chunk");
+  } catch (error) {
+    reader.cancel(error).catch(() => {});
+    throw error;
+  }
+
+  let sentFirst = false;
+  const body = new ReadableStream({
+    async pull(controller) {
+      try {
+        if (!sentFirst) {
+          sentFirst = true;
+          if (first.done) controller.close();
+          else controller.enqueue(first.value);
+          return;
+        }
+        const result = await readWithin(idleMs, "chunk");
+        if (result.done) controller.close();
+        else controller.enqueue(result.value);
+      } catch (error) {
+        reader.cancel(error).catch(() => {});
+        controller.error(error);
+      }
+    },
+    cancel(reason) { return reader.cancel(reason); },
+  });
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
 /**
  * BaseExecutor - Base class for provider executors
  */
@@ -97,7 +146,7 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null, directFetch = null }) {
     const fallbackCount = this.getFallbackCount();
     let lastError = null;
     let lastStatus = 0;
@@ -147,7 +196,10 @@ export class BaseExecutor {
           method: "POST",
           headers,
           body: bodyStr,
-          signal: mergedSignal
+          signal: mergedSignal,
+          // Protocol adapters that need their own transport (opencode's TLS
+          // fingerprint) override the direct path; proxies still take priority.
+          ...(directFetch ? { directFetch } : {}),
         }, proxyOptions);
         clearTimeout(connectTimer);
         const ct = response.headers?.get?.("content-type") || "";
@@ -162,7 +214,8 @@ export class BaseExecutor {
           continue;
         }
 
-        return { response, url, headers, transformedBody };
+        const guarded = stream && response.ok && response.body ? await guardStream(response) : response;
+        return { response: guarded, url, headers, transformedBody };
       } catch (error) {
         clearTimeout(connectTimer);
         lastError = error;

@@ -1,6 +1,7 @@
 import { Readable } from "stream";
 import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 import { dbg } from "./debugLog.js";
+import { isProxyUrlBlocked } from "./proxyTunnel.js";
 
 const originalFetch = globalThis.fetch;
 const proxyDispatchers = new Map();
@@ -349,7 +350,17 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
 
   const connectionProxyUrl = resolveConnectionProxyUrl(targetUrl, proxyOptions);
   const envProxyUrl = connectionProxyUrl ? null : normalizeProxyUrl(getEnvProxyUrl(targetUrl));
-  const proxyUrl = connectionProxyUrl || envProxyUrl;
+  let proxyUrl = connectionProxyUrl || envProxyUrl;
+
+  // A pool proxy the upstream already refused (403) is skipped: another round
+  // trip through it would only end in the same rejection. Env proxies are
+  // left alone — they are not part of the rotation.
+  if (connectionProxyUrl && isProxyUrlBlocked(connectionProxyUrl)) {
+    console.warn(
+      `[ProxyFetch] Proxy ${connectionProxyUrl} diblokir upstream, pakai koneksi langsung`
+    );
+    proxyUrl = null;
+  }
 
   // MITM DNS bypass: for known MITM-intercepted hosts, resolve real IP to avoid DNS spoof
   if (shouldBypassMitmDns(targetUrl)) {

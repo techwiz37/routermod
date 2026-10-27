@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
+import { onLocaleChange, translate } from "@/i18n/runtime";
 
 function isLLMProvider(id) {
   const p = AI_PROVIDERS[id];
@@ -41,6 +42,9 @@ function TimeAgo({ timestamp }) {
 }
 
 function RecentRequests({ requests = [] }) {
+  const [, setLocaleVersion] = useState(0);
+  useEffect(() => onLocaleChange(() => setLocaleVersion((value) => value + 1)), []);
+
   return (
     <section className="an-panel flex min-w-0 flex-col overflow-hidden h-[300px] sm:h-[360px] lg:h-full lg:min-h-[320px] lg:max-h-[560px]">
       <header className="an-panel-head">
@@ -48,35 +52,34 @@ function RecentRequests({ requests = [] }) {
           <span className="material-symbols-outlined">bolt</span>
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="an-panel-title">Live Request Feed</h2>
-          <p className="an-panel-sub">Request yang sedang masuk</p>
+           <h2 className="an-panel-title">{translate("Live Request Feed")}</h2>
+           <p className="an-panel-sub">{translate("Incoming requests")}</p>
         </div>
       </header>
 
       {!requests.length ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-[var(--t-muted)]">
           <span className="material-symbols-outlined text-[32px] opacity-30">chat_bubble_outline</span>
-          <span className="text-xs font-medium">Belum ada request masuk</span>
+           <span className="text-xs font-medium">{translate("No incoming requests yet")}</span>
         </div>
       ) : (
-        <div className="an-feed flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
           {requests.map((r, i) => {
             const ok = !r.status || r.status === "ok" || r.status === "success";
-            const modelShort = (r.model || "").split("/").pop();
             return (
-              <div key={i} className="an-feed-row">
-                <span
-                  className={`an-feed-dot ${ok ? "bg-[var(--t-ok)]" : "bg-[var(--t-danger)]"}`}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="an-feed-model" title={r.model}>{modelShort}</div>
-                  <div className="an-feed-meta">
-                    <span className="text-[var(--t-star-ink)]">{fmt(r.promptTokens)}↑</span>
-                    <span className="text-[var(--t-ok)]">{fmt(r.completionTokens)}↓</span>
+              <div key={i} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ok ? "bg-green-500" : "bg-red-500"}`} />
+                    <span className="text-xs font-mono text-[var(--t-text)] truncate" title={r.model}>{r.model}</span>
                   </div>
+                  <span className="text-[10px] text-[var(--t-muted)] shrink-0 ml-2">
+                    <TimeAgo timestamp={r.timestamp} />
+                  </span>
                 </div>
-                <div className="an-feed-time">
-                  <TimeAgo timestamp={r.timestamp} />
+                <div className="pl-3.5 flex items-center gap-3 text-[10px] font-mono">
+                  <span className="text-red-400">{fmt(r.promptTokens)}↑</span>
+                  <span className="text-green-400">{fmt(r.completionTokens)}↓</span>
                 </div>
               </div>
             );

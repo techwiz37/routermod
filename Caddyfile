@@ -1,0 +1,21 @@
+# RouterMod Domain Configuration
+{
+    email admin@toolwiz.id
+}
+
+btvwi.toolwiz.id {
+    reverse_proxy localhost:1337
+    
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer-when-downgrade"
+    }
+}
+
+# Also allow IP access
+103.150.61.249 {
+    reverse_proxy localhost:1337
+}

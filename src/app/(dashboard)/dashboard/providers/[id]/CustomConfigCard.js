@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import { Card, Badge } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
+import { translate } from "@/i18n/runtime";
 
-// Mirrors the server-side gate in /api/providers/[id]/overrides — client check is UX only
 const BLOCKED_HEADERS = ["host", "content-length", "content-type", "connection", "transfer-encoding", "authorization", "cookie"];
 const HEADER_NAME_RE = /^[A-Za-z0-9-]+$/;
 
@@ -23,7 +23,6 @@ export default function CustomConfigCard({ providerId }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
-        // Effective set = registry built-ins with user overrides layered on top
         const builtinHeaders = data.builtinHeaders || {};
         const effective = { ...builtinHeaders, ...(data.headers || {}) };
         const headerRows = Object.entries(effective).map(([name, value]) => ({ name, value }));
@@ -40,21 +39,19 @@ export default function CustomConfigCard({ providerId }) {
   };
 
   const save = useCallback(async () => {
-    // Diff-on-save: only rows differing from the registry default become overrides,
-    // so a code-side registry bump still wins for everything the user left alone.
     const headers = {};
     for (const r of rows.filter((r) => r.name.trim())) {
       const name = r.name.trim();
       if (!HEADER_NAME_RE.test(name)) {
-        notify.error(`Invalid header name: ${name}`);
+        notify.error(`${translate("Invalid header name")}: ${name}`);
         return;
       }
       if (BLOCKED_HEADERS.includes(name.toLowerCase())) {
-        notify.error(`Header ${name} cannot be overridden`);
+        notify.error(`${translate("Header cannot be overridden")}: ${name}`);
         return;
       }
       if (name in headers) {
-        notify.error(`Duplicate header name: ${name}`);
+        notify.error(`${translate("Duplicate header name")}: ${name}`);
         return;
       }
       if (r.value !== builtin[name]) headers[name] = r.value;
@@ -69,11 +66,11 @@ export default function CustomConfigCard({ providerId }) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        notify.error(err.error || "Failed to save");
+        notify.error(err.error || translate("Failed to save"));
         return;
       }
       setHasOverride(Object.keys(headers).length > 0);
-      notify.success("Custom headers saved");
+       notify.success(translate("Custom headers saved"));
     } finally {
       setSaving(false);
     }
@@ -83,7 +80,6 @@ export default function CustomConfigCard({ providerId }) {
     setRows(Object.entries(builtin).map(([name, value]) => ({ name, value })));
   };
 
-  // Only render when there is something to customize: registry headers or existing overrides
   if (Object.keys(builtin).length === 0 && !hasOverride) return null;
 
   return (
@@ -95,9 +91,9 @@ export default function CustomConfigCard({ providerId }) {
       >
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-[20px]">tune</span>
-          <span className="text-sm font-semibold">Custom Headers</span>
+           <span className="text-sm font-semibold">{translate("Custom Headers")}</span>
           {hasOverride && (
-            <Badge variant="success" size="sm">Active</Badge>
+             <Badge variant="success" size="sm">{translate("Active")}</Badge>
           )}
         </div>
         <span className="material-symbols-outlined text-text-muted">
@@ -115,23 +111,23 @@ export default function CustomConfigCard({ providerId }) {
                   <input
                     value={row.name}
                     onChange={(e) => setRow(i, "name", e.target.value)}
-                    placeholder="Header-Name"
+                     placeholder={translate("Header-Name")}
                     spellCheck={false}
                     className="w-44 rounded-md border border-border bg-[var(--color-surface)] px-2 py-1.5 text-sm font-mono text-text-main placeholder:text-text-muted focus:border-primary focus:outline-none"
                   />
                   <input
                     value={row.value}
                     onChange={(e) => setRow(i, "value", e.target.value)}
-                    placeholder="Value"
+                     placeholder={translate("Value")}
                     spellCheck={false}
-                    title={overridden ? "Overridden" : row.name.trim() in builtin ? "Registry default" : ""}
+                     title={overridden ? translate("Overridden") : row.name.trim() in builtin ? translate("Registry default") : ""}
                     className={`min-w-0 flex-1 rounded-md border bg-[var(--color-surface)] px-2 py-1.5 text-sm font-mono text-text-main placeholder:text-text-muted focus:border-primary focus:outline-none ${
                       overridden ? "border-amber-400/60" : "border-border"
                     }`}
                   />
                   <button
                     type="button"
-                    title="Remove header"
+                     title={translate("Remove header")}
                     onClick={() => setRows((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : [{ name: "", value: "" }]))}
                     className="shrink-0 text-text-muted hover:text-red-500"
                   >
@@ -149,7 +145,7 @@ export default function CustomConfigCard({ providerId }) {
               className="flex items-center gap-1 text-xs text-primary hover:underline"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
-              Add header
+               {translate("Add header")}
             </button>
             <div className="flex gap-2">
               <button
@@ -158,7 +154,7 @@ export default function CustomConfigCard({ providerId }) {
                 onClick={resetToBuiltin}
                 className="rounded-md border border-border px-3 py-1.5 text-xs text-text-main hover:bg-surface-2 disabled:opacity-50"
               >
-                Reset
+                 {translate("Reset")}
               </button>
               <button
                 type="button"
@@ -166,7 +162,7 @@ export default function CustomConfigCard({ providerId }) {
                 onClick={save}
                 className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white shadow-[1.5px_1.5px_0px_var(--color-border)] hover:opacity-90 disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save"}
+                 {saving ? translate("Saving...") : translate("Save")}
               </button>
             </div>
           </div>

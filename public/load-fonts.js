@@ -1,0 +1,1 @@
+var d=document,r=d.documentElement,f=function(){r.classList.add('fonts-loaded')};if(d.fonts&&d.fonts.load){var t=function(n){d.fonts.load('24px "Material Symbols Outlined"').then(f).catch(function(){n>0?setTimeout(function(){t(n-1)},1200):f()})};t(2);setTimeout(f,7000)}else{f()}

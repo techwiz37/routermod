@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatResetTime, getRemainingPercentage } from "./utils";
+import { onLocaleChange, translate } from "@/i18n/runtime";
 
 const PAGE_SIZE = 10;
 
@@ -83,6 +84,8 @@ export default function QuotaTable({
   onHideQuota = null,
 }) {
   const [page, setPage] = useState(1);
+  const [, setLocaleVersion] = useState(0);
+  useEffect(() => onLocaleChange(() => setLocaleVersion((value) => value + 1)), []);
 
   const normalizedQuotas = useMemo(
     () => quotas.map((quota, index) => ({
@@ -123,7 +126,7 @@ export default function QuotaTable({
   const nameText = compact ? "text-[11px]" : "text-sm";
   const resetPrimary = compact ? "text-[11px]" : "text-sm";
   const resetSecondary = compact ? "text-[10px] leading-tight" : "text-xs";
-  const sortLabel = "Sorted by account remaining";
+   const sortLabel = translate("Sorted by account remaining");
   const hasHideAction = typeof onHideQuota === "function";
 
   return (
@@ -131,7 +134,7 @@ export default function QuotaTable({
       <div className="flex items-center justify-between gap-2">
         <span className="an-chip">
           <span>{sortedQuotas.length}</span>{" "}
-          <span>quota</span>
+           <span>{translate("quota")}</span>
         </span>
         {showSortLabel && <span className="an-chip">{sortLabel}</span>}
       </div>
@@ -208,22 +211,22 @@ export default function QuotaTable({
                     className="text-[var(--t-muted)] truncate"
                     title={
                       isUnlimited
-                        ? `${quota.used.toLocaleString()} used · Unlimited`
+                         ? `${quota.used.toLocaleString()} ${translate("used")} · ${translate("Unlimited")}`
                         : isCreditBalance
                         ? `Credit balance: ${quota.total.toFixed(2)} ${quota.currency || ""}`
                         : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`
                     }
                   >
                     {isUnlimited
-                      ? `${quota.used.toLocaleString()} used · Unlimited`
+                       ? `${quota.used.toLocaleString()} ${translate("used")} · ${translate("Unlimited")}`
                       : isCreditBalance
-                      ? `Credit: ${quota.total.toFixed(2)} ${quota.currency || ""}`
+                       ? `${translate("Credit")}: ${quota.total.toFixed(2)} ${quota.currency || ""}`
                       : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}${
                           quota.unit ? ` ${quota.unit}` : ""
                         }`}
                   </span>
                   <span className={`font-medium ${isUnlimited ? "text-green-600 dark:text-green-400" : isCreditBalance ? "text-blue-600 dark:text-blue-400" : colors.text} shrink-0`}>
-                    {isUnlimited ? "Unlimited" : isCreditBalance ? "" : `${quota.remaining}%`}
+                     {isUnlimited ? translate("Unlimited") : isCreditBalance ? "" : `${quota.remaining}%`}
                   </span>
                 </div>
               </div>

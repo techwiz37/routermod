@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getProviderConnections, getProviderNodes } from "@/models";
 import { getUsageStats } from "@/lib/usageDb";
 import { AI_PROVIDERS, FREE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import { getDynamicProviderName } from "@/shared/utils/providerIcon";
 import { startBackgroundConnectionHealth, runDeadAccountsCheck } from "@/sse/services/backgroundConnectionHealth";
 
 const FREE_PROVIDER_IDS = new Set(Object.keys(FREE_PROVIDERS));
@@ -143,7 +144,9 @@ export async function GET(request) {
         const isFree = FREE_PROVIDER_IDS.has(pid) || !!(provMeta.noAuth);
         providerMap[pid] = {
           provider: pid,
-          name: isCompatible ? (nodeNameMap[pid] || conn.providerSpecificData?.nodeName || conn.name || pid) : provMeta.name || pid,
+          name: isCompatible
+            ? (nodeNameMap[pid] || conn.providerSpecificData?.nodeName || conn.name || getDynamicProviderName(pid) || pid)
+            : provMeta.name || pid,
           subtitle: isCompatible ? (nodePrefixMap[pid] || conn.providerSpecificData?.prefix || null) : null,
           icon: provMeta.icon || pid,
           isFree,
@@ -247,7 +250,7 @@ export async function GET(request) {
     return NextResponse.json({
       summary: {
         totalProviders: providersList.length,
-        activeProviders: providersList.filter((p) => p.isFree || p.activeAccounts > 0).length,
+        activeProviders: providersList.length,
         totalAccounts: overallTotalAccounts,
         totalActiveAccounts: overallActiveAccounts,
         totalLimitedAccounts: overallLimitedAccounts,

@@ -180,8 +180,9 @@ export function createSSEStream(options = {}) {
               heldFinishOutput = null;
             }
             if (!streamDoneSent) {
-              reqLogger?.appendConvertedChunk?.(trimmed + "\n");
-              controller.enqueue(sharedEncoder.encode(trimmed + "\n"));
+              const doneOutput = "data: [DONE]\n\n";
+              reqLogger?.appendConvertedChunk?.(doneOutput);
+              controller.enqueue(sharedEncoder.encode(doneOutput));
               streamDoneSent = true;
             }
             continue;
@@ -284,10 +285,18 @@ export function createSSEStream(options = {}) {
             }
           }
 
+          // SSE frames must be separated by a blank line. Some upstreams pack
+          // the finish chunk and the [DONE] sentinel without one, so the two
+          // land in a single event and strict clients fail to parse the
+          // combined payload ("Invalid ... stream event").
+          if (output && output.startsWith("data:")) {
+            output = output.replace(/\n+$/, "") + "\n\n";
+          }
+
           // Hold the finish chunk back: upstream may still send trailing content
           // after it, which strict clients reject. Replayed just before [DONE].
           if (sawFinishChunk) {
-            heldFinishOutput = output;
+            if (output.startsWith("data:")) heldFinishOutput = output;
             continue;
           }
 

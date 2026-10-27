@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -115,6 +115,7 @@ export const TABLES = {
       status: "TEXT",
       tokens: "TEXT",
       meta: "TEXT",
+      duration: "INTEGER DEFAULT 0",
     },
     indexes: [
       "CREATE INDEX IF NOT EXISTS idx_uh_ts ON usageHistory(timestamp DESC)",

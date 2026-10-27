@@ -4,6 +4,7 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { translate } from "@/i18n/runtime";
 
 function PassthroughModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
   const borderColor = testStatus === "ok"
@@ -19,7 +20,8 @@ function PassthroughModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias
     : undefined;
 
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
+    <div className={`flex flex-col gap-0 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
+      <div className="flex min-w-0 items-start gap-3">
       <span
         className="material-symbols-outlined text-base text-text-muted"
         style={iconColor ? { color: iconColor } : undefined}
@@ -30,49 +32,16 @@ function PassthroughModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{modelId}</p>
 
-        <div className="flex items-center gap-1 mt-1">
-        <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-          <div className="relative group/btn">
-            <button
-              onClick={() => onCopy(fullModel, `model-${modelId}`)}
-              className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary"
-            >
-              <span className="material-symbols-outlined text-sm">
-                {copied === `model-${modelId}` ? "check" : "content_copy"}
-              </span>
-            </button>
-            <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-              {copied === `model-${modelId}` ? "Copied!" : "Copy"}
-            </span>
-          </div>
-          {onTest && (
-            <div className="relative group/btn">
-              <button
-                onClick={onTest}
-                disabled={isTesting}
-                className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors"
-              >
-                <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-                  {isTesting ? "progress_activity" : "science"}
-                </span>
-              </button>
-              <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                {isTesting ? "Testing..." : "Test"}
-              </span>
-            </div>
-          )}
-        </div>
+        <code className="mt-1 block break-all text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
       </div>
 
-      {/* Delete button */}
-      <button
-        onClick={onDeleteAlias}
-        className="p-1 hover:bg-red-50 rounded text-red-500"
-        title="Remove model"
-      >
-        <span className="material-symbols-outlined text-sm">delete</span>
-      </button>
-    </div>
+      </div>
+      <div className="mt-2 flex min-h-7 items-center justify-end gap-1 border-t border-border/60 pt-1.5">
+         {onTest && <button onClick={onTest} disabled={isTesting} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={isTesting ? translate("Testing...") : translate("Test")}><span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>{isTesting ? "progress_activity" : "science"}</span></button>}
+         <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={copied === `model-${modelId}` ? translate("Copied!") : translate("Copy")}><span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span></button>
+         <button onClick={onDeleteAlias} className="rounded p-1 text-red-500 hover:bg-red-500/10" title={translate("Delete model")}><span className="material-symbols-outlined text-sm">delete</span></button>
+      </div>
+      </div>
   );
 }
 
@@ -103,7 +72,7 @@ export default function PassthroughModelsSection({ providerAlias, modelAliases, 
     const modelId = newModel.trim();
 
     if (allModels.some((model) => model.id === modelId)) {
-      alert("Model already exists for this provider.");
+       alert(translate("Model already exists for this provider."));
       return;
     }
 
@@ -120,30 +89,28 @@ export default function PassthroughModelsSection({ providerAlias, modelAliases, 
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-text-muted">
-        OpenRouter supports any model. Add models and create aliases for quick access.
+       <p className="text-sm text-text-muted">
+         {translate("OpenRouter supports any model. Add models and create aliases for quick access.")}
       </p>
 
-      {/* Add new model */}
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <label htmlFor="new-model-input" className="text-xs text-text-muted mb-1 block">Model ID (from OpenRouter)</label>
+           <label htmlFor="new-model-input" className="text-xs text-text-muted mb-1 block">{translate("Model ID (from OpenRouter)")}</label>
           <input
             id="new-model-input"
             type="text"
             value={newModel}
             onChange={(e) => setNewModel(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            placeholder="anthropic/claude-3-opus"
+             placeholder={translate("anthropic/claude-3-opus")}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
           />
         </div>
         <Button size="sm" icon="add" onClick={handleAdd} disabled={!newModel.trim() || adding}>
-          {adding ? "Adding..." : "Add"}
+           {adding ? translate("Adding...") : translate("Add")}
         </Button>
       </div>
 
-      {/* Models list */}
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
           {allModels.map(({ id, fullModel, alias, source }) => (

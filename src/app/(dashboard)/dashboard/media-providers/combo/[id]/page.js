@@ -222,7 +222,6 @@ export default function ComboDetailPage() {
     return out;
   }
 
-  if (loading) return <div className="text-text-muted text-sm">Loading...</div>;
   if (!combo) return notFound();
 
   const kindLabel = KIND_LABELS[combo.kind] || MEDIA_PROVIDER_KINDS.find((k) => k.id === combo.kind)?.label || "Combo";

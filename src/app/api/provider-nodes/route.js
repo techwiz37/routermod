@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createProviderNode, getProviderNodes } from "@/models";
 import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX } from "@/shared/constants/providers";
 import { generateId } from "@/shared/utils";
+import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
 
 export const dynamic = "force-dynamic";
 
@@ -17,34 +18,35 @@ const CUSTOM_EMBEDDING_DEFAULTS = {
   baseUrl: "https://api.openai.com/v1",
 };
 
-export async function GET() {
+export async function GET(request) {
   try {
     const nodes = await getProviderNodes();
     return NextResponse.json({ nodes });
   } catch (error) {
     console.log("Error fetching provider nodes:", error);
-    return NextResponse.json({ error: "Failed to fetch provider nodes" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(getRequestLocale(request), "failedFetchNodes") }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
+    const locale = getRequestLocale(request);
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl, type } = body;
+    const { name, prefix, apiType, baseUrl, systemPrompt, type } = body;
 
     if (!name?.trim()) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "nameRequired") }, { status: 400 });
     }
 
     if (!prefix?.trim()) {
-      return NextResponse.json({ error: "Prefix is required" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "nameRequired") }, { status: 400 });
     }
 
     const nodeType = type || "openai-compatible";
 
     if (nodeType === "openai-compatible") {
       if (!apiType || !["chat", "responses"].includes(apiType)) {
-        return NextResponse.json({ error: "Invalid OpenAI compatible API type" }, { status: 400 });
+        return NextResponse.json({ error: localizedProviderMessage(locale, "invalidNodeType") }, { status: 400 });
       }
 
       const node = await createProviderNode({
@@ -54,6 +56,7 @@ export async function POST(request) {
         apiType,
         baseUrl: (baseUrl || OPENAI_COMPATIBLE_DEFAULTS.baseUrl).trim(),
         name: name.trim(),
+        systemPrompt: systemPrompt || null,
       });
       return NextResponse.json({ node }, { status: 201 });
     }
@@ -70,6 +73,7 @@ export async function POST(request) {
         prefix: prefix.trim(),
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
+        systemPrompt: systemPrompt || null,
       });
       return NextResponse.json({ node }, { status: 201 });
     }
@@ -86,13 +90,14 @@ export async function POST(request) {
         prefix: prefix.trim(),
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
+        systemPrompt: systemPrompt || null,
       });
       return NextResponse.json({ node }, { status: 201 });
     }
 
-    return NextResponse.json({ error: "Invalid provider node type" }, { status: 400 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "invalidNodeType") }, { status: 400 });
   } catch (error) {
     console.log("Error creating provider node:", error);
-    return NextResponse.json({ error: "Failed to create provider node" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(getRequestLocale(request), "failedCreateNode") }, { status: 500 });
   }
 }

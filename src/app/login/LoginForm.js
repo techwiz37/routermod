@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { LOCALE_COOKIE } from "@/i18n/config";
-import StarField from "@/shared/components/StarField";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { DEFAULT_LOCALE, LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
+import { onLocaleChange } from "@/i18n/runtime";
+import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import AntaresFooter from "@/shared/components/AntaresFooter";
-
-const APP_VERSION = "0.1.0";
-const GITHUB_URL = "https://github.com/techwiz37/routermod";
+import RecentRequestsMonitor from "./RecentRequestsMonitor";
+import StarField from "@/shared/components/StarField";
+import Soft3DLogo from "@/shared/components/Soft3DLogo";
 
 const I18N = {
   id: {
@@ -19,12 +21,12 @@ const I18N = {
     desc: "Gateway AI privat untuk Claude, OpenAI, Gemini, DeepSeek, Grok, dan Ollama. Failover otomatis, efisiensi token, dan seluruh data tetap di server Anda sendiri.",
     metaLoading: "Memuat statistik...",
     badgeGateway: "Konsol admin terenkripsi",
-    cardTitle: "Login Dashboard",
+    cardTitle: "Masuk ke Dashboard",
     pwdLabel: "Password administrator",
     show: "Lihat password",
     hide: "Sembunyikan password",
     btnSubmit: "Masuk ke dashboard",
-    btnLoading: "Memverifikasi",
+    btnLoading: "Memverifikasi...",
     orDivider: "atau",
     defaultPwdText: "Password bawaan",
     defaultPwdVal: "merdeka",
@@ -42,11 +44,22 @@ const I18N = {
     pwdChangeFailed: "Gagal menyimpan password baru. Silakan coba lagi.",
     loginSuccess: "Berhasil masuk. Mengalihkan ke dashboard...",
     compareTitle: "Apa Bedanya Dengan 9Router?",
-    faqDesc: "RouterMod dibuat biar tampilannya jauh lebih responsif di semua layout (HP, tablet, sampai layar gede), lebih adem di mata, serta ada beberapa penambahan fitur.",
-    faqRequestHint: "Mau request fitur baru atau ngasih masukan? Langsung gas ke repo GitHub RouterMod:",
-    faqRepoBtn: "Buka Repo RouterMod",
-    footerMeta: "Server lokal · privat",
-    github: "GitHub",
+    footerMeta: "Server lokal + privat",
+    ssoLogin: "Masuk via SSO",
+    oidcLogin: "Masuk via OIDC",
+    samlLogin: "Masuk via SAML",
+    logoutAndLogin: "Logout & login ulang",
+    noAuthConfigured: "Tidak ada metode autentikasi yang dikonfigurasi.",
+    checkingAuth: "Memeriksa otentikasi...",
+    errorParam: "Kesalahan autentikasi",
+    tagline1: "Satu endpoint.",
+    tagline2: "Semua model AI.",
+    versionBadge: "v2",
+    featureItems: [
+      { icon: "shield_lock", text: "Enkripsi end-to-end" },
+      { icon: "bolt", text: "Failover otomatis" },
+      { icon: "storage", text: "Data di server Anda" },
+    ],
   },
   en: {
     systemTitle: "RouterMod",
@@ -58,12 +71,12 @@ const I18N = {
     desc: "A private AI gateway for Claude, OpenAI, Gemini, DeepSeek, Grok, and Ollama. Automatic failover, token efficiency, and every byte of data stays on your own server.",
     metaLoading: "Loading stats...",
     badgeGateway: "Encrypted admin console",
-    cardTitle: "Login Dashboard",
+    cardTitle: "Sign in to Dashboard",
     pwdLabel: "Administrator password",
     show: "Show password",
     hide: "Hide password",
     btnSubmit: "Open dashboard",
-    btnLoading: "Verifying",
+    btnLoading: "Verifying...",
     orDivider: "or",
     defaultPwdText: "Default password",
     defaultPwdVal: "merdeka",
@@ -76,421 +89,369 @@ const I18N = {
     newPwdLabel: "New password",
     btnSavePwd: "Save and continue",
     loginFailed: "Incorrect password. Please double-check.",
-    serverError: "Couldn't reach the server. Please try again shortly.",
-    pwdChangeSuccess: "Password updated. Redirecting...",
-    pwdChangeFailed: "Failed to update password. Please try again.",
-    loginSuccess: "Signed in. Redirecting to dashboard...",
-    compareTitle: "What's the difference with 9Router?",
-    faqDesc: "RouterMod is made to be way more responsive across every layout (phones, tablets, and large screens), easier on the eyes, and packed with extra built-in features.",
-    faqRequestHint: "Want to request a feature or share feedback? Hop directly into the RouterMod GitHub repo:",
-    faqRepoBtn: "View RouterMod on GitHub",
-    footerMeta: "Local server · private",
-    github: "GitHub",
+    serverError: "Could not reach the server. Please try again later.",
+    pwdChangeSuccess: "Password updated successfully. Redirecting...",
+    pwdChangeFailed: "Failed to save new password. Please try again.",
+    loginSuccess: "Login successful. Redirecting to dashboard...",
+    compareTitle: "What is different from 9Router?",
+    footerMeta: "Local plus private server",
+    ssoLogin: "Sign in with SSO",
+    oidcLogin: "Sign in with OIDC",
+    samlLogin: "Sign in with SAML",
+    logoutAndLogin: "Logout and sign in again",
+    noAuthConfigured: "No authentication method is configured.",
+    checkingAuth: "Checking authentication...",
+    errorParam: "Authentication error",
+    tagline1: "One endpoint.",
+    tagline2: "Every AI model.",
+    versionBadge: "v2",
+    featureItems: [
+      { icon: "shield_lock", text: "End-to-end encryption" },
+      { icon: "bolt", text: "Automatic failover" },
+      { icon: "storage", text: "Data on your server" },
+    ],
   },
 };
 
-function getSavedLocale() {
-  if (typeof document === "undefined") return "id";
-  const cookie = document.cookie.split(";").find((c) => c.trim().startsWith(`${LOCALE_COOKIE}=`));
-  const val = cookie ? decodeURIComponent(cookie.split("=")[1]) : "";
-  if (val === "en" || val === "id") return val;
-  const ls = localStorage.getItem("app_locale");
-  return ls === "en" ? "en" : "id";
+function getLocaleFromCookie() {
+  if (typeof document === "undefined") return DEFAULT_LOCALE;
+  const cookieName = LOCALE_COOKIE + "=";
+  const cookie = document.cookie
+    .split(";")
+    .find((c) => c.trim().startsWith(cookieName));
+  const value = cookie
+    ? decodeURIComponent(cookie.split("=")[1])
+    : DEFAULT_LOCALE;
+  return normalizeLocale(value);
 }
 
-function pwdScore(pw) {
-  if (!pw) return 0;
-  let s = 0;
-  if (pw.length >= 8) s++;
-  if (pw.length >= 12) s++;
-  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
-  if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) s++;
-  return Math.min(s, 4);
+function getPasswordStrength(pwd) {
+  if (!pwd || pwd.length === 0) return { score: 0, labelKey: "strengthWeak" };
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (pwd.length >= 12) score++;
+  if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++;
+  if (/\d/.test(pwd)) score++;
+  if (/[^a-zA-Z0-9]/.test(pwd)) score++;
+  score = Math.min(score, 3);
+  const labels = { 1: "strengthWeak", 2: "strengthMedium", 3: "strengthStrong" };
+  return { score, labelKey: labels[score] || "strengthWeak" };
 }
 
-function fmtResp(ms) {
-  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return null;
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  return `${(ms / 1000).toFixed(2)} s`;
-}
-
-function Spinner() {
+function StrengthBar({ score }) {
   return (
-    <svg className="size-[15px] animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-      <path fill="currentColor" d="M4 12a8 8 0 0 1 8-8v3.5A4.5 4.5 0 0 0 7.5 12H4z" />
-    </svg>
+    <div className="lf-str-bar">
+      {[1, 2, 3].map((i) => (
+        <span
+          key={i}
+          className="lf-str-seg"
+          data-active={i <= score ? "1" : "0"}
+          data-level={score === 1 ? "weak" : score === 2 ? "mid" : "strong"}
+        />
+      ))}
+    </div>
   );
 }
 
 export default function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showPwd, setShowPwd] = useState(false);
+  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [pwdChangeMode, setPwdChangeMode] = useState(false);
+  const [pwdChangeSuccess, setPwdChangeSuccess] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [authStatus, setAuthStatus] = useState(null);
   const [locale, setLocale] = useState("id");
 
-  const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [authMode, setAuthMode] = useState("password");
-  const [ssoType, setSsoType] = useState("oidc");
-  const [oidcConfigured, setOidcConfigured] = useState(false);
-  const [oidcLoginLabel, setOidcLoginLabel] = useState("Sign in with OIDC");
-  const [samlConfigured, setSamlConfigured] = useState(false);
-  const [samlLoginLabel, setSamlLoginLabel] = useState("Sign in with SAML SSO");
-  const [mustChange, setMustChange] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [showNewPwd, setShowNewPwd] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
-  const [stats, setStats] = useState(null);
-  const [httpMs, setHttpMs] = useState(null);
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [failFlash, setFailFlash] = useState(false);
-  const [successFlash, setSuccessFlash] = useState(false);
-
-  const t = I18N[locale] || I18N.id;
-  const newScore = useMemo(() => pwdScore(newPassword), [newPassword]);
-  const strengthText =
-    newScore >= 3 ? t.strengthStrong : newScore === 2 ? t.strengthMedium : t.strengthWeak;
-
   useEffect(() => {
-    setLocale(getSavedLocale());
+    setLocale(getLocaleFromCookie());
+    return onLocaleChange(() => setLocale(getLocaleFromCookie()));
   }, []);
 
-  const switchLocale = (next) => {
-    setLocale(next);
-    if (typeof document !== "undefined") {
-      document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; SameSite=Lax`;
-      localStorage.setItem("app_locale", next);
-    }
-  };
-
   useEffect(() => {
-    async function checkAuth() {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
+    const loadAuthStatus = async () => {
       try {
-        const res = await fetch(`${baseUrl}/api/auth/status`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
+        const res = await fetch("/api/auth/status", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
-          if (data.authenticated === true || data.requireLogin === false) {
-            window.location.assign("/dashboard");
+          setAuthStatus(data);
+          if (data.authenticated || data.requireLogin === false) {
+            router.replace("/dashboard");
             return;
           }
-          setAuthMode(data.authMode || "password");
-          setSsoType(data.ssoType || "oidc");
-          setOidcConfigured(data.oidcConfigured === true);
-          setOidcLoginLabel(data.oidcLoginLabel || "Sign in with OIDC");
-          setSamlConfigured(data.samlConfigured === true);
-          setSamlLoginLabel(data.samlLoginLabel || "Sign in with SAML SSO");
-        }
-      } catch (err) {
-        clearTimeout(timeoutId);
-      }
-    }
-    checkAuth();
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-      const startedAt = Date.now();
-      try {
-        const res = await fetch(`${baseUrl}/api/public/stats`, { cache: "no-store" });
-        const elapsed = Date.now() - startedAt;
-        if (!alive) return;
-        setHttpMs(elapsed);
-        if (res.ok) {
-          const data = await res.json();
-          if (alive) setStats(data);
         }
       } catch {
-        if (alive) setHttpMs(Date.now() - startedAt);
+        setAuthStatus({
+          requireLogin: true,
+          authMode: "password",
+          hasPassword: true,
+          authenticated: false,
+        });
       }
-    })();
-    return () => {
-      alive = false;
+      setLoading(false);
     };
-  }, []);
+    loadAuthStatus();
+  }, [router, searchParams]);
 
-  const handleLogin = async (e) => {
+  const t = I18N[locale] || I18N.id;
+  const pwdStrength = getPasswordStrength(newPassword);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!password) return;
+    setErrorMsg("");
     setLoading(true);
-    setError("");
-    setSuccessMsg("");
-
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok) {
-        if (data.mustChangePassword) {
-          setMustChange(true);
-          return;
-        }
-        setSuccessMsg(t.loginSuccess);
-        setSuccessFlash(true);
-        setTimeout(() => window.location.assign("/dashboard"), 1400);
-      } else {
-        if (data.mustChangePassword) {
-          setMustChange(true);
-          return;
-        }
-        setError(data.error || t.loginFailed);
-        setFailFlash(true);
-        setTimeout(() => setFailFlash(false), 1400);
+      const data = await res.json();
+      if (data.mustChangePassword) {
+        setPwdChangeMode(true);
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      setError(t.serverError);
-      setFailFlash(true);
-      setTimeout(() => setFailFlash(false), 1400);
-    } finally {
+      if (res.ok && data.success) {
+        setLoginSuccess(true);
+        setTimeout(() => router.replace("/dashboard"), 1200);
+      } else {
+        setErrorMsg(data.error || t.loginFailed);
+        setLoading(false);
+      }
+    } catch {
+      setErrorMsg(t.serverError);
       setLoading(false);
     }
   };
 
-  const handleSetNewPassword = async (e) => {
+  const handlePwdChange = async (e) => {
     e.preventDefault();
+    if (!newPassword) return;
     setLoading(true);
-    setError("");
-    setSuccessMsg("");
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: password, newPassword }),
+        body: JSON.stringify({ newPassword }),
       });
       if (res.ok) {
-        setSuccessMsg(t.pwdChangeSuccess);
-        setSuccessFlash(true);
-        setTimeout(() => window.location.assign("/dashboard"), 1400);
+        setPwdChangeSuccess(true);
+        setTimeout(() => router.replace("/dashboard"), 1500);
       } else {
-        const data = await res.json();
-        setError(data.error || t.pwdChangeFailed);
+        const data = await res.json().catch(() => ({}));
+        setErrorMsg(data.error || t.pwdChangeFailed);
+        setLoading(false);
       }
-    } catch (err) {
-      setError(t.serverError);
-    } finally {
+    } catch {
+      setErrorMsg(t.serverError);
       setLoading(false);
     }
   };
 
-  const isSsoEnabled = ["sso", "oidc", "saml", "both"].includes(authMode);
-  const activeSsoType = ssoType || (authMode === "saml" ? "saml" : "oidc");
-  const samlAvailable = isSsoEnabled && activeSsoType === "saml" && samlConfigured;
-  const oidcAvailable = isSsoEnabled && activeSsoType === "oidc" && oidcConfigured;
-  const passwordAvailable =
-    authMode === "password" || authMode === "both" || (!samlAvailable && !oidcAvailable);
+  const handleLogoutAndLogin = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+    setPassword("");
+    setPwdChangeMode(false);
+    setPwdChangeSuccess(false);
+    router.replace("/login");
+  };
 
-  const respMs = stats && typeof stats.avgLatencyMs === "number" ? stats.avgLatencyMs : httpMs;
-  const respText = fmtResp(respMs);
-  const metaText =
-    stats && respText
-      ? locale === "en"
-        ? `${stats.models} models · ${stats.providers} providers · avg response ${respText}`
-        : `${stats.models} model · ${stats.providers} provider · rata-rata respon ${respText}`
-      : null;
+  if (!authStatus) {
+    return (
+      <div className="an-scope login-skin lf-root">
+        <div className="login-bg">
+          <StarField />
+          <div className="login-fade" />
+        </div>
+        <div className="lf-loading-wrap">
+          <Soft3DLogo className="size-10" />
+          <div className="lf-loading-dots">
+            <span /><span /><span />
+          </div>
+          <p className="lf-loading-text">{t.checkingAuth}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const showPasswordForm =
+    authStatus.authMode === "password" ||
+    authStatus.authMode === "sso" ||
+    authStatus.authMode === "saml";
+  const showChangePassword = pwdChangeMode;
+  const showOIDC = authStatus.authMode === "oidc";
+  const showSAML = authStatus.authMode === "saml";
 
   return (
-    <div className="login-skin relative min-h-screen w-full overflow-x-hidden antialiased selection:bg-[var(--t-accent)] selection:text-white">
-      <div aria-hidden className="login-bg">
+    <div className="an-scope login-skin lf-root">
+      <div className="login-bg">
         <StarField />
         <div className="login-fade" />
       </div>
 
-      <div className="relative z-10 flex min-h-screen w-full flex-col">
-        {/* ---- Header ---- */}
-        <header className="an-header">
-          <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 md:h-16 md:gap-6 md:px-5 lg:px-6">
-            <a href="#top" aria-label={`${t.systemTitle}, kembali ke atas`} className="inline-flex items-center gap-2.5">
-              <span className="an-logo">
-                <span className="material-symbols-outlined">hub</span>
-              </span>
-              <span className="an-name">{t.systemTitle}</span>
-              <span className="an-badge an-hide-sm">v{APP_VERSION}</span>
-            </a>
+      <div className="fixed top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--t-accent)] to-transparent z-50 pointer-events-none" />
 
-            <div className="flex items-center gap-2">
-              <a
-                href={GITHUB_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`${t.systemTitle} di GitHub`}
-                title={`${t.systemTitle} di GitHub`}
-                className="an-iconbtn an-hide-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
-                  <path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z" />
-                </svg>
-              </a>
-
-              <div role="radiogroup" aria-label="Bahasa" className="flex gap-1 rounded-full border border-[var(--t-line)] bg-[var(--t-card)] p-1">
-                {["id", "en"].map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    role="radio"
-                    aria-checked={locale === l}
-                    onClick={() => switchLocale(l)}
-                    aria-label={l === "id" ? "Bahasa Indonesia" : "English"}
-                    className={`inline-flex h-8 items-center gap-2 rounded-full px-3.5 text-[13px] transition-colors ${
-                      locale === l
-                        ? "bg-[var(--t-raised)] text-[var(--t-ink)]"
-                        : "text-[var(--t-muted)] hover:text-[var(--t-ink)]"
-                    }`}
-                  >
-                    {locale === l && <span aria-hidden className="size-1.5 rounded-full bg-[var(--t-accent)]" />}
-                    {l}
-                  </button>
-                ))}
-              </div>
+      <div className="lf-shell">
+        <header className="lf-header sk-anim" style={{ animationDelay: "0.05s" }}>
+          <div className="lf-brand">
+            <Soft3DLogo className="size-11" />
+            <div>
+              <h1 className="lf-brand-name">{t.systemTitle}</h1>
+              <p className="lf-brand-sub">{t.systemSub}</p>
             </div>
+          </div>
+          <div className="lf-header-right">
+            <span className="lf-version-badge">{t.versionBadge}</span>
+            <LanguageSwitcher hideTrigger={true} />
           </div>
         </header>
 
-        {/* ---- Hero ---- */}
-        <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden">
-          <div className="relative mx-auto w-full max-w-[1400px] px-4 pt-14 pb-10 md:px-5 md:pt-20 md:pb-14 lg:px-6">
-            <p className="an-eyebrow sk-anim">
-              <span className="an-dot" />
-              {t.heroBadge} · v{APP_VERSION}
-            </p>
-            <h1 id="hero-title" className="an-h1 sk-anim mt-5 max-w-[16ch]">
-              {t.heroLine1}
-              <span className="an-dim block">{t.heroLine2}</span>
-            </h1>
-            <p className="sk-anim mt-5 max-w-[46ch] text-[16px] leading-relaxed text-[var(--t-muted)] md:text-[17px]">
-              {t.desc}
-            </p>
-            <p className="an-meta sk-anim mt-6">
-              {metaText || <span className="an-meta-load">{t.metaLoading}</span>}
-            </p>
-          </div>
-        </section>
+        <main className="lf-main">
+          <div className="lf-top sk-anim" style={{ animationDelay: "0.15s" }}>
 
-        {/* ---- Main: login + side ---- */}
-        <main className="mx-auto w-full max-w-[1400px] px-4 pb-16 md:px-5 lg:px-6">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-            {/* Login card */}
-            <div id="sr-login" className="an-card sk-anim scroll-mt-20">
-              <div className="an-card-head">
-                <span className="an-card-title">
-                  <span className="an-ic an-ic-sm" aria-hidden>
-                    <span className="material-symbols-outlined">login</span>
-                  </span>
-                  {mustChange ? t.changePwdTitle : t.cardTitle}
-                </span>
+            {!showChangePassword && (
+              <div className="lf-hero">
+                <p className="lf-hero-eyebrow">
+                  <span className="an-dot ok" />
+                  {t.badgeGateway}
+                </p>
+                <h2 className="lf-hero-headline">
+                  <span>{t.tagline1}</span>
+                  <span className="lf-hero-accent">{t.tagline2}</span>
+                </h2>
+                <p className="lf-hero-desc">{t.desc}</p>
+                <div className="lf-features">
+                  {(t.featureItems || []).map((f) => (
+                    <div key={f.icon} className="lf-feature-chip">
+                      <span className="material-symbols-outlined lf-feature-icon">{f.icon}</span>
+                      {f.text}
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
 
-              <div className="p-5 md:p-7 relative">
-                {mustChange && (
-                  <p className="mb-6 max-w-[54ch] text-[14.5px] leading-relaxed text-[var(--t-muted)]">
-                    {t.changePwdDesc}
-                  </p>
-                )}
-
-                {!mustChange && error && <p className="an-msg err mb-4">{error}</p>}
-                {!mustChange && successMsg && <p className="an-msg ok mb-4">{successMsg}</p>}
-
-                {mustChange ? (
-                  <form onSubmit={handleSetNewPassword} className="mt-6 flex flex-col gap-4">
+            {showChangePassword ? (
+              <div className="an-card lf-card sk-anim" style={{ animationDelay: "0.2s" }}>
+                <div className="an-card-head">
+                  <div className="flex items-center gap-3">
+                    <span className="an-ic">
+                      <span className="material-symbols-outlined">lock_reset</span>
+                    </span>
+                    <h3 className="an-card-title">{t.changePwdTitle}</h3>
+                  </div>
+                </div>
+                <div className="lf-card-body">
+                  <p className="lf-card-desc">{t.changePwdDesc}</p>
+                  <form onSubmit={handlePwdChange} className="lf-form">
                     <div>
-                      <label htmlFor="sk-newpwd" className="an-label">
-                        {t.newPwdLabel}
-                      </label>
+                      <label htmlFor="new-password" className="an-label">{t.newPwdLabel}</label>
                       <div className="an-field">
                         <span className="fi">
                           <span className="material-symbols-outlined">lock</span>
                         </span>
                         <input
-                          id="sk-newpwd"
-                          type={showNewPwd ? "text" : "password"}
+                          id="new-password"
+                          type={showPwd ? "text" : "password"}
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           required
-                          autoFocus
                           autoComplete="new-password"
                           className="an-input eye"
+                          minLength={8}
+                          autoFocus
                         />
                         <button
                           type="button"
-                          onClick={() => setShowNewPwd((v) => !v)}
-                          aria-label={showNewPwd ? t.hide : t.show}
-                          title={showNewPwd ? t.hide : t.show}
+                          onClick={() => setShowPwd((v) => !v)}
+                          aria-label={showPwd ? t.hide : t.show}
                           className="an-eye"
                         >
                           <span className="material-symbols-outlined">
-                            {showNewPwd ? "visibility_off" : "visibility"}
+                            {showPwd ? "visibility_off" : "visibility"}
                           </span>
                         </button>
                       </div>
+                      {newPassword.length > 0 && (
+                        <div className="lf-str-row">
+                          <StrengthBar score={pwdStrength.score} />
+                          <span className="lf-str-label">{t[pwdStrength.labelKey]}</span>
+                        </div>
+                      )}
                     </div>
-
-                    <div className="an-str">
-                      <span className="bars" aria-hidden>
-                        {[1, 2, 3, 4].map((i) => (
-                          <span key={i} style={{ background: newScore >= i ? "var(--t-accent)" : "var(--t-line)" }} />
-                        ))}
-                      </span>
-                      <span className="lbl">
-                        {t.strengthLabel}: <strong>{strengthText}</strong>
-                      </span>
-                    </div>
-
-                    {error && <p className="an-msg err">{error}</p>}
-                    {successMsg && <p className="an-msg ok">{successMsg}</p>}
-
-                    <button type="submit" disabled={loading || !newPassword} className="an-btn an-primary an-full">
-                      {loading && <Spinner />}
+                    <button
+                      type="submit"
+                      disabled={loading || pwdStrength.score < 1}
+                      className="an-btn an-primary an-full lf-submit-btn"
+                    >
+                      {loading && (
+                        <span className="material-symbols-outlined lf-spin">autorenew</span>
+                      )}
                       {loading ? t.btnLoading : t.btnSavePwd}
-                      {!loading && <span className="material-symbols-outlined">arrow_right</span>}
                     </button>
                   </form>
-                ) : (
-                  <div className="mt-6 flex flex-col gap-4">
-                    {samlAvailable && (
-                      <button
-                        type="button"
-                        onClick={() => (window.location.href = "/api/auth/saml/start")}
-                        className="an-btn an-ghost an-full"
-                      >
-                        <span className="material-symbols-outlined">shield</span>
-                        {samlLoginLabel}
-                      </button>
-                    )}
+                  {pwdChangeSuccess && (
+                    <div className="an-msg ok lf-msg-ok">
+                      <span className="material-symbols-outlined" style={{ fontSize: 15 }}>check_circle</span>
+                      {t.pwdChangeSuccess}
+                    </div>
+                  )}
+                  {errorMsg && !pwdChangeSuccess && (
+                    <div className="lf-error-msg">
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>error</span>
+                      {errorMsg}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="an-card lf-card sk-anim" style={{ animationDelay: "0.2s" }}>
+                <div className="an-card-head">
+                  <div className="flex items-center gap-3">
+                    <span className="an-ic">
+                      <span className="material-symbols-outlined">shield_lock</span>
+                    </span>
+                    <div>
+                      <h3 className="an-card-title">{t.cardTitle}</h3>
+                    </div>
+                  </div>
+                </div>
 
-                    {oidcAvailable && (
-                      <button
-                        type="button"
-                        onClick={() => (window.location.href = "/api/auth/oidc/start")}
-                        className="an-btn an-ghost an-full"
-                      >
-                        <span className="material-symbols-outlined">account_circle</span>
-                        {oidcLoginLabel}
-                      </button>
-                    )}
+                <div className="lf-card-body">
+                  {showOIDC && (
+                    <a
+                      href="/api/auth/oidc/start"
+                      className="an-btn an-primary an-full lf-sso-btn"
+                    >
+                      <span className="material-symbols-outlined">open_in_browser</span>
+                      {t.oidcLogin}
+                    </a>
+                  )}
+                  {showSAML && (
+                    <a
+                      href="/api/auth/saml/start"
+                      className="an-btn an-primary an-full lf-sso-btn"
+                    >
+                      <span className="material-symbols-outlined">security</span>
+                      {t.samlLogin}
+                    </a>
+                  )}
 
-                    {(samlAvailable || oidcAvailable) && (
-                      <div className="flex items-center gap-4 font-mono text-[12px] uppercase tracking-[0.14em] text-[var(--t-dim)]">
-                        <span className="h-px flex-1 bg-[var(--t-line)]" />
-                        {t.orDivider}
-                        <span className="h-px flex-1 bg-[var(--t-line)]" />
-                      </div>
-                    )}
-
-                    {passwordAvailable && (
-                      <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                  {showPasswordForm &&
+                    authStatus.hasPassword &&
+                    authStatus.authMode === "password" && (
+                      <form onSubmit={handleSubmit} className="lf-form">
                         <div>
-                          <label htmlFor="sk-password" className="an-label">
-                            {t.pwdLabel}
-                          </label>
+                          <label htmlFor="sk-password" className="an-label">{t.pwdLabel}</label>
                           <div className="an-field">
                             <span className="fi">
                               <span className="material-symbols-outlined">lock</span>
@@ -499,7 +460,10 @@ export default function LoginForm() {
                               id="sk-password"
                               type={showPwd ? "text" : "password"}
                               value={password}
-                              onChange={(e) => setPassword(e.target.value)}
+                              onChange={(e) => {
+                                setPassword(e.target.value);
+                                if (errorMsg) setErrorMsg("");
+                              }}
                               required
                               autoFocus
                               autoComplete="current-password"
@@ -509,7 +473,6 @@ export default function LoginForm() {
                               type="button"
                               onClick={() => setShowPwd((v) => !v)}
                               aria-label={showPwd ? t.hide : t.show}
-                              title={showPwd ? t.hide : t.show}
                               className="an-eye"
                             >
                               <span className="material-symbols-outlined">
@@ -517,90 +480,50 @@ export default function LoginForm() {
                               </span>
                             </button>
                           </div>
+                          {errorMsg && (
+                            <div className="lf-error-msg">
+                              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>error</span>
+                              {errorMsg}
+                            </div>
+                          )}
                         </div>
 
-                        <button type="submit" disabled={loading} className="an-btn an-primary an-full">
-                          {loading && <Spinner />}
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="an-btn an-primary an-full lf-submit-btn"
+                        >
+                          {loading && (
+                            <span className="material-symbols-outlined lf-spin">autorenew</span>
+                          )}
                           {loading ? t.btnLoading : t.btnSubmit}
-                          {!loading && <span className="material-symbols-outlined">arrow_right</span>}
+                          {!loading && (
+                            <span className="material-symbols-outlined lf-arrow">arrow_forward</span>
+                          )}
                         </button>
 
-                        <p className="an-hint text-center">
-                          {t.defaultPwdText}: <code>{t.defaultPwdVal}</code>
-                        </p>
+                        {loginSuccess && (
+                          <div className="an-msg ok lf-msg-ok">
+                            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>check_circle</span>
+                            {t.loginSuccess}
+                          </div>
+                        )}
                       </form>
                     )}
-                  </div>
-                )}
-
-                {loading && (
-                  <div className="an-overlay">
-                    <Spinner />
-                    <span className="an-overlay-text">{t.btnLoading}</span>
-                  </div>
-                )}
-
-                {failFlash && (
-                  <div className="an-failflash">
-                    <span className="an-failflash-emoji">😭</span>
-                  </div>
-                )}
-
-                {successFlash && (
-                  <div className="an-successflash">
-                    <span className="an-successflash-emoji">🎉</span>
-                    <span className="an-successflash-text">{t.loginSuccess}</span>
-                  </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Side column: comparison */}
-            <div className="flex flex-col gap-6">
-              <div className="an-card">
-                <button
-                  type="button"
-                  onClick={() => setCompareOpen((v) => !v)}
-                  aria-expanded={compareOpen}
-                  className="an-dd-head"
-                >
-                  <span className="an-eyebrow">
-                    <span className="an-rule" />
-                    {t.compareTitle}
-                  </span>
-                  <span className={`an-dd-chev${compareOpen ? " on" : ""}`} aria-hidden>
-                    <span className="material-symbols-outlined">expand_more</span>
-                  </span>
-                </button>
+          </div>
 
-                {compareOpen && (
-                  <div className="an-dd-body">
-                    <p className="text-[13.5px] leading-relaxed text-[var(--t-muted)]">
-                      {t.faqDesc}
-                    </p>
-                    <div className="flex flex-col gap-2 pt-1 border-t border-[var(--t-line-soft)]">
-                      <span className="text-[11.5px] text-[var(--t-dim)]">
-                        {t.faqRequestHint}
-                      </span>
-                      <a
-                        className="an-dd-src"
-                        href={GITHUB_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {t.faqRepoBtn}
-                        <span className="material-symbols-outlined">open_in_new</span>
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="lf-bottom sk-anim" style={{ animationDelay: "0.3s" }}>
+            <RecentRequestsMonitor locale={locale} />
           </div>
         </main>
 
-        {/* ---- Footer ---- */}
-        <AntaresFooter />
+        <footer className="lf-footer sk-anim" style={{ animationDelay: "0.5s" }}>
+          <AntaresFooter />
+        </footer>
       </div>
     </div>
   );

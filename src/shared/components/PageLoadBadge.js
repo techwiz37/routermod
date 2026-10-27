@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { Skeleton } from "./Loading";
+import Soft3DLogo from "./Soft3DLogo";
+import StarField from "./StarField";
 
 export default function PageLoadBadge({ variant = "default" }) {
   const antares = variant === "antares";
@@ -10,10 +13,16 @@ export default function PageLoadBadge({ variant = "default" }) {
   const startRef = useRef(null);
   const pathname = usePathname();
 
+  // State untuk menampung apakah seluruh konten sudah siap
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
   useEffect(() => {
     startRef.current = performance.now();
     setInfo(null);
     setVisible(false);
+    setIsLoaded(false);
+    setIsHydrated(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -38,10 +47,10 @@ export default function PageLoadBadge({ variant = "default" }) {
     if (document.readyState === "complete") {
       if ("requestIdleCallback" in window) {
         const id = requestIdleCallback(done, { timeout: 3000 });
-        return () => { cancelled = true; cancelIdleCallback(id); };
+        return () => { cancelled = true; cancelIdleCallback(id); }
       }
       const t = setTimeout(done, 200);
-      return () => { cancelled = true; clearTimeout(t); };
+      return () => { cancelled = true; clearTimeout(t); }
     }
 
     window.addEventListener("load", done, { once: true });
@@ -57,10 +66,32 @@ export default function PageLoadBadge({ variant = "default" }) {
   }, [pathname]);
 
   useEffect(() => {
-    if (!visible) return;
-    const t = setTimeout(() => setVisible(false), 5000);
-    return () => clearTimeout(t);
-  }, [visible]);
+    // Set isHydrated ketika isi sudah ter-render dan hydrated
+    setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    // Set isLoaded setelah semua content ter-load dan hydrated
+    if (isHydrated) {
+      setIsLoaded(true);
+    }
+  }, [isHydrated]);
+
+  // Fungsi untuk menyembunyikan preloader dan menampilkan konten
+  useEffect(() => {
+    if (isLoaded) {
+      const hidePreloader = () => {
+        setVisible(false);
+        setIsLoaded(false); // Reset untuk halaman berikutnya
+      };
+
+      // Tunggu sebentar untuk memastikan animasi terlihat
+      const timer = setTimeout(hidePreloader, 500);
+      
+      // Cleanup jika user navigate keluar
+      return () => clearTimeout(timer);
+    }
+  }, [isLoaded]);
 
   if (!info) return null;
   return (
@@ -99,6 +130,64 @@ export default function PageLoadBadge({ variant = "default" }) {
         <span style={{ fontWeight: 700 }}>{info.ms}ms</span>
         <span style={{ opacity: 0.7 }}>· {info.label}</span>
       </div>
+    </div>
+  );
+}
+
+// Export komponen preloader utama yang akan menutup saat selesai
+export function PagePreloader({ children }) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasHydrated, setHasHydrated] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    setIsLoading(true);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (isLoading && hasHydrated) {
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, hasHydrated]);
+
+  return (
+    <div style={{ minHeight: "100%" }}>
+      {isLoading ? (
+        <div
+          className="an-scope an-shell"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "18px",
+            transition: "opacity 0.35s ease",
+            opacity: 1,
+          }}
+        >
+          <div className="an-shell-bg" aria-hidden>
+            <StarField />
+          </div>
+          <div className="lf-loading-wrap">
+            <Soft3DLogo className="size-10" />
+            <div className="lf-loading-dots">
+              <span /><span /><span />
+            </div>
+            <p className="lf-loading-text">Memuat...</p>
+          </div>
+        </div>
+      ) : null}
+      {isLoading ? null : children}
     </div>
   );
 }

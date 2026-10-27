@@ -56,10 +56,10 @@ function SkillRow({ skill }) {
             href={getSkillBlobUrl(skill.id)}
             target="_blank"
             rel="noreferrer"
-            className="an-conn-sub mt-1 inline-flex items-center gap-1 hover:!text-[var(--t-ink)] break-all"
+            className="an-conn-sub mt-1 flex items-start gap-1 min-w-0 hover:!text-[var(--t-ink)] break-all"
           >
-            {url}
-            <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+            <span className="min-w-0 break-all">{url}</span>
+            <span className="material-symbols-outlined text-[12px] shrink-0 mt-0.5">open_in_new</span>
           </a>
         </div>
       </div>

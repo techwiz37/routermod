@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCombos, createCombo, getProviderConnections } from "@/lib/localDb";
 import { buildPresetItems, PRESET_SOURCES } from "@/lib/comboPresets";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
+import { getRequestLocale, localizedComboMessage } from "@/lib/i18n/requestLocale";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function GET(request) {
     const source = parseSource(searchParams.get("source"));
     if (!source) {
       return NextResponse.json(
-        { error: "source must be 'cursor' or 'claude'" },
+        { error: localizedComboMessage(getRequestLocale(request), "invalidSource") },
         { status: 400 }
       );
     }
@@ -58,7 +59,7 @@ export async function GET(request) {
     });
   } catch (error) {
     console.log("Error previewing combo presets:", error);
-    return NextResponse.json({ error: "Failed to preview combo presets" }, { status: 500 });
+    return NextResponse.json({ error: localizedComboMessage(getRequestLocale(request), "failedPreview") }, { status: 500 });
   }
 }
 
@@ -68,7 +69,7 @@ export async function POST(request) {
     const source = parseSource(body?.source);
     if (!source) {
       return NextResponse.json(
-        { error: "source must be 'cursor' or 'claude'" },
+        { error: localizedComboMessage(getRequestLocale(request), "invalidSource") },
         { status: 400 }
       );
     }
@@ -95,6 +96,6 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error creating combo presets:", error);
-    return NextResponse.json({ error: "Failed to create combo presets" }, { status: 500 });
+    return NextResponse.json({ error: localizedComboMessage(getRequestLocale(request), "failedPresets") }, { status: 500 });
   }
 }

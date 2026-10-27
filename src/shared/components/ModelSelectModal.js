@@ -83,10 +83,10 @@ export default function ModelSelectModal({
 
   const fetchConnections = async () => {
     try {
-      const res = await fetch("/api/providers");
-      if (!res.ok) throw new Error(`Failed to fetch providers: ${res.status}`);
-      const data = await res.json();
-      setFetchedConnections(data.connections || []);
+      const providersRes = await fetch("/api/providers");
+      if (!providersRes.ok) throw new Error(`Failed to fetch providers: ${providersRes.status}`);
+      const providersData = await providersRes.json();
+      setFetchedConnections(providersData.connections || []);
     } catch (error) {
       console.error("Error fetching providers in ModelSelectModal:", error);
       setFetchedConnections([]);
@@ -211,7 +211,7 @@ export default function ModelSelectModal({
     const groups = {};
 
     const PROVIDER_AS_MODEL_KINDS = new Set(["webSearch", "webFetch"]);
-    const TYPED_KINDS = new Set(["image", "tts", "stt", "embedding", "imageToText"]);
+    const TYPED_KINDS = new Set(["image", "tts", "stt", "embedding", "imageToText", "systemone"]);
     const ALLOW_PROVIDER_FALLBACK_KINDS = new Set(["tts", "image", "webFetch"]);
 
     const filterByKind = (models) => {

@@ -21,7 +21,9 @@ const useSettingsStore = create((set, get) => ({
     set({ loading: true, error: null });
     inFlightSettingsPromise = (async () => {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch("/api/settings", {
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
         const data = await res.json();
         if (res.ok) {
           set({ settings: data, loading: false, lastFetched: Date.now() });
@@ -44,6 +46,7 @@ const useSettingsStore = create((set, get) => ({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       });
       if (!res.ok) return null;
       const updated = await res.json();

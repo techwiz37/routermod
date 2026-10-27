@@ -7,6 +7,7 @@ import { isOidcConfigured } from "@/lib/auth/oidc";
 import { isSamlConfigured } from "@/lib/auth/saml.js";
 import { checkLock, recordFail, recordSuccess, getClientIp } from "@/lib/auth/loginLimiter";
 import { isLocalRequest } from "@/dashboardGuard";
+import { getRequestLocale, localizedAuthMessage } from "@/lib/i18n/requestLocale";
 
 const RESET_HINT = "Forgot password? Reset to default via 9Router CLI → Settings → Reset Password to Default.";
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
@@ -20,11 +21,12 @@ function isTunnelRequest(request, settings) {
 
 export async function POST(request) {
   try {
+    const locale = getRequestLocale(request);
     const { password } = await request.json();
     const settings = await getSettings();
 
     if (isTunnelRequest(request, settings) && settings.tunnelDashboardAccess !== true) {
-      return NextResponse.json({ error: "Dashboard access via tunnel is disabled" }, { status: 403 });
+      return NextResponse.json({ error: localizedAuthMessage(locale, "tunnelDisabled") }, { status: 403 });
     }
 
     const storedHash = settings.password;
@@ -32,10 +34,10 @@ export async function POST(request) {
     if (settings.authMode === "sso" || settings.authMode === "saml" || settings.authMode === "oidc") {
       const ssoType = settings.ssoType || (settings.authMode === "saml" ? "saml" : "oidc");
       if (ssoType === "saml" && isSamlConfigured(settings)) {
-        return NextResponse.json({ error: "Password login is disabled. Use SAML SSO sign in." }, { status: 403 });
+        return NextResponse.json({ error: localizedAuthMessage(locale, "passwordDisabledSaml") }, { status: 403 });
       }
       if (ssoType === "oidc" && isOidcConfigured(settings)) {
-        return NextResponse.json({ error: "Password login is disabled. Use OIDC sign in." }, { status: 403 });
+        return NextResponse.json({ error: localizedAuthMessage(locale, "passwordDisabledOidc") }, { status: 403 });
       }
     }
 
@@ -54,7 +56,7 @@ export async function POST(request) {
 
       if (mustChangePassword) {
         return NextResponse.json(
-          { success: false, error: "Default password must be changed before remote access.", mustChangePassword },
+          { success: false, error: localizedAuthMessage(locale, "defaultPasswordRemote"), mustChangePassword },
           { status: 403, headers: NO_STORE_HEADERS }
         );
       }
@@ -66,10 +68,10 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { error: "Invalid password." },
+      { error: localizedAuthMessage(locale, "invalidPassword") },
       { status: 401 }
     );
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: localizedAuthMessage(getRequestLocale(request), "serverError") }, { status: 500 });
   }
 }
