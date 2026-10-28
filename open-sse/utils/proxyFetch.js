@@ -1,7 +1,6 @@
 import { Readable } from "stream";
 import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 import { dbg } from "./debugLog.js";
-import { isProxyUrlBlocked } from "./proxyTunnel.js";
 
 const originalFetch = globalThis.fetch;
 const proxyDispatchers = new Map();
@@ -254,10 +253,27 @@ async function getDispatcher(proxyUrl, insecure = false) {
 
 async function fetchWithTlsFallback(url, options, proxyUrl) {
   try {
+    // Protocol adapters may need Node's HTTP/1 transport on the direct path.
+    // Keep proxy/no-proxy resolution and strict-proxy enforcement here.
+    if (options.directFetch) {
+      if (!proxyUrl) return await options.directFetch(url, options);
+      // Opt-in: TLS-impersonating adapters (opencode free tier) that can ride
+      // the connection proxy themselves (wreq-js per-request proxy). Without
+      // this, proxied requests fall back to Node's OpenSSL ClientHello and the
+      // upstream free-tier JA4 gate answers 429 FreeUsageLimitError.
+      if (options.directFetchProxy) {
+        try {
+          return await options.directFetch(url, options, { proxyUrl });
+        } catch (err) {
+          if (err?.name !== "OpencodeTlsUnavailableError") throw err;
+          console.warn(`[ProxyFetch] directFetch unavailable (${err.message}); failing open to native proxied fetch`);
+        }
+      }
+    }
     const dispatcher = proxyUrl ? await getDispatcher(proxyUrl) : undefined;
     return await originalFetch(url, dispatcher ? { ...options, dispatcher } : options);
   } catch (err) {
-    const isStrictSsl = process.env.STRICT_SSL === "true" || process.env.STRICT_SSL === "1";
+    const isStrictSsl = options.strictTls === true || process.env.STRICT_SSL === "true" || process.env.STRICT_SSL === "1";
     if (!isStrictSsl && isTlsCertError(err)) {
       if (options.body && typeof options.body.getReader === "function" && options.body.locked) {
         throw err;
@@ -350,17 +366,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
 
   const connectionProxyUrl = resolveConnectionProxyUrl(targetUrl, proxyOptions);
   const envProxyUrl = connectionProxyUrl ? null : normalizeProxyUrl(getEnvProxyUrl(targetUrl));
-  let proxyUrl = connectionProxyUrl || envProxyUrl;
-
-  // A pool proxy the upstream already refused (403) is skipped: another round
-  // trip through it would only end in the same rejection. Env proxies are
-  // left alone — they are not part of the rotation.
-  if (connectionProxyUrl && isProxyUrlBlocked(connectionProxyUrl)) {
-    console.warn(
-      `[ProxyFetch] Proxy ${connectionProxyUrl} diblokir upstream, pakai koneksi langsung`
-    );
-    proxyUrl = null;
-  }
+  const proxyUrl = connectionProxyUrl || envProxyUrl;
 
   // MITM DNS bypass: for known MITM-intercepted hosts, resolve real IP to avoid DNS spoof
   if (shouldBypassMitmDns(targetUrl)) {
