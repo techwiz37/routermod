@@ -150,20 +150,23 @@ export async function POST(request) {
 
     const modelsUrl = `${baseUrl.replace(/\/$/, "")}/models`;
     const res = await fetchWithTimeout(modelsUrl, {
-      headers: { "Authorization": `Bearer ${apiKey}` },
+      headers: {
+        // Send both commonly used OpenAI-compatible authentication headers.
+        // Some gateways/checkers use x-api-key even when the API itself also
+        // accepts the standard Bearer header.
+        "Authorization": `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+      },
     });
 
     if (res.ok) return NextResponse.json({ valid: true });
-
-    if (res.status === 401 || res.status === 403) {
-      return NextResponse.json({ valid: false, error: "API key unauthorized" });
-    }
 
     if (modelId) {
       const chatRes = await fetchWithTimeout(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
+          "x-api-key": apiKey,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -180,6 +183,10 @@ export async function POST(request) {
         error: getChatErrorMessage(chatRes.status),
         method: "chat"
       });
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      return NextResponse.json({ valid: false, error: "API key unauthorized" });
     }
 
     return NextResponse.json({ valid: false, error: getModelsErrorMessage(res.status) });

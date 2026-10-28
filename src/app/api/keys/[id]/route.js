@@ -20,7 +20,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access } = body;
+    const { isActive, access, dailyLimit, maintenanceEnabled, maintenanceMessage, expiresInDays } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -33,6 +33,18 @@ export async function PUT(request, { params }) {
       const checked = validateKeyAccessInput(access);
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
       updateData.access = checked.value;
+    }
+    if (dailyLimit !== undefined) {
+      const limit = Number(dailyLimit);
+      if (!Number.isInteger(limit) || limit < 0) return NextResponse.json({ error: "dailyLimit must be a non-negative integer" }, { status: 400 });
+      updateData.dailyLimit = limit;
+    }
+    if (maintenanceEnabled !== undefined) updateData.maintenanceEnabled = Boolean(maintenanceEnabled);
+    if (maintenanceMessage !== undefined) updateData.maintenanceMessage = String(maintenanceMessage).trim().slice(0, 500);
+    if (expiresInDays !== undefined) {
+      const days = Number(expiresInDays);
+      if (!Number.isInteger(days) || days < 0) return NextResponse.json({ error: "expiresInDays must be a non-negative integer" }, { status: 400 });
+      updateData.expiresAt = days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
     }
 
     const updated = await updateApiKey(id, updateData);

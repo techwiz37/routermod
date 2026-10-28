@@ -43,19 +43,58 @@ export async function getModelInfo(modelStr) {
     const fullAliasTarget = Object.values(aliases).find((value) =>
       value === `${requestedProvider}/${requestedModel}`
     );
-    if (fullAliasTarget) return getModelInfoCore(Object.keys(aliases).find((key) => aliases[key] === fullAliasTarget), aliases);
+    if (fullAliasTarget) {
+      // `fullAliasTarget` is the canonical target, e.g. `agnes/agnes-2.5-flash`.
+      // Parse that value directly: passing the alias KEY (`xro/...`) back into
+      // getModelInfoCore would be treated as a provider and route to `xro`,
+      // which has no credentials.
+      const target = parseModelCore(fullAliasTarget);
+      if (target?.provider && target?.model) {
+        return { provider: target.provider, model: target.model };
+      }
+    }
+    const providerNodes = await getProviderNodes();
+    const settings = await getSettings();
+    const prefixes = settings?.providerPrefixes || {};
+    const publicPrefixToProvider = new Map();
+    for (const [providerId, prefix] of Object.entries(prefixes)) {
+      if (prefix) publicPrefixToProvider.set(String(prefix), providerId);
+    }
+    for (const node of providerNodes) {
+      if (node?.id && node?.prefix) publicPrefixToProvider.set(String(node.prefix), node.id);
+    }
     const custom = customModels.find((entry) => {
       if (!entry?.providerAlias || !entry?.id) return false;
-      if (entry.providerAlias !== requestedProvider && entry.providerAlias !== parsed.provider) return false;
-      return entry.name === requestedModel;
+      const node = providerNodes.find((candidate) => candidate.id === entry.providerAlias);
+      const publicProvider = node?.prefix || entry.providerAlias;
+      if (
+        entry.providerAlias !== requestedProvider
+        && entry.providerAlias !== parsed.provider
+        && publicProvider !== requestedProvider
+      ) return false;
+      // Custom ids are the canonical request identifiers.  Keep the name
+      // lookup as a backwards-compatible convenience for older clients.
+      return entry.id === requestedModel || entry.name === requestedModel;
     });
     if (custom) return { provider: custom.providerAlias, model: custom.id };
+    // Custom display names are accepted as identifiers too (for example
+    // `xro/claude-sonnet-5.5` where `agnes/agnes-2.5-flash` is the real model).
+    // Match the name against the provider that owns the requested public prefix.
+    const requestedCanonicalProvider = publicPrefixToProvider.get(requestedProvider) || requestedProvider;
     const namedModel = Object.entries(modelNames).find(([key, name]) => {
       const slash = key.indexOf("/");
-      return slash > 0 && key.slice(0, slash) === requestedProvider && name === requestedModel;
+      if (slash <= 0 || name !== requestedModel) return false;
+      const keyProvider = key.slice(0, slash);
+      if (keyProvider === requestedProvider) return true;
+      return (publicPrefixToProvider.get(keyProvider) || keyProvider) === requestedCanonicalProvider;
     });
     if (namedModel) {
-      return { provider: requestedProvider, model: namedModel[0].slice(requestedProvider.length + 1) };
+      const slash = namedModel[0].indexOf("/");
+      const keyProvider = namedModel[0].slice(0, slash);
+      return {
+        provider: publicPrefixToProvider.get(keyProvider) || keyProvider,
+        model: namedModel[0].slice(slash + 1),
+      };
     }
   } catch (e) {
     console.log("getModelInfo: failed to resolve custom model name:", e);

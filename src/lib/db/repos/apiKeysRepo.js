@@ -13,18 +13,33 @@ function rowToKey(row) {
     isActive: row.isActive === 1 || row.isActive === true,
     createdAt: row.createdAt,
     access: keyAccessFromColumns(row.accessRestricted, row.accessAllow),
+    dailyLimit: Math.max(0, Number(row.dailyLimit) || 0),
+    maintenanceEnabled: row.maintenanceEnabled === 1 || row.maintenanceEnabled === true,
+    maintenanceMessage: row.maintenanceMessage || "",
+    expiresAt: row.expiresAt || null,
   };
 }
 
 export async function getApiKeys() {
   const db = await getAdapter();
   const rows = db.all(`SELECT * FROM apiKeys ORDER BY createdAt ASC`);
+  const now = Date.now();
+  for (const row of rows) {
+    if (row.isActive && row.expiresAt && new Date(row.expiresAt).getTime() <= now) {
+      db.run(`UPDATE apiKeys SET isActive = 0 WHERE id = ?`, [row.id]);
+      row.isActive = 0;
+    }
+  }
   return rows.map(rowToKey);
 }
 
 export async function getApiKeyById(id) {
   const db = await getAdapter();
   const row = db.get(`SELECT * FROM apiKeys WHERE id = ?`, [id]);
+  if (row?.isActive && row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+    db.run(`UPDATE apiKeys SET isActive = 0 WHERE id = ?`, [id]);
+    row.isActive = 0;
+  }
   return rowToKey(row);
 }
 
@@ -66,8 +81,8 @@ export async function updateApiKey(id, data) {
     const merged = { ...rowToKey(row), ...data };
     const cols = keyAccessToColumns(merged.access);
     db.run(
-      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ? WHERE id = ?`,
-      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, id]
+      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, dailyLimit = ?, maintenanceEnabled = ?, maintenanceMessage = ?, expiresAt = ? WHERE id = ?`,
+      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, Math.max(0, Number(merged.dailyLimit) || 0), merged.maintenanceEnabled ? 1 : 0, merged.maintenanceMessage || null, merged.expiresAt || null, id]
     );
     result = rowToKey(db.get(`SELECT * FROM apiKeys WHERE id = ?`, [id]));
   });
@@ -82,7 +97,12 @@ export async function deleteApiKey(id) {
 
 export async function validateApiKey(key) {
   const db = await getAdapter();
-  const row = db.get(`SELECT isActive FROM apiKeys WHERE key = ?`, [key]);
+  const row = db.get(`SELECT isActive, expiresAt FROM apiKeys WHERE key = ?`, [key]);
   if (!row) return false;
+  // Let the request policy produce the explicit "expired" response before
+  // it persists the automatic switch-off.
+  if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+    return true;
+  }
   return row.isActive === 1 || row.isActive === true;
 }

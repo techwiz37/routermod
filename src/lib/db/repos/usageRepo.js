@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
+import { getProviderByAlias } from "@/shared/constants/providers.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -365,26 +366,97 @@ export async function getUsageStats(period = "all") {
 
   // Keep internal routing IDs out of the overview and show the configured
   // public/custom model name instead.
-  let modelNames = {};
-  let modelAliases = {};
-  let customModels = [];
-  try {
-    const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
-    [modelNames, modelAliases, customModels] = await Promise.all([
-      getModelNames(), getModelAliases(), getCustomModels(),
-    ]);
-  } catch {}
-  const displayModel = (provider, model) => {
+   let modelNames = {};
+   let modelAliases = {};
+   let customModels = [];
+   let providerPrefixes = {};
+   let providerNodePrefixes = {};
+    try {
+      const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
+      try { modelNames = await getModelNames(); } catch {}
+      try { modelAliases = await getModelAliases(); } catch {}
+      try { customModels = await getCustomModels(); } catch {}
+    } catch {}
+    // Keep log formatting independent from repository/module loading. The
+    // usage adapter is already connected, so read the public names directly
+    // when an alias repository is unavailable in the standalone runtime.
+    try {
+      // Always merge the persisted values. This also repairs partially loaded
+      // repository results in standalone/PM2 builds.
+      for (const row of db.all(`SELECT key, value FROM kv WHERE scope = ?`, ["modelNames"])) {
+        const key = row?.key ?? row?.[0];
+        const value = parseJson(row?.value ?? row?.[1]);
+        if (key && value != null && value !== "") modelNames[key] = value;
+      }
+    } catch {}
+    try {
+      const { getSettings } = await import("./settingsRepo.js");
+      providerPrefixes = (await getSettings())?.providerPrefixes || {};
+    } catch {}
+    try {
+      const { getProviderNodes } = await import("./nodesRepo.js");
+      for (const node of (await getProviderNodes()) || []) {
+        if (node?.id && node?.prefix) providerNodePrefixes[node.id] = String(node.prefix).trim();
+      }
+    } catch {}
+    const publicProvider = (providerKey) =>
+      providerNodePrefixes[providerKey] || providerPrefixes[providerKey] || providerKey;
+    // Usage history may contain any of these forms depending on when the
+    // request was recorded: canonical provider id (agnes), public alias
+    // (xro), or a compatible-node prefix (lrp). Resolve all of them to the
+    // configured display name used by the provider list.
+    const providerNameByPublicPrefix = {};
+    for (const [nodeId, nodeName] of Object.entries(providerNodeNameMap)) {
+      providerNameByPublicPrefix[nodeId] = nodeName;
+      if (providerNodePrefixes[nodeId]) {
+        providerNameByPublicPrefix[providerNodePrefixes[nodeId]] = nodeName;
+      }
+    }
+    for (const [alias, target] of Object.entries(modelAliases || {})) {
+      const slash = String(alias).indexOf("/");
+      if (slash <= 0 || typeof target !== "string") continue;
+      const publicPrefix = String(alias).slice(0, slash);
+      const targetProvider = target.split("/")[0];
+      const providerInfo = getProviderByAlias(targetProvider);
+      if (providerInfo?.name) {
+        providerNameByPublicPrefix[publicPrefix] = providerInfo.name;
+        providerNameByPublicPrefix[targetProvider] = providerInfo.name;
+      }
+    }
+    const displayProvider = (providerKey) => {
+      const key = String(providerKey || "");
+      const providerInfo = getProviderByAlias(key);
+      return providerNodeNameMap[key]
+        || providerNameByPublicPrefix[key]
+        || providerInfo?.name
+        || publicProvider(key);
+    };
+   const displayModel = (provider, model) => {
     const raw = String(model || "");
     const slash = raw.indexOf("/");
     const providerKey = slash > 0 ? raw.slice(0, slash) : String(provider || "");
     const modelId = slash > 0 ? raw.slice(slash + 1) : raw;
     const fullModel = `${providerKey}/${modelId}`;
-    const custom = customModels.find((entry) => entry?.providerAlias === providerKey && String(entry.id) === modelId);
-    if (custom?.name) return custom.name;
-    const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
-    return alias || modelNames[fullModel] || raw;
-  };
+      const publicKey = `${publicProvider(providerKey)}/${modelId}`;
+      const configuredName = modelNames[fullModel]
+       || modelNames[`${provider}/${modelId}`]
+       || modelNames[publicKey]
+       || Object.entries(modelAliases).find(([, value]) =>
+         value === fullModel || value === `${provider}/${modelId}` || value === publicKey
+       )?.[0]?.split("/").slice(1).join("/");
+      const name = configuredName;
+       // Request logs should show the configured/custom model ID only. The
+       // provider prefix is useful for routing, but leaks the internal/public
+       // namespace into the login monitor and makes custom IDs harder to read.
+       if (name) return name;
+      const custom = customModels.find((entry) =>
+        (entry?.providerAlias === providerKey || entry?.providerAlias === provider) && String(entry.id) === modelId
+      );
+       if (custom?.name) return custom.name;
+     const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
+     if (alias) return alias;
+     return `${publicProvider(providerKey)}/${modelId}`;
+   };
 
   const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status FROM usageHistory ORDER BY id DESC LIMIT 100`);
   const seen = new Set();
@@ -474,21 +546,23 @@ export async function getUsageStats(period = "all") {
       stats.totalCost += day.cost || 0;
 
       for (const [prov, p] of Object.entries(day.byProvider || {})) {
-        if (!stats.byProvider[prov]) stats.byProvider[prov] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
-        stats.byProvider[prov].requests += p.requests || 0;
-        stats.byProvider[prov].promptTokens += p.promptTokens || 0;
-        stats.byProvider[prov].completionTokens += p.completionTokens || 0;
-        stats.byProvider[prov].cachedTokens += p.cachedTokens || 0;
-        stats.byProvider[prov].cost += p.cost || 0;
+        const providerDisplayName = displayProvider(prov);
+        const providerStatsKey = providerDisplayName || prov;
+        if (!stats.byProvider[providerStatsKey]) stats.byProvider[providerStatsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+        stats.byProvider[providerStatsKey].requests += p.requests || 0;
+        stats.byProvider[providerStatsKey].promptTokens += p.promptTokens || 0;
+        stats.byProvider[providerStatsKey].completionTokens += p.completionTokens || 0;
+        stats.byProvider[providerStatsKey].cachedTokens += p.cachedTokens || 0;
+        stats.byProvider[providerStatsKey].cost += p.cost || 0;
       }
 
       for (const [mk, m] of Object.entries(day.byModel || {})) {
         const rawModel = m.rawModel || mk.split("|")[0];
         const provider = m.provider || mk.split("|")[1] || "";
         const statsKey = provider ? `${rawModel} (${provider})` : rawModel;
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
-        if (!stats.byModel[statsKey]) {
-          stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, lastUsed: dateKey };
+        const modelDisplayName = displayModel(provider, rawModel);
+       if (!stats.byModel[statsKey]) {
+           stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: modelDisplayName, provider: providerDisplayName, lastUsed: dateKey };
         }
         stats.byModel[statsKey].requests += m.requests || 0;
         stats.byModel[statsKey].promptTokens += m.promptTokens || 0;
@@ -502,7 +576,7 @@ export async function getUsageStats(period = "all") {
         const accountName = connectionMap[connId] || `Account ${connId.slice(0, 8)}...`;
         const rawModel = a.rawModel || "";
         const provider = a.provider || "";
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
+         const providerDisplayName = displayProvider(provider);
         const accountKey = `${rawModel} (${provider} - ${accountName})`;
         if (!stats.byAccount[accountKey]) {
           stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, connectionId: connId, accountName, lastUsed: dateKey };
@@ -518,7 +592,7 @@ export async function getUsageStats(period = "all") {
       for (const [akKey, ak] of Object.entries(day.byApiKey || {})) {
         const rawModel = ak.rawModel || "";
         const provider = ak.provider || "";
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
+         const providerDisplayName = displayProvider(provider);
         const apiKeyVal = ak.apiKey ? ak.apiKey.trim() : null;
         const keyInfo = apiKeyVal ? apiKeyMap[apiKeyVal] : null;
         const apiKeyMasked = maskApiKey(apiKeyVal);
@@ -539,7 +613,7 @@ export async function getUsageStats(period = "all") {
         const endpoint = ep.endpoint || epKey.split("|")[0] || "Unknown";
         const rawModel = ep.rawModel || "";
         const provider = ep.provider || "";
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
+         const providerDisplayName = displayProvider(provider);
         if (!stats.byEndpoint[epKey]) {
           stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, endpoint, rawModel, provider: providerDisplayName, lastUsed: dateKey };
         }
@@ -602,23 +676,24 @@ export async function getUsageStats(period = "all") {
       const completionTokens = tokens.completion_tokens || tokens.output_tokens || r.completionTokens || 0;
       const cachedTokens = tokens.cached_tokens || tokens.cache_read_input_tokens || 0;
       const entryCost = r.cost || 0;
-      const providerDisplayName = providerNodeNameMap[r.provider] || r.provider;
+       const providerDisplayName = displayProvider(r.provider);
 
       stats.totalPromptTokens += promptTokens;
       stats.totalCompletionTokens += completionTokens;
       stats.totalCachedTokens += cachedTokens;
       stats.totalCost += entryCost;
 
-      if (!stats.byProvider[r.provider]) stats.byProvider[r.provider] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
-      stats.byProvider[r.provider].requests++;
-      stats.byProvider[r.provider].promptTokens += promptTokens;
-      stats.byProvider[r.provider].completionTokens += completionTokens;
-      stats.byProvider[r.provider].cachedTokens += cachedTokens;
-      stats.byProvider[r.provider].cost += entryCost;
+       const providerStatsKey = providerDisplayName || r.provider;
+       if (!stats.byProvider[providerStatsKey]) stats.byProvider[providerStatsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+       stats.byProvider[providerStatsKey].requests++;
+       stats.byProvider[providerStatsKey].promptTokens += promptTokens;
+       stats.byProvider[providerStatsKey].completionTokens += completionTokens;
+       stats.byProvider[providerStatsKey].cachedTokens += cachedTokens;
+       stats.byProvider[providerStatsKey].cost += entryCost;
 
       const modelKey = r.provider ? `${r.model} (${r.provider})` : r.model;
       if (!stats.byModel[modelKey]) {
-        stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
+         stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: displayModel(r.provider, r.model), provider: providerDisplayName, lastUsed: r.timestamp };
       }
       stats.byModel[modelKey].requests++;
       stats.byModel[modelKey].promptTokens += promptTokens;
@@ -783,13 +858,37 @@ function formatLogDate(date = new Date()) {
   return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-export async function appendRequestLog() {}
+export async function appendRequestLog(entry = {}) {
+  // Chat requests use this lightweight logger for lifecycle entries (pending,
+  // success, and errors). Keep it backed by usageHistory so the login monitor
+  // and usage APIs read the same durable data. Token-bearing completions are
+  // also handled by saveUsageStats/saveRequestUsage; the exact timestamp and
+  // token values prevent accidental duplicate rows there.
+  const tokens = entry.tokens && typeof entry.tokens === "object" ? entry.tokens : {};
+  await saveRequestUsage({
+    provider: entry.provider || "unknown",
+    model: entry.model || "unknown",
+    connectionId: entry.connectionId || undefined,
+    apiKey: entry.apiKey || undefined,
+    endpoint: entry.endpoint || null,
+    timestamp: entry.timestamp || new Date().toISOString(),
+    tokens,
+    status: entry.status || "ok",
+    duration: entry.duration || 0,
+  });
+}
 
 export async function getRecentLogs(limit = 200) {
   try {
     const db = await getAdapter();
     const rows = db.all(
-      `SELECT timestamp, provider, model, connectionId, promptTokens, completionTokens, status, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`,
+      // Lifecycle-only rows (pending/success bookkeeping) have no token
+      // usage and must not appear in the login request feed as duplicate
+      // `0↑ 0↓` entries. Keep only rows with actual input or output tokens.
+      `SELECT timestamp, provider, model, connectionId, promptTokens, completionTokens, status, tokens
+       FROM usageHistory
+       WHERE COALESCE(promptTokens, 0) > 0 OR COALESCE(completionTokens, 0) > 0
+       ORDER BY id DESC LIMIT ?`,
       [limit],
     );
     if (!rows.length) return [];
@@ -801,17 +900,36 @@ export async function getRecentLogs(limit = 200) {
       for (const c of connections) connMap[c.id] = c.name || c.email || "";
     } catch {}
 
-    let modelNames = {};
-    let modelAliases = {};
-    let customModels = [];
-    try {
-      const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
-      [modelNames, modelAliases, customModels] = await Promise.all([
-        getModelNames(),
-        getModelAliases(),
-        getCustomModels(),
-      ]);
-    } catch {}
+     let modelNames = {};
+     let modelAliases = {};
+     let customModels = [];
+     let providerPrefixes = {};
+     let providerNodePrefixes = {};
+      try {
+        const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
+        try { modelNames = await getModelNames(); } catch {}
+        try { modelAliases = await getModelAliases(); } catch {}
+        try { customModels = await getCustomModels(); } catch {}
+      } catch {}
+      try {
+        for (const row of db.all(`SELECT key, value FROM kv WHERE scope = ?`, ["modelNames"])) {
+          const key = row?.key ?? row?.[0];
+          const value = parseJson(row?.value ?? row?.[1]);
+          if (key && value != null && value !== "") modelNames[key] = value;
+        }
+      } catch {}
+      try {
+        const { getSettings } = await import("./settingsRepo.js");
+        providerPrefixes = (await getSettings())?.providerPrefixes || {};
+      } catch {}
+      try {
+        const { getProviderNodes } = await import("./nodesRepo.js");
+        for (const node of (await getProviderNodes()) || []) {
+          if (node?.id && node?.prefix) providerNodePrefixes[node.id] = String(node.prefix).trim();
+        }
+      } catch {}
+     const publicProvider = (providerKey) =>
+       providerNodePrefixes[providerKey] || providerPrefixes[providerKey] || providerKey;
 
     const displayModel = (provider, model) => {
       const raw = String(model || "");
@@ -819,14 +937,31 @@ export async function getRecentLogs(limit = 200) {
       const providerKey = slash > 0 ? raw.slice(0, slash) : String(provider || "");
       const modelId = slash > 0 ? raw.slice(slash + 1) : raw;
       const fullModel = `${providerKey}/${modelId}`;
-      const custom = customModels.find((entry) =>
-        entry?.providerAlias === providerKey && String(entry.id) === modelId
+      const normalizedModelNames = Object.fromEntries(
+        Object.entries(modelNames).map(([key, value]) => [String(key).toLowerCase(), value])
       );
-      if (custom?.name) return `${providerKey}/${custom.name}`;
-      const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
-      if (alias) return alias;
-      return modelNames[fullModel] ? `${providerKey}/${modelNames[fullModel]}` : raw;
-    };
+       const publicKey = `${publicProvider(providerKey)}/${modelId}`;
+      const configuredName = modelNames[fullModel]
+          || modelNames[`${provider}/${modelId}`]
+          || modelNames[publicKey]
+          || normalizedModelNames[fullModel.toLowerCase()]
+          || normalizedModelNames[`${provider}/${modelId}`.toLowerCase()]
+          || normalizedModelNames[publicKey.toLowerCase()]
+          || Object.entries(modelNames).find(([key]) =>
+            String(key).toLowerCase().endsWith(`/${modelId}`.toLowerCase())
+          )?.[1]
+          || Object.entries(modelAliases).find(([, value]) =>
+            value === fullModel || value === `${provider}/${modelId}` || value === publicKey
+          )?.[0]?.split("/").slice(1).join("/");
+        if (configuredName) return configuredName;
+        const custom = customModels.find((entry) =>
+          (entry?.providerAlias === providerKey || entry?.providerAlias === provider) && String(entry.id) === modelId
+        );
+         if (custom?.name) return custom.name;
+       const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
+       if (alias) return alias;
+       return `${publicProvider(providerKey)}/${modelId}`;
+     };
 
     return rows.map((r) => {
       const ts = formatLogDate(new Date(r.timestamp));

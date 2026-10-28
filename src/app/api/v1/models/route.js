@@ -21,6 +21,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { getProviderNodes } from "@/lib/db/repos/nodesRepo.js";
 
 async function resolveQoderLiveModels(conn, provider) {
   const result = await resolveQoderModels({
@@ -362,6 +363,20 @@ export async function buildModelsList(kindFilter, options = {}) {
     console.log("Could not fetch custom models");
   }
 
+  // Provider-node prefixes are public model namespaces. The node id remains
+  // an internal ownership key used by customModels.providerAlias.
+  let providerNodePrefixes = new Map();
+  try {
+    const nodes = await getProviderNodes();
+    providerNodePrefixes = new Map(
+      nodes
+        .filter((node) => node?.id && node?.prefix)
+        .map((node) => [node.id, String(node.prefix).trim()]),
+    );
+  } catch (e) {
+    console.log("Could not fetch provider nodes");
+  }
+
   let modelAliases = {};
   try {
     modelAliases = await getModelAliases();
@@ -448,7 +463,7 @@ export async function buildModelsList(kindFilter, options = {}) {
     for (const customModel of customModels) {
       if (!customModel?.id || (customModel.type && customModel.type !== "llm")) continue;
       if (!kindFilter.includes(LLM_KIND)) continue;
-      const providerAlias = customModel.providerAlias;
+       const providerAlias = providerNodePrefixes.get(customModel.providerAlias) || customModel.providerAlias;
       if (!providerAlias) continue;
 
       const modelId = String(customModel.id).trim();
@@ -469,6 +484,8 @@ export async function buildModelsList(kindFilter, options = {}) {
 
       const staticAlias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
       const outputAlias = (
+        providerNodePrefixes.get(providerId)
+        ||
         conn?.providerSpecificData?.prefix
         || providerPrefixes?.[providerId]
         || getProviderAlias(providerId)
@@ -502,7 +519,12 @@ export async function buildModelsList(kindFilter, options = {}) {
       }
 
       const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
-      if (liveResolver && !hasExplicitEnabledModels) {
+      // Public API model discovery must never block on OAuth/provider
+      // catalogues. In particular, a restricted key only needs its already
+      // configured allow-list, while live resolvers can hang when an
+      // upstream account is suspended or unavailable. The dashboard can
+      // still request live discovery through the non-skipping path.
+      if (liveResolver && !hasExplicitEnabledModels && !skipDynamicFetch) {
         try {
           const live = await liveResolver(conn);
           if (live?.models?.length) {
@@ -588,17 +610,35 @@ export async function buildModelsList(kindFilter, options = {}) {
         if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId) || isDisabled(providerId, modelId)) continue;
 
         const staticModel = providerModels.find((m) => m.id === modelId);
-        const customModel = customModels.find((m) => m.id === modelId);
+        const customModel = customModels.find((m) => {
+          if (m?.id !== modelId) return false;
+          const alias = m.providerAlias;
+          return alias === staticAlias || alias === outputAlias || alias === providerId;
+        });
         const fullModel = `${outputAlias}/${modelId}`;
         const legacyAlias = Object.entries(modelAliases || {}).find(([, value]) =>
           value === fullModel || value === `${staticAlias}/${modelId}` || value === `${providerId}/${modelId}`
         )?.[0];
-        const displayName = customModel?.name || legacyAlias || modelNames[fullModel] || modelNames[`${staticAlias}/${modelId}`] || staticModel?.name || modelId;
-        const publicModelId = legacyAlias || (customModel?.name ? displayName : `${outputAlias}/${modelId}`);
+        const displayName = modelNames[fullModel] || modelNames[`${staticAlias}/${modelId}`] || customModel?.name || legacyAlias || staticModel?.name || modelId;
+        // The custom model id is the public/routable identifier.  The display
+        // name must never replace it: names can contain spaces or punctuation
+        // and are not necessarily accepted by the request router.
+        // A configured custom name is the public model id exposed to clients.
+        // The resolver accepts this display id and maps it back to the
+        // canonical provider/model before contacting the upstream provider.
+        const hasCustomDisplayName = Boolean(
+          modelNames[fullModel] || modelNames[`${staticAlias}/${modelId}`],
+        );
+        const publicModelId = hasCustomDisplayName
+          ? `${outputAlias}/${displayName}`
+          : (customModel ? `${outputAlias}/${modelId}` : (legacyAlias || `${outputAlias}/${modelId}`));
 
-        const model = {
-          id: publicModelId.includes("/") ? publicModelId : `${outputAlias}/${publicModelId}`,
-          object: "model",
+         const model = {
+           id: publicModelId,
+           // Dashboard-facing identifier. `id` remains the canonical public
+           // route, while this field reflects a configured custom model name.
+           display_id: `${outputAlias}/${displayName}`,
+           object: "model",
           name: displayName,
           owned_by: outputAlias,
         };
@@ -696,7 +736,11 @@ export async function GET(request) {
 
     let data = await filterModelsListForKey(
       await getKeyAccessContext(request),
-      await buildModelsList([LLM_KIND], { skipDynamicFetch })
+      // Model listing must be fast and deterministic. Live provider catalogues
+      // are refreshed by the provider dashboard/autodetect flow; waiting for
+      // every OAuth/provider endpoint here can make a valid API key appear to
+      // time out, especially when the key is restricted to a small allow-list.
+      await buildModelsList([LLM_KIND], { skipDynamicFetch: true })
     );
 
     data = capTokenLimits(data, maxCtxCap, maxOutCap);

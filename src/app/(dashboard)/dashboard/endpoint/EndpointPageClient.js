@@ -39,6 +39,12 @@ export default function APIPageClient({ machineId }) {
   const [showModelsModal, setShowModelsModal] = useState(false);
   const [fetchedModelsData, setFetchedModelsData] = useState(null);
   const [fetchingModelKey, setFetchingModelKey] = useState(null);
+  const [configKey, setConfigKey] = useState(null);
+  const [configDailyLimit, setConfigDailyLimit] = useState(0);
+  const [configMaintenance, setConfigMaintenance] = useState(false);
+  const [configMaintenanceMessage, setConfigMaintenanceMessage] = useState("");
+  const [savingKeyConfig, setSavingKeyConfig] = useState(false);
+  const [configExpiresInDays, setConfigExpiresInDays] = useState(0);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [requireLogin, setRequireLogin] = useState(true);
@@ -247,12 +253,20 @@ export default function APIPageClient({ machineId }) {
         const res = await fetch("/api/keys", {
           signal: AbortSignal.timeout(10000) // 10 second timeout
         });
+        if (res.status === 401) return null;
         if (!res.ok) return [];
         const data = await res.json();
         return data.keys || [];
       };
 
       let existing = await fetchKeys();
+      // The dashboard shell can remain visible from a cached navigation even
+      // after the auth cookie expires. Do not leave the user on an endless
+      // loading screen when its protected API calls return 401.
+      if (existing === null && typeof window !== "undefined") {
+        window.location.replace("/login?next=/dashboard");
+        return;
+      }
       if (existing.length === 0) {
         try {
           const createRes = await fetch("/api/keys", {
@@ -663,9 +677,24 @@ export default function APIPageClient({ machineId }) {
     try {
       const res = await fetch(`${window.location.origin}/v1/models`, {
         headers: { Authorization: `Bearer ${key.key}` },
-        signal: AbortSignal.timeout(10000),
+        // /v1/models may query live provider catalogues before applying the
+        // key access filter. Ten seconds is too short for a multi-provider
+        // setup and makes a healthy endpoint look broken in the dashboard.
+        signal: AbortSignal.timeout(120000),
       });
       const data = await res.json();
+      // The API `id` is the stable route identifier. For dashboard display,
+      // prefer the configured custom model label while preserving `id` for
+      // copy/request compatibility.
+      if (Array.isArray(data?.data)) {
+        const catalogueRes = await fetch(`/api/models?activeOnly=true&_=${Date.now()}`, { cache: "no-store" });
+        const catalogue = catalogueRes.ok ? await catalogueRes.json().catch(() => ({})) : {};
+        const byPublicId = new Map((catalogue.models || []).map((m) => [m.publicId, m]));
+        data.data = data.data.map((model) => ({
+          ...model,
+          display_id: byPublicId.get(model.id)?.displayId || model.display_id || model.id,
+        }));
+      }
       setFetchedModelsData(data);
       setShowModelsModal(true);
     } catch (error) {
@@ -706,6 +735,39 @@ export default function APIPageClient({ machineId }) {
       }
     } catch (error) {
       console.log("Error updating key access:", error);
+    }
+  };
+
+  const openKeyConfig = (key) => {
+    setConfigKey(key);
+    setConfigDailyLimit(key.dailyLimit || 0);
+    setConfigMaintenance(!!key.maintenanceEnabled);
+    setConfigMaintenanceMessage(key.maintenanceMessage || "");
+    setConfigExpiresInDays(key.expiresAt ? Math.max(1, Math.ceil((new Date(key.expiresAt).getTime() - Date.now()) / 86400000)) : 0);
+  };
+
+  const saveKeyConfig = async () => {
+    if (!configKey) return;
+    setSavingKeyConfig(true);
+    try {
+      const res = await fetch(`/api/keys/${configKey.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dailyLimit: Math.max(0, Number(configDailyLimit) || 0),
+          maintenanceEnabled: configMaintenance,
+          maintenanceMessage: configMaintenanceMessage,
+          expiresInDays: Math.max(0, Number(configExpiresInDays) || 0),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save API key configuration");
+      setKeys((prev) => prev.map((key) => key.id === configKey.id ? { ...key, ...data.key } : key));
+      setConfigKey(null);
+    } catch (error) {
+      addNotification({ type: "error", title: "API Key", message: error.message });
+    } finally {
+      setSavingKeyConfig(false);
     }
   };
 
@@ -952,6 +1014,13 @@ export default function APIPageClient({ machineId }) {
                       title={key.isActive ? "Pause key" : "Resume key"}
                     />
                     <button
+                      onClick={() => openKeyConfig(key)}
+                      className="p-1.5 hover:bg-[var(--t-accent-soft)] rounded text-[var(--t-accent)] transition-all"
+                      title="Configure API key"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">settings</span>
+                    </button>
+                    <button
                       onClick={() => handleDeleteKey(key.id)}
                       className="p-1.5 hover:bg-[var(--t-danger)]/10 rounded text-[var(--t-danger)] transition-all"
                       title="Delete key"
@@ -1031,6 +1100,65 @@ export default function APIPageClient({ machineId }) {
             >
               Cancel
             </Button>
+          </div>
+        </div>
+      </AntaresModal>
+
+      {/* Per-key request limit and maintenance configuration */}
+      <AntaresModal
+        isOpen={!!configKey}
+        title="API Key Configuration"
+        subtitle={configKey ? configKey.name : ""}
+        onClose={() => !savingKeyConfig && setConfigKey(null)}
+      >
+        <div className="flex flex-col gap-5">
+          <div>
+            <Input
+              variant="antares"
+              type="number"
+              min="0"
+              label="Maximum requests per day"
+              value={configDailyLimit}
+              onChange={(e) => setConfigDailyLimit(e.target.value)}
+              placeholder="0 = unlimited"
+            />
+            <p className="text-xs text-[var(--t-muted)] mt-1.5">Use 0 for unlimited requests. The counter resets automatically tomorrow.</p>
+          </div>
+
+          <div>
+            <Input
+              variant="antares"
+              type="number"
+              min="0"
+              label="Expire after (days)"
+              value={configExpiresInDays}
+              onChange={(e) => setConfigExpiresInDays(e.target.value)}
+              placeholder="0 = never expires"
+            />
+            <p className="text-xs text-[var(--t-muted)] mt-1.5">The countdown starts when you save. After expiry, the key is automatically disabled.</p>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 border-t border-[var(--t-line-soft)] pt-4">
+            <div>
+              <p className="text-sm font-medium">Maintenance mode</p>
+              <p className="text-xs text-[var(--t-muted)] mt-1">Reject requests using this key with your custom message.</p>
+            </div>
+            <Toggle checked={configMaintenance} onChange={setConfigMaintenance} />
+          </div>
+
+          {configMaintenance && (
+            <Input
+              variant="antares"
+              label="Maintenance message"
+              value={configMaintenanceMessage}
+              onChange={(e) => setConfigMaintenanceMessage(e.target.value)}
+              placeholder="API sedang maintenance, coba lagi nanti."
+            />
+          )}
+
+          <div className="flex gap-2">
+            <Button skin="antares" onClick={saveKeyConfig} loading={savingKeyConfig} fullWidth>Save</Button>
+            <Button skin="antares" variant="ghost" onClick={() => setConfigKey(null)} disabled={savingKeyConfig} fullWidth>Cancel</Button>
           </div>
         </div>
       </AntaresModal>
@@ -1245,8 +1373,8 @@ export default function APIPageClient({ machineId }) {
           </p>
           {fetchedModelsData?.data && fetchedModelsData.data.length > 0 && (
             <div className="flex flex-col gap-1">
-              {fetchedModelsData.data.map((m, i) => (
-                <div key={i} className="font-mono text-xs text-[var(--t-muted)]">{m.id}</div>
+               {fetchedModelsData.data.map((m, i) => (
+                 <div key={i} className="font-mono text-xs text-[var(--t-muted)]">{m.display_id || m.id}</div>
               ))}
             </div>
           )}
@@ -1255,7 +1383,7 @@ export default function APIPageClient({ machineId }) {
               skin="antares"
               icon={copied === "fetched_models" ? "check" : "content_copy"}
               onClick={() => {
-                const ids = fetchedModelsData.data.map(m => m.id).join("\n");
+                 const ids = fetchedModelsData.data.map(m => m.display_id || m.id).join("\n");
                 copy(ids, "fetched_models");
               }}
               variant="ghost"

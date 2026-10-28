@@ -206,6 +206,7 @@ export default function ProviderDetailPage() {
   const providerAlias = getProviderAlias(providerId);
 
   const providerStorageAlias = isCompatible ? providerId : providerAlias;
+  const isAgnes = providerId === "agnes";
   const providerNameForDisplay = providerNode?.name || (isAnthropicCompatible ? "Anthropic Compatible" : "OpenAI Compatible");
   const providerDisplayAlias = isCompatible
     ? (providerNode?.prefix || (providerNode?.name ? providerNode.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : providerId))
@@ -1796,21 +1797,45 @@ export default function ProviderDetailPage() {
          />
       );
     }
-    const allModels = [
-      ...models,
-      ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-    ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; });
-    const disabledSet = new Set(disabledModelIds);
-    const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
-    const disabledDisplayModels = allModels.filter((m) => disabledSet.has(m.id));
     const customModelRows = getProviderCustomModelRows({
       customModels,
       modelAliases,
       providerAlias: providerStorageAlias,
       builtInModels: models,
       type: "llm",
+      includeBuiltInCustomModels: isAgnes,
+    }).map((row) => ({
+      ...row,
+      // Agnes model names are the public/custom IDs configured in the
+      // model-name map. Use those IDs in the provider list and prompt picker.
+      name: isAgnes ? (modelNames[`${providerStorageAlias}/${row.id}`] || row.name) : row.name,
+    }));
+    const agnesCustomIds = new Set(customModelRows.map((row) => row.id));
+    const allModels = [
+      ...models,
+      ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+    ].filter((m) => {
+      const k = getModelKind(m);
+      if (k && k !== "llm") return false;
+      // When Agnes has explicitly registered custom models, its provider
+      // list is the source of truth. This prevents the registry seed models
+      // from leaking extra Flash/Pro entries into the UI.
+      // Custom rows are rendered separately below. Once Agnes has an
+      // explicit custom catalogue, do not render the registry rows again.
+      return !isAgnes || agnesCustomIds.size === 0;
     });
-
+    const disabledSet = new Set(disabledModelIds);
+    const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
+    const promptModelIds = isAgnes
+      ? customModelRows
+        .map((row) => modelNames[`${providerStorageAlias}/${row.id}`] || row.id)
+      : [...new Set([
+        ...allModels.map((model) => model.id),
+        ...customModels
+          .filter((model) => (model.type || model.kind || "llm") === "llm" && model.providerAlias === providerStorageAlias)
+          .map((model) => model.id),
+      ])].filter(Boolean);
+    const disabledDisplayModels = allModels.filter((m) => disabledSet.has(m.id));
     const listItems = [
       ...customModelRows.map((m) => ({ kind: "custom", model: m })),
       ...displayModels.map((m) => ({ kind: "builtin", model: m })),
@@ -1881,7 +1906,7 @@ export default function ProviderDetailPage() {
           <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-primary"><span className="material-symbols-outlined text-[18px]">smart_toy</span></span>
           <select id="system-prompt-model" value={systemPromptModel} onChange={(e) => setSystemPromptModel(e.target.value)} className="an-select system-prompt-select h-11 w-full font-mono text-xs">
              <option value="">{translate("Choose a model to configure")}</option>
-            {[...new Set([...models.map((model) => model.id), ...kiloFreeModels.map((model) => model.id), ...customModels.filter((model) => (model.type || model.kind || "llm") === "llm" && model.providerAlias === providerStorageAlias).map((model) => model.id)].filter(Boolean))].map((modelId) => <option key={modelId} value={modelId}>{modelId}</option>)}
+             {promptModelIds.map((modelId) => <option key={modelId} value={modelId}>{modelId}</option>)}
           </select>
         </div>
         <label className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted" htmlFor="system-prompt-textarea">

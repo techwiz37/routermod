@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import { Toggle, Button } from "@/shared/components";
 import Modal from "@/shared/components/Modal";
@@ -63,12 +63,31 @@ function groupByProvider(models, dynamicNames = {}) {
   return Object.values(map).sort((a, b) => a.meta.name.localeCompare(b.meta.name));
 }
 
-function getDisplayModelId(m, dynamicNames = {}) {
+// The configured provider prefix is the public/routable identifier. The
+// provider connection id is only an internal storage key and must not be the
+// only value persisted in an API-key allow-list.
+function getModelRequestId(m, dynamicNames = {}) {
+  // The server computes the exact identifier clients must send (provider
+  // prefix + canonical model id, or its explicit alias). Prefer it over any
+  // locally reconstructed value.
+  if (m?.publicId) return m.publicId;
+  if (m?.isCustom && m.customId && m.providerPrefix) {
+    return `${m.providerPrefix}/${m.customId}`;
+  }
+  if (m?.isCustom && m.customId && m.provider) {
+    return `${m.provider}/${m.customId}`;
+  }
   const node = dynamicNames[m.provider];
   if (node?.prefix) {
     return `${node.prefix}/${m.model}`;
   }
   return m.routedModel || m.fullModel || `${m.provider}/${m.model}`;
+}
+
+function getModelIdCandidates(m, dynamicNames = {}) {
+  const publicId = getModelRequestId(m, dynamicNames);
+  const internalId = m.fullModel || m.routedModel || `${m.provider}/${m.model}`;
+  return [...new Set([publicId, m.publicId, m.displayId, m.routedModel, internalId].filter(Boolean))];
 }
 
 function TestBadge({ result }) {
@@ -90,9 +109,9 @@ function TestBadge({ result }) {
   );
 }
 
-function ProviderCard({ group, selectedModels, active, onClick }) {
+function ProviderCard({ group, selectedModels, dynamicNames, active, onClick }) {
   const { meta } = group;
-  const selectedCount = group.models.filter(m => selectedModels.has(m.routedModel || `${m.provider}/${m.model}`)).length;
+  const selectedCount = group.models.filter(m => getModelIdCandidates(m, dynamicNames).some(id => selectedModels.has(id))).length;
 
   return (
     <button
@@ -133,7 +152,7 @@ function ProviderCard({ group, selectedModels, active, onClick }) {
   );
 }
 
-function TestModal({ isOpen, onClose, models }) {
+function TestModal({ isOpen, onClose, models, labels = {}, testIds = {} }) {
   const [results, setResults] = useState({});
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
@@ -148,15 +167,17 @@ function TestModal({ isOpen, onClose, models }) {
     setResults({});
 
     let ok = 0, fail = 0;
-    for (const modelId of models) {
+       for (const modelId of models) {
       if (abortRef.current) break;
       setResults(prev => ({ ...prev, [modelId]: "pending" }));
       const t0 = Date.now();
       try {
-        const res = await fetch("/api/models/test", {
+         const res = await fetch("/api/models/test", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model: modelId }),
+           // The UI label/public alias is kept separate from the canonical
+           // provider model sent to the test API.
+           body: JSON.stringify({ model: testIds[modelId] || modelId }),
           signal: AbortSignal.timeout(30000),
         });
         const data = await res.json().catch(() => ({}));
@@ -179,7 +200,7 @@ function TestModal({ isOpen, onClose, models }) {
         duration: 5000,
       });
     }
-  }, [models, addNotification]);
+  }, [models, testIds, addNotification]);
 
   useEffect(() => {
     if (isOpen) runTests();
@@ -208,8 +229,8 @@ function TestModal({ isOpen, onClose, models }) {
         </div>
 
         <div className="max-h-80 overflow-y-auto flex flex-col gap-1 pr-1">
-          {models.map(id => {
-            const r = results[id];
+           {models.map(id => {
+             const r = results[id];
             return (
               <div key={id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
                 r === "pending" ? "border-[var(--color-border)] bg-[var(--color-surface)] animate-pulse" :
@@ -222,7 +243,7 @@ function TestModal({ isOpen, onClose, models }) {
                   r?.ok ? "bg-[var(--color-success)]" :
                   r ? "bg-red-500" : "bg-[var(--color-border)]"
                 }`} />
-                <span className="text-xs font-mono text-[var(--color-text-main)] flex-1 min-w-0 truncate">{id}</span>
+                 <span className="text-xs font-mono text-[var(--color-text-main)] flex-1 min-w-0 truncate">{labels[id] || id}</span>
                 <TestBadge result={r} />
               </div>
             );
@@ -278,14 +299,20 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
 
   const loadModels = useCallback(() => {
     setLoading(true);
+    const cacheBust = `?activeOnly=true&_=${Date.now()}`;
     return Promise.all([
-      fetch("/api/models?activeOnly=true").then(async (r) => (await r.json()).models || []),
-      fetch("/api/provider-nodes").then(async (r) => (await r.json()).nodes || []).catch(() => []),
+      fetch(`/api/models${cacheBust}`, { cache: "no-store" }).then(async (r) => (await r.json()).models || []),
+      fetch(`/api/provider-nodes?_=${Date.now()}`, { cache: "no-store" }).then(async (r) => (await r.json()).nodes || []).catch(() => []),
     ])
       .then(([models, nodes]) => {
         const names = {};
         for (const n of nodes) {
-          if (n?.id) names[n.id] = { name: n.name, prefix: n.prefix };
+          if (!n?.id) continue;
+          const meta = { name: n.name, prefix: n.prefix };
+          names[n.id] = meta;
+          // Custom models may already expose providerAlias as the public
+          // prefix instead of the provider-node storage id.
+          if (n.prefix) names[n.prefix] = meta;
         }
         setDynamicNames(names);
         setAllModels(models);
@@ -299,16 +326,28 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     if (access.restricted) loadModels();
   }, [apiKey.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleToggleModel = useCallback((id, on) => {
+  // Provider model edits can happen while this endpoint page remains mounted.
+  // Refresh the catalogue so a changed custom ID is not shown with stale data.
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const refresh = () => {
+      if (access.restricted) loadModels();
+    };
+    window.addEventListener("customModelChanged", refresh);
+    return () => window.removeEventListener("customModelChanged", refresh);
+  }, [access.restricted, loadModels]);
+
+  const handleToggleModel = useCallback((id, on, aliases = []) => {
     setSelectedModels(prev => {
       const next = new Set(prev);
+      for (const alias of aliases) next.delete(alias);
       if (on) next.add(id); else next.delete(id);
       onChange({ restricted: true, allow: [...next] });
       return next;
     });
   }, [onChange]);
 
-  const handleTestModel = useCallback(async (id, label) => {
+  const handleTestModel = useCallback(async (id, label, testId = id) => {
     if (testResults[id] === "pending") return;
     setTestResults(prev => ({ ...prev, [id]: "pending" }));
     const t0 = Date.now();
@@ -316,7 +355,10 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       const res = await fetch("/api/models/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: id }),
+        // `id` is the public/custom UI identifier. The test endpoint receives
+        // the canonical provider/model ID so the provider resolver never sees
+        // a display alias as a credential provider.
+        body: JSON.stringify({ model: testId }),
         signal: AbortSignal.timeout(30000),
       });
       const data = await res.json().catch(() => ({}));
@@ -371,22 +413,53 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const onMouseUp = () => { isDragging.current = false; };
 
   const selectedList = [...selectedModels];
+  const selectedDisplayLabels = useMemo(() => {
+    const labels = {};
+    for (const model of allModels) {
+      for (const candidate of getModelIdCandidates(model, dynamicNames)) {
+        if (selectedModels.has(candidate)) {
+          labels[candidate] = model.displayId || getModelRequestId(model, dynamicNames);
+        }
+      }
+    }
+    return labels;
+  }, [allModels, dynamicNames, selectedModels]);
+  const selectedTestIds = useMemo(() => {
+    const ids = {};
+    for (const model of allModels) {
+      const backendId = model.fullModel || getModelRequestId(model, dynamicNames);
+      for (const candidate of getModelIdCandidates(model, dynamicNames)) {
+        if (selectedModels.has(candidate)) ids[candidate] = backendId;
+      }
+    }
+    return ids;
+  }, [allModels, dynamicNames, selectedModels]);
   const activeGroup = providerGroups.find(g => g.provider === activeProvider) || null;
-  const activeAllSelected = activeGroup ? activeGroup.models.every(m => selectedModels.has(m.routedModel || `${m.provider}/${m.model}`)) : false;
+  const activeAllSelected = activeGroup
+    ? activeGroup.models.every(m => getModelIdCandidates(m, dynamicNames).some(id => selectedModels.has(id)))
+    : false;
   const modelQueryTrimmed = modelQuery.trim().toLowerCase();
   const visibleModels = !activeGroup
     ? []
     : !modelQueryTrimmed
       ? activeGroup.models
       : activeGroup.models.filter(m => {
-          const rid = m.routedModel || `${m.provider}/${m.model}`;
-          return `${m.name || ""} ${m.model || ""} ${rid}`.toLowerCase().includes(modelQueryTrimmed);
+          const ids = getModelIdCandidates(m, dynamicNames);
+          return `${m.name || ""} ${m.model || ""} ${m.displayId || ""} ${ids.join(" ")}`.toLowerCase().includes(modelQueryTrimmed);
         });
 
   const toggleAllActive = () => {
     if (!activeGroup) return;
-    const ids = activeGroup.models.map(m => m.routedModel || `${m.provider}/${m.model}`);
-    ids.forEach(id => handleToggleModel(id, !activeAllSelected));
+    setSelectedModels(prev => {
+      const next = new Set(prev);
+      for (const m of activeGroup.models) {
+        const ids = getModelIdCandidates(m, dynamicNames);
+        for (const id of ids) next.delete(id);
+        if (!activeAllSelected) next.add(ids[0]);
+      }
+      onChange({ restricted: true, allow: [...next] });
+      return next;
+    });
   };
 
   const modelSliderRef = useRef(null);
@@ -471,6 +544,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                     key={group.provider}
                     group={group}
                     selectedModels={selectedModels}
+                    dynamicNames={dynamicNames}
                     active={activeProvider === group.provider}
                     onClick={() => { setModelQuery(""); setActiveProvider(prev => prev === group.provider ? null : group.provider); }}
                   />
@@ -544,10 +618,11 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                       </span>
                     )}
                     {visibleModels.map(m => {
-                      const internalId = m.routedModel || `${m.provider}/${m.model}`;
-                       const id = getDisplayModelId(m, dynamicNames);
-                       const on = selectedModels.has(internalId);
-                       const res = testResults[internalId];
+                      const requestId = getModelRequestId(m, dynamicNames);
+                      const id = requestId;
+                      const displayId = m.displayId || requestId;
+                      const on = getModelIdCandidates(m, dynamicNames).some(candidate => selectedModels.has(candidate));
+                      const res = testResults[requestId];
                       const busy = res === "pending";
                       return (
                         <div
@@ -559,7 +634,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                           }`}
                         >
                           <button
-                            onClick={() => handleToggleModel(internalId, !on)}
+                             onClick={() => handleToggleModel(requestId, !on, getModelIdCandidates(m, dynamicNames).filter(candidate => candidate !== requestId))}
                             className="flex items-center gap-2 cursor-pointer text-left"
                           >
                             <span
@@ -572,7 +647,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                               <span className={`block text-[11px] font-mono truncate ${on ? "text-[var(--color-text-main)] font-bold" : "text-[var(--color-text-muted)]"}`}>
                                 {m.name || m.model}
                               </span>
-                              <span className="block text-[9px] font-mono text-[var(--color-text-muted)] truncate">{id}</span>
+                              <span className="block text-[9px] font-mono text-[var(--color-text-muted)] truncate">{displayId}</span>
                             </span>
                           </button>
 
@@ -584,7 +659,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                                 : <span className="text-[9px] font-mono text-[var(--color-text-muted)]">not tested yet</span>
                             }
                             <button
-                              onClick={() => handleTestModel(internalId, m.name || m.model)}
+                               onClick={() => handleTestModel(requestId, m.name || m.model, m.fullModel || requestId)}
                               disabled={busy}
                               title="Test model"
                               className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-primary)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 shadow-[2px_2px_0_var(--color-border)] hover:shadow-[3px_3px_0_var(--color-border)] transition-all"
@@ -610,6 +685,8 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
         isOpen={testModalOpen}
         onClose={() => setTestModalOpen(false)}
         models={selectedList}
+        labels={selectedDisplayLabels}
+        testIds={selectedTestIds}
       />
     </div>
   );

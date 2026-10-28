@@ -10,6 +10,7 @@ import {
 import { errorResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
+import { getAdapter } from "@/lib/db/driver.js";
 
 const lower = (s) => String(s).toLowerCase();
 const canonicalModel = (provider, model) => lower(`${provider}/${model}`);
@@ -44,6 +45,40 @@ export async function getKeyAccessContext(request) {
     allow: record.access.allow || [],
     _sets: null,
   };
+}
+
+// Returns an OpenAI-compatible error response when the key is in maintenance
+// or has used its configured daily request allowance.
+export async function enforceKeyPolicy(request) {
+  const apiKey = extractClientApiKey(request);
+  if (!apiKey) return null;
+  const record = await getApiKeyByKey(apiKey);
+  if (!record) return null;
+  if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) {
+    // Persist the automatic switch-off so the dashboard reflects the expired
+    // state even before the next request is made.
+    try {
+      const { updateApiKey } = await import("@/lib/db/repos/apiKeysRepo.js");
+      await updateApiKey(record.id, { isActive: false });
+    } catch (error) {
+      log.warn("AUTH", `Could not mark expired API key inactive: ${error.message}`);
+    }
+    return errorResponse(HTTP_STATUS.UNAUTHORIZED, "API key telah expired.");
+  }
+  if (record.maintenanceEnabled) {
+    return errorResponse(HTTP_STATUS.SERVICE_UNAVAILABLE, record.maintenanceMessage || "This API key is temporarily under maintenance. Please try again later.");
+  }
+  const limit = Math.max(0, Number(record.dailyLimit) || 0);
+  if (!limit) return null;
+  const db = await getAdapter();
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+  const row = db.get(`SELECT COUNT(*) AS count FROM usageHistory WHERE apiKey = ? AND timestamp >= ? AND timestamp < ?`, [apiKey, start, tomorrow]);
+  if ((Number(row?.count) || 0) >= limit) {
+    return errorResponse(HTTP_STATUS.TOO_MANY_REQUESTS, `Batas request free key ${limit}/day tercapai. Coba lagi besok.`);
+  }
+  return null;
 }
 
 async function getAllowSets(ctx) {
@@ -121,9 +156,27 @@ export async function filterAdapterModels(ctx, augmented, original) {
 export async function filterModelsListForKey(ctx, list) {
   if (!ctx || !Array.isArray(list)) return list;
   const sets = await getAllowSets(ctx);
+  const explicitlyAllowed = new Set(
+    ctx.allow
+      .filter((entry) => typeof entry === "string")
+      .map((entry) => lower(entry.trim()))
+      .filter(Boolean),
+  );
   const out = [];
   for (const entry of list) {
     if (!entry?.id) continue;
+
+    // Match the public identifier first. This is important for custom models:
+    // the API may expose a display prefix/alias while the router resolves the
+    // same entry to a different canonical provider/model pair.
+    const publicCandidates = [entry.id, entry.name]
+      .filter((value) => typeof value === "string" && value.trim())
+      .map((value) => lower(value.trim()));
+    if (publicCandidates.some((value) => explicitlyAllowed.has(value))) {
+      out.push(entry);
+      continue;
+    }
+
     if (entry.owned_by === KEY_ACCESS_COMBO_OWNER) {
       if (sets.combos.has(lower(entry.id))) out.push(entry);
       continue;

@@ -22,7 +22,10 @@ function sanitizeTransport(transport, type) {
 export async function GET() {
   try {
     const models = await getCustomModels();
-    return NextResponse.json({ models });
+    return NextResponse.json(
+      { models },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
+    );
   } catch (error) {
     console.log("Error fetching custom models:", error);
     return NextResponse.json({ error: "Failed to fetch custom models" }, { status: 500 });

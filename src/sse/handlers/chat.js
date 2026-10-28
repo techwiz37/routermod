@@ -25,7 +25,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
-import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
+import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels, enforceKeyPolicy } from "../services/keyAccess.js";
 
 function appendSystemPrompt(body, prompt) {
   if (!prompt || typeof prompt !== "string" || !prompt.trim() || !body || typeof body !== "object") return body;
@@ -96,6 +96,9 @@ export async function handleChat(request, clientRawRequest = null) {
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
   }
+
+  const policyDenied = await enforceKeyPolicy(request);
+  if (policyDenied) return policyDenied;
 
   if (!modelStr) {
     log.warn("CHAT", "Missing model");
@@ -173,7 +176,10 @@ export async function handleChat(request, clientRawRequest = null) {
     });
   }
 
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, contextMarker ? `${modelStr.slice(modelStr.indexOf("/") + 1)}[${contextMarker}]` : null);
+  // Keep the original public model identifier for per-model system-prompt
+  // lookup. `getModelInfo()` resolves custom IDs to the canonical upstream
+  // model, but the prompt is configured against the public/custom ID.
+  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, modelStr);
 }
 
 async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, requestedModel = null) {

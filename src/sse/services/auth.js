@@ -30,8 +30,13 @@ function getModelSystemPrompt(settings, provider, model, requestedModel) {
     || promptSettings[providerId]
     || promptSettings[getProviderAlias(providerId)]
     || {};
-  const requestedModelId = String(requestedModel || model || "").split("/").pop();
-  return providerPromptMap?.[requestedModelId] || providerPromptMap?.[requestedModel] || null;
+  // A custom/public request ID and the canonical upstream ID can both be
+  // configured in the dashboard. Prefer the public ID, but fall back to the
+  // canonical ID so routing through a custom alias never loses its prompt.
+  const candidates = [requestedModel, model]
+    .filter(Boolean)
+    .flatMap((value) => [String(value), String(value).split("/").pop()]);
+  return [...new Set(candidates)].map((key) => providerPromptMap?.[key]).find(Boolean) || null;
 }
 
 const GITHUB_MONTHLY_USAGE_LIMIT = "you've reached your additional usage limit for your plan";

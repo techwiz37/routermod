@@ -72,6 +72,22 @@ const nextConfig = {
   },
   async headers() {
     return [
+      // Dashboard HTML must never be retained across standalone deploys. The
+      // HTML contains build-specific chunk names; serving an older copy after
+      // a build makes the browser request chunks that no longer exist and
+      // leaves the PagePreloader visible forever.
+      {
+        source: "/dashboard/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        ],
+      },
+      {
+        source: "/dashboard",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        ],
+      },
       {
         source: "/_next/:path*",
         headers: [
