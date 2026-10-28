@@ -107,7 +107,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onEditAlias, onEditCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic, modelPrefix, onBulkPrefixChange, systemPromptModel, setSystemPromptModel, systemPromptDraft, setSystemPromptDraft, systemPrompts, savingSystemPrompt, onSaveSystemPrompt }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onEditAlias, onEditCustomModel, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic, modelPrefix, onBulkPrefixChange, systemPromptModel = "", setSystemPromptModel = () => {}, systemPromptDraft = "", setSystemPromptDraft = () => {}, systemPrompts = {}, savingSystemPrompt = false, onSaveSystemPrompt = () => {} }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
