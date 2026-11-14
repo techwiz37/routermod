@@ -69,6 +69,7 @@ const DEFAULT_SETTINGS = {
   promptInjectionGlobal: null,
   promptInjectionKeys: {},
   promptInjectionModels: {},
+  jailbreakModels: {},
 };
 
 async function readRaw() {

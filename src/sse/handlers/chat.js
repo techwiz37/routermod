@@ -284,6 +284,21 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // System prompts are applied after translation in chatCore so each provider
     // receives its native wire shape. Scripts remain pre-translation turns.
     const providerSystemPrompt = refreshedCredentials.providerSpecificData?.systemPrompt;
+
+    // Jailbreak: injected as the very first system message, before the
+    // provider system prompt and before all other injections. Stored at
+    // settings.jailbreakModels["provider/model"] (enabled flag must be true).
+    const jailbreakModels = chatSettings.jailbreakModels || {};
+    const modelShort = String(model).split("/").pop();
+    const jailbreakEntry =
+      jailbreakModels[`${provider}/${model}`] ||
+      jailbreakModels[`${provider}/${modelShort}`] ||
+      null;
+    const jailbreakText =
+      jailbreakEntry?.enabled !== false && typeof jailbreakEntry?.text === "string" && jailbreakEntry.text.trim()
+        ? jailbreakEntry.text.trim()
+        : null;
+
     // Prompt injection: global -> per API key -> per model, applied after the
     // provider/model system prompt so the user's own instructions win.
     let apiKeyRecord = null;
@@ -331,6 +346,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       cavemanEnabled: !!chatSettings.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
       promptInjections: injections.filter((entry) => entry.mode === "system"),
+      jailbreakText,
       providerSystemPrompt,
       ponytailEnabled: !!chatSettings.ponytailEnabled,
       ponytailLevel: chatSettings.ponytailLevel || "full",

@@ -28,6 +28,7 @@ import BulkImportCodexModal from "./BulkImportCodexModal";
 import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import CustomConfigCard from "./CustomConfigCard";
 import SessionRateLimitCard from "./SessionRateLimitCard";
+import JailbreakCard from "./JailbreakCard";
 import ProviderAlert from "../components/ProviderAlert";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
 import WebLoginButton, { WEB_LOGIN_PROVIDERS } from "../components/WebLoginButton.js";
@@ -1648,6 +1649,11 @@ export default function ProviderDetailPage() {
               onNodeUpdated={(node) => setProviderNode(node)}
             />
           )}
+          <JailbreakCard
+            providerId={providerId}
+            providerDisplayAlias={providerDisplayAlias}
+            modelOptions={systemPromptModelOptions}
+          />
           <CompatibleModelsSection
             providerStorageAlias={providerStorageAlias}
             providerDisplayAlias={providerDisplayAlias}
@@ -1709,6 +1715,11 @@ export default function ProviderDetailPage() {
             systemPrompts={systemPrompts}
             savingSystemPrompt={savingSystemPrompt}
             onSystemPromptSave={(id, prompt) => handleSaveSystemPrompt(id, prompt)}
+          />
+          <JailbreakCard
+            providerId={providerId}
+            providerDisplayAlias={providerDisplayAlias}
+            modelOptions={systemPromptModelOptions}
           />
           <CompatibleModelsSection
             providerStorageAlias={providerStorageAlias}

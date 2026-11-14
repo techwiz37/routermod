@@ -81,7 +81,7 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, promptInjections = [], providerSystemPrompt = null }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, promptInjections = [], providerSystemPrompt = null, jailbreakText = null }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
   const usageModel = clientRawRequest?.headers?.["x-routermod-requested-model"]
@@ -314,6 +314,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Apply stored prompts only after translation. This prevents Claude/Gemini/
   // Responses/Kiro requests from receiving an invalid OpenAI-shaped prompt.
+  // Jailbreak is injected first (prepend) to override model identity before
+  // anything else; providerSystemPrompt and user injections follow.
+  if (typeof jailbreakText === "string" && jailbreakText.trim()) {
+    injectSystemPrompt(translatedBody, finalFormat, jailbreakText.trim(), "prepend");
+  }
   if (typeof providerSystemPrompt === "string" && providerSystemPrompt.trim()) {
     injectSystemPrompt(translatedBody, finalFormat, providerSystemPrompt.trim());
   }
