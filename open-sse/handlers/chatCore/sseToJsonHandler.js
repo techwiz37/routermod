@@ -1,6 +1,6 @@
 import { convertResponsesStreamToJson } from "../../transformer/streamToJsonConverter.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
-import { createErrorResult } from "../../utils/error.js";
+import { createErrorResult, isCustomProvider, getMaskedProviderErrorMessage } from "../../utils/error.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { FORMATS } from "../../translator/formats.js";
 import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
@@ -295,15 +295,19 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
       return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalResp, toolNameMap)), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
     } catch (err) {
       console.error("[ChatCore] Responses API SSE→JSON failed:", err);
-      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON");
+      const masked = isCustomProvider(provider) ? getMaskedProviderErrorMessage(clientRawRequest, body) : null;
+      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON", undefined, null, masked);
     }
   }
 
   // Standard Chat Completions SSE path
+  const maskedClientError = isCustomProvider(provider)
+    ? getMaskedProviderErrorMessage(clientRawRequest, body)
+    : null;
   try {
     const sseText = await providerResponse.text();
     const parsed = parseSSEToOpenAIResponse(sseText, model);
-    if (!parsed) return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Invalid SSE response for non-streaming request");
+    if (!parsed) return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Invalid SSE response for non-streaming request", undefined, null, maskedClientError);
     if (parsed.error) {
       // Structured error chunks may carry the real upstream status (e.g. the
       // Qoder executor emits status 403 for billing envelopes). Preserve it so
@@ -315,7 +319,10 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
         : HTTP_STATUS.BAD_GATEWAY;
       return createErrorResult(
         status,
-        parsed.error.message || "Upstream SSE stream failed"
+        parsed.error.message || "Upstream SSE stream failed",
+        undefined,
+        null,
+        maskedClientError
       );
     }
 
@@ -375,6 +382,6 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
     return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalBody, toolNameMap)), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
   } catch (err) {
     console.error("[ChatCore] Chat Completions SSE→JSON failed:", err);
-    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON");
+    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON", undefined, null, maskedClientError);
   }
 }

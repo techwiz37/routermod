@@ -183,20 +183,84 @@ export async function parseUpstreamError(response, executor = null) {
   };
 }
 
+export function isCustomProvider(provider) {
+  return typeof provider === "string" && (
+    provider.startsWith("openai-compatible-") ||
+    provider.startsWith("anthropic-compatible-") ||
+    provider.startsWith("custom-embedding-")
+  );
+}
+
+const ID_WORDS_RE = /\b(tolong|bisa|apa|apakah|yang|dan|di|ke|dari|untuk|dengan|tidak|gak|ga|nggak|saya|aku|kamu|anda|ini|itu|gimana|bagaimana|kenapa|mengapa|buat|buatkan|cari|cek|jelaskan|perbaiki|tambahkan|hapus|ubah|lanjut|dong|ya|kak|halo|hai)\b/i;
+const EN_WORDS_RE = /\b(please|can|could|what|which|the|and|for|with|not|you|this|that|how|why|create|make|find|check|explain|fix|add|remove|update|continue|hello|hi)\b/i;
+
+function extractLastUserText(body) {
+  if (!body || typeof body !== "object") return "";
+  if (typeof body.prompt === "string") return body.prompt;
+  if (typeof body.input === "string") return body.input;
+  const list = Array.isArray(body.messages)
+    ? body.messages
+    : Array.isArray(body.input)
+      ? body.input
+      : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const item = list[i];
+    if (!item || (item.role && item.role !== "user")) continue;
+    if (typeof item.content === "string") return item.content;
+    if (Array.isArray(item.content)) {
+      const texts = item.content
+        .map((c) => (typeof c === "string" ? c : c?.text || ""))
+        .filter(Boolean)
+        .join(" ");
+      if (texts) return texts;
+    }
+  }
+  return "";
+}
+
+/**
+ * Return a clean, user-facing error message for custom providers without leaking
+ * raw upstream provider error details, matching the request/user language.
+ */
+export function getMaskedProviderErrorMessage(clientRawRequest = null, body = null) {
+  const userText = extractLastUserText(body || clientRawRequest?.body);
+  if (userText) {
+    const hasId = ID_WORDS_RE.test(userText);
+    const hasEn = EN_WORDS_RE.test(userText);
+    if (hasId && !hasEn) return "Terjadi kesalahan. Silakan hubungi admin.";
+    if (hasEn && !hasId) return "An error occurred. Please contact the administrator.";
+    if (hasId) return "Terjadi kesalahan. Silakan hubungi admin.";
+  }
+
+  const headers = clientRawRequest?.headers || {};
+  const explicitLocale = String(headers["x-locale"] || "").toLowerCase();
+  if (explicitLocale.startsWith("en")) return "An error occurred. Please contact the administrator.";
+  if (explicitLocale.startsWith("id")) return "Terjadi kesalahan. Silakan hubungi admin.";
+
+  const acceptLang = String(headers["accept-language"] || "").toLowerCase();
+  if (acceptLang.startsWith("en") && !acceptLang.includes("id")) {
+    return "An error occurred. Please contact the administrator.";
+  }
+
+  return "Terjadi kesalahan. Silakan hubungi admin.";
+}
+
 /**
  * Create error result for chatCore handler
  * @param {number} statusCode - HTTP status code
- * @param {string} message - Error message
+ * @param {string} message - Internal error message (kept on result.error for fallback/admin logs)
  * @param {number} [resetsAtMs] - Optional precise cooldown expiry (ms epoch) for provider-specific quota errors
+ * @param {object} [extraHeaders] - Optional extra response headers
+ * @param {string} [clientMessage] - Optional sanitized message sent in HTTP response body to the client
  * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders = null) {
+export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders = null, clientMessage = null) {
   return {
     success: false,
     status: statusCode,
     error: message,
     resetsAtMs,
-    response: errorResponse(statusCode, message, extraHeaders)
+    response: errorResponse(statusCode, clientMessage || message, extraHeaders)
   };
 }
 

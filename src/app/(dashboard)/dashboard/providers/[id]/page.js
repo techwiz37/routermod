@@ -27,6 +27,7 @@ import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
 import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import CustomConfigCard from "./CustomConfigCard";
+import SessionRateLimitCard from "./SessionRateLimitCard";
 import ProviderAlert from "../components/ProviderAlert";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
 import WebLoginButton, { WEB_LOGIN_PROVIDERS } from "../components/WebLoginButton.js";
@@ -1638,6 +1639,15 @@ export default function ProviderDetailPage() {
             savingSystemPrompt={savingSystemPrompt}
             onSystemPromptSave={(id, prompt) => handleSaveSystemPrompt(id, prompt)}
           />
+          {providerNode && (
+            <SessionRateLimitCard
+              providerId={providerId}
+              providerNode={providerNode}
+              providerDisplayAlias={providerDisplayAlias}
+              modelOptions={systemPromptModelOptions}
+              onNodeUpdated={(node) => setProviderNode(node)}
+            />
+          )}
           <CompatibleModelsSection
             providerStorageAlias={providerStorageAlias}
             providerDisplayAlias={providerDisplayAlias}

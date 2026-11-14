@@ -642,7 +642,7 @@ export default function DashboardProviderOverview() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
-      {/* 5 Hero Metrics Cards — Antares tiles */}
+      {/* 4 Hero Metrics Cards — Antares tiles */}
       <div className="an-grid gap-2.5 sm:gap-3">
         {/* Active Providers */}
         <AntaresStat
@@ -682,17 +682,6 @@ export default function DashboardProviderOverview() {
           value={loading ? "..." : summary.totalFailedAccounts}
           unit="Acc"
           foot={t.needCheck}
-        />
-
-        {/* Lifetime Token Usage — odd card spans the full row on narrow screens */}
-        <AntaresStat
-          className="an-stat-wide"
-          label={t.tokensUsed}
-          icon="token"
-          tone="violet"
-          value={loading ? "..." : fmtNum(summary.totalTokens)}
-          unit="Token"
-          foot={`${fmtNum(summary.totalRequests)} ${t.totalReqs}`}
         />
       </div>
 

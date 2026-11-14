@@ -207,20 +207,14 @@ export async function GET(request) {
       }
     }
 
-    let overallTokens = 0;
-    let overallRequests = 0;
     let overallTotalAccounts = 0;
     let overallActiveAccounts = 0;
     let overallLimitedAccounts = 0;
     let overallFailedAccounts = 0;
 
-    // Track overall tokens & requests across all usage history
-    for (const [, pUsage] of Object.entries(byProviderUsage)) {
-      const prompt = pUsage.promptTokens || 0;
-      const completion = pUsage.completionTokens || 0;
-      overallTokens += prompt + completion;
-      overallRequests += pUsage.requests || 0;
-    }
+    // Get overall tokens & requests from usageStats (already filtered by period)
+    const overallTokens = (usageStats.totalPromptTokens || 0) + (usageStats.totalCompletionTokens || 0);
+    const overallRequests = usageStats.totalRequests || 0;
 
     // Only list providers that actually have accounts or are free/noAuth
     const providersList = Object.values(providerMap)

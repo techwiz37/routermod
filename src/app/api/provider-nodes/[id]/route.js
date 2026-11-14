@@ -85,6 +85,41 @@ export async function PUT(request, { params }) {
   }
 }
 
+export async function PATCH(request, { params }) {
+  const locale = getRequestLocale(request);
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const node = await getProviderNodeById(id);
+
+    if (!node) {
+      return NextResponse.json({ error: localizedProviderMessage(locale, "providerNodeNotFound") }, { status: 404 });
+    }
+
+    const updates = {};
+    if (body.modelRateLimits !== undefined && typeof body.modelRateLimits === "object") {
+      updates.modelRateLimits = body.modelRateLimits;
+    }
+
+    const updated = await updateProviderNode(id, updates);
+
+    const connections = await getProviderConnections({ provider: id });
+    await Promise.all(connections.map((connection) => (
+      updateProviderConnection(connection.id, {
+        providerSpecificData: {
+          ...(connection.providerSpecificData || {}),
+          modelRateLimits: updated.modelRateLimits || {},
+        }
+      })
+    )));
+
+    return NextResponse.json({ success: true, node: updated });
+  } catch (error) {
+    console.log("Error patching provider node:", error);
+    return NextResponse.json({ error: localizedProviderMessage(locale, "failedUpdateNode") }, { status: 500 });
+  }
+}
+
 export async function DELETE(request, { params }) {
   const locale = getRequestLocale(request);
   try {

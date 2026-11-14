@@ -3,6 +3,7 @@ import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
+import { isCustomProvider, getMaskedProviderErrorMessage } from "./error.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
 
@@ -196,6 +197,15 @@ export function createSSEStream(options = {}) {
 
               // Ensure OpenAI-required fields are present on streaming chunks (Letta compat)
               let fieldsInjected = false;
+              if (parsed.error && isCustomProvider(provider)) {
+                const maskedMsg = getMaskedProviderErrorMessage(null, body);
+                if (typeof parsed.error === "object") {
+                  parsed.error = { ...parsed.error, message: maskedMsg };
+                } else {
+                  parsed.error = { message: maskedMsg, type: "server_error" };
+                }
+                fieldsInjected = true;
+              }
               if (parsed.choices !== undefined) {
                 if (!parsed.object) { parsed.object = "chat.completion.chunk"; fieldsInjected = true; }
                 if (!parsed.created) { parsed.created = Math.floor(Date.now() / 1000); fieldsInjected = true; }
@@ -312,6 +322,14 @@ export function createSSEStream(options = {}) {
 
         const parsed = parseSSELine(trimmed, targetFormat);
         if (!parsed) continue;
+        if (parsed.error && isCustomProvider(provider)) {
+          const maskedMsg = getMaskedProviderErrorMessage(null, body);
+          if (typeof parsed.error === "object") {
+            parsed.error = { ...parsed.error, message: maskedMsg };
+          } else {
+            parsed.error = { message: maskedMsg, type: "server_error" };
+          }
+        }
 
         // Responses API same-format passthrough: preserve event framing + track terminal state
         const isOpenAIResponsesStream = targetFormat === FORMATS.OPENAI_RESPONSES;

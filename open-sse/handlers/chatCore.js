@@ -8,7 +8,7 @@ import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
-import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
+import { createErrorResult, parseUpstreamError, formatProviderError, isCustomProvider, getMaskedProviderErrorMessage } from "../utils/error.js";
 import { upstreamResponseHeaders } from "../utils/upstreamHeaders.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
@@ -36,6 +36,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { injectSystemPrompt } from "../rtk/systemInject.js";
+import { checkSessionModelRateLimit, recordSessionModelUsage } from "../../src/sse/services/sessionModelRateLimit.js";
 
 // Explicit capability overrides stored on a custom model (set from the
 // dashboard Add/Edit Model → Capabilities form, e.g. `vision`). Fail-open:
@@ -98,6 +99,41 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const reqTag = log?.tagForSession ? log.tagForSession(sessionSeed) : (log?.nextTag ? log.nextTag() : "");
 
   const sourceFormat = sourceFormatOverride || detectFormat(body);
+  const maskedClientError = isCustomProvider(provider)
+    ? getMaskedProviderErrorMessage(clientRawRequest, body)
+    : null;
+
+  // Session-based per-model rate limiting for custom providers
+  // Check if this session has exceeded the rate limit for this model
+  const stripPrefix = (m) => (typeof m === "string" && m.includes("/") ? m.slice(m.indexOf("/") + 1) : m);
+  const cleanModel = stripPrefix(model);
+  const cleanUsageModel = stripPrefix(usageModel);
+  let matchedRateLimitKey = null;
+  const sessionRateLimitId = sessionSeed || clientIp || "unknown";
+  if (credentials?.providerSpecificData?.modelRateLimits) {
+    const rateLimits = credentials.providerSpecificData.modelRateLimits;
+    if (rateLimits[cleanModel]) matchedRateLimitKey = cleanModel;
+    else if (rateLimits[model]) matchedRateLimitKey = model;
+    else if (rateLimits[cleanUsageModel]) matchedRateLimitKey = cleanUsageModel;
+    else if (rateLimits[usageModel]) matchedRateLimitKey = usageModel;
+    else if (rateLimits["*"]) matchedRateLimitKey = "*";
+
+    const modelRateLimit = matchedRateLimitKey ? rateLimits[matchedRateLimitKey] : null;
+    if (modelRateLimit) {
+      const check = checkSessionModelRateLimit(sessionRateLimitId, provider, matchedRateLimitKey === "*" ? cleanModel : matchedRateLimitKey, modelRateLimit);
+      if (!check.allowed) {
+        const errorMsg = check.reason || `Rate limit exceeded for model ${cleanModel}`;
+        log?.warn?.("SESSION_RATE_LIMIT", errorMsg);
+        return createErrorResult(
+          HTTP_STATUS.RATE_LIMITED,
+          errorMsg,
+          check.resetAt ? check.resetAt.getTime() : undefined,
+          null,
+          maskedClientError
+        );
+      }
+    }
+  }
 
   // Check for bypass patterns (warmup, skip, cc naming)
   const bypassResponse = handleBypassRequest(body, model, userAgent, ccFilterNaming);
@@ -492,7 +528,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (log?.errorLine) {
       log.errorLine(reqTag, "✗", `ERROR 502 · ${provider}/${model} · ${Date.now() - requestStartTime}ms\n    ${errMsg}${error.stack ? `\n    ${error.stack}` : ""}`);
     }
-    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg);
+    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg, undefined, null, maskedClientError);
   }
 
   // Handle 401/403 - try token refresh (skip for noAuth providers)
@@ -612,7 +648,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         log.errorLine(reqTag, "✗", `ERROR ${statusCode} · ${provider}/${model} · ${Date.now() - requestStartTime}ms${urlStr}\n    ${errMsg}`);
       }
       reqLogger.logError(new Error(message), finalBody || translatedBody);
-      return createErrorResult(statusCode, errMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
+      return createErrorResult(statusCode, errMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers), maskedClientError);
+    }
+  }
+
+  if (matchedRateLimitKey) {
+    try {
+      recordSessionModelUsage(sessionRateLimitId, provider, matchedRateLimitKey === "*" ? cleanModel : matchedRateLimitKey);
+    } catch {
+      // Fail-open
     }
   }
 

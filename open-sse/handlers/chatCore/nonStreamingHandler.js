@@ -3,7 +3,7 @@ import { needsTranslation } from "../../translator/index.js";
 import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
 import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai.js";
 import { addBufferToUsage, filterUsageForFormat } from "../../utils/usageTracking.js";
-import { createErrorResult } from "../../utils/error.js";
+import { createErrorResult, isCustomProvider, getMaskedProviderErrorMessage } from "../../utils/error.js";
 import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
@@ -237,6 +237,9 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
 export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, customToolNames, trackDone, appendLog, pxpipe, reqTag, log }) {
   trackDone();
   const contentType = providerResponse.headers.get("content-type") || "";
+  const maskedClientError = isCustomProvider(provider)
+    ? getMaskedProviderErrorMessage(clientRawRequest, body)
+    : null;
   let responseBody;
 
   if (contentType.includes("text/event-stream")) {
@@ -244,7 +247,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     const parsed = parseSSEToOpenAIResponse(sseText, model);
     if (!parsed) {
       appendLog({ status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}` });
-      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Invalid SSE response for non-streaming request");
+      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Invalid SSE response for non-streaming request", undefined, null, maskedClientError);
     }
     if (parsed.error) {
       const upstreamStatus = Number(parsed.error.status);
@@ -252,7 +255,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
         ? upstreamStatus
         : HTTP_STATUS.BAD_GATEWAY;
       appendLog({ status: `FAILED ${status}` });
-      return createErrorResult(status, parsed.error.message || "Upstream SSE stream failed");
+      return createErrorResult(status, parsed.error.message || "Upstream SSE stream failed", undefined, null, maskedClientError);
     }
     responseBody = parsed;
   } else {
@@ -261,7 +264,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     } catch (err) {
       appendLog({ status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}` });
       console.error(`[ChatCore] Failed to parse JSON from ${provider}:`, err.message);
-      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid JSON response from ${provider}`);
+      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid JSON response from ${provider}`, undefined, null, maskedClientError);
     }
   }
 

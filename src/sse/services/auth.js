@@ -311,6 +311,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         // only connection/node prompts here to avoid applying a model prompt
         // twice when the legacy providerModelSystemPrompts setting is used.
         systemPrompt: connection.providerSpecificData?.systemPrompt || nodeSystemPrompt,
+        modelRateLimits: node?.modelRateLimits || connection.providerSpecificData?.modelRateLimits || null,
         connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
         connectionProxyUrl: resolvedProxy.connectionProxyUrl,
         connectionNoProxy: resolvedProxy.connectionNoProxy,
