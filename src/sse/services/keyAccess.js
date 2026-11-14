@@ -267,7 +267,12 @@ async function getAllowSets(ctx) {
 async function isModelStringAllowed(ctx, requested) {
   const sets = await getAllowSets(ctx);
   const info = await getModelInfo(requested);
-  if (!info?.provider) return sets.combos.has(lower(requested));
+  // If provider cannot be resolved, deny access (not allowed by default)
+  if (!info?.provider) {
+    if (sets.combos.has(lower(requested))) return true;
+    // Provider unresolved and not a combo → deny
+    return false;
+  }
   return sets.models.has(canonicalModel(info.provider, info.model));
 }
 

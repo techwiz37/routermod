@@ -129,6 +129,8 @@ export const MODEL_CAPABILITIES = {
   "claude-opus-4-8-thinking": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   "claude-sonnet-4.6": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   "claude-sonnet-4-6": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
+  "claude-sonnet-4.5": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 128000 },
+  "claude-sonnet-4-5": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 128000 },
   // Sonnet 5.5 rejects thinking.type "disabled" (use "between_tools") and forced tool_choice (any/tool).
   "claude-sonnet-5-5": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, thinkingOffType: "between_tools", forcedToolChoice: false },
   "claude-sonnet-5-5-thinking": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, thinkingOffType: "between_tools", forcedToolChoice: false },
@@ -474,6 +476,73 @@ PROVIDER_CAPABILITIES["qoder"] = {
 // Qoder CN serves the identical model catalog from the CN gateway, so it shares
 // the intl Qoder capability table verbatim (vision/reasoning/contextWindow).
 PROVIDER_CAPABILITIES["qoder-cn"] = PROVIDER_CAPABILITIES["qoder"];
+
+// ── Kiro AI (kr / kiro) ──────────────────────────────────────────────────────
+// Explicit per-model table so each model's vision/reasoning/strip flags are
+// accurately reflected in /v1/models capabilities, independent of generic
+// PATTERN_CAPABILITIES fallback order. Caps sourced from Kiro registry +
+// Anthropic Claude model docs (claude.ai/docs) + verified 2026-11-14.
+//
+// Claude Sonnet/Haiku 4.5: 200k context, vision+pdf+reasoning+search.
+// thinking format: claude-adaptive (Kiro routes to Anthropic native messages).
+// DeepSeek 3.2: NO vision/audio (strip:["image","audio"] in registry).
+// MiniMax M2.5: vision+reasoning, cannot disable thinking.
+// MiniMax M2.1: vision+reasoning, cannot disable thinking, smaller context.
+// GLM-5: reasoning only (no vision on base GLM-5).
+// Qwen3 Coder Next: NO vision/audio (strip:["image","audio"] in registry), reasoning.
+// auto/auto-thinking: Kiro picks model server-side; expose as vision+reasoning (Claude-equivalent).
+const KIRO_CLAUDE_SONNET_45  = { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 128000 };
+const KIRO_CLAUDE_HAIKU_45   = { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 128000 };
+const KIRO_DEEPSEEK_32       = { vision: false, reasoning: true, thinkingFormat: "deepseek", contextWindow: 164000, maxOutput: 64000 };
+const KIRO_MINIMAX_M25       = { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 196000, maxOutput: 131072 };
+const KIRO_MINIMAX_M21       = { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 196000, maxOutput: 131072 };
+const KIRO_GLM5              = { vision: false, reasoning: true, thinkingFormat: "zai", contextWindow: 200000, maxOutput: 128000 };
+const KIRO_QWEN3_CODER_NEXT  = { vision: false, reasoning: true, thinkingFormat: "qwen", contextWindow: 256000, maxOutput: 65536 };
+const KIRO_AUTO              = { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 128000 };
+
+PROVIDER_CAPABILITIES["kiro"] = {
+  // Auto (server-side model selection)
+  "auto":                                  KIRO_AUTO,
+  "auto-thinking":                         KIRO_AUTO,
+  // Claude Sonnet 4.5
+  "claude-sonnet-4.5":                     KIRO_CLAUDE_SONNET_45,
+  "claude-sonnet-4.5-thinking":            KIRO_CLAUDE_SONNET_45,
+  "claude-sonnet-4.5-agentic":             KIRO_CLAUDE_SONNET_45,
+  "claude-sonnet-4.5-thinking-agentic":    KIRO_CLAUDE_SONNET_45,
+  // Claude Haiku 4.5
+  "claude-haiku-4.5":                      KIRO_CLAUDE_HAIKU_45,
+  "claude-haiku-4.5-thinking":             KIRO_CLAUDE_HAIKU_45,
+  "claude-haiku-4.5-agentic":              KIRO_CLAUDE_HAIKU_45,
+  "claude-haiku-4.5-thinking-agentic":     KIRO_CLAUDE_HAIKU_45,
+  // DeepSeek 3.2 (no image/audio — strip in registry)
+  "deepseek-3.2":                          KIRO_DEEPSEEK_32,
+  "deepseek-3.2-thinking":                 KIRO_DEEPSEEK_32,
+  "deepseek-3.2-agentic":                  KIRO_DEEPSEEK_32,
+  "deepseek-3.2-thinking-agentic":         KIRO_DEEPSEEK_32,
+  // MiniMax M2.5
+  "minimax-m2.5":                          KIRO_MINIMAX_M25,
+  "minimax-m2.5-thinking":                 KIRO_MINIMAX_M25,
+  "minimax-m2.5-agentic":                  KIRO_MINIMAX_M25,
+  "minimax-m2.5-thinking-agentic":         KIRO_MINIMAX_M25,
+  // MiniMax M2.1
+  "minimax-m2.1":                          KIRO_MINIMAX_M21,
+  "minimax-m2.1-thinking":                 KIRO_MINIMAX_M21,
+  "minimax-m2.1-agentic":                  KIRO_MINIMAX_M21,
+  "minimax-m2.1-thinking-agentic":         KIRO_MINIMAX_M21,
+  // GLM-5 (no vision on base GLM-5)
+  "glm-5":                                 KIRO_GLM5,
+  "glm-5-thinking":                        KIRO_GLM5,
+  "glm-5-agentic":                         KIRO_GLM5,
+  "glm-5-thinking-agentic":               KIRO_GLM5,
+  // Qwen3 Coder Next (no image/audio — strip in registry)
+  "qwen3-coder-next":                      KIRO_QWEN3_CODER_NEXT,
+  "qwen3-coder-next-thinking":             KIRO_QWEN3_CODER_NEXT,
+  "qwen3-coder-next-agentic":              KIRO_QWEN3_CODER_NEXT,
+  "qwen3-coder-next-thinking-agentic":     KIRO_QWEN3_CODER_NEXT,
+};
+// kr is the public alias for kiro
+PROVIDER_CAPABILITIES["kr"] = PROVIDER_CAPABILITIES["kiro"];
+
 PROVIDER_CAPABILITIES.cx = PROVIDER_CAPABILITIES.codex;
 PROVIDER_CAPABILITIES.dv = PROVIDER_CAPABILITIES["devin-cli"];
 PROVIDER_CAPABILITIES.devin = PROVIDER_CAPABILITIES["devin-cli"];

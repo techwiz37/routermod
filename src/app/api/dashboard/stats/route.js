@@ -114,9 +114,16 @@ export async function GET(request) {
       } catch {}
     }
 
+    // Get usage stats for current month (not lifetime "all")
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const daysInMonth = monthEnd.getDate();
+    const periodKey = daysInMonth <= 30 ? "30d" : "60d";
+    
     const [connections, usageStats] = await Promise.all([
       getProviderConnections().catch(() => []),
-      getUsageStats("all").catch(() => ({ byProvider: {} })),
+      getUsageStats(periodKey).catch(() => ({ byProvider: {} })),
     ]);
 
     const byProviderUsage = usageStats?.byProvider || {};

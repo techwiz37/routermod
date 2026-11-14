@@ -120,8 +120,8 @@ export default function RecentRequestsMonitor({ locale = "en" }) {
         const freshKeys = new Set();
 
         if (prev.length > 0) {
-          const prevSet = new Set(prev.slice(0, 5).map((l) => String(l)));
-          next.slice(0, 5).forEach((l, i) => {
+          const prevSet = new Set(prev.slice(0, 20).map((l) => String(l)));
+          next.slice(0, 20).forEach((l, i) => {
             if (!prevSet.has(String(l))) freshKeys.add(i);
           });
         }
@@ -170,7 +170,7 @@ export default function RecentRequestsMonitor({ locale = "en" }) {
         </div>
       </div>
 
-      <div className="lrm-feed" style={{ maxHeight: 380, overflowY: "auto" }}>
+      <div className="lrm-feed" style={{ maxHeight: 700, overflowY: "auto" }}>
         {loading ? (
           <div className="lrm-state">
             <span className="lrm-spinner" />
