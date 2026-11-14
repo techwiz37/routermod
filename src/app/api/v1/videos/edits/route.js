@@ -1,4 +1,5 @@
 import { handleVideoCreate } from "@/sse/handlers/videoGeneration.js";
+import { trackKeyInFlightResponse } from "@/sse/services/keyInFlight.js";
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -10,7 +11,6 @@ export async function OPTIONS() {
   });
 }
 
-/** POST /v1/videos/edits - async video edit (xAI Grok Imagine) */
 export async function POST(request) {
-  return await handleVideoCreate(request, "edits");
+  return trackKeyInFlightResponse(request, await handleVideoCreate(request, "edits"));
 }

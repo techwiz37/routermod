@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import { DATA_DIR } from "@/lib/dataDir";
 import { getSettings } from "@/lib/localDb";
 
-const DEFAULT_PASSWORD = "123456";
+const DEFAULT_PASSWORD = "merdeka";
 const SESSION_MAX_AGE_SEC = 24 * 60 * 60;
 
 function loadJwtSecret() {
@@ -73,7 +73,6 @@ export function clearDashboardAuthCookie(cookieStore) {
   cookieStore.delete("auth_token");
 }
 
-// Verify the current dashboard password (re-auth for sensitive actions).
 export async function verifyDashboardPassword(password) {
   if (typeof password !== "string" || !password) return false;
   const settings = await getSettings();

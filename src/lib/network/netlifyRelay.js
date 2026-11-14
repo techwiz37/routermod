@@ -1,17 +1,3 @@
-// Netlify relay helpers: relay function bundle + digest-deploy plumbing.
-//
-// Deploy model (per https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api):
-//   1. POST /api/v1/sites                                     → { id, ssl_url }
-//   2. POST /api/v1/sites/{site_id}/deploys { files, functions }
-//      → { id, required[], required_functions[] } (SHA1 for files, SHA256 for functions)
-//   3. PUT  /api/v1/deploys/{id}/files/{path}                 (only SHAs listed in `required`)
-//      PUT  /api/v1/deploys/{id}/functions/{name}?runtime=js  (only SHAs in `required_functions`)
-//   4. Poll GET /api/v1/deploys/{id} until state === "ready".
-//
-// The relay speaks the same header spec as the Vercel/Cloudflare/Deno relays
-// (x-relay-target + x-relay-path), so proxyAwareFetch needs no changes.
-// Manual digest deploys run no build step, so the function is served from its
-// default endpoint: <site>/.netlify/functions/relay.
 
 import { createHash } from "node:crypto";
 
@@ -19,13 +5,6 @@ export const NETLIFY_API = "https://api.netlify.com/api/v1";
 export const NETLIFY_FUNCTION_NAME = "relay";
 export const NETLIFY_FUNCTION_PATH = "/.netlify/functions/relay";
 
-// Digest-deployed functions (no build step) run on the Lambda-compatible
-// runtime, so the bundle must use exports.handler(event) with a string body,
-// not the modern export-default streaming syntax. Live-verified failure
-// modes: ESM syntax -> Runtime.UserCodeSyntaxError (502); stream body ->
-// cannot-unmarshal-object-into-Go-struct-field (502).
-// Response shape mirrors the Vercel/Cloudflare/Deno relays: relay headers
-// stripped, status/body passed through.
 export const NETLIFY_RELAY_FUNCTION_CODE = `exports.handler = async (event) => {
   const headers = {};
   for (const [k, v] of Object.entries(event.headers || {})) {
@@ -62,10 +41,6 @@ export const NETLIFY_RELAY_FUNCTION_CODE = `exports.handler = async (event) => {
           : event.body
         : undefined,
     });
-    // Lambda response body must be a string: returning the stream object
-    // fails with cannot-unmarshal-object-into-Go-struct-field (live 502).
-    // So buffer here: text for API payloads (JSON/SSE), base64 for binary.
-    // Tradeoff vs the other relays: SSE arrives buffered, stays valid SSE.
     const responseHeaders = {};
     upstream.headers.forEach((value, key) => {
       responseHeaders[key] = value;
@@ -103,9 +78,6 @@ export function sha256Hex(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-// ─── Minimal stored (uncompressed) ZIP writer ──────────────────────────
-// No compression dependency needed: the relay bundle is ~1.5 KB. Stored
-// entries are plain CRC32 + headers, verifiable with any unzip tool.
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n += 1) {
@@ -172,7 +144,6 @@ export function buildStoredZip(files) {
   return Buffer.concat([...chunks, ...central, Buffer.from(end.buffer)]);
 }
 
-// Zipped single-file bundle Netlify expects for `runtime=js` function uploads.
 export function buildRelayFunctionZip() {
   const content = new TextEncoder().encode(NETLIFY_RELAY_FUNCTION_CODE);
   const zip = buildStoredZip([{ name: `${NETLIFY_FUNCTION_NAME}.js`, data: content }]);

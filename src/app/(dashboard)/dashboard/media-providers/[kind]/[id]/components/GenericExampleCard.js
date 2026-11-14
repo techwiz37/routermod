@@ -9,8 +9,6 @@ import { Row, KIND_EXAMPLE_CONFIG } from "./exampleShared";
 
 const CLOUDFLARE_TEST_IMAGE_URL = "https://pub-1fb693cb11cc46b2b2f656f51e015a2c.r2.dev/dog.png";
 const CLOUDFLARE_TEST_MASK_URL = "https://pub-1fb693cb11cc46b2b2f656f51e015a2c.r2.dev/dog-mask.png";
-// HuggingFace router edit models need a source image; reuse the public dog sample so
-// the card is runnable as-is. The router derives it from inputs, not from the Hub host.
 const HUGGINGFACE_TEST_IMAGE_URL = CLOUDFLARE_TEST_IMAGE_URL;
 
 function getImageEditDefaults(providerId, modelId) {
@@ -49,9 +47,7 @@ export function GenericExampleCard({ providerId, kind }) {
       : field
   ));
 
-  // Get models for this kind (e.g., type="image")
   const kindModels = getModelsByProviderId(providerId).filter((m) => getModelKind(m) === kind);
-  // Kinds that need a model identifier in the request (image/video/music/systemone)
   const KIND_NEEDS_MODEL = new Set(["image", "video", "music", "imageToText", "systemone"]);
   const needsModel = KIND_NEEDS_MODEL.has(kind);
   const allowManualModel = needsModel && kindModels.length === 0;
@@ -93,7 +89,6 @@ export function GenericExampleCard({ providerId, kind }) {
       .then((r) => r.json())
       .then((d) => { if (d.publicUrl) setTunnelEndpoint(d.publicUrl); })
       .catch(() => {});
-    // Load active connections of this provider for pinning
     fetch("/api/providers/client")
       .then((r) => r.json())
       .then((d) => {
@@ -103,12 +98,10 @@ export function GenericExampleCard({ providerId, kind }) {
       .catch(() => {});
   }, [providerId]);
 
-  // Safe to early-return now that all hooks are declared
   if (!kindConfig || !exConfig) return null;
 
   const endpoint = useTunnel ? tunnelEndpoint : localEndpoint;
   const apiPath = kindConfig.endpoint.path;
-  // webSearch/webFetch: use safeProviderAlias only. Other kinds: append model when present.
   const modelFull = !needsModel
     ? safeProviderAlias
     : (selectedModel ? `${safeProviderAlias}/${selectedModel}` : (allowManualModel ? "" : safeProviderAlias));
@@ -118,7 +111,6 @@ export function GenericExampleCard({ providerId, kind }) {
   const refImagePreviewSrc = toImagePreviewSrc(effectiveRefImage);
   const maskImagePreviewSrc = toImagePreviewSrc(effectiveMaskImage);
 
-  // Build request body with optional extra fields (only non-empty values)
   const effectiveExtraValues = hasFormats && !formats.includes(extraValues.format)
     ? { ...extraValues, format: extraFields.find((field) => field.key === "format")?.default }
     : extraValues;
@@ -146,7 +138,6 @@ export function GenericExampleCard({ providerId, kind }) {
     ...(supportsMask && effectiveMaskImage ? { mask_image: effectiveMaskImage } : {}),
   };
 
-  // Streaming supported for codex image (Plus/Pro accounts) — disabled when binary output requested
   const wantBinary = kind === "image" && imageOutputFormat === "binary";
   const useStreaming = kind === "image" && providerId === "codex" && !wantBinary;
   const apiPathWithQuery = `${apiPath}${wantBinary ? "?response_format=binary" : ""}`;
@@ -181,7 +172,6 @@ export function GenericExampleCard({ providerId, kind }) {
         return;
       }
       const ctype = res.headers.get("content-type") || "";
-      // Binary image response — convert to blob URL
       if (ctype.startsWith("image/")) {
         const blob = await res.blob();
         const objUrl = URL.createObjectURL(blob);
@@ -191,7 +181,6 @@ export function GenericExampleCard({ providerId, kind }) {
       }
       const isSse = ctype.includes("text/event-stream");
       if (isSse && res.body) {
-        // Parse SSE: progress / partial_image / done / error
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
@@ -235,27 +224,18 @@ export function GenericExampleCard({ providerId, kind }) {
     }
   };
 
-  // Mask large b64_json strings in JSON view to keep it readable
   const maskB64 = (obj) => {
     if (!obj || typeof obj !== "object") return obj;
     if (Array.isArray(obj)) return obj.map(maskB64);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
-      if (k === "b64_json" && typeof v === "string" && v.length > 100) {
-        out[k] = `<${v.length} chars base64>`;
-      } else if (typeof v === "string" && v.length > 100 && /^data:[^,]+,/.test(v)) {
-        out[k] = `<${v.length} chars data URI>`;
-      } else {
-        out[k] = maskB64(v);
-      }
+      out[k] = (k === "b64_json" && typeof v === "string" && v.length > 100)
+        ? `<${v.length} chars base64>`
+        : maskB64(v);
     }
     return out;
   };
   const resultJson = result ? JSON.stringify(maskB64(result.data), null, 2) : "";
-  // Video preview: xAI/grok shape {video:{url}} or array shape {data:[{url}]}
-  const videoUrl = result
-    ? result.data?.video?.url || result.data?.data?.[0]?.url || null
-    : null;
 
   return (
     <Card>
@@ -473,42 +453,6 @@ export function GenericExampleCard({ providerId, kind }) {
                 onChange={(e) => setExtraValues((s) => ({ ...s, [f.key]: e.target.value }))}
                 className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
               />
-            ) : f.type === "image" ? (
-              <div className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  value={extraValues[f.key] ?? ""}
-                  placeholder="https://… or click Upload"
-                  onChange={(e) => setExtraValues((s) => ({ ...s, [f.key]: e.target.value }))}
-                  className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
-                />
-                <label className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-border rounded-lg bg-background hover:bg-accent cursor-pointer transition-colors">
-                  <span className="material-symbols-outlined text-[16px]">upload</span>
-                  Upload
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => setExtraValues((s) => ({ ...s, [f.key]: String(reader.result || "") }));
-                      reader.readAsDataURL(file);
-                    }}
-                  />
-                </label>
-              </div>
-            ) : f.type === "boolean" ? (
-              <label className="inline-flex items-center gap-2 text-sm text-text-main">
-                <input
-                  type="checkbox"
-                  checked={extraValues[f.key] === true}
-                  onChange={(e) => setExtraValues((s) => ({ ...s, [f.key]: e.target.checked }))}
-                  className="size-4 accent-primary"
-                />
-                {extraValues[f.key] ? "Enabled" : "Disabled"}
-              </label>
             ) : (
               <input
                 type="number"
@@ -609,8 +553,11 @@ export function GenericExampleCard({ providerId, kind }) {
               </button>
             )}
           </div>
+          <pre className="bg-sidebar rounded-lg px-3 py-2.5 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all opacity-70">
+            {result ? resultJson : exConfig.defaultResponse}
+          </pre>
           {kind === "image" && (binaryImageUrl || result?.data?.data?.[0]) && (
-            <div className="mb-2">
+            <div className="mt-2">
               <div className="flex items-center justify-end mb-1.5">
                 <a
                   href={binaryImageUrl || (result?.data?.data?.[0]?.b64_json ? `data:image/png;base64,${result.data.data[0].b64_json}` : result?.data?.data?.[0]?.url || "")}
@@ -630,28 +577,6 @@ export function GenericExampleCard({ providerId, kind }) {
               />
             </div>
           )}
-          {kind === "video" && videoUrl && (
-            <div className="mb-2">
-              <div className="flex items-center justify-end mb-1.5">
-                <a
-                  href={videoUrl}
-                  download="video.mp4"
-                  className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[14px]">download</span>
-                  Download
-                </a>
-              </div>
-              <video
-                controls
-                src={videoUrl}
-                className="max-w-full rounded-lg border border-border"
-              />
-            </div>
-          )}
-          <pre className="bg-sidebar rounded-lg px-3 py-2.5 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all opacity-70">
-            {result ? resultJson : exConfig.defaultResponse}
-          </pre>
         </div>
       </div>
     </Card>

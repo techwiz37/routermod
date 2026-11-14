@@ -22,7 +22,6 @@ export default function PricingModal({ isOpen, onClose, onSave }) {
         const data = await response.json();
         setPricingData(data);
       } else {
-        // Fallback to defaults
         const defaults = getDefaultPricing();
         setPricingData(defaults);
       }
@@ -89,7 +88,6 @@ export default function PricingModal({ isOpen, onClose, onSave }) {
 
   if (!isOpen) return null;
 
-  // Get all unique providers and models for display
   const allProviders = Object.keys(pricingData).sort();
   const pricingFields = ["input", "output", "cached", "reasoning", "cache_creation"];
 

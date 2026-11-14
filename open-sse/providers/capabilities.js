@@ -837,6 +837,56 @@ function isCommandCodeTextOnly(model) {
   return false;
 }
 export function getCapabilitiesForModel(provider, model) {
+  return applyLearnedLimits(resolveCapabilities(provider, model), provider, model);
+}
+
+// Windows the upstream itself reported in a context-overflow rejection. The
+// catalog can advertise more than a gateway really serves; once the provider
+// says its own number, every later request must budget against it.
+const LEARNED_KEY = "__9rLearnedWindows";
+
+function learnedStore() {
+  if (typeof globalThis === "undefined") return null;
+  if (!globalThis[LEARNED_KEY]) globalThis[LEARNED_KEY] = new Map();
+  return globalThis[LEARNED_KEY];
+}
+
+function learnedKey(provider, model) {
+  const base = model && model.includes("/") ? model.split("/").pop() : model;
+  return `${String(provider || "").toLowerCase()}/${String(base || "").toLowerCase()}`;
+}
+
+export function learnContextWindow(provider, model, contextWindow) {
+  const tokens = Number(contextWindow);
+  if (!Number.isFinite(tokens) || tokens < 1000) return false;
+  const store = learnedStore();
+  if (!store) return false;
+  const key = learnedKey(provider, model);
+  if (!key || key === "/") return false;
+  const previous = store.get(key);
+  if (previous && previous <= tokens) return false;
+  store.set(key, tokens);
+  return true;
+}
+
+export function getLearnedContextWindow(provider, model) {
+  const store = learnedStore();
+  if (!store) return null;
+  return store.get(learnedKey(provider, model)) || null;
+}
+
+function applyLearnedLimits(caps, provider, model) {
+  const learned = getLearnedContextWindow(provider, model);
+  if (!learned) return caps;
+  if (Number.isFinite(caps.contextWindow) && caps.contextWindow <= learned) return caps;
+  return {
+    ...caps,
+    contextWindow: learned,
+    maxOutput: Math.min(Number.isFinite(caps.maxOutput) ? caps.maxOutput : learned, learned),
+  };
+}
+
+function resolveCapabilities(provider, model) {
   if (!model) return { ...DEFAULT_CAPABILITIES };
 
   // Canonical exact lookup strips vendor prefix: "anthropic/claude-opus-4.7" -> "claude-opus-4.7".

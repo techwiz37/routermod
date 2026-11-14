@@ -1,8 +1,6 @@
 import { handleSearch } from "@/sse/handlers/search.js";
+import { trackKeyInFlightResponse } from "@/sse/services/keyInFlight.js";
 
-/**
- * Handle CORS preflight
- */
 export async function OPTIONS() {
   return new Response(null, {
     headers: {
@@ -13,9 +11,6 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * POST /v1/search - Web search endpoint
- */
 export async function POST(request) {
-  return await handleSearch(request);
+  return trackKeyInFlightResponse(request, await handleSearch(request));
 }

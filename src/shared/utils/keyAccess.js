@@ -1,15 +1,9 @@
-// Per-API-key access control: pure helpers (no DB, no
-// request objects), shared by the DB repo, the API routes and the engine.
 import {
   KEY_ACCESS_MAX_ENTRIES,
   KEY_ACCESS_MAX_ENTRY_LENGTH,
   KEY_ACCESS_UNRESTRICTED,
 } from "@/shared/constants/keyAccess.js";
 
-/**
- * Normalize an allow list: keep strings only, trim, drop empties, de-duplicate
- * case-insensitively (the first spelling wins). Order is preserved.
- */
 export function normalizeAllowList(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
@@ -26,13 +20,6 @@ export function normalizeAllowList(list) {
   return out;
 }
 
-/**
- * Build the access object from the two apiKeys columns.
- *
- * Fails CLOSED: the restricted flag has its own INTEGER column, so a corrupt or
- * unparsable allow list can only ever shrink what a restricted key may call
- * (to nothing); it can never turn a restricted key into an unrestricted one.
- */
 export function keyAccessFromColumns(restrictedCol, allowCol) {
   const restricted = restrictedCol === 1 || restrictedCol === true;
   if (!restricted) return { restricted: false, allow: [] };
@@ -43,7 +30,6 @@ export function keyAccessFromColumns(restrictedCol, allowCol) {
   return { restricted: true, allow: normalizeAllowList(parsed) };
 }
 
-/** Columns to persist for an access object (already validated/normalized). */
 export function keyAccessToColumns(access) {
   const value = access || KEY_ACCESS_UNRESTRICTED;
   return {
@@ -52,11 +38,6 @@ export function keyAccessToColumns(access) {
   };
 }
 
-/**
- * Validate client input for an access update ({ restricted, allow }).
- * Rejects rather than repairs: wrong types, too many entries, overlong entries.
- * @returns {{ ok: true, value: {restricted: boolean, allow: string[]} } | { ok: false, error: string }}
- */
 export function validateKeyAccessInput(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { ok: false, error: "access must be an object { restricted, allow }" };

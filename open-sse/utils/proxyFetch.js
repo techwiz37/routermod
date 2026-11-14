@@ -289,14 +289,32 @@ function resolveConnectionProxyUrl(targetUrl, proxyOptions) {
 // list; a single curve rewrites the fingerprint enough to pass. Empirically:
 // default agent = ECONNRESET 100%, X25519 = through 100%.
 const TLS_ECDH_CURVE = process.env.NINEROUTER_TLS_ECDH_CURVE || "X25519";
+// Some edges (AWS OIDC / CodeWhisperer used by Kiro) reset an X25519-only
+// ClientHello. Hosts that do are retried with a standard curve list and
+// remembered, so they skip the failing handshake afterwards.
+const TLS_COMPAT_CURVES = "X25519:P-256:P-384";
+const compatTlsHosts = new Set();
+
+function hostOf(url) {
+  try {
+    return new URL(typeof url === "string" ? url : url.toString()).host;
+  } catch {
+    return "";
+  }
+}
+
+function isTlsResetError(err) {
+  const code = err?.cause?.code || err?.code;
+  return code === "ECONNRESET" || code === "UND_ERR_SOCKET" || code === "EPIPE";
+}
 
 // autoSelectFamilyAttemptTimeout = happy eyeballs (RFC 8305): race both address
 // families, fall over in 250ms — replaces the old global ipv4first flag, which fixed
 // one broken-family network by breaking the other (see claude-code#20240).
 // requestTls must stay TLS-options-only (connect-level options belong in `connect`).
 const EYEBALLS_CONNECT = { autoSelectFamily: true, autoSelectFamilyAttemptTimeout: 250 };
-function buildConnectOptions(insecure) {
-  return { ...EYEBALLS_CONNECT, ecdhCurve: TLS_ECDH_CURVE, ...(insecure ? { rejectUnauthorized: false } : {}) };
+function buildConnectOptions(insecure, curve = TLS_ECDH_CURVE) {
+  return { ...EYEBALLS_CONNECT, ecdhCurve: curve, ...(insecure ? { rejectUnauthorized: false } : {}) };
 }
 
 function evictOldest(cacheMap) {
@@ -305,13 +323,13 @@ function evictOldest(cacheMap) {
   }
 }
 
-async function getOrCreateDirectAgent(key, insecure, keepAliveTimeout, keepAliveMaxTimeout) {
+async function getOrCreateDirectAgent(key, insecure, keepAliveTimeout, keepAliveMaxTimeout, curve = TLS_ECDH_CURVE) {
   const cached = directDispatchers.get(key);
   if (cached) return cached;
   const { Agent } = await import("undici");
   evictOldest(directDispatchers);
   const agent = new Agent({
-    connect: buildConnectOptions(insecure),
+    connect: buildConnectOptions(insecure, curve),
     keepAliveTimeout,
     keepAliveMaxTimeout,
   });
@@ -342,6 +360,12 @@ export function getFreshRetryDispatcher(insecure = false) {
     FRESH_RETRY_KEEPALIVE_TIMEOUT_MS,
     FRESH_RETRY_KEEPALIVE_TIMEOUT_MS
   );
+}
+
+function getCompatTlsDispatcher(insecure = false) {
+  const { keepAliveTimeout, keepAliveMaxTimeout } = resolveKeepAliveTimeouts();
+  const key = `compat::${insecure ? "insecure" : "secure"}::${keepAliveTimeout}::${keepAliveMaxTimeout}`;
+  return getOrCreateDirectAgent(key, insecure, keepAliveTimeout, keepAliveMaxTimeout, TLS_COMPAT_CURVES);
 }
 
 /**
@@ -381,10 +405,34 @@ async function fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket = f
   try {
     // Protocol adapters may need Node's HTTP/1 transport on the direct path.
     // Keep proxy/no-proxy resolution and strict-proxy enforcement here.
+    // Proxy-capable adapters (opencode wreq-js) are handled in proxyAwareFetch;
+    // reaching here with a proxy means native proxied fetch (incl. fail-open).
     if (!proxyUrl && options.directFetch) return await options.directFetch(url, options);
+    if (!proxyUrl && compatTlsHosts.has(hostOf(url))) {
+      return await rawFetch(url, { ...options, dispatcher: await getCompatTlsDispatcher(false) });
+    }
     const dispatcher = await getDispatcher(proxyUrl, false, forceFreshSocket);
     return await rawFetch(url, { ...options, dispatcher });
   } catch (err) {
+    const host = hostOf(url);
+    if (
+      !proxyUrl
+      && !options.directFetch
+      && host
+      && !compatTlsHosts.has(host)
+      && !options.signal?.aborted
+      && isBodyReplaySafe(options.body)
+      && isTlsResetError(err)
+    ) {
+      try {
+        const res = await rawFetch(url, { ...options, dispatcher: await getCompatTlsDispatcher(false) });
+        compatTlsHosts.add(host);
+        dbg("FETCH", `${host} resets X25519-only TLS; using standard curves from now on`);
+        return res;
+      } catch {
+        // Fall through to the original error handling below.
+      }
+    }
     const isStrictSsl = options.strictTls === true || process.env.STRICT_SSL === "true" || process.env.STRICT_SSL === "1";
     if (!isStrictSsl && isTlsCertError(err)) {
       if (!isBodyReplaySafe(options.body)) {
@@ -516,10 +564,15 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       dbg("PROXY", `PROXY ROUTING VERIFIED | ${safeTargetHost(targetUrl)} | transport=adapter | proxy=${via || safeProxyHost(proxyUrl)} | status=${res?.status}`);
       return res;
     } catch (err) {
-      if (proxyOptions?.strictProxy === true) {
+      // wreq-js missing: fail open to the native proxied fetch below (still
+      // rides the proxy, so strictProxy is honored), just without impersonation.
+      if (err?.name === "OpencodeTlsUnavailableError") {
+        console.warn(`[ProxyFetch] directFetch unavailable (${err.message}); failing open to native proxied fetch`);
+      } else if (proxyOptions?.strictProxy === true) {
         throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${err.message}`);
+      } else {
+        throw err;
       }
-      throw err;
     }
   }
 

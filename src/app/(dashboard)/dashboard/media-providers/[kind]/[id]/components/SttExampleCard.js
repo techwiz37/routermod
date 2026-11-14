@@ -17,7 +17,6 @@ export function SttExampleCard({ providerId }) {
   const [selectedModel, setSelectedModel] = useState(builtinSttModels[0]?.id ?? "");
   const selectedModelObj = sttModels.find((m) => m.id === selectedModel);
   const allowedParams = Array.isArray(selectedModelObj?.params) ? selectedModelObj.params : [];
-  const responseFormats = selectedModelObj?.responseFormats || ["json", "text", "srt", "verbose_json", "vtt"];
 
   const [audioFile, setAudioFile] = useState(null);
   const [language, setLanguage] = useState("");
@@ -95,7 +94,6 @@ export function SttExampleCard({ providerId }) {
       if (allowedParams.includes("tag_audio_events") && tagAudioEvents) {
         fd.append("tag_audio_events", "true");
       }
-      // diarize and num_speakers are mutually exclusive upstream — only one goes out.
       if (allowedParams.includes("diarize") && diarize) {
         fd.append("diarize", "true");
       } else if (allowedParams.includes("num_speakers") && numSpeakers) {
@@ -243,7 +241,11 @@ export function SttExampleCard({ providerId }) {
               onChange={(e) => setResponseFormat(e.target.value)}
               className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
             >
-              {responseFormats.map((format) => <option key={format} value={format}>{format}</option>)}
+              <option value="json">json</option>
+              <option value="text">text</option>
+              <option value="srt">srt</option>
+              <option value="verbose_json">verbose_json</option>
+              <option value="vtt">vtt</option>
             </select>
           </Row>
         )}

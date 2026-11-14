@@ -4,9 +4,9 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button, Input, Modal } from "@/shared/components";
 import { cn } from "@/shared/utils/cn";
+import { translate } from "@/i18n/runtime";
 import {
   PING_SCHEDULE_DEFAULTS,
-  getLocalTimezone,
   getScheduleSlotLabels,
   maxSlotsPerDay,
   parseAnchor,
@@ -22,7 +22,6 @@ function toFormState(schedule, reactive) {
   return {
     mode: schedule?.enabled === true ? "schedule" : reactive === true ? "reset" : "off",
     anchor: schedule?.anchor || PING_SCHEDULE_DEFAULTS.anchor,
-    timezone: getLocalTimezone(),
     windowHours: String(schedule?.windowHours ?? PING_SCHEDULE_DEFAULTS.windowHours),
     slotsPerDay: String(schedule?.slotsPerDay ?? PING_SCHEDULE_DEFAULTS.slotsPerDay),
   };
@@ -64,7 +63,7 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
         ? {
           enabled: true,
           anchor: form.anchor,
-          timezone: form.timezone,
+          timezone: PING_SCHEDULE_DEFAULTS.timezone,
           windowHours,
           slotsPerDay,
         }
@@ -77,21 +76,22 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Auto-ping settings"
+      title={translate("Auto-ping settings")}
       size="lg"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!canSave}>Save</Button>
+          <Button variant="secondary" onClick={onClose}>{translate("Cancel")}</Button>
+          <Button onClick={handleSave} disabled={!canSave}>{translate("Save")}</Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-text-muted">
-          Configure automated quota pings{connection?.name ? ` for ${connection.name}` : ""} — pick one mode.
+          {translate("Configure automated quota pings — pick one mode.")}
+          {connection?.name ? ` (${connection.name})` : ""}
         </p>
 
-        <div className="grid grid-cols-3 gap-1 rounded-[10px] bg-surface-2 p-1">
+        <div className="grid grid-cols-3 gap-1 rounded-[10px] bg-surface-2 p-1 border border-border">
           {MODE_OPTIONS.map((option) => {
             const isSelected = form.mode === option.value;
             return (
@@ -102,14 +102,14 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
                 className={cn(
                   "flex h-9 items-center justify-center gap-1.5 rounded-[8px] px-3 text-sm font-medium transition-all",
                   isSelected
-                    ? "bg-surface text-text-main shadow-sm"
+                    ? "bg-[var(--color-primary)] text-white shadow-[1.5px_1.5px_0px_var(--color-border)]"
                     : "text-text-muted hover:text-text-main"
                 )}
               >
                 <span className="material-symbols-outlined text-[15px] leading-none">
                   {option.icon}
                 </span>
-                <span>{option.label}</span>
+                <span>{translate(option.label)}</span>
               </button>
             );
           })}
@@ -117,27 +117,26 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
 
         {form.mode === "reset" && (
           <p className="text-xs text-text-muted">
-            Pings right after the 5h quota window resets, so a new window starts immediately.
+            {translate("Pings right after the 5h quota window resets, so a new window starts immediately.")}
           </p>
         )}
 
         {form.mode === "schedule" && (
           <div className="flex flex-col gap-4">
             <p className="text-xs text-text-muted">
-              Pings at fixed local times so the 5h windows align with your workday.
+              {translate("Pings at fixed local times so the 5h windows align with your workday.")}
             </p>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Input
-                label="Anchor time"
+                label={translate("Anchor time")}
                 type="time"
                 value={form.anchor}
                 onChange={(e) => update({ anchor: e.target.value })}
-                error={anchorValid ? "" : "Use HH:MM"}
-                inputClassName="ring-1 ring-black/10 dark:ring-white/15"
+                error={anchorValid ? "" : translate("Use HH:MM")}
               />
               <Input
-                label="Window (hours)"
+                label={translate("Window (hours)")}
                 type="number"
                 min="0.5"
                 max="24"
@@ -145,10 +144,9 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
                 value={form.windowHours}
                 onChange={(e) => update({ windowHours: e.target.value })}
                 error={windowValid ? "" : "0.5 – 24"}
-                inputClassName="ring-1 ring-black/10 dark:ring-white/15"
               />
               <Input
-                label="Pings per day"
+                label={translate("Pings per day")}
                 type="number"
                 min="1"
                 max={String(slotsMax)}
@@ -156,15 +154,14 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
                 value={form.slotsPerDay}
                 onChange={(e) => update({ slotsPerDay: e.target.value })}
                 error={slotsValid ? "" : `1 – ${slotsMax}`}
-                hint={slotsValid ? `Max ${slotsMax}` : ""}
-                inputClassName="ring-1 ring-black/10 dark:ring-white/15"
+                hint={slotsValid ? `${translate("Max")} ${slotsMax}` : ""}
               />
             </div>
 
             {previewSlots.length > 0 && (
-              <div className="rounded-[10px] bg-surface-2 px-3 py-2.5">
+              <div className="rounded-[10px] bg-surface-2 border border-border px-3 py-2.5">
                 <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
-                  Daily slots ({form.timezone})
+                  Daily slots
                 </p>
                 <p className="mt-1 text-sm font-medium text-text-main">{previewSlots.join("  →  ")}</p>
                 <p className="mt-1 text-xs text-text-muted">

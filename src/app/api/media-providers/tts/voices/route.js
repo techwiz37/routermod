@@ -1,10 +1,6 @@
 import { listTtsVoices } from "@/lib/ttsVoices.js";
 import { NextResponse } from "next/server";
 
-/**
- * GET /api/media-providers/tts/voices
- * Query: ?provider=edge-tts|local-device|elevenlabs [&lang=en] [&apiKey=...]
- */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);

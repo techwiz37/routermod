@@ -44,7 +44,6 @@ export default function DroidToolCard({
 
   const getConfigStatus = () => {
     if (!droidStatus?.installed) return null;
-    // Check for any 9Router model entry (support multi-model: custom:9Router-0, custom:9Router-1, ...)
     const currentConfig = droidStatus.settings?.customModels?.find(m => m.id?.startsWith("custom:9Router"));
     if (!currentConfig) return "not_configured";
     return matchKnownEndpoint(currentConfig.baseUrl, { tunnelPublicUrl, tailscaleUrl, cloudUrl: cloudEnabled ? CLOUD_URL : null }) ? "configured" : "other";
@@ -79,7 +78,6 @@ export default function DroidToolCard({
     }
   };
 
-  // Pre-fill model list from existing config (supports multi-model)
   useEffect(() => {
     if (droidStatus?.installed && !hasInitializedModel.current) {
       hasInitializedModel.current = true;
@@ -90,7 +88,6 @@ export default function DroidToolCard({
       if (existingModels.length > 0) {
         setModelList(existingModels);
       } else {
-        // Legacy: single model stored as custom:9Router-0
         const legacy = droidStatus.settings?.customModels?.find(m => m.id === "custom:9Router-0");
         if (legacy?.model) {
           setModelList([legacy.model]);
@@ -157,7 +154,6 @@ export default function DroidToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         checkDroidStatus();
@@ -259,11 +255,11 @@ export default function DroidToolCard({
                 <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
-                    <p className="font-medium text-yellow-600 dark:text-yellow-400">Factory Droid CLI not detected locally</p>
-                    <p className="text-sm text-text-muted">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-[13px] font-medium text-yellow-600 dark:text-yellow-400 sm:text-sm">Factory Droid CLI not detected locally</p>
+                    <p className="text-[12.5px] text-text-muted sm:text-sm">Manual configuration is still available if 9router is deployed on a remote server.</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 pl-9">
+                <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-9">
                   <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">
                     <span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>
                     Manual Config

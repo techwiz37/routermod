@@ -11,6 +11,14 @@ const proxyClientMaxBodySize = process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Allow tunnel/Tailscale domains to load /_next/* dev assets.
+  // Wildcard patterns match any subdomain of these tunnel providers.
+  allowedDevOrigins: [
+    "*.trycloudflare.com",
+    "*.abc-tunnel.us",
+    "*.ts.net",
+    "*.toolwiz.id",
+  ],
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
   // `open` must stay external. It derives its own directory from `import.meta.url`, and
@@ -28,7 +36,7 @@ const nextConfig = {
   // undici must stay external too: webpack's vendored copy drops the per-request
   // `dispatcher` connect options (ecdhCurve) — the built server then RSTs on
   // DPI-shaped networks while the dev server (real undici) passes.
-  serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite", "open", "@aws-sdk/credential-providers", "wreq-js", "undici"],
+  serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite", "open", "@aws-sdk/credential-providers", "puppeteer-core", "wreq-js", "undici"],
   turbopack: {
     root: tracingRoot
   },
@@ -46,6 +54,8 @@ const nextConfig = {
   },
   env: {},
   experimental: {
+    // Security upgrade agent flag
+    agentUpgrade: "security",
     // #1529/#1572: LLM clients can send long context or base64 image payloads through /v1 rewrites.
     proxyClientMaxBodySize,
     // Cache fetch responses across HMR refreshes for faster dev reloads.
@@ -69,6 +79,33 @@ const nextConfig = {
       ignored: /[\\/](node_modules|\.git|logs|\.next|\.next-cli-build|gitbook|cli|open-sse\.old|tests|docs)[\\/]/,
     };
     return config;
+  },
+  async headers() {
+    return [
+      // Dashboard HTML must never be retained across standalone deploys. The
+      // HTML contains build-specific chunk names; serving an older copy after
+      // a build makes the browser request chunks that no longer exist and
+      // leaves the PagePreloader visible forever.
+      {
+        source: "/dashboard/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        ],
+      },
+      {
+        source: "/dashboard",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        ],
+      },
+      {
+        source: "/_next/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, OPTIONS" },
+        ],
+      },
+    ];
   },
   async rewrites() {
     return [

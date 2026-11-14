@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import PropTypes from "prop-types";
-import { Badge, Toggle, Tooltip } from "@/shared/components";
+import { Tooltip } from "@/shared/components";
+import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import CooldownTimer from "./CooldownTimer";
+import { translate } from "@/i18n/runtime";
+import { useNotificationStore } from "@/store/notificationStore";
 
 export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null }) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
@@ -13,6 +15,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const proxyDropdownRef = useRef(null);
   const proxyBtnRef = useRef(null);
   const [proxyDropdownStyle, setProxyDropdownStyle] = useState(null);
+  const addNotification = useNotificationStore((state) => state.addNotification);
 
   const proxyPoolMap = new Map((proxyPools || []).map((pool) => [pool.id, pool]));
   const boundProxyPoolId = connection.providerSpecificData?.proxyPoolId || null;
@@ -131,10 +134,17 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
       ? connection.displayName.trim()
       : null;
 
-  // Use useState + useEffect for impure Date.now() to avoid calling during render
+  const showConnectionError = () => {
+    addNotification({
+      type: "error",
+      title: translate("Connection error"),
+      message: connection.lastError,
+      duration: 8000,
+    });
+  };
+
   const [isCooldown, setIsCooldown] = useState(false);
 
-  // Get earliest model lock timestamp (useEffect handles the Date.now() comparison)
   const modelLockUntil = Object.entries(connection)
     .filter(([k]) => k.startsWith("modelLock_"))
     .map(([, v]) => v)
@@ -158,20 +168,46 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
     };
   }, [modelLockUntil]);
 
-  // Determine effective status (override unavailable if cooldown expired)
   const effectiveStatus = (connection.testStatus === "unavailable" && !isCooldown)
     ? "active"  // Cooldown expired u2192 treat as active
     : connection.testStatus;
 
-  const getStatusVariant = () => getConnectionStatusVariant(connection.isActive, effectiveStatus);
+  // Antares chip style for the connection state.
+  const statusLabel =
+    connection.isActive === false
+      ? "Off"
+      : effectiveStatus === "active" || effectiveStatus === "success"
+        ? "Active"
+        : effectiveStatus === "unavailable"
+          ? "Unavailable"
+          : effectiveStatus === "expired"
+            ? "Expired"
+            : effectiveStatus || "Unknown";
+  const statusChipClass =
+    connection.isActive === false
+      ? ""
+      : effectiveStatus === "active" || effectiveStatus === "success"
+        ? "ok"
+        : effectiveStatus === "unavailable" || effectiveStatus === "expired"
+          ? "danger"
+          : "";
+  const statusDotClass =
+    connection.isActive === false
+      ? "bg-[var(--t-dim)]"
+      : effectiveStatus === "active" || effectiveStatus === "success"
+        ? "bg-[var(--t-ok)]"
+        : effectiveStatus === "unavailable" || effectiveStatus === "expired"
+          ? "bg-[var(--t-danger)]"
+          : "bg-[var(--t-dim)]";
 
-  const getOneByOneVariant = () => {
-    if (!oneByOneStatus) return "default";
-    if (oneByOneStatus.state === "success") return "success";
-    if (oneByOneStatus.state === "failed") return "error";
-    if (oneByOneStatus.state === "testing") return "primary";
-    return "default";
-  };
+  const oneByOneChipClass =
+    oneByOneStatus?.state === "success"
+      ? "ok"
+      : oneByOneStatus?.state === "failed"
+        ? "danger"
+        : oneByOneStatus?.state === "testing"
+          ? "accent"
+          : "";
 
   const getOneByOneLabel = () => {
     if (!oneByOneStatus) return null;
@@ -183,73 +219,84 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   };
 
   return (
-    <div className={`group flex min-w-0 flex-col gap-3 rounded-lg p-2 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between ${connection.isActive === false ? "opacity-60" : ""}`}>
-      <div className="flex min-w-0 flex-1 items-start gap-2 sm:items-center sm:gap-3">
+    <div className={`an-conn ${connection.isActive === false ? "is-off" : ""}`}>
+      <div className="an-conn-main">
         {/* Priority arrows */}
-        <div className="flex shrink-0 flex-col">
+        <div className="an-conn-prio">
           <button
             onClick={onMoveUp}
             disabled={isFirst}
-            className={`p-0.5 rounded ${isFirst ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}
+            title={translate("Move up")}
+            aria-label={translate("Move up")}
           >
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
+            <span className="material-symbols-outlined">keyboard_arrow_up</span>
           </button>
           <button
             onClick={onMoveDown}
             disabled={isLast}
-            className={`p-0.5 rounded ${isLast ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}
+            title={translate("Move down")}
+            aria-label={translate("Move down")}
           >
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
+            <span className="material-symbols-outlined">keyboard_arrow_down</span>
           </button>
         </div>
-        <span className="material-symbols-outlined shrink-0 text-base text-text-muted">
-          {authIcon}
+
+        <span className="an-conn-ico" aria-hidden>
+          <span className="material-symbols-outlined">{authIcon}</span>
         </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{displayName}</p>
+
+        <div className="an-conn-id">
+          <p className="an-conn-name" title={displayName}>
+            {displayName}
+          </p>
           {secondaryDisplayName && (
-            <p className="text-xs text-text-muted truncate">{secondaryDisplayName}</p>
+            <p className="an-conn-sub" title={secondaryDisplayName}>
+              {secondaryDisplayName}
+            </p>
           )}
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
-            <Badge variant={getStatusVariant()} size="sm" dot>
-              {connection.isActive === false ? "disabled" : (effectiveStatus || "Unknown")}
-            </Badge>
-            <Badge variant="default" size="sm">
-              {authLabel}
-            </Badge>
+          <div className="an-conn-chips">
+            <span className={`an-chip ${statusChipClass}`}>
+              <span className={`size-1.5 rounded-full shrink-0 ${statusDotClass}`} />
+              {statusLabel}
+            </span>
+            <span className="an-chip">{authLabel}</span>
             {hasAnyProxy && (
-              <Badge variant={proxyBadgeVariant} size="sm">
+              <span className={`an-chip ${proxyBadgeVariant === "success" ? "ok" : proxyBadgeVariant === "error" ? "danger" : ""}`}>
                 Proxy
-              </Badge>
+              </span>
             )}
             {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}
             {connection.lastError && connection.isActive !== false && (
-              <span className="max-w-full truncate text-xs text-red-500 sm:max-w-[300px]" title={connection.lastError}>
-                {connection.lastError}
-              </span>
+              <button
+                type="button"
+                onClick={showConnectionError}
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-500/15 hover:text-amber-400"
+                title={translate("Show connection error")}
+                aria-label={translate("Show connection error")}
+              >
+                <span className="text-sm leading-none">⚠️</span>
+              </button>
             )}
-            <span className="text-xs text-text-muted">#{connection.priority}</span>
+            <span className="an-conn-meta">#{connection.priority}</span>
             {connection.globalPriority && (
-              <span className="text-xs text-text-muted">Auto: {connection.globalPriority}</span>
+              <span className="an-conn-meta">Auto: {connection.globalPriority}</span>
             )}
             {getOneByOneLabel() && (
-              <Badge variant={getOneByOneVariant()} size="sm">
-                {getOneByOneLabel()}
-              </Badge>
+              <span className={`an-chip ${oneByOneChipClass}`}>{getOneByOneLabel()}</span>
             )}
           </div>
           {hasAnyProxy && (
-            <div className="mt-1 flex items-center gap-2 flex-wrap">
-              <span className="max-w-full truncate text-[11px] text-text-muted sm:max-w-[420px]" title={proxyDisplayText}>
+            <div className="an-conn-chips !mt-1.5">
+              <span className="an-conn-meta" title={proxyDisplayText}>
                 {proxyDisplayText}
               </span>
               {maskedProxyUrl && (
-                <code className="max-w-full truncate rounded bg-black/5 px-1 py-0.5 font-mono text-[10px] text-text-muted dark:bg-white/5 sm:max-w-[260px]">
+                <code className="an-conn-meta !text-[var(--t-muted)]" title={maskedProxyUrl}>
                   {maskedProxyUrl}
                 </code>
               )}
               {noProxyText && (
-                <span className="max-w-full truncate text-[11px] text-text-muted sm:max-w-[320px]" title={noProxyText}>
+                <span className="an-conn-meta" title={noProxyText}>
                   no_proxy: {noProxyText}
                 </span>
               )}
@@ -257,73 +304,73 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
           )}
         </div>
       </div>
-      <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
-        <div className="grid flex-1 grid-cols-3 gap-1 sm:flex sm:flex-none">
-          {/* Proxy button with inline dropdown */}
-          {(proxyPools || []).length > 0 && (
-            <div>
-              <button
-                ref={proxyBtnRef}
-                onClick={toggleProxyDropdown}
-                className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}
-                disabled={updatingProxy}
+
+      <div className="an-conn-actions">
+        {/* Proxy button with inline dropdown */}
+        {(proxyPools || []).length > 0 && (
+          <div className="relative">
+            <button
+              ref={proxyBtnRef}
+              onClick={toggleProxyDropdown}
+              className="an-conn-btn"
+              title={hasAnyProxy ? proxyDisplayText : translate("Set proxy")}
+              aria-label={translate("Proxy")}
+              disabled={updatingProxy}
+            >
+              <span className="material-symbols-outlined">
+                {updatingProxy ? "progress_activity" : "lan"}
+              </span>
+            </button>
+            {showProxyDropdown && createPortal(
+              <div
+                ref={proxyDropdownRef}
+                style={proxyDropdownStyle}
+                className="an-panel z-[60] max-w-[78vw] min-w-[160px] overflow-y-auto !rounded-[10px] py-1"
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  {updatingProxy ? "progress_activity" : "lan"}
-                </span>
-                <span className="text-[10px] leading-tight">Proxy</span>
-              </button>
-              {showProxyDropdown && createPortal(
-                <div
-                  ref={proxyDropdownRef}
-                  style={proxyDropdownStyle}
-                  className="z-50 max-w-[78vw] min-w-[160px] overflow-y-auto rounded-lg border border-border bg-bg py-1 shadow-lg"
+                <button
+                  onClick={() => handleSelectProxy("__none__")}
+                  className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[var(--t-raised)] ${!boundProxyPoolId ? "text-[var(--t-star-ink)] font-medium" : "text-[var(--t-ink)]"}`}
                 >
+                  {translate("None")}
+                </button>
+                {(proxyPools || []).map((pool) => (
                   <button
-                    onClick={() => handleSelectProxy("__none__")}
-                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${!boundProxyPoolId ? "text-primary font-medium" : "text-text-main"}`}
+                    key={pool.id}
+                    onClick={() => handleSelectProxy(pool.id)}
+                    className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[var(--t-raised)] ${boundProxyPoolId === pool.id ? "text-[var(--t-star-ink)] font-medium" : "text-[var(--t-ink)]"}`}
                   >
-                    None
+                    {pool.name}
                   </button>
-                  {(proxyPools || []).map((pool) => (
-                    <button
-                      key={pool.id}
-                      onClick={() => handleSelectProxy(pool.id)}
-                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${boundProxyPoolId === pool.id ? "text-primary font-medium" : "text-text-main"}`}
-                    >
-                      {pool.name}
-                    </button>
-                  ))}
-                </div>,
-                document.body
-              )}
-            </div>
-          )}
-          {autoPing && (
-            <Tooltip text={autoPingTooltip}>
-              <button
-                onClick={autoPing.onConfigure}
-                className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${autoPing.isActive ? "text-primary" : "text-text-muted hover:text-primary"}`}
-              >
-                <span className="material-symbols-outlined text-[18px]">bolt</span>
-                <span className="text-[10px] leading-tight">Auto-ping</span>
-              </button>
-            </Tooltip>
-          )}
-          <button onClick={onEdit} className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5">
-            <span className="material-symbols-outlined text-[18px]">edit</span>
-            <span className="text-[10px] leading-tight">Edit</span>
-          </button>
-          <button onClick={onDelete} className="flex flex-col items-center rounded px-2 py-1 text-red-500 hover:bg-red-500/10">
-            <span className="material-symbols-outlined text-[18px]">delete</span>
-            <span className="text-[10px] leading-tight">Delete</span>
-          </button>
-        </div>
-        <Toggle
-          size="sm"
-          checked={connection.isActive ?? true}
+                ))}
+              </div>,
+              document.body
+            )}
+          </div>
+        )}
+        {autoPing && (
+          <Tooltip text={autoPingTooltip}>
+            <button
+              onClick={() => autoPing.onConfigure()}
+              className="an-conn-btn"
+              title={autoPingTooltip}
+              aria-label={translate("Auto-ping")}
+            >
+              <span className="material-symbols-outlined">bolt</span>
+            </button>
+          </Tooltip>
+        )}
+        <button onClick={onEdit} className="an-conn-btn" title={translate("Edit")} aria-label={translate("Edit")}>
+          <span className="material-symbols-outlined">edit</span>
+        </button>
+        <button onClick={onDelete} className="an-conn-btn danger" title={translate("Delete")} aria-label={translate("Delete")}>
+          <span className="material-symbols-outlined">delete</span>
+        </button>
+        <AntaresSwitch
+          on={connection.isActive ?? true}
           onChange={onToggleActive}
-          title={(connection.isActive ?? true) ? "Disable connection" : "Enable connection"}
+          label={(connection.isActive ?? true) ? translate("On") : translate("Off")}
+          title={(connection.isActive ?? true) ? translate("Disable connection") : translate("Enable connection")}
+          ariaLabel={translate("Toggle connection")}
         />
       </div>
     </div>

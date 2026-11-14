@@ -82,7 +82,6 @@ export default function CoworkToolCard({
     if (status?.cowork?.baseUrl && !customBaseUrl) {
       setCustomBaseUrl(stripV1(status.cowork.baseUrl));
     }
-    // Initialize plugins: from current config, fallback to defaultPlugins
     if (Array.isArray(status?.cowork?.plugins) && status.cowork.plugins.length > 0) {
       setPlugins(status.cowork.plugins);
     } else if (plugins.length === 0 && Array.isArray(status?.defaultPlugins)) {
@@ -151,7 +150,6 @@ export default function CoworkToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied. Quit & reopen Claude Desktop to load." });
         checkStatus();
@@ -283,8 +281,8 @@ export default function CoworkToolCard({
               <div className="flex items-start gap-3">
                 <span className="material-symbols-outlined text-yellow-500">warning</span>
                 <div className="flex-1">
-                  <p className="font-medium text-yellow-600 dark:text-yellow-400">Claude Desktop (Cowork mode) not detected</p>
-                  <p className="text-sm text-text-muted">Open Claude Desktop → Help → Troubleshooting → Enable Developer mode → Configure third-party inference, then return here.</p>
+                  <p className="text-[13px] font-medium text-yellow-600 dark:text-yellow-400 sm:text-sm">Claude Desktop (Cowork mode) not detected</p>
+                  <p className="text-[12.5px] text-text-muted sm:text-sm">Open Claude Desktop → Help → Troubleshooting → Enable Developer mode → Configure third-party inference, then return here.</p>
                 </div>
               </div>
               <div className="pl-9">

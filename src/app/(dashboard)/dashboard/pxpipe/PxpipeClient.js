@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePageReady } from "@/shared/components/PageReadyContext";
 import {
   AreaChart,
   Area,
@@ -65,6 +66,7 @@ export default function PxpipeClient() {
   const [logs, setLogs] = useState(null);
   const [windowId, setWindowId] = useState("last7d");
   const [loading, setLoading] = useState(true);
+  usePageReady(loading);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -80,7 +82,6 @@ export default function PxpipeClient() {
       const healthRes = await fetch("/api/pxpipe/health", { method: "POST" });
       setHealth(await healthRes.json());
     } catch {
-      /* sections render placeholders */
     } finally {
       setLoading(false);
     }
@@ -102,7 +103,7 @@ export default function PxpipeClient() {
           : "Stopped";
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">image</span>

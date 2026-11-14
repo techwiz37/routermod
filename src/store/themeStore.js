@@ -6,48 +6,43 @@ import { THEME_CONFIG } from "@/shared/constants/config";
 
 const useThemeStore = create(
   persist(
-    (set, get) => ({
-      theme: THEME_CONFIG.defaultTheme,
+    (set) => ({
+      theme: "dark",
 
-      setTheme: (theme) => {
-        set({ theme });
-        applyTheme(theme);
+      // RouterMod is dark-only (matches the login page). These setters stay
+      // for API compatibility but always resolve to the dark theme.
+      setTheme: () => {
+        set({ theme: "dark" });
+        applyTheme();
       },
 
       toggleTheme: () => {
-        const currentTheme = get().theme;
-        const newTheme = currentTheme === "dark" ? "light" : "dark";
-        set({ theme: newTheme });
-        applyTheme(newTheme);
+        set({ theme: "dark" });
+        applyTheme();
       },
 
       initTheme: () => {
-        const theme = get().theme;
-        applyTheme(theme);
+        set({ theme: "dark" });
+        applyTheme();
       },
     }),
     {
       name: THEME_CONFIG.storageKey,
+      // Ignore any previously persisted (light/system) value from older
+      // builds — RouterMod is dark-only now.
+      merge: (persisted, current) => ({ ...current, ...persisted, theme: "dark" }),
     }
   )
 );
 
-// Apply theme to document
-function applyTheme(theme) {
+function applyTheme() {
   if (typeof window === "undefined") return;
 
+  // RouterMod ships a single dark "Antares" theme that matches the login page.
+  // Light mode is intentionally not supported, so we always force dark.
   const root = document.documentElement;
-  const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-
-  const effectiveTheme = theme === "system" ? systemTheme : theme;
-
-  if (effectiveTheme === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
+  root.classList.add("dark");
+  root.style.colorScheme = "dark";
 }
 
 export default useThemeStore;

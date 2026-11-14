@@ -2,21 +2,13 @@
 
 import { useState, useMemo } from "react";
 import PropTypes from "prop-types";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
-import Card from "@/shared/components/Card";
+import AntaresSegmented from "@/shared/components/AntaresSegmented";
 
-const COLORS = ["#6366f1", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#f97316"];
+const BAR_COLORS = ["#ff1a53", "#6366f1", "#14b8a6", "#f59e0b", "#8b5cf6", "#06b6d4", "#10b981", "#f97316"];
+const PAGE_SIZE = 5;
 
 const fmtTokens = (n) => {
+  if (n >= 1000000000) return `${(n / 1000000000).toFixed(1)}B`;
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return String(n || 0);
@@ -24,10 +16,11 @@ const fmtTokens = (n) => {
 
 export default function ProviderBarChart({ byProvider }) {
   const [viewMode, setViewMode] = useState("tokens");
+  const [page, setPage] = useState(0);
 
-  const chartData = useMemo(() => {
+  const allRows = useMemo(() => {
     if (!byProvider) return [];
-    return Object.entries(byProvider)
+    const list = Object.entries(byProvider)
       .map(([id, data]) => ({
         name: id,
         tokens: (data.promptTokens || 0) + (data.completionTokens || 0),
@@ -35,70 +28,95 @@ export default function ProviderBarChart({ byProvider }) {
       }))
       .filter((d) => d[viewMode] > 0)
       .sort((a, b) => b[viewMode] - a[viewMode]);
+    const max = Math.max(...list.map((d) => d[viewMode]), 1);
+    return list.map((d, i) => ({ ...d, pct: (d[viewMode] / max) * 100, color: BAR_COLORS[i % BAR_COLORS.length] }));
   }, [byProvider, viewMode]);
 
+  const totalPages = Math.ceil(allRows.length / PAGE_SIZE);
+  const rows = allRows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
   const fmt = viewMode === "tokens" ? fmtTokens : String;
-  const label = viewMode === "tokens" ? "Tokens" : "Requests";
+
+  const handleViewMode = (v) => { setViewMode(v); setPage(0); };
 
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-text-muted uppercase tracking-wide">By Provider</span>
-        <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1">
-          <button
-            onClick={() => setViewMode("tokens")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-          >
-            Tokens
-          </button>
-          <button
-            onClick={() => setViewMode("requests")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${viewMode === "requests" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-          >
-            Requests
-          </button>
-        </div>
+    <section className="an-panel">
+      <div className="an-chart">
+      <div className="an-chart-head">
+        <span className="an-chart-title">
+          <span className="material-symbols-outlined" aria-hidden>hub</span>
+          <span className="truncate">By Provider</span>
+        </span>
+        <AntaresSegmented
+          options={[
+            { value: "tokens", label: "Token" },
+            { value: "requests", label: "Permintaan" },
+          ]}
+          value={viewMode}
+          onChange={handleViewMode}
+          size="sm"
+        />
       </div>
 
-      {!chartData.length ? (
-        <div className="h-44 flex items-center justify-center text-text-muted text-sm">No provider usage yet</div>
+      {!allRows.length ? (
+        <div className="h-44 flex flex-col items-center justify-center gap-2 text-[var(--t-muted)]">
+          <span className="material-symbols-outlined text-[28px] opacity-30">hub</span>
+          <span className="text-xs font-medium">Belum ada penggunaan provider</span>
+        </div>
       ) : (
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} vertical={false} />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.6 }}
-              tickLine={false}
-              axisLine={false}
-              interval={0}
-              tickFormatter={(v) => v.length > 10 ? v.slice(0, 10) + "…" : v}
-            />
-            <YAxis
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={fmt}
-              width={44}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
-              formatter={(value) => [fmt(value), label]}
-            />
-            <Bar dataKey={viewMode} radius={[4, 4, 0, 0]}>
-              {chartData.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} fillOpacity={0.85} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <>
+          <div className="flex flex-col gap-3 py-1 min-h-[calc(5*42px)]">
+            {rows.map((r) => (
+              <div key={r.name} className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11.5px] text-[var(--t-ink)] truncate" title={r.name}>{r.name}</span>
+                  <span className="font-mono text-[11.5px] font-medium shrink-0" style={{ color: r.color }}>
+                    {fmt(r[viewMode])}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-[var(--t-raised)] overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${Math.max(r.pct, 4)}%`,
+                      background: `linear-gradient(90deg, ${r.color}, ${r.color}bb)`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-[var(--t-line-soft)]">
+              <span className="font-mono text-[10.5px] text-[var(--t-dim)]">
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, allRows.length)} / {allRows.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(p => p - 1)}
+                  disabled={page === 0}
+                  className="an-page-btn !min-w-[26px] !h-[26px] !px-1"
+                  aria-label="Previous page"
+                >
+                  <span className="material-symbols-outlined text-[15px]">chevron_left</span>
+                </button>
+                <span className="font-mono text-[10.5px] text-[var(--t-dim)] px-1">{page + 1}/{totalPages}</span>
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={page >= totalPages - 1}
+                  className="an-page-btn !min-w-[26px] !h-[26px] !px-1"
+                  aria-label="Next page"
+                >
+                  <span className="material-symbols-outlined text-[15px]">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
-    </Card>
+      </div>
+    </section>
   );
 }
 

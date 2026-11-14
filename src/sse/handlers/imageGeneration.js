@@ -7,7 +7,7 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
-import { getKeyAccessContext, enforceKeyAccess } from "../services/keyAccess.js";
+import { getKeyAccessContext, enforceKeyAccess, enforceKeyPolicy } from "../services/keyAccess.js";
 import { handleImageGenerationCore } from "open-sse/handlers/imageGenerationCore.js";
 import { getImageAdapter } from "open-sse/handlers/imageProviders/index.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
@@ -17,10 +17,9 @@ import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
 
-// Providers that don't require credentials (noAuth)
-const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui", "veoaifree-web"]);
+const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui"]);
 
-function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoint, usage }) {
+function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoint, usage, duration }) {
   if (!usage || typeof usage !== "object") return;
   const promptTokens = usage.prompt_tokens;
   const completionTokens = usage.completion_tokens;
@@ -37,13 +36,10 @@ function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoi
     endpoint: endpoint || null,
     tokens: usage,
     status: "success",
+    duration: duration || 0,
   }).catch(() => {});
 }
 
-/**
- * Handle image generation request
- * @param {Request} request
- */
 export async function handleImageGeneration(request) {
   let body;
   try {
@@ -65,15 +61,15 @@ export async function handleImageGeneration(request) {
     const valid = await isValidApiKey(apiKey);
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
   }
+  const policyDenied = await enforceKeyPolicy(request);
+  if (policyDenied) return policyDenied;
 
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
   if (!body.prompt) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: prompt");
 
-  // Per-key access control: requested target, before combo expansion.
   const keyAccessDenied = await enforceKeyAccess(await getKeyAccessContext(request), modelStr);
   if (keyAccessDenied) return keyAccessDenied;
 
-  // Combo expansion: model may be a combo name → run fallback/round-robin across models
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
     const comboStrategies = settings.comboStrategies || {};
@@ -100,7 +96,6 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
 
   const { provider, model } = modelInfo;
 
-  // noAuth providers — no credential needed
   if (NO_AUTH_PROVIDERS.has(provider)) {
     const result = await handleImageGenerationCore({
       body,
@@ -112,7 +107,6 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "Image generation failed");
   }
 
-  // Credentialed providers — fallback loop
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
@@ -145,6 +139,7 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
       continue;
     }
 
+    const requestStartTime = Date.now();
     const result = await handleImageGenerationCore({
       body,
       modelInfo: { provider, model },
@@ -167,15 +162,11 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
           apiKey,
           endpoint,
           usage,
+          duration: Date.now() - requestStartTime,
         });
       },
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials, model);
-        // Cookies that rotate on use (Clerk `__client`) are mutated in place by
-        // the executor — persist the new value so the chain does not drift.
-        if (refreshedCredentials.apiKey && refreshedCredentials.apiKey !== credentials.apiKey) {
-          await updateProviderCredentials(credentials.connectionId, { apiKey: refreshedCredentials.apiKey });
-        }
       }
     });
 

@@ -1,8 +1,6 @@
 import { handleSystemone } from "@/sse/handlers/systemone.js";
+import { trackKeyInFlightResponse } from "@/sse/services/keyInFlight.js";
 
-/**
- * Handle CORS preflight
- */
 export async function OPTIONS() {
   return new Response(null, {
     headers: {
@@ -13,9 +11,6 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * POST /v1/systemone - System One (Jev) decision endpoint
- */
 export async function POST(request) {
-  return await handleSystemone(request);
+  return trackKeyInFlightResponse(request, await handleSystemone(request));
 }

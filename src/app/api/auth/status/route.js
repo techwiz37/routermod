@@ -4,9 +4,11 @@ import { getSettings } from "@/lib/localDb";
 import { isOidcConfigured } from "@/lib/auth/oidc";
 import { isSamlConfigured } from "@/lib/auth/saml.js";
 import { getDashboardAuthSession } from "@/lib/auth/dashboardSession";
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const locale = getRequestLocale(request);
     const settings = await getSettings();
     const cookieStore = await cookies();
     const session = await getDashboardAuthSession(cookieStore.get("auth_token")?.value);
@@ -32,9 +34,13 @@ export async function GET() {
       authMode,
       ssoType,
       oidcConfigured: isOidcConfigured(settings),
-      oidcLoginLabel: (settings.oidcLoginLabel || "Sign in with OIDC").trim() || "Sign in with OIDC",
+      oidcLoginLabel: locale === "id"
+        ? "Masuk dengan OIDC"
+        : (settings.oidcLoginLabel || "Sign in with OIDC").trim() || "Sign in with OIDC",
       samlConfigured: isSamlConfigured(settings),
-      samlLoginLabel: (settings.samlLoginLabel || "Sign in with SAML SSO").trim() || "Sign in with SAML SSO",
+      samlLoginLabel: locale === "id"
+        ? "Masuk dengan SAML SSO"
+        : (settings.samlLoginLabel || "Sign in with SAML SSO").trim() || "Sign in with SAML SSO",
       hasPassword: !!settings.password,
       displayName,
       loginMethod,

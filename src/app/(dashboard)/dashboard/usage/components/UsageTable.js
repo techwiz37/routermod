@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import PropTypes from "prop-types";
-import Card from "@/shared/components/Card";
 import Badge from "@/shared/components/Badge";
 
 const fmt = (n) => new Intl.NumberFormat().format(n || 0);
@@ -28,9 +27,6 @@ SortIcon.propTypes = {
   currentOrder: PropTypes.string.isRequired,
 };
 
-/**
- * Render 3 token or cost cells based on viewMode
- */
 function ValueCells({ item, viewMode, isSummary = false }) {
   if (viewMode === "tokens") {
     return (
@@ -74,24 +70,6 @@ ValueCells.propTypes = {
   isSummary: PropTypes.bool,
 };
 
-/**
- * Reusable sortable usage table with expandable group rows.
- *
- * @param {object} props
- * @param {string} props.title - Table title
- * @param {Array} props.columns - Column definitions [{field, label}]
- * @param {Array} props.groupedData - Grouped data from groupDataByKey
- * @param {string} props.tableType - Table type key for sort URL params
- * @param {string} props.sortBy - Current sort field
- * @param {string} props.sortOrder - Current sort order
- * @param {function} props.onToggleSort - Sort toggle handler
- * @param {string} props.viewMode - "tokens" or "costs"
- * @param {string} props.storageKey - localStorage key for expanded state
- * @param {function} props.renderGroupLabel - Render group summary first cell content
- * @param {function} props.renderDetailCells - Render detail row custom cells (before value cells)
- * @param {function} props.renderSummaryCells - Render summary row cells after group label (placeholder cols)
- * @param {string} props.emptyMessage - Empty state message
- */
 export default function UsageTable({
   title,
   columns,
@@ -107,8 +85,13 @@ export default function UsageTable({
   emptyMessage,
 }) {
   const [expanded, setExpanded] = useState(new Set());
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 5;
 
-  // Load expanded state from localStorage
+  useEffect(() => {
+    setPage(0);
+  }, [groupedData.length, tableType]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
@@ -118,7 +101,6 @@ export default function UsageTable({
     }
   }, [storageKey]);
 
-  // Save expanded state to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify([...expanded]));
@@ -134,6 +116,9 @@ export default function UsageTable({
       return next;
     });
   }, []);
+
+  const totalPages = Math.ceil(groupedData.length / PAGE_SIZE);
+  const pagedData = groupedData.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const valueColumns = useMemo(() => {
     if (viewMode === "tokens") {
@@ -155,18 +140,20 @@ export default function UsageTable({
   const totalColSpan = columns.length + valueColumns.length;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="p-4 border-b border-border bg-bg-subtle/50">
-        <h3 className="font-semibold">{title}</h3>
-      </div>
+    <section className="an-panel overflow-hidden">
+      {title && (
+        <div className="p-3.5 border-b-2 border-border bg-surface-2">
+          <h3 className="font-bold text-sm tracking-wider uppercase">{title}</h3>
+        </div>
+      )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-bg-subtle/30 text-text-muted uppercase text-xs">
+        <table className="w-full text-xs text-left">
+          <thead className="bg-surface-2 text-text-muted uppercase text-[11px] font-bold border-b-2 border-border">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.field}
-                  className={`px-6 py-3 cursor-pointer hover:bg-bg-subtle/50 ${col.align === "right" ? "text-right" : ""}`}
+                  className={`px-4 py-3 cursor-pointer hover:bg-surface ${col.align === "right" ? "text-right" : ""}`}
                   onClick={() => onToggleSort(tableType, col.field)}
                 >
                   {col.label}{" "}
@@ -176,7 +163,7 @@ export default function UsageTable({
               {valueColumns.map((col) => (
                 <th
                   key={col.field}
-                  className="px-6 py-3 text-right cursor-pointer hover:bg-bg-subtle/50"
+                  className="px-4 py-3 text-right cursor-pointer hover:bg-surface"
                   onClick={() => onToggleSort(tableType, col.field)}
                 >
                   {col.label}{" "}
@@ -185,20 +172,20 @@ export default function UsageTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
-            {groupedData.map((group) => (
+          <tbody className="divide-y-2 divide-border">
+            {pagedData.map((group) => (
               <Fragment key={group.groupKey}>
                 {/* Group summary row */}
                 <tr
-                  className="group-summary cursor-pointer hover:bg-bg-subtle/50 transition-colors"
+                  className="group-summary cursor-pointer hover:bg-surface-2 transition-colors font-semibold"
                   onClick={() => toggleGroup(group.groupKey)}
                 >
-                  <td className="px-6 py-3">
+                  <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span className={`material-symbols-outlined text-[18px] text-text-muted transition-transform ${expanded.has(group.groupKey) ? "rotate-90" : ""}`}>
+                      <span className={`material-symbols-outlined text-[16px] text-text-muted transition-transform ${expanded.has(group.groupKey) ? "rotate-90" : ""}`}>
                         chevron_right
                       </span>
-                      <span className={`font-medium transition-colors ${group.summary.pending > 0 ? "text-primary" : ""}`}>
+                      <span className={`font-mono text-xs font-bold transition-colors ${group.summary.pending > 0 ? "text-primary" : "text-text-main"}`}>
                         {group.groupKey}
                       </span>
                     </div>
@@ -210,7 +197,7 @@ export default function UsageTable({
                 {expanded.has(group.groupKey) && group.items.map((item) => (
                   <tr
                     key={`detail-${item.key}`}
-                    className="group-detail hover:bg-bg-subtle/20 transition-colors"
+                    className="group-detail hover:bg-surface-2/60 bg-surface/40 transition-colors"
                   >
                     {renderDetailCells(item)}
                     <ValueCells item={item} viewMode={viewMode} />
@@ -218,9 +205,9 @@ export default function UsageTable({
                 ))}
               </Fragment>
             ))}
-            {groupedData.length === 0 && (
+            {pagedData.length === 0 && (
               <tr>
-                <td colSpan={totalColSpan} className="px-6 py-8 text-center text-text-muted">
+                <td colSpan={totalColSpan} className="px-6 py-8 text-center text-text-muted font-medium">
                   {emptyMessage}
                 </td>
               </tr>
@@ -228,7 +215,47 @@ export default function UsageTable({
           </tbody>
         </table>
       </div>
-    </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t-2 border-border bg-surface-2/50">
+          <span className="font-mono text-[10px] text-text-muted">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, groupedData.length)} dari {groupedData.length}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage(0)}
+              disabled={page === 0}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">first_page</span>
+            </button>
+            <button
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 0}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">chevron_left</span>
+            </button>
+            <span className="font-mono text-[10px] text-text-muted px-1.5">{page + 1} / {totalPages}</span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= totalPages - 1}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">chevron_right</span>
+            </button>
+            <button
+              onClick={() => setPage(totalPages - 1)}
+              disabled={page >= totalPages - 1}
+              className="size-6 flex items-center justify-center rounded border-2 border-border bg-surface hover:bg-surface-2 text-text-muted disabled:opacity-30 shadow-[1px_1px_0_var(--color-border)]"
+            >
+              <span className="material-symbols-outlined text-[13px]">last_page</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -251,5 +278,4 @@ UsageTable.propTypes = {
   emptyMessage: PropTypes.string.isRequired,
 };
 
-// Re-export utilities for use in UsageStats orchestrator
 export { fmt, fmtCost, fmtTime };

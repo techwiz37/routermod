@@ -1,4 +1,5 @@
 import { handleChat } from "@/sse/handlers/chat.js";
+import { trackKeyInFlightResponse } from "@/sse/services/keyInFlight.js";
 import { initTranslators } from "open-sse/translator/index.js";
 import { transformToOllama } from "open-sse/utils/ollamaTransform.js";
 
@@ -31,7 +32,7 @@ export async function POST(request) {
     modelName = body.model || "llama3.2";
   } catch {}
 
-  const response = await handleChat(request);
+  const response = trackKeyInFlightResponse(request, await handleChat(request));
   return transformToOllama(response, modelName);
 }
 

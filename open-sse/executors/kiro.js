@@ -4,8 +4,11 @@ import {
   KIRO_CODEWHISPERER_TARGET,
   KIRO_ENDPOINT_FALLBACK_STATUSES,
   resolveKiroModel,
+  buildKiroUserAgentHeaders,
+  resolveDefaultProfileArn,
 } from "../config/kiroConstants.js";
 import { v4 as uuidv4 } from "uuid";
+import { createHash } from "crypto";
 import { refreshKiroToken } from "../services/tokenRefresh.js";
 import { SSE_DONE, SSE_HEADERS } from "../utils/sseConstants.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -227,8 +230,12 @@ export class KiroExecutor extends BaseExecutor {
   }
 
   buildHeaders(credentials, stream = true, url = "") {
+    const psd = credentials?.providerSpecificData || {};
+    const machineSeed = psd.clientId || credentials?.refreshToken || psd.profileArn || credentials?.accessToken || "kiro-anonymous";
+    const machineId = createHash("sha256").update(String(machineSeed)).digest("hex");
     const headers = {
       ...this.config.headers,
+      ...buildKiroUserAgentHeaders(machineId),
       "Amz-Sdk-Request": "attempt=1; max=3",
       "Amz-Sdk-Invocation-Id": uuidv4()
     };
@@ -266,8 +273,9 @@ export class KiroExecutor extends BaseExecutor {
       headers["x-amz-sso-bearer"] = credentials.accessToken;
     }
     headers["x-amzn-kiro-agent-mode"] = "spec";
-    headers["x-amzn-codewhisperer-machine-id"] = "kiro-desktop";
-    const profileArn = credentials?.providerSpecificData?.profileArn;
+    headers["x-amzn-codewhisperer-optout"] = "true";
+    const accountBound = authMethod === "api_key" || authMethod === "idc" || isExternalIdp;
+    const profileArn = psd.profileArn || (accountBound ? "" : resolveDefaultProfileArn(authMethod));
     if (profileArn) {
       headers["x-amzn-codewhisperer-profile-arn"] = profileArn;
     }

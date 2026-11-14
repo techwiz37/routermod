@@ -44,6 +44,22 @@ export function resolveDefaultProfileArn(authMethod) {
   return social ? KIRO_DEFAULT_PROFILE_ARNS.social : KIRO_DEFAULT_PROFILE_ARNS["builder-id"];
 }
 
+// Client fingerprint of the Kiro IDE build this proxy mirrors. AWS rejects
+// older client versions with "This version of Kiro is no longer supported".
+export const KIRO_IDE_VERSION = process.env.KIRO_IDE_VERSION || "1.4.86";
+export const KIRO_STREAMING_SDK_VERSION = "1.0.39";
+export const KIRO_UA_OS = "win32#10.0.26200";
+export const KIRO_UA_NODE = "22.21.1";
+
+/** Kiro IDE-shaped User-Agent pair, with a stable per-account machine id. */
+export function buildKiroUserAgentHeaders(machineId) {
+  const ide = `KiroIDE-${KIRO_IDE_VERSION}-${machineId}`;
+  return {
+    "User-Agent": `aws-sdk-js/${KIRO_STREAMING_SDK_VERSION} ua/2.1 os/${KIRO_UA_OS} lang/js md/nodejs#${KIRO_UA_NODE} api/codewhispererstreaming#${KIRO_STREAMING_SDK_VERSION} m/E ${ide}`,
+    "X-Amz-User-Agent": `aws-sdk-js/${KIRO_STREAMING_SDK_VERSION} ${ide}`,
+  };
+}
+
 export const KIRO_THINKING_BUDGET_DEFAULT = 16000;
 
 /**

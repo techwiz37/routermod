@@ -9,24 +9,22 @@ import { APP_CONFIG, UPDATER_CONFIG } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import useSettingsStore from "@/store/settingsStore";
+import { translate } from "@/i18n/runtime";
 import Button from "./Button";
 import { ConfirmModal } from "./Modal";
 
-// const VISIBLE_MEDIA_KINDS = ["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"];
 const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt", "systemone"];
-// Combined entry: webSearch + webFetch share one page at /dashboard/media-providers/web
 const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
 
 const navItems = [
-  { href: "/dashboard/endpoint", label: "Endpoint & Key", icon: "api" },
-  { href: "/dashboard/providers", label: "Providers", icon: "dns" },
-  // { href: "/dashboard/basic-chat", label: "Basic Chat", icon: "chat" }, // Hidden
+  { href: "/dashboard/endpoint", label: "Dashboard", icon: "dns" },
+  { href: "/dashboard/providers", label: "Provider", icon: "hub" },
   { href: "/dashboard/combos", label: "Combo & Vision Adapter", icon: "layers" },
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
-  { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
+  { href: "/dashboard/quota", label: "Cek Limit", icon: "data_usage" },
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
-  // { href: "/dashboard/pxpipe", label: "PXPIPE", icon: "image" },
-  { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
+  { href: "/dashboard/cli-tools", label: "Tool CLI", icon: "terminal" },
+  { href: "/dashboard/agent", label: "AI Agent", icon: "smart_toy" },
 ];
 
 const debugItems = [
@@ -58,7 +56,6 @@ export default function Sidebar({ onClose }) {
     });
   }, []);
 
-  // Lazy check for new npm version in background after initial render
   useEffect(() => {
     const timer = setTimeout(() => {
       fetch("/api/version")
@@ -76,13 +73,11 @@ export default function Sidebar({ onClose }) {
     return pathname.startsWith(href);
   };
 
-  // Open manual update panel (no countdown yet — user must click Copy to trigger shutdown)
   const handleUpdate = () => {
     setShowUpdateModal(false);
     setIsUpdating(true);
   };
 
-  // Triggered by Copy button inside ManualUpdatePanel: copy + countdown + shutdown
   const handleCopyAndShutdown = async () => {
     try { await navigator.clipboard.writeText(INSTALL_CMD); } catch { /* clipboard blocked */ }
     copy(INSTALL_CMD);
@@ -104,42 +99,65 @@ export default function Sidebar({ onClose }) {
     setShutdownCountdown(0);
   };
 
-  // Note: legacy updater poll removed. New flow: copy install cmd + shutdown server,
-  // user runs the command manually in another terminal.
 
 
   return (
     <>
-      <aside className="flex w-72 flex-col border-r border-border-subtle bg-vibrancy backdrop-blur-xl transition-colors duration-300 min-h-full">
-        {/* Traffic lights */}
-        <div className="flex items-center gap-2 px-6 pt-5 pb-2">
-          <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
-          <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
-          <div className="w-3 h-3 rounded-full bg-[#27C93F]" />
+      <aside className="flex w-72 flex-col border-r-2 border-border bg-surface h-full overflow-hidden">
+        {/* Top HUD reticle / Brand bar */}
+        <div className="flex items-center justify-between border-b-2 border-border bg-surface-2 px-4 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[var(--color-primary)] shadow-[1px_1px_0px_var(--color-border)]" />
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[var(--color-warning)] shadow-[1px_1px_0px_var(--color-border)]" />
+            <div className="w-2.5 h-2.5 rounded-full border border-border bg-[var(--color-success)] shadow-[1px_1px_0px_var(--color-border)]" />
+          </div>
+          <span className="font-mono text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--color-success)] bg-surface border-2 border-border px-2 py-0.5 rounded-md shadow-[2px_2px_0px_var(--color-border)] flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-[var(--color-success)] animate-pulse"></span>
+            PORT :1337
+          </span>
         </div>
 
         {/* Logo */}
-        <div className="px-6 py-4 flex flex-col gap-2">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex items-center justify-center size-9 rounded-[10px] bg-gradient-to-br from-brand-500 to-brand-700 shadow-[var(--shadow-warm)]">
-              <span className="material-symbols-outlined text-white text-[20px]">hub</span>
+        <div className="px-4 py-3.5 border-b-2 border-border flex flex-col gap-2 bg-surface">
+          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+            <div className="relative flex items-center justify-center shrink-0 size-10 group">
+              <svg
+                viewBox="0 0 120 120"
+                className="w-full h-full drop-shadow-[2.5px_3px_0px_var(--color-border)] transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:drop-shadow-[3px_4px_0px_var(--color-border)]"
+              >
+                <defs>
+                  <linearGradient id="sb-logo-r-red" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="var(--color-brand-500)" />
+                    <stop offset="100%" stopColor="#dc2626" />
+                  </linearGradient>
+                </defs>
+                <rect x="8" y="8" width="104" height="104" rx="22" fill="var(--color-border)" stroke="var(--color-border)" strokeWidth="4" />
+                <rect x="12" y="12" width="96" height="96" rx="18" className="fill-[var(--color-surface)]" />
+                <path d="M12 36L36 12H12v24z" fill="url(#sb-logo-r-red)" />
+                <circle cx="94" cy="26" r="4.5" fill="var(--color-success)" stroke="var(--color-border)" strokeWidth="2" />
+                <rect x="34" y="30" width="16" height="60" rx="4" className="fill-[var(--color-text-main)]" />
+                <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" className="fill-[var(--color-text-main)]" />
+                <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" className="fill-[var(--color-surface)]" />
+                <path d="M60 62L83 90H65L48 68h14z" fill="url(#sb-logo-r-red)" stroke="var(--color-border)" strokeWidth="2" strokeLinejoin="round" />
+                <circle cx="88" cy="88" r="4.5" fill="var(--color-info)" stroke="var(--color-border)" strokeWidth="2" />
+              </svg>
             </div>
             <div className="flex flex-col">
-              <h1 className="text-lg font-semibold tracking-tight text-text-main">
-                {APP_CONFIG.name}
+              <h1 className="text-sm font-black uppercase tracking-wider text-text-main font-mono flex items-center gap-1">
+                ROUTER<span className="text-[var(--color-primary)]">MOD</span>
               </h1>
-              <span className="text-xs text-text-muted">v{APP_CONFIG.version}</span>
+              <span className="text-[10px] font-mono font-bold text-[var(--color-primary)] tracking-widest">// AI INFRASTRUCTURE</span>
             </div>
           </Link>
           {updateInfo && (
             <div className="flex flex-col gap-1.5 rounded p-1 -m-1">
-              <span className="text-xs font-semibold text-green-600 dark:text-amber-500">
+              <span className="text-xs font-semibold text-[var(--color-success)]">
                 ↑ New version available: v{updateInfo.latestVersion}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowUpdateModal(true)}
-                  className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                  className="px-2 py-1 rounded bg-[var(--color-success)] hover:opacity-90 text-white text-[11px] font-semibold transition-colors cursor-pointer"
                 >
                   Update now
                 </button>
@@ -148,7 +166,7 @@ export default function Sidebar({ onClose }) {
                   title="Copy install command"
                   className="flex-1 text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
                 >
-                  <code className="block text-[10px] text-green-600/80 dark:text-amber-400/70 font-mono truncate">
+                  <code className="block text-[10px] text-[var(--color-success)]/80 font-mono truncate">
                     {copied ? "✓ copied!" : INSTALL_CMD}
                   </code>
                 </button>
@@ -158,49 +176,49 @@ export default function Sidebar({ onClose }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-2 space-y-0.5 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 min-h-0 px-4 py-2 space-y-0.5 overflow-y-auto overflow-x-clip custom-scrollbar">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 isActive(item.href)
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_var(--color-border)]"
               )}
             >
               <span
                 className={cn(
-                  "material-symbols-outlined text-[18px]",
+                  "material-symbols-outlined text-[18px] shrink-0",
                   isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
                 )}
               >
                 {item.icon}
               </span>
-              <span className="text-[13px] font-medium">{item.label}</span>
+              <span className="text-[13px] font-medium min-w-0 truncate">{translate(item.label)}</span>
             </Link>
           ))}
 
           {/* System section */}
           <div className="pt-3 mt-2 space-y-0.5">
             <p className="px-4 text-xs font-semibold text-text-muted/60 uppercase tracking-wider mb-2">
-              System
+              {translate("System")}
             </p>
 
             {/* Media Providers accordion */}
             <button
               onClick={() => setMediaOpen((v) => !v)}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                "w-full flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 pathname.startsWith("/dashboard/media-providers")
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
-              <span className="material-symbols-outlined text-[18px]">perm_media</span>
-              <span className="text-[13px] font-medium flex-1 text-left">Media Providers</span>
+              <span className="material-symbols-outlined text-[18px] shrink-0">perm_media</span>
+              <span className="text-[13px] font-medium flex-1 text-left truncate">{translate("Media Providers")}</span>
               <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: mediaOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
                 expand_more
               </span>
@@ -213,14 +231,14 @@ export default function Sidebar({ onClose }) {
                     href={`/dashboard/media-providers/${kind.id}`}
                     onClick={onClose}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
+                      "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                       pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
-                        ? "bg-primary/10 text-primary"
-                        : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                        ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                        : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                     )}
                   >
-                    <span className="material-symbols-outlined text-[16px]">{kind.icon}</span>
-                    <span className="text-sm">{kind.label}</span>
+                    <span className="material-symbols-outlined text-[16px] shrink-0">{kind.icon}</span>
+                    <span className="text-sm min-w-0 truncate">{translate(kind.label)}</span>
                   </Link>
                 ))}
                 <Link
@@ -228,14 +246,14 @@ export default function Sidebar({ onClose }) {
                   href={COMBINED_WEB_ITEM.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
+                    "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                     pathname.startsWith(COMBINED_WEB_ITEM.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                      ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                   )}
                 >
-                  <span className="material-symbols-outlined text-[16px]">{COMBINED_WEB_ITEM.icon}</span>
-                  <span className="text-sm">{COMBINED_WEB_ITEM.label}</span>
+                  <span className="material-symbols-outlined text-[16px] shrink-0">{COMBINED_WEB_ITEM.icon}</span>
+                  <span className="text-sm min-w-0 truncate">{translate(COMBINED_WEB_ITEM.label)}</span>
                 </Link>
               </div>
             )}
@@ -246,21 +264,21 @@ export default function Sidebar({ onClose }) {
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                  "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                   isActive(item.href)
-                    ? "bg-primary/10 text-primary"
-                    : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                    ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                    : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                 )}
               >
                 <span
                   className={cn(
-                    "material-symbols-outlined text-[18px]",
+                    "material-symbols-outlined text-[18px] shrink-0",
                     isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
                   )}
                 >
                   {item.icon}
                 </span>
-                <span className="text-[13px] font-medium">{item.label}</span>
+                <span className="text-[13px] font-medium min-w-0 truncate">{translate(item.label)}</span>
               </Link>
             ))}
 
@@ -273,82 +291,62 @@ export default function Sidebar({ onClose }) {
                   href={item.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                    "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                     isActive(item.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                      ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
                   )}
                 >
                   <span
                     className={cn(
-                      "material-symbols-outlined text-[18px]",
+                      "material-symbols-outlined text-[18px] shrink-0",
                       isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
                     )}
                   >
                     {item.icon}
                   </span>
-                  <span className="text-[13px] font-medium">{item.label}</span>
+                  <span className="text-[13px] font-medium min-w-0 truncate">{translate(item.label)}</span>
                 </Link>
               ) : null;
             })}
 
-            {/* Remote */}
-            <a
-              href="https://9remote.cc"
-              target="_blank"
-              rel="noreferrer"
+            {/* Contact Developer */}
+            <Link
+              href="/dashboard/contact"
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group w-full",
-                "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
+                isActive("/dashboard/contact")
+                  ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
-              <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
-                computer
+              <span className="material-symbols-outlined text-[18px] shrink-0">
+                contact_support
               </span>
-              <span className="text-[13px] font-medium">9Remote</span>
-              <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-[3px] bg-orange-500/15 text-orange-400">
-                HOT
-              </span>
-            </a>
-
-            {/* 9English */}
-            <a
-              href="https://9english.net/"
-              target="_blank"
-              rel="noreferrer"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group w-full",
-                "text-text-muted hover:bg-surface-2 hover:text-text-main"
-              )}
-            >
-              <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
-                translate
-              </span>
-              <span className="text-[13px] font-medium">9English</span>
-            </a>
+              <span className="text-[13px] font-medium min-w-0 truncate">{translate("Contact Developer")}</span>
+            </Link>
 
             {/* Settings */}
             <Link
               href="/dashboard/profile"
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all group font-mono text-[12.5px] font-bold uppercase",
                 isActive("/dashboard/profile")
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  ? "bg-[var(--color-primary)] text-white border-2 border-border shadow-[2px_2.5px_0px_var(--color-border)]"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main border-2 border-transparent hover:border-border hover:shadow-[2px_2.5px_0px_var(--color-border)]"
               )}
             >
               <span
                 className={cn(
-                  "material-symbols-outlined text-[18px]",
+                  "material-symbols-outlined text-[18px] shrink-0",
                   isActive("/dashboard/profile") ? "fill-1" : "group-hover:text-primary transition-colors"
                 )}
               >
                 settings
               </span>
-              <span className="text-[13px] font-medium">Settings</span>
+              <span className="text-[13px] font-medium min-w-0 truncate">{translate("Settings")}</span>
             </Link>
           </div>
         </nav>
@@ -383,7 +381,7 @@ export default function Sidebar({ onClose }) {
             />
           ) : (
             <div className="text-center p-8">
-              <div className="flex items-center justify-center size-16 rounded-full bg-red-500/20 text-red-500 mx-auto mb-4">
+              <div className="flex items-center justify-center size-16 rounded-full bg-[var(--color-danger)]/20 text-[var(--color-danger)] mx-auto mb-4">
                 <span className="material-symbols-outlined text-[32px]">power_off</span>
               </div>
               <h2 className="text-xl font-semibold text-white mb-2">Server Disconnected</h2>
@@ -408,7 +406,7 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
   return (
     <div className="w-full max-w-lg rounded-xl bg-neutral-900/95 border border-white/10 p-6 text-white">
       <div className="flex items-center gap-3 mb-4">
-        <div className="flex items-center justify-center size-11 rounded-full bg-amber-500/20 text-amber-400">
+        <div className="flex items-center justify-center size-11 rounded-full bg-[var(--color-warning)]/20 text-[var(--color-warning)]">
           <span className="material-symbols-outlined text-[24px]">content_copy</span>
         </div>
         <div>

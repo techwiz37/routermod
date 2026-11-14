@@ -1174,7 +1174,7 @@
   "Theme": "រូបរាង",
   "Thinking": "ការគិត",
   "Thinking Process": "ដំណើរការគិត",
-  "Store this key securely. You can view or copy it later from the API Keys list.": "សូមរក្សាទុក Key នេះឱ្យមានសុវត្ថិភាព។ អ្នកអាចមើល ឬចម្លងវានៅពេលក្រោយពីបញ្ជី API Keys។",
+  "This is the only time you will see this key. Store it securely.": "នេះជាលើកតែមួយដែលអ្នកនឹងឃើញ Key នេះ។ សូមរក្សាទុកវាឱ្យមានសុវត្ថិភាព។",
   "This provider is ready to use.": "អ្នកផ្តល់សេវានេះរួចរាល់សម្រាប់ប្រើ។",
   "This provider is ready to use. Optionally route requests through a proxy pool to bypass IP-based limits.": "អ្នកផ្តល់សេវានេះរួចរាល់សម្រាប់ប្រើ។ អ្នកអាចជ្រើសបញ្ជូនសំណើតាម Proxy Pool ដើម្បីរំលងកម្រិតផ្អែកលើ IP។",
   "This value is write-only after saving.": "តម្លៃនេះអាចសរសេរបានតែប៉ុណ្ណោះ បន្ទាប់ពីរក្សាទុក។",
@@ -1394,5 +1394,18 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ សេចក្តីជូនដំណឹងអំពីហានិភ័យ៖ អ្នកផ្តល់សេវានេះប្រើ Subscription/OAuth Session ដែលមិនមានអាជ្ញាបណ្ណផ្លូវការសម្រាប់ប្រើជា Proxy/Router។ គណនីអាចត្រូវបានដាក់កម្រិត ឬហាមឃាត់។ ប្រើដោយទទួលខុសត្រូវលើហានិភ័យដោយខ្លួនឯង។",
   "✓ Confirm Add": "✓ បញ្ជាក់ការបន្ថែម",
   "📝 Configure providers in dashboard or use environment variables": "📝 កំណត់អ្នកផ្តល់សេវាក្នុងផ្ទាំងគ្រប់គ្រង ឬប្រើ Environment Variables",
-  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 ត្រូវការ OAuth។ បន្ថែមឥឡូវ ហើយផ្ទៀងផ្ទាត់បន្ទាប់ពីចុច អនុវត្ត; បញ្ជីឧបករណ៍នឹងត្រូវបានរកឃើញបន្ទាប់ពីការតភ្ជាប់លើកដំបូង។"
+  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 ត្រូវការ OAuth។ បន្ថែមឥឡូវ ហើយផ្ទៀងផ្ទាត់បន្ទាប់ពីចុច អនុវត្ត; បញ្ជីឧបករណ៍នឹងត្រូវបានរកឃើញបន្ទាប់ពីការតភ្ជាប់លើកដំបូង។",
+  "Prefix updated": "Prefix updated",
+  "Updated": "Updated",
+  "model alias": "model alias",
+  "model aliases": "model aliases",
+  "Prefix saved": "Prefix saved",
+  "Failed to update prefix": "Failed to update prefix",
+  "Unknown error": "Unknown error",
+  "Prefix updated count": "Prefix updated count",
+  "Deteksi Model Otomatis": "Auto-detect Models",
+  "Test Semua": "Test All",
+  "Stop Test": "Stop Test",
+  "Stop Testing...": "Stopping...",
+  "Test Selesai": "Test Complete"
 }

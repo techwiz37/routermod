@@ -220,6 +220,13 @@ export async function refreshGoogleToken(refreshToken, clientId, clientSecret, l
     if (!response.ok) {
       const errorText = await response.text();
       log?.error?.("TOKEN_REFRESH", "Failed to refresh Google token", { status: response.status, error: errorText });
+      const failure = classifyOAuthRefreshError(errorText, response.status);
+      if (failure.permanent) {
+        // Permanent rejection (e.g. invalid_grant "Account has been deleted").
+        // Surface it via the established isUnrecoverableRefreshError contract
+        // instead of a bare null so callers can persist a clear reason.
+        return { error: "unrecoverable_refresh_error", code: failure.code || "invalid_grant", description: failure.description };
+      }
       return null;
     }
 

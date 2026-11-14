@@ -1,4 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="64" fill="#0a0a0a"/>
-  <text x="256" y="320" font-family="Arial, sans-serif" font-size="200" font-weight="bold" fill="#ffffff" text-anchor="middle">9R</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="rm-red-512" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e8001f"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="104" height="104" rx="22" fill="#181c24" stroke="#2d3340" stroke-width="4"/>
+  <rect x="12" y="12" width="96" height="96" rx="18" fill="#1b1f2b"/>
+
+  <path d="M12 36L36 12H12v24z" fill="url(#rm-red-512)"/>
+  <circle cx="94" cy="26" r="4.5" fill="#3fb37f" stroke="#181c24" stroke-width="2"/>
+
+  <rect x="34" y="30" width="16" height="60" rx="4" fill="#ffffff"/>
+  <path d="M48 30h23c10.5 0 18.5 7 18.5 18s-8 18-18.5 18H48V30z" fill="#ffffff"/>
+  <path d="M50 41.5h20c4.5 0 8 3 8 6.5s-3.5 6.5-8 6.5H50v-13z" fill="#1b1f2b"/>
+
+  <path d="M60 62L83 90H65L48 68h14z" fill="url(#rm-red-512)" stroke="#181c24" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="88" cy="88" r="4.5" fill="#ff6a75" stroke="#181c24" stroke-width="2"/>
 </svg>

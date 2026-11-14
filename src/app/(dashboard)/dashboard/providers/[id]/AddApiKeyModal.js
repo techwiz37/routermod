@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { planBulkAdd } from "@/shared/utils/bulkAdd";
+import { useNotificationStore } from "@/store/notificationStore";
 
 const BULK_PLACEHOLDER = `name1|sk-key1\nname2|sk-key2\nsk-key-only-auto-named`;
 
@@ -20,12 +21,8 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
 
   const isAzure = provider === "azure";
   const isCloudflareAi = provider === "cloudflare-ai";
-  // Capability, not identity: gating this on `provider === "bedrock"` left bedrock-xai with no
-  // way to enter a profile at all, which is the same mistake as hardcoding the API-key exemption.
   const usesAwsCredentialForm =
     AI_PROVIDERS?.[provider]?.credentialForm === "aws";
-  // Registry-declared: names the providerSpecificData field that stands in for an API key, so
-  // a provider whose credential lives outside the key field can be saved without one.
   const apiKeyOptionalWith = AI_PROVIDERS?.[provider]?.apiKeyOptionalWith || null;
   const providerRegions = AI_PROVIDERS?.[provider]?.regions || null;
   const defaultRegion = AI_PROVIDERS?.[provider]?.defaultRegion || providerRegions?.[0]?.id || "";
@@ -33,7 +30,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
   const [formData, setFormData] = useState({
     name: "",
     apiKey: "",
-    defaultModel: "",
     priority: 1,
     proxyPoolId: NONE_PROXY_POOL_VALUE,
     ollamaHostUrl: "",
@@ -87,7 +83,8 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
 
   const [mode, setMode] = useState("single"); // "single" | "bulk"
   const [bulkText, setBulkText] = useState("");
-  const [bulkResult, setBulkResult] = useState(null); // { success, failed }
+  const [bulkProgress, setBulkProgress] = useState(null); // {done, total, success, failed}
+  const addNotification = useNotificationStore((s) => s.addNotification);
 
   const buildProviderSpecificData = () => {
     if (isOllamaLocal && formData.ollamaHostUrl.trim()) {
@@ -105,8 +102,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
       return { accountId: cloudflareData.accountId };
     }
     if (usesAwsCredentialForm) {
-      // Only send what the user filled in: an empty `profile` would otherwise select profile
-      // mode and shadow static keys, since detectCredentialMode prefers a profile.
       const data = {};
       if (bedrockData.profile.trim()) data.profile = bedrockData.profile.trim();
       if (bedrockData.region.trim()) data.region = bedrockData.region.trim();
@@ -120,13 +115,9 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     return undefined;
   };
 
-  // One place decides whether the credential requirement is met. The button's disabled state and
-  // handleSubmit's early return both read it; encoding the rule twice is what let Save look
-  // clickable while silently doing nothing for profile-only Bedrock connections.
   const apiKeySatisfied = () => {
     const psd = buildProviderSpecificData();
     if (apiKeyOptionalWith && psd?.[apiKeyOptionalWith]) return true;
-    // AWS static keys are a pair: a secret alone saves a connection that can never sign.
     if (usesAwsCredentialForm) return !!formData.apiKey && !!psd?.accessKeyId;
     return !!formData.apiKey;
   };
@@ -152,10 +143,8 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     if (!provider) return;
     if (!isOllamaLocal && !apiKeySatisfied()) return;
     if (!isOllamaLocal) {
-      // Non-ollama providers require a name
       if (!formData.name) return;
     }
-    if (isCompatible && !formData.defaultModel.trim()) return;
 
     setSaving(true);
     try {
@@ -180,7 +169,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
       await onSave({
         name: formData.name || (isOllamaLocal ? "Ollama Local" : ""),
         apiKey: formData.apiKey,
-        defaultModel: isCompatible ? formData.defaultModel.trim() : undefined,
         priority: formData.priority,
         proxyPoolId: formData.proxyPoolId === NONE_PROXY_POOL_VALUE ? null : formData.proxyPoolId,
         testStatus: isValid ? "active" : "unknown",
@@ -194,21 +182,21 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
   const handleBulkSubmit = async () => {
     const lines = bulkText.split("\n");
     if (!lines.length) return;
-    // Plan collision-free names against existing connections so a generated
-    // "Key N" never matches a saved name (which the backend would upsert /
-    // overwrite instead of inserting). See bulkAdd.js for the full rationale.
     const plan = planBulkAdd(lines, existingNames, { isCloudflareAi });
     if (!plan.length) return;
+
     setSaving(true);
-    setBulkResult(null);
+    setBulkProgress({ done: 0, total: plan.length, success: 0, failed: 0 });
+
     let success = 0;
     let failed = 0;
-    for (const entry of plan) {
-      try {
-        // Validate each key before saving so bulk-added connections get a
-        // real status (active/unknown) like single adds, instead of a
-        // hardcoded "unknown" that never flips until a manual test.
-        let isValid = false;
+
+    // Validate + save in parallel with concurrency cap of 5
+    const CONCURRENCY = 5;
+    let idx = 0;
+    const runNext = async () => {
+      while (idx < plan.length) {
+        const entry = plan[idx++];
         try {
           const vres = await fetch("/api/providers/validate", {
             method: "POST",
@@ -216,31 +204,40 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             body: JSON.stringify({ provider, apiKey: entry.apiKey }),
           });
           const vdata = await vres.json().catch(() => ({}));
-          isValid = !!vdata.valid;
+          const isValid = !!vdata.valid;
+
+          const res = await fetch("/api/providers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider,
+              apiKey: entry.apiKey,
+              name: entry.name,
+              priority: 1,
+              testStatus: isValid ? "active" : "unknown",
+              ...(entry.providerSpecificData ? { providerSpecificData: entry.providerSpecificData } : {}),
+            }),
+          });
+          if (res.ok) success++; else failed++;
         } catch {
-          isValid = false;
+          failed++;
         }
-        const res = await fetch("/api/providers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider,
-            apiKey: entry.apiKey,
-            name: entry.name,
-            priority: 1,
-            testStatus: isValid ? "active" : "unknown",
-            ...(entry.providerSpecificData ? { providerSpecificData: entry.providerSpecificData } : {}),
-          }),
-        });
-        if (res.ok) success++;
-        else failed++;
-      } catch {
-        failed++;
+        setBulkProgress((p) => ({ ...p, done: p.done + 1, success, failed }));
       }
-    }
+    };
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, runNext));
+
     setSaving(false);
-    setBulkResult({ success, failed });
+    setBulkProgress(null);
+    addNotification({
+      type: failed === 0 ? "success" : success > 0 ? "info" : "error",
+      title: "Bulk Add Selesai",
+      message: `${success} berhasil ditambahkan${failed > 0 ? `, ${failed} gagal` : ""}`,
+      duration: 5000,
+    });
     if (success > 0 && onBulkDone) onBulkDone();
+    if (success > 0) onClose();
   };
 
   if (!provider) return null;
@@ -252,8 +249,8 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             Bedrock entry would be saved with no access key id or profile and never work. */}
         {!usesAwsCredentialForm && (
           <div className="flex gap-2">
-            <Button size="sm" variant={mode === "single" ? "primary" : "ghost"} onClick={() => { setMode("single"); setBulkResult(null); }}>Single</Button>
-            <Button size="sm" variant={mode === "bulk" ? "primary" : "ghost"} onClick={() => { setMode("bulk"); setBulkResult(null); }}>Bulk Add</Button>
+            <Button size="sm" variant={mode === "single" ? "primary" : "ghost"} onClick={() => { setMode("single"); setBulkProgress(null); }}>Single</Button>
+            <Button size="sm" variant={mode === "bulk" ? "primary" : "ghost"} onClick={() => { setMode("bulk"); setBulkProgress(null); }}>Bulk Add</Button>
           </div>
         )}
 
@@ -273,17 +270,29 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
-            {bulkResult && (
-              <div className={`text-sm font-medium ${bulkResult.failed > 0 ? "text-yellow-400" : "text-green-400"}`}>
-                ✓ {bulkResult.success} added{bulkResult.failed > 0 ? `, ✗ ${bulkResult.failed} failed` : ""}
-              </div>
-            )}
             <div className="flex gap-2">
               <Button onClick={handleBulkSubmit} fullWidth disabled={saving || !bulkText.trim()}>
-                {saving ? "Adding..." : "Add All Keys"}
+                {saving ? `Memproses ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? "..."}...` : "Add All Keys"}
               </Button>
               <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
             </div>
+            {bulkProgress && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between text-[11px] font-mono font-bold text-[var(--color-text-muted)]">
+                  <span>{bulkProgress.done}/{bulkProgress.total} diproses</span>
+                  <span className="flex gap-3">
+                    <span className="text-[var(--color-success)]">✓ {bulkProgress.success}</span>
+                    {bulkProgress.failed > 0 && <span className="text-[#ef4444]">✗ {bulkProgress.failed}</span>}
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)] overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--color-primary)] transition-all duration-200"
+                    style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -370,14 +379,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
           />
         )}
-        {isCompatible && (
-          <Input
-            label="Default Model"
-            value={formData.defaultModel}
-            onChange={(e) => setFormData({ ...formData, defaultModel: e.target.value })}
-            placeholder={isAnthropic ? "claude-3-5-sonnet-latest" : "gpt-4o-mini"}
-          />
-        )}
         {isOllamaLocal && (
           <p className="text-xs text-text-muted">
             Leave blank to use <code>http://localhost:11434</code>. For remote Ollama, enter the full host URL (e.g. <code>http://192.168.1.10:11434</code>).
@@ -390,11 +391,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
         )}
         {error && (
           <p className="text-xs text-red-500 break-words">{error}</p>
-        )}
-        {isCompatible && (
-          <p className="text-xs text-text-muted">
-            Enter the model ID exactly as your compatible endpoint expects it. This model will be saved as the connection default.
-          </p>
         )}
         {isCloudflareAi && (
           <div className="bg-sidebar/50 p-4 rounded-lg border border-accent/20">
@@ -514,7 +510,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
         </p>
 
         <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={saving || (!isOllamaLocal && (!formData.name || !apiKeySatisfied())) || (isCompatible && !formData.defaultModel.trim()) || (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization)) || (isCloudflareAi && !cloudflareData.accountId)}>
+          <Button onClick={handleSubmit} fullWidth disabled={saving || (!isOllamaLocal && (!formData.name || !apiKeySatisfied())) || (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization)) || (isCloudflareAi && !cloudflareData.accountId)}>
             {saving ? "Saving..." : "Save"}
           </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>

@@ -2,13 +2,10 @@ import { NextResponse } from "next/server";
 import { getCombos, createCombo, getProviderConnections } from "@/lib/localDb";
 import { buildPresetItems, PRESET_SOURCES } from "@/lib/comboPresets";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
+import { getRequestLocale, localizedComboMessage } from "@/lib/i18n/requestLocale";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Resolve live Cursor catalog from the first active cursor connection, if any.
- * @returns {Promise<Array<{id: string, name?: string}>|null>}
- */
 async function fetchCursorLiveModels() {
   try {
     const connections = await getProviderConnections();
@@ -27,10 +24,6 @@ async function fetchCursorLiveModels() {
   }
 }
 
-/**
- * @param {string} source
- * @returns {Promise<{ name: string, models: string[], exists: boolean }[]>}
- */
 async function resolvePresetItems(source) {
   const combos = await getCombos();
   const existingNames = (combos || []).map((c) => c.name);
@@ -46,14 +39,13 @@ function parseSource(value) {
   return value;
 }
 
-// GET /api/combos/presets?source=cursor|claude — preview items
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const source = parseSource(searchParams.get("source"));
     if (!source) {
       return NextResponse.json(
-        { error: "source must be 'cursor' or 'claude'" },
+        { error: localizedComboMessage(getRequestLocale(request), "invalidSource") },
         { status: 400 }
       );
     }
@@ -67,18 +59,17 @@ export async function GET(request) {
     });
   } catch (error) {
     console.log("Error previewing combo presets:", error);
-    return NextResponse.json({ error: "Failed to preview combo presets" }, { status: 500 });
+    return NextResponse.json({ error: localizedComboMessage(getRequestLocale(request), "failedPreview") }, { status: 500 });
   }
 }
 
-// POST /api/combos/presets — create missing combos for a source
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const source = parseSource(body?.source);
     if (!source) {
       return NextResponse.json(
-        { error: "source must be 'cursor' or 'claude'" },
+        { error: localizedComboMessage(getRequestLocale(request), "invalidSource") },
         { status: 400 }
       );
     }
@@ -105,6 +96,6 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error creating combo presets:", error);
-    return NextResponse.json({ error: "Failed to create combo presets" }, { status: 500 });
+    return NextResponse.json({ error: localizedComboMessage(getRequestLocale(request), "failedPresets") }, { status: 500 });
   }
 }

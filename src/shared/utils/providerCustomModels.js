@@ -17,6 +17,7 @@ export function getProviderCustomModelRows({
   builtInModels = [],
   type = "llm",
   includeLegacyAliases = true,
+  includeBuiltInCustomModels = false,
 }) {
   const builtInIds = new Set(builtInModels.map((model) => model.id));
   const seenFullModels = new Set();
@@ -26,7 +27,7 @@ export function getProviderCustomModelRows({
     if (!model?.id || model.providerAlias !== providerAlias) continue;
     const rowType = modelType(model);
     if (type && rowType !== type) continue;
-    if (builtInIds.has(model.id)) continue;
+    if (builtInIds.has(model.id) && !includeBuiltInCustomModels) continue;
 
     const fullModel = `${providerAlias}/${model.id}`;
     if (seenFullModels.has(fullModel)) continue;
@@ -37,6 +38,8 @@ export function getProviderCustomModelRows({
       fullModel,
       source: "custom",
       type: rowType,
+      ...(model.caps && typeof model.caps === "object" ? { caps: model.caps } : {}),
+      ...(model.isFree === true ? { isFree: true } : {}),
     });
   }
 

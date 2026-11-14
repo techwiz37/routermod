@@ -33,7 +33,6 @@ const PLATFORM_MAPPINGS = {
   }
 };
 
-// Fallback order: prefer smallest/most-compatible binary per platform
 const PLATFORM_FALLBACK = {
   darwin: "cloudflared-darwin-amd64.tgz",
   win32: "cloudflared-windows-386.exe",
@@ -53,7 +52,6 @@ function getDownloadUrl() {
   return `${GITHUB_BASE_URL}/${binaryName}`;
 }
 
-// Download state — shared so status API can read it
 const dlState = { downloading: false, progress: 0 };
 
 export function getDownloadStatus() {
@@ -116,7 +114,6 @@ function downloadFile(url, dest) {
 
 const MIN_BINARY_SIZE = 1024 * 1024; // 1MB - cloudflared is ~30MB+
 
-// Validate binary is executable on current platform and not truncated
 function isValidBinary(filePath) {
   try {
     const stat = fs.statSync(filePath);
@@ -147,7 +144,6 @@ async function _ensureCloudflared() {
     fs.mkdirSync(BIN_DIR, { recursive: true });
   }
 
-  // Clean up incomplete downloads from previous runs
   const tmpPath = `${BIN_PATH}.tmp`;
   if (fs.existsSync(tmpPath)) {
     try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
@@ -187,7 +183,6 @@ let cloudflaredProcess = null;
 let unexpectedExitHandler = null;
 let intentionalKill = false; // suppress unexpected-exit callback during deliberate kill
 
-/** Register a callback to be called when cloudflared exits unexpectedly after connecting */
 export function setUnexpectedExitHandler(handler) {
   unexpectedExitHandler = handler;
 }
@@ -215,7 +210,6 @@ export async function spawnCloudflared(tunnelToken) {
 
     const handleLog = (data) => {
       const msg = data.toString();
-      // Count exact occurrences in this chunk (each chunk may contain multiple lines)
       const matches = msg.match(/Registered tunnel connection/g);
       if (matches) {
         connectionCount += matches.length;
@@ -245,14 +239,11 @@ export async function spawnCloudflared(tunnelToken) {
       if (!resolved) {
         resolved = true;
         clearTimeout(timeout);
-        // Collect stderr output for better error diagnosis
         let stderrOutput = "";
         if (child.stderr && !child.stderr.destroyed) {
-          // Try to read any buffered stderr (may not have all output but helps with common errors)
           stderrOutput = " Check cloudflared logs for details.";
         }
         if (code === 1) {
-          // Common exit code 1 issues: invalid token, auth failure, network issues
           reject(new Error(`cloudflared exited with code ${code}${stderrOutput} Ensure your tunnel token is valid and network is reachable.`));
         } else if (code === 2) {
           reject(new Error(`cloudflared exited with code ${code}${stderrOutput} Check if required arguments are correct.`));
@@ -261,24 +252,34 @@ export async function spawnCloudflared(tunnelToken) {
         }
         return;
       }
-      // Watchdog (initializeApp) handles recovery — no auto-reconnect here
       if (intentionalKill) { intentionalKill = false; return; }
       if (wasConnected && unexpectedExitHandler) unexpectedExitHandler();
     });
   });
 }
 
-/**
- * Spawn cloudflared quick tunnel (no account needed)
- * Returns the generated trycloudflare.com URL
- */
 export async function spawnQuickTunnel(localPort, onUrlUpdate) {
   const binaryPath = await ensureCloudflared();
 
   const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "cloudflared-quick-"));
   const configPath = path.join(configDir, "config.yml");
-  // Avoid using default ~/.cloudflared/config.yml, which can conflict with quick tunnel behavior.
-  fs.writeFileSync(configPath, "# quick-tunnel config placeholder\n", "utf8");
+
+  const requestedProtocol = String(process.env.TUNNEL_TRANSPORT_PROTOCOL || process.env.CLOUDFLARED_PROTOCOL || DEFAULT_QUICK_TUNNEL_PROTOCOL).trim().toLowerCase();
+  const tunnelProtocol = QUICK_TUNNEL_PROTOCOLS.has(requestedProtocol) ? requestedProtocol : DEFAULT_QUICK_TUNNEL_PROTOCOL;
+
+  // QUIC (UDP/7844) is blocked by many ISP/mobile networks, which made the
+  // public URL refuse connections for remote devices while the machine that
+  // spawned cloudflared (UDP allowed) still worked. HTTP/2 uses TCP/443.
+  // The protocol must live in the config file: `--protocol` on the CLI is
+  // only a hint for quick tunnels and the process still dials QUIC without it.
+  const configBody = [
+    "# managed by routermod — quick tunnel",
+    `protocol: ${tunnelProtocol}`,
+    "edge-ip-version: 4",
+    "no-autoupdate: true",
+    "",
+  ].join("\n");
+  fs.writeFileSync(configPath, configBody, "utf8");
 
   let isCleaned = false;
   const cleanup = () => {
@@ -289,15 +290,19 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
     } catch (e) { /* ignore */ }
   };
 
-  const requestedProtocol = String(process.env.TUNNEL_TRANSPORT_PROTOCOL || process.env.CLOUDFLARED_PROTOCOL || DEFAULT_QUICK_TUNNEL_PROTOCOL).trim().toLowerCase();
-  const tunnelProtocol = QUICK_TUNNEL_PROTOCOLS.has(requestedProtocol) ? requestedProtocol : DEFAULT_QUICK_TUNNEL_PROTOCOL;
-  const child = spawn(binaryPath, ["tunnel", "--url", `http://127.0.0.1:${localPort}`, "--config", configPath, "--no-autoupdate", "--retries", "99"], {
+  // `--dns-resolver-addrs` is not accepted in quick-tunnel mode (cloudflared
+  // exits and prints help), so edge DNS is left to the system resolver.
+  // `--no-prechecks` matters on networks that block outbound UDP/7844: the QUIC
+  // precheck failure otherwise aborts the process even though the HTTP/2
+  // connection (TCP/443) already registered successfully.
+  const child = spawn(binaryPath, ["tunnel", "--url", `http://127.0.0.1:${localPort}`, "--config", configPath, "--no-autoupdate", "--retries", "99", "--protocol", tunnelProtocol, "--no-prechecks"], {
     detached: false,
     windowsHide: true,
     cwd: os.tmpdir(),
     env: {
       ...process.env,
       TUNNEL_TRANSPORT_PROTOCOL: tunnelProtocol,
+      TUNNEL_EDGE_IP_VERSION: process.env.TUNNEL_EDGE_IP_VERSION || "4",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -307,12 +312,9 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
 
   return new Promise((resolve, reject) => {
     let resolved = false;
-    // Keep a small tail of raw cloudflared logs to surface real failure causes
     let logTail = "";
 
     function getQuickTunnelUrlFromLog(message) {
-      // cloudflared logs may contain "api.trycloudflare.com" as well,
-      // but that is NOT the quick-tunnel endpoint we need.
       const regex = /https:\/\/([a-z0-9-]+)\.trycloudflare\.com/gi;
       const candidates = [];
 
@@ -329,33 +331,55 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
     const timeout = setTimeout(() => {
       if (resolved) return;
       resolved = true;
+      clearInterval(settle);
       cleanup();
       reject(new Error(`Quick tunnel timed out. Last log: ${logTail.slice(-800) || "(empty)"}`));
     }, 90000);
 
     let lastUrl = null;
+    let registeredUrl = null;
+    let urlSeen = false;
+    let connectionCount = 0;
+    let connFirstAt = 0;
+
+    // The 3s grace after the first registration must be evaluated on a timer:
+    // cloudflared stops logging once connected, so a log-driven check would wait
+    // forever and the whole enable would fail with a misleading timeout.
+    const settle = setInterval(() => {
+      if (resolved) { clearInterval(settle); return; }
+      if (lastUrl && connectionCount >= 1 && Date.now() - connFirstAt >= 3000) {
+        resolved = true;
+        registeredUrl = lastUrl;
+        clearInterval(settle);
+        clearTimeout(timeout);
+        cleanup();
+        resolve({ child, tunnelUrl: lastUrl });
+      }
+    }, 500);
 
     const handleLog = (data) => {
       const msg = data.toString();
       logTail = (logTail + msg).slice(-4000);
       const tunnelUrl = getQuickTunnelUrlFromLog(msg);
-      if (!tunnelUrl) return;
-
-      if (!resolved) {
-        // First URL — resolve the promise, do NOT call onUrlUpdate (caller handles initial register)
-        resolved = true;
+      if (tunnelUrl) {
         lastUrl = tunnelUrl;
-        clearTimeout(timeout);
-        cleanup();
-        console.log(`[Tunnel] cloudflared URL: ${tunnelUrl}`);
-        resolve({ child, tunnelUrl });
-        return;
+        if (!urlSeen) {
+          urlSeen = true;
+          console.log(`[Tunnel] cloudflared URL: ${tunnelUrl}`);
+        }
       }
 
-      // URL changed after initial connect — notify caller to re-register
-      if (tunnelUrl !== lastUrl) {
+      const conns = msg.match(/Registered tunnel connection/g);
+      if (conns) {
+        if (!connFirstAt) connFirstAt = Date.now();
+        connectionCount += conns.length;
+      }
+
+      if (!resolved) return;
+
+      if (tunnelUrl && tunnelUrl !== registeredUrl) {
         console.log(`[Tunnel] cloudflared URL changed: ${tunnelUrl}`);
-        lastUrl = tunnelUrl;
+        registeredUrl = tunnelUrl;
         if (onUrlUpdate) onUrlUpdate(tunnelUrl);
       }
     };
@@ -366,6 +390,7 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
     child.on("error", (err) => {
       if (resolved) return;
       resolved = true;
+      clearInterval(settle);
       clearTimeout(timeout);
       cleanup();
       reject(err);
@@ -374,7 +399,7 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
     child.on("exit", (code, signal) => {
       if (cloudflaredProcess === child) cloudflaredProcess = null;
       clearPid(child.pid);
-      // Deliberate kill (restart/disable) — exit silently, no error noise
+      clearInterval(settle);
       if (intentionalKill) {
         intentionalKill = false;
         clearTimeout(timeout);
@@ -385,6 +410,7 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
       console.log(`[Tunnel] cloudflared exit code=${code} signal=${signal}`);
       if (!resolved) {
         resolved = true;
+        clearInterval(settle);
         clearTimeout(timeout);
         cleanup();
         const tail = logTail.slice(-600).trim() || "(empty)";
@@ -403,8 +429,6 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
   });
 }
 
-// Kill cloudflared processes whose command line targets the given port (any host).
-// Boundary check ensures :20128 doesn't match :201280 or :202128.
 function killCloudflaredByPort(port) {
   if (!port) return;
   try {

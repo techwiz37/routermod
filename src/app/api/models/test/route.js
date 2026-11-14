@@ -1,13 +1,43 @@
 import { NextResponse } from "next/server";
 import { pingModelByKind } from "./ping";
+import { getModelInfo } from "@/sse/services/model";
 
-// POST /api/models/test - Ping a single model via internal completions or embeddings
+const MODEL_TEST_TIMEOUT_MS = 30000;
+
+function getCanonicalModel(model, resolved) {
+  if (!resolved?.provider || !resolved?.model) return model;
+  return `${resolved.provider}/${resolved.model}`;
+}
+
 export async function POST(request) {
   try {
     const { model, kind } = await request.json();
     if (!model) return NextResponse.json({ error: "Model required" }, { status: 400 });
-    const result = await pingModelByKind(model, kind || "llm");
-    return NextResponse.json(result);
+    // A provider's global prefix is a display/routing alias (for example
+    // `xro/agnes-2.5-flash`), not necessarily a registered provider id. Resolve
+    // it before pinging so model tests keep working after the prefix changes.
+    let canonicalModel = model;
+    try {
+      const resolved = await getModelInfo(model);
+      canonicalModel = getCanonicalModel(model, resolved);
+    } catch (resolveError) {
+      console.warn("Model test: failed to resolve display alias:", resolveError?.message || resolveError);
+    }
+
+    let timeoutId;
+    const timeout = new Promise((resolve) => {
+      timeoutId = setTimeout(
+        () => resolve({ ok: false, latencyMs: MODEL_TEST_TIMEOUT_MS, status: 0, error: "No response within 30 seconds" }),
+        MODEL_TEST_TIMEOUT_MS
+      );
+    });
+
+    const result = await Promise.race([
+      pingModelByKind(canonicalModel, kind || "llm", undefined, model),
+      timeout,
+    ]).finally(() => clearTimeout(timeoutId));
+
+    return NextResponse.json({ ...result, requestedModel: model, testedModel: canonicalModel });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }

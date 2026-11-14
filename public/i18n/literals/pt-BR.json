@@ -1008,7 +1008,7 @@
   "The unified interface for modern AI infrastructure. Secure, observable, and scalable.": "A interface unificada para infraestrutura de IA moderna. Segura, observável e escalável.",
   "Theme": "Tema",
   "Thinking Process": "Processo de Raciocínio",
-  "Store this key securely. You can view or copy it later from the API Keys list.": "Armazene esta chave com segurança. Você pode visualizá-la ou copiá-la depois na lista de Chaves de API.",
+  "This is the only time you will see this key. Store it securely.": "Esta é a única vez que você verá esta chave. Armazene-a com segurança.",
   "This provider is ready to use. Optionally route requests through a proxy pool to bypass IP-based limits.": "Este provedor está pronto para uso. Opcionalmente, envie requisições por um pool de proxy para burlar limites por IP.",
   "This value is write-only after saving.": "Este valor é somente gravação após salvar.",
   "Time": "Hora",
@@ -1130,5 +1130,17 @@
   "— rotates models across requests to spread load": "— rotaciona os modelos entre as requisições para distribuir a carga",
   "— tries models in order (next on failure)": "— tenta os modelos em ordem (próximo em caso de falha)",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM intercepta tráfego HTTPS de ferramentas IDE (Antigravity, GitHub Copilot, Kiro) via CA local para redirecionar solicitações aos seus provedores. Pode violar ToS → risco de banimento de conta. Use por sua conta e risco.",
-  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Aviso de Risco: Este provedor usa uma sessão de assinatura/OAuth não licenciada oficialmente para uso de proxy/roteador. A conta pode ser restrita ou banida. Use por sua conta e risco."
+  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Aviso de Risco: Este provedor usa uma sessão de assinatura/OAuth não licenciada oficialmente para uso de proxy/roteador. A conta pode ser restrita ou banida. Use por sua conta e risco.",
+  "Prefix updated": "Prefix updated",
+  "model alias": "model alias",
+  "model aliases": "model aliases",
+  "Prefix saved": "Prefix saved",
+  "Failed to update prefix": "Failed to update prefix",
+  "Unknown error": "Unknown error",
+  "Prefix updated count": "Prefix updated count",
+  "Deteksi Model Otomatis": "Auto-detect Models",
+  "Test Semua": "Test All",
+  "Stop Test": "Stop Test",
+  "Stop Testing...": "Stopping...",
+  "Test Selesai": "Test Complete"
 }

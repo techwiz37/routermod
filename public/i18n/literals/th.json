@@ -1172,7 +1172,7 @@
   "Theme": "ธีม",
   "Thinking": "Thinking",
   "Thinking Process": "Thinking Process",
-  "Store this key securely. You can view or copy it later from the API Keys list.": "กรุณาจัดเก็บ key นี้อย่างปลอดภัย คุณสามารถดูหรือคัดลอกได้ในภายหลังจากรายการ API Keys",
+  "This is the only time you will see this key. Store it securely.": "นี่เป็นครั้งเดียวที่คุณจะเห็น key นี้ กรุณาจัดเก็บอย่างปลอดภัย",
   "This provider is ready to use.": "Provider นี้พร้อมใช้งาน",
   "This provider is ready to use. Optionally route requests through a proxy pool to bypass IP-based limits.": "Provider นี้พร้อมใช้งาน ทางเลือกสามารถ route requests ผ่าน proxy pool เพื่อหลีกเลี่ยง IP-based limits",
   "This value is write-only after saving.": "ค่านี้จะเขียนได้เฉพาะหลังจากบันทึกแล้ว",
@@ -1389,5 +1389,18 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ ประกาศความเสี่ยง: Provider นี้ใช้ subscription/OAuth session ที่ไม่ได้รับอนุญาตอย่างเป็นทางการสำหรับการใช้งาน proxy/router บัญชีอาจถูกจำกัดหรือแบน ใช้ด้วยความเสี่ยงของคุณเอง",
   "✓ Confirm Add": "✓ ยืนยันการเพิ่ม",
   "📝 Configure providers in dashboard or use environment variables": "📝 กำหนดค่า providers ใน dashboard หรือใช้ environment variables",
-  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 ต้องใช้ OAuth เพิ่มตอนนี้แล้ว authenticate หลัง Apply; รายการเครื่องมือจะถูกค้นพบหลังการเชื่อมต่อครั้งแรก"
+  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 ต้องใช้ OAuth เพิ่มตอนนี้แล้ว authenticate หลัง Apply; รายการเครื่องมือจะถูกค้นพบหลังการเชื่อมต่อครั้งแรก",
+  "Prefix updated": "Prefix updated",
+  "Updated": "Updated",
+  "model alias": "model alias",
+  "model aliases": "model aliases",
+  "Prefix saved": "Prefix saved",
+  "Failed to update prefix": "Failed to update prefix",
+  "Unknown error": "Unknown error",
+  "Prefix updated count": "Prefix updated count",
+  "Deteksi Model Otomatis": "Auto-detect Models",
+  "Test Semua": "Test All",
+  "Stop Test": "Stop Test",
+  "Stop Testing...": "Stopping...",
+  "Test Selesai": "Test Complete"
 }

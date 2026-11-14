@@ -39,6 +39,7 @@ export default function Toggle({
           "relative inline-flex shrink-0 cursor-pointer rounded-full",
           "transition-colors duration-200 ease-in-out",
           "focus:outline-none focus:ring-2 focus:ring-brand-500/30",
+          "shadow-[inset_0_0_0_2px_var(--color-border)]",
           checked ? "bg-brand-500" : "bg-surface-3",
           sizes[size].track,
           disabled && "cursor-not-allowed"
@@ -46,7 +47,8 @@ export default function Toggle({
       >
         <span
           className={cn(
-            "pointer-events-none inline-block rounded-full bg-white shadow-sm",
+            "pointer-events-none inline-block rounded-full bg-white",
+            "border-2 border-[var(--color-border)] shadow-sm",
             "transform transition duration-200 ease-in-out",
             checked ? sizes[size].translate : "translate-x-0.5",
             sizes[size].thumb,

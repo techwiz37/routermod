@@ -83,7 +83,6 @@ export default function AntigravityToolCard({
     }
   };
 
-  // MITM elevation is decided by the server OS, not by this browser's OS.
   const serverIsWindows = status?.isWin === true;
   const canRunWithoutPassword = serverIsWindows || status?.hasCachedPassword || status?.needsSudoPassword === false;
 
@@ -108,7 +107,6 @@ export default function AntigravityToolCard({
   const doStart = async (password) => {
     setLoading(true);
     setMessage(null);
-    // Show steps progressing in order
     setStartingStep("cert");
     try {
       const keyToUse = selectedApiKey?.trim()

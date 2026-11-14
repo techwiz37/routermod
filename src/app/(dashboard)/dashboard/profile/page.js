@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
+import { usePageReady } from "@/shared/components/PageReadyContext";
 import { Card, Button, Toggle, Input } from "@/shared/components";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
-import { useTheme } from "@/shared/hooks/useTheme";
 import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
@@ -20,13 +21,17 @@ function getLocaleFromCookie() {
 }
 
 export default function ProfilePage() {
-  const { theme, setTheme, isDark } = useTheme();
   const [locale, setLocale] = useState(() => getLocaleFromCookie());
+  // Values that only exist in the browser are rendered after mount so the
+  // server and the first client render stay identical (no hydration error).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [langOpen, setLangOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const [settings, setSettings] = useState({ fallbackStrategy: "fill-first" });
   const [loading, setLoading] = useState(true);
+  usePageReady(loading);
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
   const [passStatus, setPassStatus] = useState({ type: "", message: "" });
   const [passLoading, setPassLoading] = useState(false);
@@ -53,7 +58,6 @@ export default function ProfilePage() {
   const samlAcsUrl = origin ? `${origin}/api/auth/saml/acs` : "/api/auth/saml/acs";
   const samlMetadataUrl = origin ? `${origin}/api/auth/saml/metadata` : "/api/auth/saml/metadata";
   
-  // SAML State
   const [ssoTypeTab, setSsoTypeTab] = useState("saml");
   const [samlForm, setSamlForm] = useState({
     samlEntryPoint: "",
@@ -80,6 +84,7 @@ export default function ProfilePage() {
   const [proxyStatus, setProxyStatus] = useState({ type: "", message: "" });
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyTestLoading, setProxyTestLoading] = useState(false);
+
 
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
@@ -731,7 +736,6 @@ export default function ProfilePage() {
     }
   };
 
-  // Confirm password modal, then run export or import.
   const handleDbAuthConfirm = async () => {
     const { mode, password } = dbAuth;
     setDbAuth({ open: false, mode: "", password: "" });
@@ -746,7 +750,6 @@ export default function ProfilePage() {
     try {
       await fetch("/api/version/shutdown", { method: "POST" });
     } catch (e) {
-      // Expected to fail as server shuts down; ignore error
     }
     setIsShuttingDown(false);
     setShutdownOpen(false);
@@ -764,46 +767,82 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-0">
-      <div className="flex flex-col gap-6">
+    <div className="an-scope an-settingsscope flex flex-col gap-5">
+      {/* Hero */}
+      <section className="an-panel an-hero">
+        <div className="an-hero-main">
+          <span className="an-hero-eyebrow">Pengaturan</span>
+          <h1 className="an-hero-title">Pengaturan Sistem</h1>
+          <p className="an-hero-sub">
+            Atur bahasa, keamanan, routing, jaringan, dan preferensi RouterMod
+            di satu tempat.
+          </p>
+        </div>
+        <div className="an-hero-stats">
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">computer</span>
+              Mode
+            </span>
+            <span className="an-stat-value !text-[15px]">Lokal</span>
+            <span className="an-stat-foot">jalan di mesin sendiri</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">translate</span>
+              Bahasa
+            </span>
+            <span className="an-stat-value !text-[15px]">
+              {mounted ? (locale || "id").toUpperCase() : "—"}
+            </span>
+            <span className="an-stat-foot">bahasa antarmuka</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">lock</span>
+              Keamanan
+            </span>
+            <span className="an-stat-value !text-[15px]">
+              {mounted ? (settings.hasPassword ? "Aktif" : "Belum") : "—"}
+            </span>
+            <span className="an-stat-foot">password dashboard</span>
+          </div>
+          <div className="an-stat">
+            <span className="an-stat-label">
+              <span className="material-symbols-outlined">hub</span>
+              Mode Login
+            </span>
+            <span className="an-stat-value !text-[15px]">
+              {mounted ? settings.authMode || "password" : "—"}
+            </span>
+            <span className="an-stat-foot">cara masuk</span>
+          </div>
+        </div>
+      </section>
+
+      <SurfaceSkinContext.Provider value="antares">
         {/* Local Mode Info */}
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div className="flex items-center gap-3 sm:gap-4">
-              <div className="size-10 sm:size-12 rounded-lg bg-green-500/10 text-green-500 flex items-center justify-center shrink-0">
+              <div className="size-10 sm:size-12 rounded-xl border-2 border-border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
                 <span className="material-symbols-outlined text-xl sm:text-2xl">computer</span>
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-semibold">Local Mode</h2>
+                <h2 className="an-panel-title">Local Mode</h2>
                 <p className="text-sm text-text-muted">Running on your machine</p>
               </div>
             </div>
-            <div className="inline-flex p-1 rounded-lg bg-black/5 dark:bg-white/5 w-full sm:w-auto">
-              {["light", "dark", "system"].map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setTheme(option)}
-                  className={cn(
-                    "flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all flex-1 sm:flex-initial",
-                    theme === option
-                      ? "bg-white dark:bg-white/10 text-text-main shadow-sm"
-                      : "text-text-muted hover:text-text-main"
-                  )}
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    {option === "light" ? "light_mode" : option === "dark" ? "dark_mode" : "contrast"}
-                  </span>
-                  <span className="capitalize text-xs sm:text-sm">{option}</span>
-                </button>
-              ))}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-text-main">
+              <span className="material-symbols-outlined text-[18px] text-[var(--color-primary)]">dark_mode</span>
+              <span className="text-xs sm:text-sm font-medium">Dark</span>
             </div>
           </div>
           <div className="flex flex-col gap-3 pt-4 border-t border-border">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg bg-bg border border-border gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] gap-2">
               <div>
                 <p className="font-medium text-sm sm:text-base">Database Location</p>
-                <p className="text-xs sm:text-sm text-text-muted font-mono break-all">~/.9router/db/data.sqlite</p>
+                <p className="text-xs sm:text-sm text-text-muted font-mono break-all">~/.routermod/db/routermod.sqlite</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -844,28 +883,30 @@ export default function ProfilePage() {
         {/* Language */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">language</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Language</h3>
+            <h3 className="an-panel-title">Language</h3>
           </div>
           <button
             onClick={() => setLangOpen(true)}
-            className="flex items-center justify-between w-full p-3 rounded-lg bg-bg border border-border hover:border-primary/50 transition-colors"
+            className="flex items-center justify-between w-full p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] hover:border-primary/60 hover:-translate-y-px hover:shadow-[3px_3px_0_var(--color-border)] active:translate-y-0 transition-all"
             data-i18n-skip="true"
           >
             <span className="text-sm text-text-muted">Display language</span>
-            <span className="text-2xl">{LOCALE_FLAGS[locale] || "🌐"}</span>
+            <span className="text-2xl">
+              {mounted ? LOCALE_FLAGS[locale] || "ðŸŒ" : "\u00A0"}
+            </span>
           </button>
         </Card>
 
         {/* Security */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">shield</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Security</h3>
+            <h3 className="an-panel-title">Security</h3>
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
@@ -898,7 +939,7 @@ export default function ProfilePage() {
                 {/* {!settings.hasPassword && (
                   <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                     <p className="text-sm text-blue-600 dark:text-blue-400">
-                      Setting password for the first time. Leave current password empty or use default: <code className="bg-blue-500/20 px-1 rounded">123456</code>
+                      Setting password for the first time. Leave current password empty or use default: <code className="bg-blue-500/20 px-1 rounded">merdeka</code>
                     </p>
                   </div>
                 )} */}
@@ -948,11 +989,11 @@ export default function ProfilePage() {
             onClick={() => setOidcExpanded((v) => !v)}
             className="w-full flex items-center gap-3 text-left"
           >
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">lock_open</span>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base sm:text-lg font-semibold">Single Sign-On (SSO)</h3>
+              <h3 className="an-panel-title">Single Sign-On (SSO)</h3>
               <p className="text-xs text-text-muted">
                 {settings.authMode === "sso" || settings.authMode === "oidc" || settings.authMode === "saml"
                   ? `${settings.ssoType === "saml" ? "SAML 2.0" : "OIDC"} SSO active`
@@ -1036,10 +1077,10 @@ export default function ProfilePage() {
                         type="button"
                         onClick={() => updateOidcForm("authMode", option.value)}
                         className={cn(
-                          "text-left rounded-lg border p-3 transition-colors",
+                          "text-left rounded-xl border-2 border-border p-3 transition-all shadow-[2px_2px_0_var(--color-border)] hover:-translate-y-px hover:shadow-[3px_3px_0_var(--color-border)] active:translate-y-0",
                           active
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-bg hover:bg-black/5 dark:hover:bg-white/5"
+                            ? "border-primary bg-primary/10 shadow-[2px_2px_0_var(--color-primary)]"
+                            : "bg-surface-2 hover:border-primary/40"
                         )}
                         disabled={loading || oidcLoading || samlLoading}
                       >
@@ -1052,7 +1093,6 @@ export default function ProfilePage() {
               </div>
 
               {ssoTypeTab === "saml" ? (
-                /* SAML Configuration Panel */
                 <div className="flex flex-col gap-4 pt-2 border-t border-border/50">
                   {/* IdP Setup Guidelines Banner & Collapsible Drawer */}
                   <div className="rounded-lg border border-border bg-bg/80 overflow-hidden">
@@ -1083,7 +1123,7 @@ export default function ProfilePage() {
                     {showSamlGuide && (
                       <div className="p-4 border-t border-border bg-surface/30 text-xs text-text-main flex flex-col gap-3">
                         <div className="p-2.5 rounded border border-primary/20 bg-primary/5 text-primary text-xs">
-                          <p className="font-semibold mb-1">🔑 Required Service Provider (SP) Values for your IdP Setup:</p>
+                          <p className="font-semibold mb-1">ðŸ”‘ Required Service Provider (SP) Values for your IdP Setup:</p>
                           <ul className="list-disc pl-4 space-y-1 font-mono text-[11px]">
                             <li>
                               <b>Assertion Consumer Service (ACS) URL:</b>{" "}
@@ -1103,7 +1143,7 @@ export default function ProfilePage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                           <div className="p-3 rounded border border-border bg-bg/50 flex flex-col gap-1.5">
                             <p className="font-semibold text-text-main flex items-center gap-1.5">
-                              <span>☁️</span> AWS IAM Identity Center
+                              <span>â˜ï¸</span> AWS IAM Identity Center
                             </p>
                             <ol className="list-decimal pl-4 text-text-muted space-y-1">
                               <li>Applications → <b>Add application</b> → Select <b>Add custom SAML 2.0 application</b>.</li>
@@ -1116,7 +1156,7 @@ export default function ProfilePage() {
 
                           <div className="p-3 rounded border border-border bg-bg/50 flex flex-col gap-1.5">
                             <p className="font-semibold text-text-main flex items-center gap-1.5">
-                              <span>🔷</span> Microsoft Entra ID (Azure AD)
+                              <span>ðŸ”·</span> Microsoft Entra ID (Azure AD)
                             </p>
                             <ol className="list-decimal pl-4 text-text-muted space-y-1">
                               <li>Enterprise Applications → <b>New application</b> → <b>Create your own application</b>.</li>
@@ -1129,7 +1169,7 @@ export default function ProfilePage() {
 
                           <div className="p-3 rounded border border-border bg-bg/50 flex flex-col gap-1.5">
                             <p className="font-semibold text-text-main flex items-center gap-1.5">
-                              <span>🟢</span> Okta / Auth0
+                              <span>ðŸŸ¢</span> Okta / Auth0
                             </p>
                             <ol className="list-decimal pl-4 text-text-muted space-y-1">
                               <li>Applications → <b>Create App Integration</b> → Select <b>SAML 2.0</b>.</li>
@@ -1142,7 +1182,7 @@ export default function ProfilePage() {
 
                           <div className="p-3 rounded border border-border bg-bg/50 flex flex-col gap-1.5">
                             <p className="font-semibold text-text-main flex items-center gap-1.5">
-                              <span>🛡️</span> Keycloak / Authentik
+                              <span>ðŸ›¡ï¸</span> Keycloak / Authentik
                             </p>
                             <ol className="list-decimal pl-4 text-text-muted space-y-1">
                               <li>Clients → <b>Create client</b> → Select <b>SAML</b>.</li>
@@ -1265,7 +1305,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-bg text-xs sm:text-sm text-text-muted">
+                  <div className="flex flex-col gap-2 p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] text-xs sm:text-sm text-text-muted">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="font-medium text-text-main">ACS Callback URL</p>
@@ -1336,7 +1376,6 @@ export default function ProfilePage() {
                   )}
                 </div>
               ) : (
-                /* OIDC Panel */
                 <div className="flex flex-col gap-4 pt-2 border-t border-border/50">
                   <div className="grid grid-cols-1 gap-4">
                     <div className="flex flex-col gap-2">
@@ -1392,7 +1431,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-bg p-3 text-xs sm:text-sm text-text-muted">
+                  <div className="rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] p-3 text-xs sm:text-sm text-text-muted">
                     <p className="font-medium text-text-main mb-1">Redirect URI</p>
                     <code className="block break-all font-mono">{oidcRedirectUri}</code>
                   </div>
@@ -1438,10 +1477,10 @@ export default function ProfilePage() {
         {/* Routing Preferences */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">route</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Routing Strategy</h3>
+            <h3 className="an-panel-title">Routing Strategy</h3>
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
@@ -1529,10 +1568,10 @@ export default function ProfilePage() {
         {/* Network */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">wifi</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Network</h3>
+            <h3 className="an-panel-title">Network</h3>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -1601,10 +1640,10 @@ export default function ProfilePage() {
         {/* Observability Settings */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
+            <div className="size-10 rounded-xl border-2 border-border bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
               <span className="material-symbols-outlined text-[20px]">monitoring</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Observability</h3>
+            <h3 className="an-panel-title">Observability</h3>
           </div>
           <div className="flex items-start sm:items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -1621,14 +1660,13 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {/* Account actions */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-3">
           <Button
             variant="outline"
             fullWidth
             icon="power_settings_new"
             onClick={() => setShutdownOpen(true)}
-            className="text-red-500 border-red-200 hover:bg-red-50 hover:border-red-300"
+            className="text-red-500 border-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-400 shadow-[2px_2px_0_var(--color-border)]"
           >
             Shutdown
           </Button>
@@ -1637,17 +1675,17 @@ export default function ProfilePage() {
             fullWidth
             icon="logout"
             onClick={handleLogout}
+            className="shadow-[2px_2px_0_var(--color-border)]"
           >
             Logout
           </Button>
         </div>
 
         {/* App Info */}
-        <div className="text-center text-xs sm:text-sm text-text-muted py-4">
-          <p>{APP_CONFIG.name} v{APP_CONFIG.version}</p>
-          <p className="mt-1">{isRemoteHost ? "Remote Mode" : "Local Mode - All data stored on your machine"}</p>
+        <div className="text-center text-xs text-text-muted py-2">
+          <p className="font-mono">{APP_CONFIG.name} v{APP_CONFIG.version}</p>
+          <p className="mt-1">{isRemoteHost ? "Remote Mode" : "Local Mode — data stored on your machine"}</p>
         </div>
-      </div>
 
       <LanguageSwitcher
         hideTrigger
@@ -1697,6 +1735,7 @@ export default function ProfilePage() {
           autoFocus
         />
       </Modal>
+      </SurfaceSkinContext.Provider>
     </div>
   );
 }

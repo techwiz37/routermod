@@ -3,9 +3,13 @@ import { access, constants } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 import { execFile } from "child_process";
+import { createRequire } from "module";
 import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
+// better-sqlite3 is a native CommonJS addon: it must be loaded through
+// createRequire, a bare require() would throw in an ES module.
+const requireCjs = createRequire(import.meta.url);
 
 const ACCESS_TOKEN_KEYS = ["cursorAuth/accessToken", "cursorAuth/token"];
 const MACHINE_ID_KEYS = [
@@ -14,7 +18,6 @@ const MACHINE_ID_KEYS = [
   "telemetry.machineId",
 ];
 
-/** Get candidate db paths by platform */
 function getCandidatePaths(platform) {
   const home = homedir();
 
@@ -72,14 +75,9 @@ const normalize = (value) => {
   }
 };
 
-/**
- * Extract tokens via better-sqlite3 (bundled dependency).
- * This is the preferred strategy — no external CLI required.
- */
 function extractTokensViaBetterSqlite(dbPath) {
-  // Dynamic require so the route stays importable even if native bindings fail
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require("better-sqlite3");
+  const Database = requireCjs("better-sqlite3");
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
 
   const query = (key) => {
@@ -113,10 +111,6 @@ function extractTokensViaBetterSqlite(dbPath) {
   return { accessToken, machineId };
 }
 
-/**
- * Extract tokens via sqlite3 CLI.
- * Fallback when better-sqlite3 native bindings are unavailable.
- */
 async function extractTokensViaCLI(dbPath) {
   const normalize = (raw) => {
     const value = raw.trim();
@@ -135,7 +129,6 @@ async function extractTokensViaCLI(dbPath) {
     return stdout.trim();
   };
 
-  // Try each key in priority order
   let accessToken = null;
   for (const key of ACCESS_TOKEN_KEYS) {
     try {
@@ -147,7 +140,6 @@ async function extractTokensViaCLI(dbPath) {
         break;
       }
     } catch {
-      /* try next */
     }
   }
 
@@ -162,18 +154,12 @@ async function extractTokensViaCLI(dbPath) {
         break;
       }
     } catch {
-      /* try next */
     }
   }
 
   return { accessToken, machineId };
 }
 
-/**
- * GET /api/oauth/cursor/auto-import
- * Auto-detect and extract Cursor tokens from local SQLite database.
- * Strategy: better-sqlite3 → sqlite3 CLI → manual fallback
- */
 export async function GET() {
   try {
     const platform = process.platform;
@@ -186,7 +172,6 @@ export async function GET() {
         dbPath = candidate;
         break;
       } catch {
-        // Try next candidate
       }
     }
 
@@ -197,7 +182,6 @@ export async function GET() {
       });
     }
 
-    // On Linux, verify Cursor is actually installed (not just leftover config)
     if (platform === "linux") {
       let cursorInstalled = false;
       try {
@@ -218,7 +202,6 @@ export async function GET() {
       }
     }
 
-    // Strategy 1: better-sqlite3 (bundled — no external tools required)
     try {
       const tokens = extractTokensViaBetterSqlite(dbPath);
       if (tokens.accessToken && tokens.machineId) {
@@ -229,10 +212,8 @@ export async function GET() {
         });
       }
     } catch {
-      // Native bindings unavailable — try CLI fallback
     }
 
-    // Strategy 2: sqlite3 CLI
     try {
       const tokens = await extractTokensViaCLI(dbPath);
       if (tokens.accessToken && tokens.machineId) {
@@ -243,10 +224,8 @@ export async function GET() {
         });
       }
     } catch {
-      // sqlite3 CLI not available either
     }
 
-    // Strategy 3: ask user to paste manually
     return NextResponse.json({ found: false, windowsManual: true, dbPath });
   } catch (error) {
     console.log("Cursor auto-import error:", error);

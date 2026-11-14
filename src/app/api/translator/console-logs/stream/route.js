@@ -4,12 +4,17 @@ export const dynamic = "force-dynamic";
 
 initConsoleLogCapture();
 
+// Lines per frame. Small frames keep the stream alive through proxies that
+// buffer large chunks.
+const FRAME_LINES = 20;
+// A short heartbeat keeps the pipe warm on slow proxies.
+const HEARTBEAT_MS = 3000;
+
 export async function GET(request) {
   const encoder = new TextEncoder();
   const emitter = getConsoleEmitter();
   const state = { closed: false, send: null, sendLines: null, sendClear: null, keepalive: null };
 
-  // Idempotent: safe to call from request.signal abort, cancel(), or enqueue failure.
   const cleanup = () => {
     if (state.closed) return;
     state.closed = true;
@@ -19,60 +24,53 @@ export async function GET(request) {
     if (state.keepalive) clearInterval(state.keepalive);
   };
 
-  // request.signal fires reliably on client disconnect; ReadableStream.cancel()
-  // is not always invoked in Next.js, which caused listeners to accumulate.
   request.signal.addEventListener("abort", cleanup, { once: true });
 
   const stream = new ReadableStream({
     start(controller) {
-      // Send all buffered logs immediately on connect
-      const buffered = getConsoleLogs();
-      if (buffered.length > 0) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "init", logs: buffered })}\n\n`));
-      }
-
-      // Push new lines as they arrive
-      state.send = (line) => {
+      const push = (text) => {
         if (state.closed) return;
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "line", line })}\n\n`));
+          controller.enqueue(encoder.encode(text));
         } catch {
           cleanup();
         }
       };
+
+      // A tiny first frame so proxies flush the response right away.
+      push(`data: ${JSON.stringify({ type: "open" })}\n\n`);
+
+      const buffered = getConsoleLogs();
+      for (let i = 0; i < buffered.length; i += FRAME_LINES) {
+        push(
+          `data: ${JSON.stringify({ type: "lines", lines: buffered.slice(i, i + FRAME_LINES) })}\n\n`
+        );
+      }
+
+      state.send = (line) => push(`data: ${JSON.stringify({ type: "line", line })}\n\n`);
 
       state.sendLines = (lines) => {
         if (state.closed || !Array.isArray(lines) || lines.length === 0) return;
-        try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "lines", lines })}\n\n`));
-        } catch {
-          cleanup();
+        for (let i = 0; i < lines.length; i += FRAME_LINES) {
+          push(
+            `data: ${JSON.stringify({ type: "lines", lines: lines.slice(i, i + FRAME_LINES) })}\n\n`
+          );
         }
       };
 
-      // Notify client when cleared
-      state.sendClear = () => {
-        if (state.closed) return;
-        try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "clear" })}\n\n`));
-        } catch {
-          cleanup();
-        }
-      };
+      state.sendClear = () => push(`data: ${JSON.stringify({ type: "clear" })}\n\n`);
 
       emitter.on("line", state.send);
       emitter.on("lines", state.sendLines);
       emitter.on("clear", state.sendClear);
 
-      // Keepalive ping every 25s
       state.keepalive = setInterval(() => {
-        if (state.closed) { clearInterval(state.keepalive); return; }
-        try {
-          controller.enqueue(encoder.encode(": ping\n\n"));
-        } catch {
-          cleanup();
+        if (state.closed) {
+          clearInterval(state.keepalive);
+          return;
         }
-      }, 25000);
+        push(": ping\n\n");
+      }, HEARTBEAT_MS);
     },
 
     cancel() {
@@ -82,9 +80,9 @@ export async function GET(request) {
 
   return new Response(stream, {
     headers: {
-      "Content-Type": "text/event-stream",
+      "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     },
   });

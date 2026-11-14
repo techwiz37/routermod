@@ -62,7 +62,6 @@ export default function HermesToolCard({
 
   const configStatus = getConfigStatus();
 
-  // Same three-state rule as the header badge, evaluated per profile from the list payload.
   const profileStatus = (p) => {
     if (p.has9Router || (p.baseUrl && matchKnownEndpoint(p.baseUrl, { tunnelPublicUrl, tailscaleUrl }))) return "configured";
     if (p.baseUrl) return "other";
@@ -122,7 +121,6 @@ export default function HermesToolCard({
     if (hermesStatus?.installed && !hasInitializedModel.current) {
       hasInitializedModel.current = true;
       const cfg = hermesStatus.settings?.model;
-      // Always reset both: stale values from the previously selected profile must not leak in.
       setSelectedModel(cfg?.default || "");
       const initial = {};
       if (hermesStatus.settings?.delegation?.model) initial.delegation = hermesStatus.settings.delegation.model;
@@ -166,7 +164,6 @@ export default function HermesToolCard({
       } else {
         setMessage({ type: "error", text: data.error || "Failed to load Hermes settings" });
         if (res.status === 404) {
-          // Profile disappeared (e.g. deleted in another tab) — fall back to default.
           fetchProfiles();
           setActiveProfile("default");
         }
@@ -222,7 +219,6 @@ export default function HermesToolCard({
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: `Settings applied to ${profileLabel(activeProfile)}!` });
         checkStatus();
@@ -237,11 +233,6 @@ export default function HermesToolCard({
     }
   };
 
-  // Endpoint + API key across every profile. Each profile keeps its own model — only
-  // profiles already routed through 9router are refreshed, the rest are reported.
-  // The endpoint field mirrors whatever the active profile currently points at, so it can
-  // hold a foreign provider URL (openrouter, ...) — propagating that to every profile would
-  // be a mistake, hence the known-endpoint guard.
   const handleApplyAll = async () => {
     const endpoint = getEffectiveBaseUrl();
     const isKnown =
@@ -307,8 +298,6 @@ export default function HermesToolCard({
         setMessage({ type: "success", text: `Settings reset for ${profileLabel(activeProfile)}!` });
         setSelectedModel("");
         setRoleModels({});
-        setAudioEnabled(false);
-        setSttModel("");
         checkStatus();
         fetchProfiles();
       } else {
@@ -404,8 +393,8 @@ export default function HermesToolCard({
                 <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
-                    <p className="font-medium text-yellow-600 dark:text-yellow-400">Hermes Agent not detected locally</p>
-                    <p className="text-sm text-text-muted">Install: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash</p>
+                    <p className="text-[13px] font-medium text-yellow-600 dark:text-yellow-400 sm:text-sm">Hermes Agent not detected locally</p>
+                    <p className="text-[12.5px] text-text-muted sm:text-sm">Install: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash</p>
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 pl-0 sm:pl-9">

@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { usePageReady } from "./PageReadyContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
+import { onLocaleChange, translate } from "@/i18n/runtime";
 
-// Keep providers without serviceKinds (default LLM) or with "llm" in serviceKinds
 function isLLMProvider(id) {
   const p = AI_PROVIDERS[id];
   if (!p?.serviceKinds) return true;
@@ -12,10 +13,11 @@ function isLLMProvider(id) {
 }
 import Badge from "./Badge";
 import Card from "./Card";
+import SegmentedControl from "./SegmentedControl";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
+import AntaresSegmented from "@/shared/components/AntaresSegmented";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import dynamic from "next/dynamic";
-// Lazy-load: keeps @xyflow/react and recharts out of the initial bundle
 const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
 const UsageChart = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/UsageChart"), { ssr: false });
 const ProviderBarChart = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart"), { ssr: false });
@@ -29,7 +31,6 @@ function timeAgo(timestamp) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// Auto-update time display every second without re-rendering parent
 function TimeAgo({ timestamp }) {
   const [, setTick] = useState(0);
   
@@ -41,50 +42,199 @@ function TimeAgo({ timestamp }) {
   return <>{timeAgo(timestamp)}</>;
 }
 
-function RecentRequests({ requests = [] }) {
+const geoCache = new Map();
+const geoInflight = new Set();
+
+function useIpGeo(ips) {
+  const [, setVersion] = useState(0);
+  const key = ips.join(",");
+
+  useEffect(() => {
+    const missing = key
+      ? key.split(",").filter((ip) => ip && !geoCache.has(ip) && !geoInflight.has(ip))
+      : [];
+    if (!missing.length) return;
+    let cancelled = false;
+    missing.forEach((ip) => geoInflight.add(ip));
+    fetch("/api/usage/ip-geo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ips: missing }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        for (const ip of missing) geoCache.set(ip, data?.geo?.[ip] ?? null);
+      })
+      .catch(() => {
+        for (const ip of missing) geoCache.set(ip, null);
+      })
+      .finally(() => {
+        missing.forEach((ip) => geoInflight.delete(ip));
+        if (!cancelled) setVersion((v) => v + 1);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  return geoCache;
+}
+
+function IpFlag({ geo }) {
+  const [broken, setBroken] = useState(false);
+  if (geo?.local) {
+    return (
+      <span
+        className="material-symbols-outlined shrink-0 text-[var(--t-muted)]"
+        style={{ fontSize: 14, lineHeight: 1 }}
+        title={translate("Local network")}
+      >
+        home
+      </span>
+    );
+  }
+  if (!geo?.countryCode || broken) {
+    return (
+      <span
+        className="material-symbols-outlined shrink-0 text-[var(--t-dim)]"
+        style={{ fontSize: 14, lineHeight: 1 }}
+        title={translate("Unknown region")}
+      >
+        public
+      </span>
+    );
+  }
+  const code = geo.countryCode.toLowerCase();
+  const label = [geo.city, geo.country].filter(Boolean).join(", ");
   return (
-    <Card className="flex min-w-0 flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
-      {/* Header */}
-      <div className="px-1 py-2 border-b border-border shrink-0">
-        <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Recent Requests</span>
-      </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://flagcdn.com/w40/${code}.png`}
+      srcSet={`https://flagcdn.com/w80/${code}.png 2x`}
+      alt={geo.countryCode}
+      title={label || geo.countryCode}
+      width={18}
+      height={13}
+      loading="lazy"
+      onError={() => setBroken(true)}
+      className="h-[13px] w-[18px] shrink-0 rounded-[2px] object-cover ring-1 ring-black/30"
+    />
+  );
+}
+
+function RequestIp({ ip, geo }) {
+  const [copied, setCopied] = useState(false);
+  if (!ip) {
+    return (
+      <span className="inline-flex h-6 items-center rounded-md border border-[var(--t-line-soft)] px-2 text-[10px] font-mono text-[var(--t-dim)]">
+        IP —
+      </span>
+    );
+  }
+  const copyIp = async () => {
+    try {
+      await navigator.clipboard.writeText(ip);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = ip;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      el.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <span className="inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 rounded-md border border-[var(--t-line-soft)] bg-[var(--t-raised)] pl-2 pr-0.5 text-[var(--t-muted)]">
+      <IpFlag geo={geo} />
+      <span className="truncate font-mono text-[10.5px] text-[var(--t-text)]" title={ip}>{ip}</span>
+      <button
+        type="button"
+        onClick={copyIp}
+        aria-label={copied ? translate("Copied") : translate("Copy IP")}
+        title={copied ? translate("Copied") : translate("Copy IP")}
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded text-[var(--t-dim)] transition-colors hover:bg-[var(--t-line-soft)] hover:text-[var(--t-ink)]"
+      >
+        <span
+          className={`material-symbols-outlined ${copied ? "text-[var(--t-ok)]" : ""}`}
+          style={{ fontSize: 13, lineHeight: 1 }}
+        >
+          {copied ? "check" : "content_copy"}
+        </span>
+      </button>
+    </span>
+  );
+}
+
+function RecentRequests({ requests = [] }) {
+  const [, setLocaleVersion] = useState(0);
+  useEffect(() => onLocaleChange(() => setLocaleVersion((value) => value + 1)), []);
+  const ips = useMemo(
+    () => [...new Set(requests.map((r) => r.clientIp).filter(Boolean))].sort(),
+    [requests]
+  );
+  const geo = useIpGeo(ips);
+
+  return (
+    <section className="an-panel flex min-w-0 flex-col overflow-hidden h-[300px] sm:h-[360px] lg:h-full lg:min-h-[320px] lg:max-h-[560px]">
+      <header className="an-panel-head">
+        <span className="an-panel-ico" aria-hidden>
+          <span className="material-symbols-outlined">bolt</span>
+        </span>
+        <div className="min-w-0 flex-1">
+           <h2 className="an-panel-title">{translate("Live Request Feed")}</h2>
+           <p className="an-panel-sub">{translate("Incoming requests")}</p>
+        </div>
+      </header>
 
       {!requests.length ? (
-        <div className="flex-1 flex items-center justify-center text-text-muted text-sm">No requests yet.</div>
-      ) : (
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full min-w-[300px] border-collapse text-xs">
-            <thead className="sticky top-0 bg-bg z-10">
-              <tr className="border-b border-border">
-                <th className="py-1.5 text-left font-semibold text-text-muted w-2"></th>
-                <th className="py-1.5 text-left font-semibold text-text-muted">Model</th>
-                <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">In / Out</th>
-                <th className="py-1.5 text-right font-semibold text-text-muted">When</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
-              {requests.map((r, i) => {
-                const ok = !r.status || r.status === "ok" || r.status === "success";
-                return (
-                  <tr key={i} className="hover:bg-bg-subtle transition-colors">
-                    <td className="py-1.5">
-                      <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} />
-                    </td>
-                    <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>{r.model}</td>
-                    <td className="py-1.5 text-right whitespace-nowrap">
-                      <span className="text-primary">{fmt(r.promptTokens)}↑</span>
-                      {" "}
-                      <span className="text-success">{fmt(r.completionTokens)}↓</span>
-                    </td>
-                    <td className="py-1.5 text-right text-text-muted whitespace-nowrap"><TimeAgo timestamp={r.timestamp} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-[var(--t-muted)]">
+          <span className="material-symbols-outlined text-[32px] opacity-30">chat_bubble_outline</span>
+           <span className="text-xs font-medium">{translate("No incoming requests yet")}</span>
         </div>
+      ) : (
+        <ul className="flex-1 overflow-y-auto divide-y divide-[var(--t-line-soft)]">
+          {requests.map((r, i) => {
+            const ok = !r.status || r.status === "ok" || r.status === "success";
+            return (
+              <li
+                key={i}
+                className="flex flex-col gap-1.5 px-4 py-2.5 transition-colors hover:bg-[var(--t-raised)]/60"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`size-1.5 rounded-full shrink-0 ${ok ? "bg-[var(--t-ok)]" : "bg-[var(--t-danger)]"}`}
+                    title={ok ? "OK" : String(r.status)}
+                  />
+                  <span className="flex-1 truncate font-mono text-xs text-[var(--t-text)]" title={r.model}>
+                    {r.model}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--t-dim)]">
+                    <TimeAgo timestamp={r.timestamp} />
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pl-3.5 min-w-0">
+                  <div className="flex items-center gap-2.5 font-mono text-[10.5px] tabular-nums">
+                    <span className="inline-flex items-center gap-0.5 text-[var(--t-danger)]" title={translate("Input tokens")}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 12, lineHeight: 1 }}>arrow_upward</span>
+                      {fmt(r.promptTokens)}
+                    </span>
+                    <span className="inline-flex items-center gap-0.5 text-[var(--t-ok)]" title={translate("Output tokens")}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 12, lineHeight: 1 }}>arrow_downward</span>
+                      {fmt(r.completionTokens)}
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 max-w-full justify-end">
+                    <RequestIp ip={r.clientIp} geo={r.clientIp ? geo.get(r.clientIp) : null} />
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -94,9 +244,6 @@ function sortData(dataMap, pendingMap = {}, sortBy, sortOrder) {
       const totalTokens = (data.promptTokens || 0) + (data.completionTokens || 0);
       const totalCost = data.cost || 0;
       // ponytail: cost split is a token-share allocation of the (rate-accurate)
-      // server total, not a per-rate recompute. cached is a subset of prompt, so
-      // peel it out of the input share. Upgrade to a stored per-component cost
-      // breakdown if exact cached-rate cost display is needed.
       const cachedTokens = data.cachedTokens || 0;
       const nonCachedInput = Math.max(0, (data.promptTokens || 0) - cachedTokens);
       const inputCost = totalTokens > 0 ? nonCachedInput * (totalCost / totalTokens) : 0;
@@ -188,10 +335,10 @@ const ENDPOINT_COLUMNS = [
 ];
 
 const TABLE_OPTIONS = [
-  { value: "model", label: "Usage by Model" },
-  { value: "account", label: "Usage by Account" },
-  { value: "apiKey", label: "Usage by API Key" },
-  { value: "endpoint", label: "Usage by Endpoint" },
+  { value: "model", label: "Penggunaan per Model" },
+  { value: "account", label: "Penggunaan per Akun" },
+  { value: "apiKey", label: "Penggunaan per API Key" },
+  { value: "endpoint", label: "Penggunaan per Endpoint" },
 ];
 
 const PERIODS = [
@@ -212,6 +359,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  usePageReady(loading);
   const [fetching, setFetching] = useState(false);
   const [tableView, setTableView] = useState("model");
   const [viewMode, setViewMode] = useState("costs");
@@ -222,15 +370,12 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
 
-  // Fetch connected providers once, deduplicate by provider type
-  // Always include noAuth free providers (e.g. opencode) regardless of connections
   useEffect(() => {
     Promise.all([
       fetch("/api/providers").then((r) => r.ok ? r.json() : null),
       fetch("/api/provider-nodes").then((r) => r.ok ? r.json() : null),
     ])
       .then(([d, nodesData]) => {
-        // Build node name lookup for custom providers
         const nodeNameMap = {};
         for (const node of (nodesData?.nodes || [])) {
           nodeNameMap[node.id] = node.name;
@@ -255,9 +400,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       .catch(() => {});
   }, []);
 
-  // Fetch filtered stats via REST when period changes
   useEffect(() => {
-    // First load: show full spinner; subsequent: show subtle fetching indicator
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
       setLoading(true);
@@ -280,14 +423,12 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       });
   }, [period]);
 
-  // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
     const es = new EventSource("/api/usage/stream");
 
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        // Always merge only real-time fields, never overwrite full stats from REST
         setStats((prev) => {
           if (!prev) return prev;
           return {
@@ -320,7 +461,6 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
-  // Compute active table data
   const activeTableConfig = useMemo(() => {
     if (!stats) return null;
     switch (tableView) {
@@ -440,30 +580,26 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   if (!stats && !loading) return <div className="text-text-muted">Failed to load usage statistics.</div>;
 
   const spinner = (
-    <div className="flex items-center justify-center py-12 text-text-muted">
-      <span className="material-symbols-outlined text-[32px] animate-spin">progress_activity</span>
+    <div className="flex items-center justify-center py-14 text-text-muted gap-2">
+      <span className="material-symbols-outlined text-[28px] animate-spin text-primary">progress_activity</span>
+      <span className="text-sm font-medium">Memuat data...</span>
     </div>
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="an-scope flex min-w-0 flex-col gap-5">
       {/* Period selector (hidden when controlled by parent) */}
       {!hidePeriodSelector && (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
-          <div className="grid flex-1 grid-cols-6 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none">
-            {PERIODS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                disabled={fetching}
-                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${period === p.value ? "bg-primary text-white shadow-sm" : "text-text-muted hover:bg-bg-hover hover:text-text"}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <AntaresSegmented
+            options={PERIODS}
+            value={period}
+            onChange={setPeriod}
+            size="sm"
+            className="w-full sm:w-auto"
+          />
           {fetching && (
-            <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
+            <span className="material-symbols-outlined text-[16px] text-primary animate-spin">progress_activity</span>
           )}
         </div>
       )}
@@ -473,7 +609,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Provider topology + Recent Requests */}
       {loading ? spinner : (
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <ProviderTopology
             providers={providers}
             activeRequests={stats.activeRequests || []}
@@ -489,7 +625,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Provider and model breakdown charts */}
       {!loading && (stats.byProvider || stats.byModel) && (
-        <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <ProviderBarChart byProvider={stats.byProvider} />
           <TopModelsChart byModel={stats.byModel} />
         </div>
@@ -501,26 +637,22 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           <select
             value={tableView}
             onChange={(e) => setTableView(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-main focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
-            style={{ colorScheme: 'auto' }}
+            className="an-select w-full sm:w-auto"
           >
             {TABLE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex">
-            <button
-              onClick={() => setViewMode("costs")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "costs" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-            >
-              Costs
-            </button>
-            <button
-              onClick={() => setViewMode("tokens")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-            >
-              Tokens
-            </button>
+          <div className="flex items-center gap-2">
+            <AntaresSegmented
+              options={[
+                { value: "costs", label: "Biaya" },
+                { value: "tokens", label: "Token" },
+              ]}
+              value={viewMode}
+              onChange={setViewMode}
+              size="sm"
+            />
           </div>
         </div>
         {loading ? spinner : activeTableConfig && (

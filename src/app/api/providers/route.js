@@ -7,9 +7,10 @@ import {
   getProxyPoolById,
 } from "@/models";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
-import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers";
+import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, getProviderAlias } from "@/shared/constants/providers";
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
 import { toProviderConnectionResponse } from "@/lib/providerConnectionResponse";
+import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
 
 export const dynamic = "force-dynamic";
 
@@ -47,12 +48,10 @@ async function normalizeProxyPoolId(proxyPoolId) {
   return { proxyPoolId: normalizedId };
 }
 
-// GET /api/providers - List all connections
-export async function GET() {
+export async function GET(request) {
   try {
     const connections = await getProviderConnections();
 
-    // Build nodeNameMap for compatible providers (id → name)
     let nodeNameMap = {};
     try {
       const nodes = await getProviderNodes();
@@ -61,7 +60,6 @@ export async function GET() {
       }
     } catch { }
 
-    // Hide sensitive fields, enrich name for compatible providers
     const safeConnections = connections.map(c => {
       const isCompatible = isOpenAICompatibleProvider(c.provider) || isAnthropicCompatibleProvider(c.provider);
       const name = isCompatible
@@ -70,37 +68,35 @@ export async function GET() {
       return {
         ...toProviderConnectionResponse(c),
         name,
+        providerAlias: getProviderAlias(c.provider) || c.provider,
       };
     });
 
     return NextResponse.json({ connections: safeConnections });
   } catch (error) {
     console.log("Error fetching providers:", error);
-    return NextResponse.json({ error: "Failed to fetch providers" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(getRequestLocale(request), "failedFetchProviders") }, { status: 500 });
   }
 }
 
-// POST /api/providers - Create new connection (API Key only, OAuth via separate flow)
 export async function POST(request) {
   try {
+    const locale = getRequestLocale(request);
     const body = await request.json();
     const provider = normalizeProviderId(body.provider);
     const { apiKey, name, displayName, priority, globalPriority, defaultModel, testStatus } = body;
     const proxyConfig = normalizeProxyConfig(body);
     if (proxyConfig.error) {
-      return NextResponse.json({ error: proxyConfig.error }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "connectionProxyRequired") }, { status: 400 });
     }
 
     const proxyPoolResult = await normalizeProxyPoolId(body.proxyPoolId);
     if (proxyPoolResult.error) {
-      return NextResponse.json({ error: proxyPoolResult.error }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "proxyPoolNotFound") }, { status: 400 });
     }
     const proxyPoolId = proxyPoolResult.proxyPoolId;
 
-    // Validation
     const isWebCookieProvider = !!WEB_COOKIE_PROVIDERS[provider];
-    // Dual-auth providers (e.g. codebuddy-cn, xai) live under category "oauth" but also
-    // accept an API key via authModes — they aren't in APIKEY_PROVIDERS, so allow them here.
     const supportsApiKeyMode = !!AI_PROVIDERS[provider]?.authModes?.includes("apikey");
     const isValidProvider = APIKEY_PROVIDERS[provider] ||
       FREE_TIER_PROVIDERS[provider] ||
@@ -111,55 +107,53 @@ export async function POST(request) {
       isCustomEmbeddingProvider(provider);
 
     if (!provider || !isValidProvider) {
-      return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "invalidProvider") }, { status: 400 });
     }
-    // A provider may declare a providerSpecificData field that stands in for an API key — e.g.
-    // Bedrock's `profile`, where the credential lives in the local AWS config and there is no
-    // key to paste. Without this, following such a provider's own setup notice returns 400.
     const apiKeySubstitute = AI_PROVIDERS[provider]?.apiKeyOptionalWith;
     const hasApiKeySubstitute = !!(apiKeySubstitute && body.providerSpecificData?.[apiKeySubstitute]);
     if (!apiKey && provider !== "ollama-local" && !hasApiKeySubstitute) {
-      return NextResponse.json({ error: `${isWebCookieProvider ? "Cookie value" : "API Key"} is required` }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, isWebCookieProvider ? "cookieRequired" : "apiKeyRequired") }, { status: 400 });
     }
     const connectionName = name || displayName || AI_PROVIDERS[provider]?.name;
     if (!connectionName) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "nameRequired") }, { status: 400 });
     }
 
     let providerSpecificData = normalizeProviderSpecificData(provider, body, body.providerSpecificData);
 
-    // Compatible LLM nodes support multiple API-key connections (key pool); runtime
-    // rotates/fails over via getProviderCredentials. Embedding nodes stay single-connection.
     if (isOpenAICompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
-        return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
+        return NextResponse.json({ error: localizedProviderMessage(locale, "providerNodeNotFound") }, { status: 404 });
       }
       providerSpecificData = {
         prefix: node.prefix,
         apiType: node.apiType,
         baseUrl: node.baseUrl,
         nodeName: node.name,
+        systemPrompt: node.systemPrompt,
       };
     } else if (isAnthropicCompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
-        return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
+        return NextResponse.json({ error: localizedProviderMessage(locale, "providerNodeNotFound") }, { status: 404 });
       }
       providerSpecificData = {
         prefix: node.prefix,
         baseUrl: node.baseUrl,
         nodeName: node.name,
+        systemPrompt: node.systemPrompt,
       };
     } else if (isCustomEmbeddingProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
-        return NextResponse.json({ error: "Custom Embedding node not found" }, { status: 404 });
+        return NextResponse.json({ error: localizedProviderMessage(locale, "providerNodeNotFound") }, { status: 404 });
       }
       providerSpecificData = {
         prefix: node.prefix,
         baseUrl: node.baseUrl,
         nodeName: node.name,
+        systemPrompt: node.systemPrompt,
       };
     }
 
@@ -185,8 +179,6 @@ export async function POST(request) {
       providerSpecificData: mergedProviderSpecificData,
       isActive: true,
       testStatus: testStatus || "unknown",
-      // POST with an id is an explicit edit of that connection; without one, a
-      // name collision is refused rather than silently overwriting a key. #4311
       allowOverwrite: body.id ? true : (body.allowOverwrite === true || body.overwrite === true),
     });
 
@@ -202,6 +194,6 @@ export async function POST(request) {
       );
     }
     console.log("Error creating provider:", error);
-    return NextResponse.json({ error: "Failed to create provider" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(getRequestLocale(request), "failedCreateProvider") }, { status: 500 });
   }
 }

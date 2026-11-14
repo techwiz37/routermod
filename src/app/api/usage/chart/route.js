@@ -3,6 +3,8 @@ import { getChartData } from "@/lib/usageDb";
 
 const VALID_PERIODS = new Set(["today", "24h", "7d", "30d", "60d", "all"]);
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -13,7 +15,9 @@ export async function GET(request) {
     }
 
     const data = await getChartData(period);
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "no-store, max-age=0" },
+    });
   } catch (error) {
     console.error("[API] Failed to get chart data:", error);
     return NextResponse.json({ error: "Failed to fetch chart data" }, { status: 500 });

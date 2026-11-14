@@ -197,35 +197,35 @@ async function parseStream(response, log, callbacks = {}) {
   let usage = null;
 
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytesReceived += value?.byteLength || 0;
-      buffer += decoder.decode(value, { stream: true });
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytesReceived += value?.byteLength || 0;
+    buffer += decoder.decode(value, { stream: true });
 
-      let sepIdx;
-      while ((sepIdx = buffer.indexOf("\n\n")) !== -1) {
-        const block = buffer.slice(0, sepIdx);
-        buffer = buffer.slice(sepIdx + 2);
+    let sepIdx;
+    while ((sepIdx = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, sepIdx);
+      buffer = buffer.slice(sepIdx + 2);
 
-        const lines = block.split("\n");
-        let eventName = null;
-        let dataStr = "";
-        for (const line of lines) {
-          if (line.startsWith("event:")) eventName = line.slice(6).trim();
-          else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
-        }
-        if (!eventName) continue;
-        if (eventName !== lastEvent) {
-          log?.info?.("IMAGE", `codex progress: ${eventName}`);
-          lastEvent = eventName;
-        }
+      const lines = block.split("\n");
+      let eventName = null;
+      let dataStr = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+      }
+      if (!eventName) continue;
+      if (eventName !== lastEvent) {
+        log?.info?.("IMAGE", `codex progress: ${eventName}`);
+        lastEvent = eventName;
+      }
 
-        const now = Date.now();
-        if (callbacks.onProgress && now - lastProgressLogMs > 200) {
-          lastProgressLogMs = now;
-          callbacks.onProgress({ stage: eventName, bytesReceived });
-        }
+      const now = Date.now();
+      if (callbacks.onProgress && now - lastProgressLogMs > 200) {
+        lastProgressLogMs = now;
+        callbacks.onProgress({ stage: eventName, bytesReceived });
+      }
 
         if ((eventName === "error" || eventName === "response.failed") && dataStr) {
           let data;
@@ -238,14 +238,14 @@ async function parseStream(response, log, callbacks = {}) {
           throw err;
         }
 
-        if (eventName === "response.image_generation_call.partial_image" && dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            if (callbacks.onPartialImage && data?.partial_image_b64) {
-              callbacks.onPartialImage({ b64_json: data.partial_image_b64, index: data.partial_image_index });
-            }
-          } catch {}
-        }
+      if (eventName === "response.image_generation_call.partial_image" && dataStr) {
+        try {
+          const data = JSON.parse(dataStr);
+          if (callbacks.onPartialImage && data?.partial_image_b64) {
+            callbacks.onPartialImage({ b64_json: data.partial_image_b64, index: data.partial_image_index });
+          }
+        } catch {}
+      }
 
         if (eventName === "response.output_text.delta" && dataStr) {
           try {
@@ -253,10 +253,10 @@ async function parseStream(response, log, callbacks = {}) {
           } catch {}
         }
 
-        if (eventName === "response.output_item.done" && dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            const item = data?.item;
+      if (eventName === "response.output_item.done" && dataStr) {
+        try {
+          const data = JSON.parse(dataStr);
+          const item = data?.item;
             if (item?.type === "image_generation_call") {
               if (item.result) imageB64 = item.result;
               else upstreamError = extractStreamError(item) || upstreamError;
@@ -265,21 +265,21 @@ async function parseStream(response, log, callbacks = {}) {
                 ?.map((part) => (typeof part === "string" ? part : part?.text || part?.output_text))
                 .filter(Boolean)
                 .join(" ") || assistantText;
-            }
-          } catch {}
-        }
+          }
+        } catch {}
+      }
 
-        if ((eventName === "response.completed" || eventName === "response.done") && dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            usage = normalizeResponsesUsage(data?.response?.usage ?? data?.usage) || usage;
+      if ((eventName === "response.completed" || eventName === "response.done") && dataStr) {
+        try {
+          const data = JSON.parse(dataStr);
+          usage = normalizeResponsesUsage(data?.response?.usage ?? data?.usage) || usage;
             for (const item of data?.response?.output || data?.output || []) {
               if (item?.type === "image_generation_call" && item.result) imageB64 = item.result;
             }
-          } catch {}
-        }
+        } catch {}
       }
     }
+  }
   } catch (error) {
     try { await reader.cancel(); } catch {}
     throw error;

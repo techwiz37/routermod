@@ -3,11 +3,10 @@
 import { useParams, notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Card, Badge, Button, AddCustomEmbeddingModal, NoAuthProxyCard, ProviderInfoCard } from "@/shared/components";
+import { Card, Badge, Button, AddCustomEmbeddingModal, NoAuthProxyCard, ProviderInfoCard, PageLoader } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, OAUTH_PROVIDERS, isCustomEmbeddingProvider } from "@/shared/constants/providers";
+import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, isCustomEmbeddingProvider } from "@/shared/constants/providers";
 import ConnectionsCard from "@/app/(dashboard)/dashboard/providers/components/ConnectionsCard";
-import { WEB_LOGIN_PROVIDERS } from "@/app/(dashboard)/dashboard/providers/components/WebLoginButton";
 import ModelsCard from "@/app/(dashboard)/dashboard/providers/components/ModelsCard";
 import { KIND_EXAMPLE_CONFIG } from "./components/exampleShared";
 import { EmbeddingExampleCard } from "./components/EmbeddingExampleCard";
@@ -15,7 +14,6 @@ import { TtsExampleCard } from "./components/TtsExampleCard";
 import { GenericExampleCard } from "./components/GenericExampleCard";
 import { SttExampleCard } from "./components/SttExampleCard";
 
-// MediaProviderDetailPage
 export default function MediaProviderDetailPage() {
   const { kind, id } = useParams();
   const router = useRouter();
@@ -36,7 +34,6 @@ export default function MediaProviderDetailPage() {
   const [customLoading, setCustomLoading] = useState(isCustom);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  // Fetch custom node info from API for custom embedding nodes
   useEffect(() => {
     if (!isCustom) return;
     let cancelled = false;
@@ -55,7 +52,6 @@ export default function MediaProviderDetailPage() {
 
   const builtInProvider = AI_PROVIDERS[id];
 
-  // For custom embedding nodes, build a synthetic provider object
   const provider = isCustom
     ? (customNode ? { id, name: customNode.name || "Custom Embedding", color: "#6366F1", textIcon: "CE" } : null)
     : builtInProvider;
@@ -63,7 +59,7 @@ export default function MediaProviderDetailPage() {
   if (!isCustom && !builtInProvider) return notFound();
   if (isCustom && !customLoading && !customNode) return notFound();
   if (isCustom && customLoading) {
-    return <div className="text-text-muted text-sm py-12 text-center">Loading...</div>;
+    return <PageLoader message="Memuat provider..." />;
   }
 
   const kinds = isCustom ? ["embedding"] : (provider.serviceKinds ?? ["llm"]);
@@ -132,25 +128,25 @@ export default function MediaProviderDetailPage() {
 
       {/* Kind-specific notice (e.g. codex/image requires Plus) */}
       {!isCustom && provider.kindNotice?.[kind] && (
-        <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
-          <span className="material-symbols-outlined text-[20px] mt-0.5">warning</span>
-          <p className="text-sm">{provider.kindNotice[kind]}</p>
+        <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/50 shadow-[2px_2px_0px_theme(colors.amber.400)]">
+          <span className="material-symbols-outlined text-[17px] text-amber-500 mt-0.5 shrink-0">warning</span>
+          <p className="text-xs font-medium text-amber-800 dark:text-amber-300 leading-relaxed">{provider.kindNotice[kind]}</p>
         </div>
       )}
 
       {/* Provider notice text (only when there's actual text content) */}
       {!isCustom && provider.notice?.text && !provider.deprecated && (
-        <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
-          <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{provider.notice.text}</p>
+        <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-blue-400 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/50 shadow-[2px_2px_0px_theme(colors.blue.400)]">
+          <span className="material-symbols-outlined text-[17px] text-blue-500 shrink-0 mt-0.5">info</span>
+          <p className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-blue-800 dark:text-blue-300">{provider.notice.text}</p>
           {provider.notice.apiKeyUrl && (
             <a
               href={provider.notice.apiKeyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex justify-center rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600 sm:py-0.5"
+              className="text-[11px] font-bold uppercase tracking-wide px-2 py-1 rounded border border-blue-400 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 whitespace-nowrap shrink-0 transition-colors"
             >
-              Get API Key →
+              Get API Key
             </a>
           )}
         </div>
@@ -159,17 +155,8 @@ export default function MediaProviderDetailPage() {
       {/* Connections */}
       {!isCustom && provider.noAuth ? (
         <NoAuthProxyCard providerId={id} />
-      ) : kind === "stt" && OAUTH_PROVIDERS[id] ? (
-        <Card>
-          <p className="text-sm text-text-muted mb-3">This service shares your existing OAuth connections.</p>
-          <Link href={`/dashboard/providers/${id}`} className="text-primary hover:underline">Manage OAuth connections →</Link>
-        </Card>
       ) : (
-        <ConnectionsCard
-          providerId={id}
-          isOAuth={false}
-          loginProviderId={!isCustom && WEB_LOGIN_PROVIDERS.has(id) ? id : null}
-        />
+        <ConnectionsCard providerId={id} isOAuth={false} />
       )}
 
       {/* Models - hidden for tts/webSearch/webFetch (provider IS the model); custom uses prefix as alias */}

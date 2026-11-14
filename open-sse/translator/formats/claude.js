@@ -169,14 +169,8 @@ export function fixToolUseOrdering(messages) {
   return merged;
 }
 
-// Haiku 3.x/4.x reject thinking.type "adaptive" + output_config.effort; Haiku 5+ accepts
-// ONLY adaptive (#5183). Version may follow "haiku" (haiku-4-5, haiku-4.5) or precede it
-// (claude-4.5-haiku, claude-3-5-haiku). Unversioned "haiku" keeps the old, safe downgrade.
-function isAdaptiveThinkingUnsupported(model = "") {
-  if (!/haiku/i.test(model)) return false;
-  const m = String(model).match(/haiku[-._]?(\d+)|(?<![\d.])(\d+)(?:[-._]\d+)?[-._]?haiku/i);
-  return m ? Number(m[1] || m[2]) < 5 : true;
-}
+// Models that reject thinking.type "adaptive" + output_config.effort (Opus 4.5+/Sonnet 4.6+ only)
+const ADAPTIVE_THINKING_UNSUPPORTED = /haiku/i;
 
 function handlesThinkingBlocks(provider) {
   return provider === "claude" || provider?.startsWith("anthropic-compatible") || provider === "deepseek";
@@ -222,12 +216,12 @@ export function normalizeClaudePassthrough(body, model = "") {
   if (!body || typeof body !== "object") return body;
 
   // 1. Downgrade adaptive thinking for models that don't support it
-  if (body.thinking?.type === "adaptive" && isAdaptiveThinkingUnsupported(model)) {
+  if (body.thinking?.type === "adaptive" && ADAPTIVE_THINKING_UNSUPPORTED.test(model)) {
     body.thinking = { type: "enabled", budget_tokens: 10000 };
   }
 
   // 2. Strip effort param for models that don't support it (keep other output_config fields)
-  if (isAdaptiveThinkingUnsupported(model) && body.output_config?.effort != null) {
+  if (ADAPTIVE_THINKING_UNSUPPORTED.test(model) && body.output_config?.effort != null) {
     delete body.output_config.effort;
     if (Object.keys(body.output_config).length === 0) delete body.output_config;
   }
@@ -633,15 +627,11 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
           // anthropic-compatible: replace with default (safe fallback for lenient upstreams).
           // DeepSeek (official + opencode-go models): keep existing thinking as-is;
           // add an unsigned placeholder only if missing.
-          // Every branch: a block with no visible thinking text goes — the upstream
-          // Messages API rejects it outright (400 "each thinking block must contain
-          // non-whitespace thinking"), and a valid signature does not save it.
           const isClaudeNative = provider === "claude";
           const kept = [];
           for (const block of msg.content) {
             const isThinking = block.type === CLAUDE_BLOCK.THINKING || block.type === CLAUDE_BLOCK.REDACTED_THINKING;
             if (isThinking) {
-              if (!String(block.thinking ?? "").trim()) continue;
               if (isClaudeNative) {
                 if (isValidClaudeSignature(block.signature)) {
                   hasKeptThinking = true;

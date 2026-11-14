@@ -8,14 +8,15 @@ import { ROLE } from "../translator/schema/roles.js";
 
 const SEP = "\n\n";
 
-export function injectSystemPrompt(body, format, prompt) {
+export function injectSystemPrompt(body, format, prompt, position = "append") {
   try {
     if (!body || !prompt) return;
     if (typeof body !== "object") return;
+    const prepend = position === "prepend";
 
     // Kiro wire shape is unique (conversationState) — handle directly.
     if (isKiroBody(body) || format === FORMATS.KIRO) {
-      injectKiroSystem(body, prompt);
+      injectKiroSystem(body, prompt, prepend);
       return;
     }
 
@@ -23,29 +24,29 @@ export function injectSystemPrompt(body, format, prompt) {
     // messages[]/contents[] — decide by format label before the shape sniff below.
     // Anthropic rejects a "system" role inside messages[] (no such input role).
     if (format === FORMATS.CLAUDE) {
-      injectClaudeSystem(body, prompt);
+      injectClaudeSystem(body, prompt, prepend);
       return;
     }
     if (format === FORMATS.GEMINI || format === FORMATS.GEMINI_CLI
       || format === FORMATS.VERTEX || format === FORMATS.ANTIGRAVITY) {
       // Antigravity wraps Gemini shape in body.request → injectGeminiSystem handles it
-      injectGeminiSystem(body, prompt);
+      injectGeminiSystem(body, prompt, prepend);
       return;
     }
 
     // Dispatch by actual wire shape for OpenAI-shaped formats.
     // instructions string takes precedence; messages[] means Chat; input[] means Responses.
     if (typeof body.instructions === "string") {
-      injectInstructionsSystem(body, prompt);
+      injectInstructionsSystem(body, prompt, prepend);
       return;
     }
     if (Array.isArray(body.messages)) {
-      injectChatSystem(body, prompt);
+      injectChatSystem(body, prompt, prepend);
       return;
     }
     if (Array.isArray(body.input)) {
       // Responses input[]: empty array already normalized elsewhere; string stays untouched here
-      injectResponsesInputSystem(body, prompt);
+      injectResponsesInputSystem(body, prompt, prepend);
       return;
     }
     if (typeof body.input === "string") {
@@ -78,25 +79,25 @@ function hasPrompt(haystack, prompt) {
   return haystack.split(SEP).includes(prompt);
 }
 
-function dedupStringAppend(curr, prompt) {
+function dedupStringAppend(curr, prompt, prepend = false) {
   if (!curr) return prompt;
   if (hasPrompt(curr, prompt)) return curr;
-  return `${curr}${SEP}${prompt}`;
+  return prepend ? `${prompt}${SEP}${curr}` : `${curr}${SEP}${prompt}`;
 }
 
 // ---- OpenAI instructions string ----
-function injectInstructionsSystem(body, prompt) {
+function injectInstructionsSystem(body, prompt, prepend) {
   try {
     const curr = body.instructions;
     if (typeof curr !== "string") return;
     if (hasPrompt(curr, prompt)) return;
-    const next = curr ? `${curr}${SEP}${prompt}` : prompt;
+    const next = dedupStringAppend(curr, prompt, prepend);
     try { body.instructions = next; } catch (_) { /* frozen/proxy fail-open */ }
   } catch (_) {}
 }
 
 // ---- Chat messages[] ----
-function injectChatSystem(body, prompt) {
+function injectChatSystem(body, prompt, prepend) {
   try {
     const arr = body.messages;
     if (!Array.isArray(arr)) return;
@@ -105,7 +106,7 @@ function injectChatSystem(body, prompt) {
     let idx = -1;
     try { idx = arr.findIndex(m => m && (m.role === ROLE.SYSTEM || m.role === ROLE.DEVELOPER)); } catch (_) { return; }
     if (idx >= 0) {
-      appendToChatMessage(arr[idx], prompt);
+      appendToChatMessage(arr[idx], prompt, prepend);
     } else {
       // create typed system message at index 0; fail-open on frozen/proxy
       try { arr.unshift({ role: ROLE.SYSTEM, content: prompt }); } catch (_) {}
@@ -129,12 +130,12 @@ function containsPromptInMessages(arr, prompt) {
   return false;
 }
 
-function appendToChatMessage(msg, prompt) {
+function appendToChatMessage(msg, prompt, prepend) {
   try {
     if (!msg || typeof msg !== "object") return;
     const c = msg.content;
     if (typeof c === "string") {
-      const next = dedupStringAppend(c, prompt);
+      const next = dedupStringAppend(c, prompt, prepend);
       if (next === c) return;
       // avoid partial mutation: try assignment, bail if setter throws
       try { msg.content = next; } catch (_) {}
@@ -145,7 +146,10 @@ function appendToChatMessage(msg, prompt) {
       try {
         if (c.some(b => b && b.text === prompt)) return;
       } catch (_) {}
-      try { c.push({ type: OPENAI_BLOCK.TEXT, text: prompt }); } catch (_) {}
+      try {
+        const block = { type: OPENAI_BLOCK.TEXT, text: prompt };
+        if (prepend) c.unshift(block); else c.push(block);
+      } catch (_) {}
       return;
     }
     try { msg.content = prompt; } catch (_) {}
@@ -153,7 +157,7 @@ function appendToChatMessage(msg, prompt) {
 }
 
 // ---- Responses input[] ----
-function injectResponsesInputSystem(body, prompt) {
+function injectResponsesInputSystem(body, prompt, prepend) {
   try {
     const arr = body.input;
     if (!Array.isArray(arr)) return;
@@ -165,10 +169,10 @@ function injectResponsesInputSystem(body, prompt) {
       idx = arr.findIndex(m => m && m.type === RESPONSES_ITEM.MESSAGE && (m.role === ROLE.SYSTEM || m.role === ROLE.DEVELOPER));
     } catch (_) { return; }
     if (idx >= 0) {
-      appendToResponsesMessage(arr[idx], prompt);
+      appendToResponsesMessage(arr[idx], prompt, prepend);
     } else {
       const msg = { type: RESPONSES_ITEM.MESSAGE, role: ROLE.SYSTEM, content: [{ type: RESPONSES_ITEM.INPUT_TEXT, text: prompt }] };
-      try { arr.unshift(msg); } catch (_) {}
+      try { if (prepend) arr.unshift(msg); else arr.push(msg); } catch (_) {}
     }
   } catch (_) {}
 }
@@ -190,19 +194,22 @@ function containsPromptInResponsesInput(arr, prompt) {
   return false;
 }
 
-function appendToResponsesMessage(msg, prompt) {
+function appendToResponsesMessage(msg, prompt, prepend) {
   try {
     if (!msg || typeof msg !== "object") return;
     const c = msg.content;
     if (typeof c === "string") {
-      const next = dedupStringAppend(c, prompt);
+      const next = dedupStringAppend(c, prompt, prepend);
       if (next === c) return;
       try { msg.content = next; } catch (_) {}
       return;
     }
     if (Array.isArray(c)) {
       try { if (c.some(b => b && b.text === prompt)) return; } catch (_) {}
-      try { c.push({ type: RESPONSES_ITEM.INPUT_TEXT, text: prompt }); } catch (_) {}
+      try {
+        const block = { type: RESPONSES_ITEM.INPUT_TEXT, text: prompt };
+        if (prepend) c.unshift(block); else c.push(block);
+      } catch (_) {}
       return;
     }
     try { msg.content = [{ type: RESPONSES_ITEM.INPUT_TEXT, text: prompt }]; } catch (_) {}
@@ -210,12 +217,12 @@ function appendToResponsesMessage(msg, prompt) {
 }
 
 // ---- Claude ----
-function injectClaudeSystem(body, prompt) {
+function injectClaudeSystem(body, prompt, prepend) {
   try {
     const sys = body.system;
     if (typeof sys === "string") {
       if (hasPrompt(sys, prompt)) return;
-      const next = sys.length > 0 ? `${sys}${SEP}${prompt}` : prompt;
+      const next = dedupStringAppend(sys, prompt, prepend);
       try { body.system = next; } catch (_) {}
       return;
     }
@@ -229,7 +236,8 @@ function injectClaudeSystem(body, prompt) {
         }
       } catch (_) {}
       try {
-        if (lastCacheIdx >= 0) sys.splice(lastCacheIdx, 0, block);
+        if (prepend) sys.unshift(block);
+        else if (lastCacheIdx >= 0) sys.splice(lastCacheIdx, 0, block);
         else sys.push(block);
       } catch (_) {}
       return;
@@ -240,7 +248,7 @@ function injectClaudeSystem(body, prompt) {
 }
 
 // ---- Gemini ----
-function injectGeminiSystem(body, prompt) {
+function injectGeminiSystem(body, prompt, prepend) {
   try {
     let target = body;
     try {
@@ -253,7 +261,7 @@ function injectGeminiSystem(body, prompt) {
     try { sys = target[key]; } catch (_) { sys = undefined; }
     if (sys && Array.isArray(sys.parts)) {
       try { if (sys.parts.some(p => p && p.text === prompt)) return; } catch (_) {}
-      try { sys.parts.push({ text: prompt }); } catch (_) {}
+      try { if (prepend) sys.parts.unshift({ text: prompt }); else sys.parts.push({ text: prompt }); } catch (_) {}
       return;
     }
     try { target[key] = { parts: [{ text: prompt }] }; } catch (_) {}
@@ -270,7 +278,7 @@ function injectGeminiSystem(body, prompt) {
 // The translator stopped emitting it in v0.5.59, but this injector kept adding
 // it back, so every kr/ model failed whenever an RTK prompt (caveman, ponytail)
 // was active.
-function injectKiroSystem(body, prompt) {
+function injectKiroSystem(body, prompt, prepend) {
   try {
     const cs = body.conversationState;
     let targetMsg = null;
@@ -286,7 +294,7 @@ function injectKiroSystem(body, prompt) {
     if (!targetMsg) return;
 
     const content = typeof targetMsg.content === "string" ? targetMsg.content : "";
-    const next = dedupStringAppend(content, prompt);
+    const next = dedupStringAppend(content, prompt, prepend);
     if (next === content) return; // already injected — idempotent across retries
     try { targetMsg.content = next; } catch (_) { /* frozen/proxy fail-open */ }
   } catch (_) {}

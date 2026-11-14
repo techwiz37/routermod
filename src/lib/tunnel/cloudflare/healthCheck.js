@@ -6,16 +6,22 @@ export async function probeUrlAlive(url) {
   let hostname;
   try { hostname = new URL(url).hostname; } catch { return false; }
 
-  if (!await resolveDns(hostname, HEALTH_CHECK.dnsTimeoutMs)) return false;
+  // DNS is only a hint: *.trycloudflare.com is routinely unresolved on the
+  // machine that created the tunnel while the public URL already works.
+  // A failed lookup must not veto the actual HTTP probe.
+  const dnsOk = await resolveDns(hostname, HEALTH_CHECK.dnsTimeoutMs);
 
-  try {
-    const res = await fetch(`${url}/api/health`, {
-      signal: AbortSignal.timeout(HEALTH_CHECK.fetchTimeoutMs),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
+  const probe = async (ms) => {
+    try {
+      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(ms) });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  if (await probe(HEALTH_CHECK.fetchTimeoutMs)) return true;
+  return dnsOk ? false : probe(HEALTH_CHECK.fetchTimeoutMs);
 }
 
 export async function waitForHealth(url, cancelToken = { cancelled: false }) {

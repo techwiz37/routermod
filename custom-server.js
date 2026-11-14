@@ -4,6 +4,12 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { pathToFileURL } = require("url");
 
+// Hardcoded listen address — no .env needed.
+const APP_PORT = "1337";
+const APP_HOSTNAME = "0.0.0.0";
+process.env.PORT = APP_PORT;
+process.env.HOSTNAME = APP_HOSTNAME;
+
 const origCreate = http.createServer.bind(http);
 
 // Per-process secret proving x-9r-real-ip was stamped below rather than sent by the client.
@@ -14,6 +20,36 @@ const PEER_TOKEN = crypto.randomBytes(24).toString("hex");
 process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 
 let backgroundRefreshStarted = false;
+let backgroundHealthStarted = false;
+let backgroundCookieRefreshStarted = false;
+
+function startBackgroundConnectionHealthFromCustomServer() {
+  if (backgroundHealthStarted) return;
+  backgroundHealthStarted = true;
+  const modPath = path.join(__dirname, "src", "sse", "services", "backgroundConnectionHealth.js");
+  import(pathToFileURL(modPath).href)
+    .then((m) => {
+      try {
+        m.startBackgroundConnectionHealth();
+      } catch (e) {
+        console.error("[BackgroundConnectionHealth] start failed:", e && e.message ? e.message : e);
+      }
+      const stop = () => {
+        try {
+          m.stopBackgroundConnectionHealth();
+        } catch {
+          /* ignore */
+        }
+      };
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    })
+    .catch((e) => {
+      if (process.env.DEBUG_BACKGROUND_CONNECTION_HEALTH) {
+        console.error("[BackgroundConnectionHealth] import failed:", e && e.message ? e.message : e);
+      }
+    });
+}
 
 function startBackgroundTokenRefreshFromCustomServer() {
   if (backgroundRefreshStarted) return;
@@ -46,7 +82,52 @@ function startBackgroundTokenRefreshFromCustomServer() {
     });
 }
 
-// Wrap Next standalone HTTP server: derive client IP from the TCP socket
+function startBackgroundCookieRefreshFromCustomServer() {
+  if (backgroundCookieRefreshStarted) return;
+  backgroundCookieRefreshStarted = true;
+  const modPath = path.join(__dirname, "src", "sse", "services", "backgroundCookieRefresh.js");
+  import(pathToFileURL(modPath).href)
+    .then((m) => {
+      try {
+        m.startBackgroundCookieRefresh();
+      } catch (e) {
+        console.error("[BackgroundCookieRefresh] start failed:", e && e.message ? e.message : e);
+      }
+      const stop = () => {
+        try {
+          m.stopBackgroundCookieRefresh();
+        } catch {
+          /* ignore */
+        }
+      };
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    })
+    .catch((e) => {
+      if (process.env.DEBUG_BG_COOKIE_REFRESH) {
+        console.error("[BackgroundCookieRefresh] import failed:", e && e.message ? e.message : e);
+      }
+    });
+}
+
+function startInitializeAppFromCustomServer() {
+  if (global.__appBootstrapped) return;
+  global.__appBootstrapped = true;
+  const modPath = path.join(__dirname, "src", "shared", "services", "initializeApp.js");
+  import(pathToFileURL(modPath).href)
+    .then((m) => {
+      try {
+        (m.default || m.initializeApp || m)();
+      } catch (e) {
+        console.error("[InitApp] start failed:", e && e.message ? e.message : e);
+      }
+    })
+    .catch((e) => {
+      console.error("[InitApp] import failed:", e && e.message ? e.message : e);
+    });
+}
+
+// Wrap Next standalone HTTP server...
 // (unspoofable) and strip client-supplied forwarding headers so downstream
 // rate-limiting keys on the real peer address instead of attacker-controlled XFF.
 http.createServer = (...args) => {
@@ -61,7 +142,19 @@ http.createServer = (...args) => {
     const isLoopbackProxy = socketIp === "127.0.0.1" || socketIp === "::1" || socketIp === "::ffff:127.0.0.1";
     // Trust forwarding headers only when the TCP peer is a local reverse proxy.
     // Direct/public sockets remain keyed by the unspoofable peer address.
-    const proxyIp = xRealIp || (xff ? String(xff).split(",")[0].trim() : "");
+    // cloudflared connects from loopback and sets cf-connecting-ip. When the
+    // request came through the public relay worker (cf-worker), that header is
+    // the worker's address, so take the hop the worker appended before itself.
+    const cfIp = req.headers["cf-connecting-ip"] ? String(req.headers["cf-connecting-ip"]).trim() : "";
+    let tunnelIp = "";
+    if (isLoopbackProxy && cfIp) {
+      tunnelIp = cfIp;
+      const hops = xff ? String(xff).split(",").map((s) => s.trim()).filter(Boolean) : [];
+      if (req.headers["cf-worker"] && hops.length >= 2 && hops[hops.length - 1] === cfIp) {
+        tunnelIp = hops[hops.length - 2];
+      }
+    }
+    const proxyIp = tunnelIp || xRealIp || (xff ? String(xff).split(",")[0].trim() : "");
     const ip = isLoopbackProxy && proxyIp ? proxyIp : socketIp;
     delete req.headers["x-9r-real-ip"];
     delete req.headers["x-forwarded-for"];
@@ -75,6 +168,9 @@ http.createServer = (...args) => {
   const server = origCreate(...rest, wrapped);
   server.once("listening", () => {
     startBackgroundTokenRefreshFromCustomServer();
+    startBackgroundConnectionHealthFromCustomServer();
+    startBackgroundCookieRefreshFromCustomServer();
+    startInitializeAppFromCustomServer();
   });
   const origEmit = server.emit;
   // JBR 25 sends h2c upgrades that the HTTP/1.1 server would otherwise close.
@@ -126,14 +222,21 @@ http.createServer = (...args) => {
 };
 
 if (require.main === module) {
-  const standalone = path.join(__dirname, "server.js");
-  if (fs.existsSync(standalone)) {
-    require(standalone);
-  } else {
-    // Repo checkout has no standalone build next to us. `next start` builds its HTTP
-    // server in-process, so the wrapper above still sanitizes every request.
-    const nextBin = require.resolve("next/dist/bin/next");
-    process.argv = [process.argv[0], nextBin, "start", ...process.argv.slice(2)];
-    require(nextBin);
+  const standaloneCustom = path.join(__dirname, ".next", "standalone", "custom-server.js");
+  if (fs.existsSync(standaloneCustom)) {
+    // Delegate to the standalone build's custom-server (alias-rewritten, supports
+    // auto-resume tunnel on startup). Re-exec so it runs as the main module.
+    const { spawn } = require("child_process");
+    const child = spawn(process.execPath, [standaloneCustom, ...process.argv.slice(2)], {
+      stdio: "inherit",
+      env: { ...process.env, PORT: APP_PORT, HOSTNAME: APP_HOSTNAME },
+      cwd: __dirname,
+      windowsHide: true,
+    });
+    child.on("exit", (code) => process.exit(code ?? 0));
+    return;
   }
+  const nextBin = require.resolve("next/dist/bin/next");
+  process.argv = [process.argv[0], nextBin, "start", ...process.argv.slice(2)];
+  require(nextBin);
 }

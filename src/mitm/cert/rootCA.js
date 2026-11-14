@@ -6,9 +6,6 @@ const { MITM_DIR } = require("../paths");
 const ROOT_CA_KEY_PATH = path.join(MITM_DIR, "rootCA.key");
 const ROOT_CA_CERT_PATH = path.join(MITM_DIR, "rootCA.crt");
 
-/**
- * Check if cert file is expired or expiring within 30 days
- */
 function isCertExpired(certPath) {
   try {
     const cert = forge.pki.certificateFromPem(fs.readFileSync(certPath, "utf8"));
@@ -19,10 +16,6 @@ function isCertExpired(certPath) {
   }
 }
 
-/**
- * Generate Root CA certificate (only once, auto-regenerate if expired)
- * This Root CA will sign all dynamic leaf certificates
- */
 function generateRootCA() {
   const exists = fs.existsSync(ROOT_CA_KEY_PATH) && fs.existsSync(ROOT_CA_CERT_PATH);
   if (exists && !isCertExpired(ROOT_CA_CERT_PATH)) {
@@ -41,10 +34,8 @@ function generateRootCA() {
 
   console.log("🔐 Generating Root CA certificate...");
 
-  // Generate RSA key pair
   const keys = forge.pki.rsa.generateKeyPair(2048);
 
-  // Create Root CA certificate
   const cert = forge.pki.createCertificate();
   cert.publicKey = keys.publicKey;
   cert.serialNumber = "01";
@@ -78,10 +69,8 @@ function generateRootCA() {
     }
   ]);
 
-  // Self-sign the certificate
   cert.sign(keys.privateKey, forge.md.sha256.create());
 
-  // Save to disk
   const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
   const certPem = forge.pki.certificateToPem(cert);
 
@@ -92,9 +81,6 @@ function generateRootCA() {
   return { key: ROOT_CA_KEY_PATH, cert: ROOT_CA_CERT_PATH };
 }
 
-/**
- * Load Root CA from disk
- */
 function loadRootCA() {
   if (!fs.existsSync(ROOT_CA_KEY_PATH) || !fs.existsSync(ROOT_CA_CERT_PATH)) {
     throw new Error("Root CA not found. Generate it first.");
@@ -109,14 +95,9 @@ function loadRootCA() {
   };
 }
 
-/**
- * Generate leaf certificate for a specific domain, signed by Root CA
- */
 function generateLeafCert(domain, rootCA) {
-  // Generate key pair for leaf cert
   const keys = forge.pki.rsa.generateKeyPair(2048);
 
-  // Create leaf certificate
   const cert = forge.pki.createCertificate();
   cert.publicKey = keys.publicKey;
   cert.serialNumber = Math.floor(Math.random() * 1000000).toString();
@@ -154,7 +135,6 @@ function generateLeafCert(domain, rootCA) {
     }
   ]);
 
-  // Sign with Root CA
   cert.sign(rootCA.key, forge.md.sha256.create());
 
   return {

@@ -13,6 +13,7 @@ import { upstreamResponseHeaders } from "../utils/upstreamHeaders.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
+import { getCustomModels } from "@/lib/localDb.js";
 import { getExecutor } from "../executors/index.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
@@ -24,15 +25,33 @@ import { dedupeTools } from "../utils/toolDeduper.js";
 import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
-import { injectCustomPrompt } from "../rtk/customPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
-import { getCapabilitiesForModel } from "../providers/capabilities.js";
+import { getCapabilitiesForModel, learnContextWindow } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
+import { fitBodyToContext, isContextOverflowError, parseContextWindow } from "../translator/concerns/contextTrim.js";
+import { CONTEXT_FIT_REASON, CONTEXT_GUARD } from "../config/contextGuard.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
+import { injectSystemPrompt } from "../rtk/systemInject.js";
+
+// Explicit capability overrides stored on a custom model (set from the
+// dashboard Add/Edit Model → Capabilities form, e.g. `vision`). Fail-open:
+// any error falls back to the catalog-derived caps so a DB hiccup can never
+// break chat.
+async function getCustomModelCaps(provider, model) {
+  try {
+    const customModels = await getCustomModels();
+    const entry = customModels.find(
+      (c) => c && c.providerAlias === provider && c.id === model && (c.type || c.kind || "llm") === "llm",
+    );
+    return entry?.caps && typeof entry.caps === "object" ? entry.caps : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -61,9 +80,13 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, customPromptEnabled, customPrompt, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, promptInjections = [], providerSystemPrompt = null }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
+  const usageModel = clientRawRequest?.headers?.["x-routermod-requested-model"]
+    || clientRawRequest?.body?.model
+    || model;
+  const clientIp = clientRawRequest?.clientIp || null;
   // Stable per-session color so all lines of one CLI conversation share a tag
   const sessionSeed = (() => {
     try {
@@ -111,6 +134,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const targetFormat = useTransport?.format || modelTargetFormat || getTargetFormat(provider, credentials);
   if (useTransport && credentials) credentials.runtimeTransport = useTransport;
   const stripList = getModelStrip(alias, model);
+  const upstreamModel = getModelUpstreamId(alias, model);
 
   // Inject provider-level thinking config override (only if client hasn't set)
   // on/off → extended type (body.thinking), none/low/medium/high → effort type (body.reasoning_effort)
@@ -125,8 +149,6 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       body = { ...body, reasoning_effort: mode };
     }
   }
-
-  const upstreamModel = getModelUpstreamId(alias, model, body);
 
   // Per-request opt-out: client can bypass all token savers via header
   const tokenSaverEnabled = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
@@ -143,7 +165,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
   const providerRequiresStreaming = PROVIDERS[provider]?.forceStream === true;
-  let stream = providerRequiresStreaming ? true : (body.stream !== false);
+  // Messages API requests are non-streaming unless stream:true is explicit.
+  // OpenAI spec: stream absent or false = non-streaming (default false)
+  let stream = providerRequiresStreaming
+    ? true
+    : (sourceFormat === FORMATS.CLAUDE ? body.stream === true : body.stream === true);
 
   // Image generation models require non-streaming (Google v1internal:generateContent)
   const modelType = getModelType(alias, model);
@@ -180,10 +206,19 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Expose raw client headers to translators/executors for session-id resolution
   if (credentials) credentials.rawHeaders = clientRawRequest?.headers || {};
 
+  // Capabilities of the target model: used to strip media it cannot read and
+  // to keep the prompt inside its real context window.
+  let modelCaps = getCapabilitiesForModel(provider, model);
+  {
+    // Custom models may carry explicit vision overrides from the dashboard —
+    // merge them over the catalog so stripping honors what the user set.
+    const customCaps = await getCustomModelCaps(provider, model);
+    if (customCaps) modelCaps = { ...modelCaps, ...customCaps };
+  }
+
   // Auto-strip media blocks the model can't read (vision/audio/pdf) before translation.
   if (!passthrough) {
-    const caps = getCapabilitiesForModel(provider, model);
-    if (stripUnsupportedModalities(body, sourceFormat, caps)) {
+    if (stripUnsupportedModalities(body, sourceFormat, modelCaps)) {
       log?.debug?.("MODALITY", `stripped unsupported media for ${provider}/${model}`);
     }
     // Convert remote image URLs to base64 for targets that can't fetch URLs.
@@ -241,6 +276,16 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Covers both passthrough (source shape) and translated (target shape) flows
   const finalFormat = passthrough ? sourceFormat : targetFormat;
 
+  // Apply stored prompts only after translation. This prevents Claude/Gemini/
+  // Responses/Kiro requests from receiving an invalid OpenAI-shaped prompt.
+  if (typeof providerSystemPrompt === "string" && providerSystemPrompt.trim()) {
+    injectSystemPrompt(translatedBody, finalFormat, providerSystemPrompt.trim());
+  }
+  for (const injection of Array.isArray(promptInjections) ? promptInjections : []) {
+    if (injection?.mode !== "system" || typeof injection.text !== "string" || !injection.text.trim()) continue;
+    injectSystemPrompt(translatedBody, finalFormat, injection.text.trim(), injection.position);
+  }
+
   // Request line: one correlated summary (fmt + thinking + counts + account)
   if (log?.line) {
     const clientModel = clientRawRequest?.body?.model || `${provider}/${model}`;
@@ -289,7 +334,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (headroomLine) {
     log?.info?.("HEADROOM", `${headroomLine}${headroomSizeLine ? ` | ${headroomSizeLine}` : ""}`);
     if (isHeadroomPhantomSavings(headroomStats, headroomDiagnostics)) {
-      log?.warn?.("HEADROOM", `reported token delta, but messages and outbound JSON shrank <5% | ${formatHeadroomSizeLog(headroomDiagnostics)}`);
+      log?.warn?.("HEADROOM", `reported token delta, but outbound JSON shrank <5%; provider may bill near-original payload | ${formatHeadroomSizeLog(headroomDiagnostics)}`);
     }
   } else if (tokenSaverEnabled && headroomEnabled) log?.warn?.("HEADROOM", `skipped: ${headroomDiagnostics.reason || "compression unavailable"}${headroomDiagnostics.endpoint ? ` (${headroomDiagnostics.endpoint})` : ""}`);
 
@@ -310,11 +355,6 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     xf.push(`PONYTAIL:${ponytailLevel}`);
   }
 
-  // Custom prompt: user-authored instruction, independent of the savers above
-  if (customPromptEnabled && injectCustomPrompt(translatedBody, finalFormat, customPrompt)) {
-    xf.push(`CUSTOMPROMPT:${customPrompt.trim().length}c`);
-  }
-
   // PXPIPE: image bulky context (Claude-format bodies only), last saver before dispatch
   let pxpipeSummary = null;
   if (pxpipeEnabled) {
@@ -330,13 +370,28 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   if (xf.length && log?.line) log.line(reqTag, "⚙", xf.join(" · "));
 
+  // Context guard: every saver above may still leave a prompt larger than the
+  // model's window. Trim the oldest turns here so a long conversation keeps
+  // working instead of failing upstream with "prompt is too long".
+  const contextFit = fitBodyToContext(translatedBody, finalFormat, modelCaps);
+  if (contextFit.trimmed) {
+    const detail = CONTEXT_FIT_REASON[contextFit.reason] || `${contextFit.removed} oldest message group(s) dropped`;
+    log?.info?.(
+      "CONTEXT",
+      `${provider}/${model} | ~${contextFit.before} > ${contextFit.budget ?? "?"} tokens | ${detail}`
+    );
+  }
+  if (contextFit.clampedOutput) {
+    log?.warn?.("CONTEXT", `${provider}/${model} | max output tokens clamped to fit the context window`);
+  }
+
   // Pin cache breakpoints to the final body — every saver above can reshape
   // system/tools/messages, and a stale anchor costs a full prefix rewrite.
   if (passthrough && clientTool === "claude") anchorClaudeCache(translatedBody);
 
   const executor = getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
-  appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
+  appendRequestLog({ model: usageModel, provider, connectionId, clientIp, status: "PENDING" }).catch(() => { });
 
   const msgCount = translatedBody.messages?.length || translatedBody.input?.length || translatedBody.contents?.length || translatedBody.request?.contents?.length || 0;
   log?.debug?.("REQUEST", `${provider.toUpperCase()} | ${model} | ${msgCount} msgs`);
@@ -417,7 +472,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
+    appendRequestLog({ model: usageModel, provider, connectionId, clientIp, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
       latency: { ttft: 0, total: Date.now() - requestStartTime },
@@ -490,31 +545,79 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Provider returned error
   if (!providerResponse.ok) {
-    trackPendingRequest(model, provider, connectionId, false, true);
-    const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
-    appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
-    saveRequestDetail(buildRequestDetail({
-      provider, model, connectionId,
-      latency: { ttft: 0, total: Date.now() - requestStartTime },
-      tokens: { prompt_tokens: 0, completion_tokens: 0 },
-      request: extractRequestConfig(body, stream),
-      providerRequest: finalBody || translatedBody || null,
-      response: { error: message, status: statusCode, thinking: null },
-      pxpipe: pxpipeSummary,
-      status: "error"
-    })).catch(() => { });
+    let errorInfo = await parseUpstreamError(providerResponse, executor);
 
-    const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
-    if (log?.errorLine) {
-      const urlStr = providerUrl ? `\n    URL: ${providerUrl}` : "";
-      log.errorLine(reqTag, "✗", `ERROR ${statusCode} · ${provider}/${model} · ${Date.now() - requestStartTime}ms${urlStr}\n    ${errMsg}`);
+    // Upstream context overflow: the guard estimate was optimistic, or the
+    // provider serves a smaller window than the catalog advertises. Compact
+    // harder and retry instead of ending the conversation with a 400.
+    for (let attempt = 1; attempt <= CONTEXT_GUARD.maxRetry; attempt++) {
+      if (!isContextOverflowError(errorInfo.statusCode, errorInfo.message)) break;
+      const reported = parseContextWindow(errorInfo.statusCode, errorInfo.message);
+      if (reported && learnContextWindow(provider, model, reported)) {
+        modelCaps = getCapabilitiesForModel(provider, model);
+        log?.info?.("CONTEXT", `${provider}/${model} | upstream window learned: ${reported} tokens`);
+      }
+      const ratio = Math.max(CONTEXT_GUARD.retryRatio ** attempt, 0.2);
+      const fit = fitBodyToContext(translatedBody, finalFormat, modelCaps, { ratio, compact: true });
+      if (!fit.trimmed) break;
+      log?.info?.(
+        "CONTEXT",
+        `${provider}/${model} | upstream overflow (${errorInfo.statusCode}) | retry ${attempt}/${CONTEXT_GUARD.maxRetry} with ~${fit.after}/${fit.budget ?? "?"} tokens`
+      );
+      let retryResult;
+      try {
+        retryResult = await executor.execute({
+          model,
+          body: translatedBody,
+          stream,
+          credentials,
+          providerSessionId: sessionSeed,
+          clientTool,
+          signal: streamController.signal,
+          log,
+          proxyOptions,
+          providerOverrides,
+        });
+      } catch (e) {
+        log?.warn?.("CONTEXT", `${provider}/${model} | retry after overflow failed: ${e.message}`);
+        break;
+      }
+      providerResponse = retryResult.response;
+      providerUrl = retryResult.url || providerUrl;
+      providerHeaders = retryResult.headers || providerHeaders;
+      finalBody = retryResult.transformedBody || finalBody;
+      providerResponseFormat = retryResult.responseFormat || providerResponseFormat;
+      if (providerResponse.ok) break;
+      errorInfo = await parseUpstreamError(providerResponse, executor);
     }
-    reqLogger.logError(new Error(message), finalBody || translatedBody);
-    return createErrorResult(statusCode, errMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
+
+    if (!providerResponse.ok) {
+      const { statusCode, message, resetsAtMs } = errorInfo;
+      trackPendingRequest(model, provider, connectionId, false, true);
+      appendRequestLog({ model: usageModel, provider, connectionId, clientIp, status: `FAILED ${statusCode}` }).catch(() => { });
+      saveRequestDetail(buildRequestDetail({
+        provider, model, connectionId,
+        latency: { ttft: 0, total: Date.now() - requestStartTime },
+        tokens: { prompt_tokens: 0, completion_tokens: 0 },
+        request: extractRequestConfig(body, stream),
+        providerRequest: finalBody || translatedBody || null,
+        response: { error: message, status: statusCode, thinking: null },
+        pxpipe: pxpipeSummary,
+        status: "error"
+      })).catch(() => { });
+
+      const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
+      if (log?.errorLine) {
+        const urlStr = providerUrl ? `\n    URL: ${providerUrl}` : "";
+        log.errorLine(reqTag, "✗", `ERROR ${statusCode} · ${provider}/${model} · ${Date.now() - requestStartTime}ms${urlStr}\n    ${errMsg}`);
+      }
+      reqLogger.logError(new Error(message), finalBody || translatedBody);
+      return createErrorResult(statusCode, errMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
+    }
   }
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log };
-  const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
+  const sharedCtx = { provider, model: usageModel, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log };
+  const appendLog = (extra) => appendRequestLog({ model: usageModel, provider, connectionId, clientIp, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 
   // Provider forced streaming but client wants JSON. The Responses wire always

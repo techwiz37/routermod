@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePageReady } from "@/shared/components/PageReadyContext";
 import { Badge, Button } from "@/shared/components";
 import { getModelsByProviderId } from "@/shared/constants/models";
 import { isAnthropicCompatibleProvider, isOpenAICompatibleProvider } from "@/shared/constants/providers";
@@ -169,6 +170,7 @@ function dedupeModels(models) {
 export default function BasicChatPageClient() {
   const [providerGroups, setProviderGroups] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  usePageReady(loadingData);
   const [loadError, setLoadError] = useState("");
   const [sessions, setSessions] = useState(() => {
     if (typeof window === "undefined") return [];
@@ -371,7 +373,6 @@ export default function BasicChatPageClient() {
       globalThis.localStorage.setItem(STORAGE_KEYS.activeProviderId, activeProviderId);
       globalThis.localStorage.setItem(STORAGE_KEYS.draft, draft);
     } catch {
-      // Ignore storage errors.
     }
   }, [isHydrated, sessions, activeSessionId, activeProviderId, draft]);
 
@@ -699,7 +700,6 @@ export default function BasicChatPageClient() {
               updatedAt: new Date().toISOString(),
             }));
           } catch {
-            // Ignore malformed chunks.
           }
         }
       }
@@ -899,7 +899,7 @@ export default function BasicChatPageClient() {
 
                       <div className="whitespace-pre-wrap break-words text-[15px] leading-7">
                         {content}
-                        {isAssistant && isStreaming && !streamingText ? <span className="inline-block animate-pulse">▋</span> : null}
+                        {isAssistant && isStreaming && !streamingText ? <span className="inline-block animate-pulse">â–‹</span> : null}
                       </div>
                     </div>
                   </div>

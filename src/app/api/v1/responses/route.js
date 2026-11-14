@@ -1,4 +1,5 @@
 import { handleChat } from "@/sse/handlers/chat.js";
+import { trackKeyInFlightResponse } from "@/sse/services/keyInFlight.js";
 import { initTranslators } from "open-sse/translator/index.js";
 
 let initialized = false;
@@ -20,11 +21,7 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * POST /v1/responses - OpenAI Responses API format
- * Now handled by translator pattern (openai-responses format auto-detected)
- */
 export async function POST(request) {
   await ensureInitialized();
-  return await handleChat(request);
+  return trackKeyInFlightResponse(request, await handleChat(request));
 }

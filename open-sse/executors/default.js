@@ -96,7 +96,7 @@ export class DefaultExecutor extends BaseExecutor {
   }
 
   transformRequest(model, body, stream, credentials) {
-    let transformed = this.applyJsonSchemaFallback(this.applyNousAttribution(model, body, stream, credentials));
+    let transformed = this.applySystemPrompt(model, this.applyJsonSchemaFallback(this.applyNousAttribution(model, body, stream, credentials)), stream, credentials);
 
     if (transformed && typeof transformed === "object") {
       // OpenAI-compatible upstreams (NVIDIA NIM, DeepSeek) reject `stream_options` on
@@ -110,9 +110,73 @@ export class DefaultExecutor extends BaseExecutor {
         delete transformed.client_metadata;
       }
       stripUnsupportedParams(this.provider, model, transformed);
+      
+      // Fix #5669: For openai-compatible nodes with Responses API, move reasoning_effort 
+      // from top-level (Chat Completions) to reasoning.effort (Responses API format)
+      if (this.provider?.startsWith?.("openai-compatible-")) {
+        if (resolveOpenAICompatibleApiType(this.provider, credentials) === "responses") {
+          if (transformed.reasoning_effort !== undefined) {
+            if (transformed === body) transformed = { ...transformed };
+            if (!transformed.reasoning) {
+              transformed.reasoning = {};
+            } else if (typeof transformed.reasoning !== "object") {
+              transformed.reasoning = {};
+            }
+            transformed.reasoning.effort = transformed.reasoning_effort;
+            if (!transformed.reasoning.summary) {
+              transformed.reasoning.summary = "auto";
+            }
+            delete transformed.reasoning_effort;
+          }
+        }
+      }
     }
 
     return injectReasoningContent({ provider: this.provider, model, body: transformed });
+  }
+
+  applySystemPrompt(model, body, stream, credentials) {
+    if (credentials?.providerSpecificData?.systemPromptApplied) return body;
+    const sp = credentials?.providerSpecificData?.systemPrompt;
+    if (!sp || typeof sp !== "string" || !sp.trim()) return body;
+    const prompt = sp.trim();
+    if (this.provider?.startsWith?.("openai-compatible-")) {
+      if (typeof body.instructions === "string") {
+        body.instructions = body.instructions ? `${body.instructions}\n\n${prompt}` : prompt;
+      } else if (Array.isArray(body.messages)) {
+        const sys = body.messages.find(m => m?.role === "system");
+        if (sys) {
+          if (typeof sys.content === "string") {
+            sys.content = sys.content ? `${sys.content}\n\n${prompt}` : prompt;
+          } else if (Array.isArray(sys.content)) {
+            sys.content.push({ type: "text", text: `\n\n${prompt}` });
+          }
+        } else {
+          body.messages.unshift({ role: "system", content: prompt });
+        }
+      }
+    } else if (this.provider?.startsWith?.("anthropic-compatible-")) {
+      if (Array.isArray(body.messages)) {
+        const sys = body.messages.find(m => m?.role === "system");
+        if (sys) {
+          if (typeof sys.content === "string") {
+            sys.content = sys.content ? `${sys.content}\n\n${prompt}` : prompt;
+          } else if (Array.isArray(sys.content)) {
+            sys.content.push({ type: "text", text: `\n\n${prompt}` });
+          }
+        } else {
+          body.messages.unshift({ role: "system", content: prompt });
+        }
+      }
+      if (body.system) {
+        if (typeof body.system === "string") {
+          body.system = body.system ? `${body.system}\n\n${prompt}` : prompt;
+        } else if (Array.isArray(body.system)) {
+          body.system.push({ type: "text", text: `\n\n${prompt}` });
+        }
+      }
+    }
+    return body;
   }
 
   applyNousAttribution(model, body, stream, credentials) {

@@ -31,7 +31,9 @@ export default function Tooltip({ text, children, position = "top", color }) {
       {children}
       {style && createPortal(
         <div
-          className={`pointer-events-none z-50 w-max max-w-56 rounded px-2 py-1 text-[11px] leading-snug text-white whitespace-normal ${color ? "" : "bg-gray-900"}`}
+          className={`pointer-events-none z-[60] w-max max-w-56 rounded-lg border border-border px-2 py-1 text-[11px] leading-snug whitespace-normal shadow-[2px_2.5px_0px_var(--color-border)] ${
+            color ? "" : "bg-[var(--color-surface-2)] text-text-main"
+          }`}
           style={{ ...style, ...(color ? { backgroundColor: color } : {}) }}
         >
           {text}

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { DATA_DIR } from "@/lib/dataDir.js";
+import { DATA_DIR } from "../../dataDir.js";
 
 const TUNNEL_DIR = path.join(DATA_DIR, "tunnel");
 const STATE_FILE = path.join(TUNNEL_DIR, "state.json");
@@ -22,6 +22,21 @@ export function loadState() {
 export function saveState(state) {
   ensureTunnelDir();
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+const GATE_FILE = path.join(TUNNEL_DIR, "gate.json");
+
+export function readGate() {
+  try {
+    if (fs.existsSync(GATE_FILE)) return JSON.parse(fs.readFileSync(GATE_FILE, "utf8"));
+  } catch { /* ignore */ }
+  return { tunnelActive: false, dashboardAccess: true };
+}
+
+export function writeGate(patch) {
+  ensureTunnelDir();
+  const current = readGate();
+  fs.writeFileSync(GATE_FILE, JSON.stringify({ ...current, ...patch }));
 }
 
 export function clearState() {

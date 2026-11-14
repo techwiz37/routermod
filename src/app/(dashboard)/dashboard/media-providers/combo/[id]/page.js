@@ -1,13 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useParams, notFound, useRouter } from "next/navigation";
+import { usePageReady } from "@/shared/components/PageReadyContext";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, Button, Input, Toggle, ModelSelectModal } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { AI_PROVIDERS, MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 
-// Parse "providerId/model" or just "providerId" → { providerId, model }
 function parseModelEntry(entry) {
   if (typeof entry !== "string") return { providerId: "", model: "" };
   const idx = entry.indexOf("/");
@@ -38,7 +38,6 @@ const EXAMPLE_BODIES = {
   tts: (n) => ({ model: n, input: "Hello, this is a test.", voice: "alloy" }),
 };
 
-// Map combo.kind → listing route to go back to
 function getListingHref(kind) {
   if (kind === "webSearch" || kind === "webFetch") return "/dashboard/media-providers/web";
   return `/dashboard/media-providers/${kind}`;
@@ -49,6 +48,7 @@ export default function ComboDetailPage() {
   const router = useRouter();
   const [combo, setCombo] = useState(null);
   const [loading, setLoading] = useState(true);
+  usePageReady(loading);
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
   const [providers, setProviders] = useState([]);
@@ -190,19 +190,16 @@ export default function ComboDetailPage() {
         return;
       }
       const ctype = res.headers.get("content-type") || "";
-      // Binary image
       if (ctype.startsWith("image/")) {
         const blob = await res.blob();
         setTestResult({ imageUrl: URL.createObjectURL(blob), latencyMs });
         return;
       }
-      // Binary audio
       if (ctype.startsWith("audio/") || ctype === "application/octet-stream") {
         const blob = await res.blob();
         setTestResult({ audioUrl: URL.createObjectURL(blob), latencyMs });
         return;
       }
-      // JSON — could be image (data[0].b64_json/url) or generic
       const data = await res.json();
       const first = data?.data?.[0];
       const imageUrl = first?.b64_json
@@ -215,7 +212,6 @@ export default function ComboDetailPage() {
     setTesting(false);
   };
 
-  // Mask large b64_json strings to keep JSON view readable
   function maskB64(obj) {
     if (!obj || typeof obj !== "object") return obj;
     if (Array.isArray(obj)) return obj.map(maskB64);
@@ -228,7 +224,6 @@ export default function ComboDetailPage() {
     return out;
   }
 
-  if (loading) return <div className="text-text-muted text-sm">Loading...</div>;
   if (!combo) return notFound();
 
   const kindLabel = KIND_LABELS[combo.kind] || MEDIA_PROVIDER_KINDS.find((k) => k.id === combo.kind)?.label || "Combo";
@@ -347,7 +342,7 @@ export default function ComboDetailPage() {
           {testResult && (
             <div className="mt-3 flex flex-col gap-3">
               {testResult.latencyMs != null && (
-                <span className="text-[11px] text-text-muted">⚡ {testResult.latencyMs}ms</span>
+                <span className="text-[11px] text-text-muted">âš¡ {testResult.latencyMs}ms</span>
               )}
               {testResult.imageUrl && (
                 <div>

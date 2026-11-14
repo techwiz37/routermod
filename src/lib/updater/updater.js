@@ -1,13 +1,9 @@
-// Standalone detached updater process.
-// Spawns `npm i -g <pkg>@latest`, exposes progress via tiny HTTP server.
-// Survives after parent Next server exits (detached + unref by spawner).
-
-const { spawn } = require("child_process");
-const http = require("http");
-const net = require("net");
-const path = require("path");
-const fs = require("fs");
-const os = require("os");
+import { spawn } from "child_process";
+import http from "http";
+import net from "net";
+import path from "path";
+import fs from "fs";
+import os from "os";
 
 const packageName = process.env.UPDATER_PKG_NAME || "9router";
 const port = parseInt(process.env.UPDATER_PORT || "20129", 10);
@@ -20,7 +16,6 @@ const waitMaxMs = parseInt(process.env.UPDATER_WAIT_MAX_MS || "15000", 10);
 const waitCheckMs = parseInt(process.env.UPDATER_WAIT_CHECK_MS || "500", 10);
 const appPort = parseInt(process.env.UPDATER_APP_PORT || "20128", 10);
 
-// Data directory (match mitm/paths.js logic)
 function getDataDir() {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
   if (process.platform === "win32") {
@@ -64,7 +59,6 @@ function setPhase(phase) {
   persistStatus();
 }
 
-// HTTP server exposing status (browser polls this while Next server is dead)
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "no-store");
@@ -87,7 +81,6 @@ server.listen(port, "127.0.0.1", () => {
   waitForAppExit().then(runInstall);
 });
 
-// Check if app port is still being listened on (= app server still alive)
 function isAppPortBusy() {
   return new Promise((resolve) => {
     const socket = new net.Socket();
@@ -103,15 +96,12 @@ function isAppPortBusy() {
   });
 }
 
-// Wait for app process to fully exit before running npm (avoids Windows file-lock)
 async function waitForAppExit() {
   setPhase("waitingForExit");
   pushLog(`[updater] waiting for app to exit (min ${Math.round(waitMinMs / 1000)}s)...`);
 
-  // Hard minimum delay: OS needs time to release file handles
   await sleep(waitMinMs);
 
-  // Poll app port until free or max timeout
   const deadline = Date.now() + (waitMaxMs - waitMinMs);
   while (Date.now() < deadline) {
     const busy = await isAppPortBusy();
@@ -180,7 +170,6 @@ function openBrowser(url) {
   try { spawn(cmd, { shell: true, detached: true, stdio: "ignore" }).unref(); } catch { /* ignore */ }
 }
 
-// Wait until app port is listening (server alive again), then open dashboard
 async function waitForAppAndOpenBrowser() {
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
@@ -212,7 +201,6 @@ function relaunchApp() {
     });
     child.unref();
     pushLog(`[updater] relaunched: ${cmd} ${args.join(" ")} (pid=${child.pid})`);
-    // Wait for new app to come up, then auto-open browser so user sees the result
     waitForAppAndOpenBrowser();
   } catch (e) {
     pushLog(`[updater] relaunch failed: ${e.message}`);
@@ -227,7 +215,6 @@ function finalize(success, exitCode, error) {
   state.finishedAt = Date.now();
   setPhase(success ? "done" : "error");
   if (success) relaunchApp();
-  // Linger so browser can poll final status, then exit & close the port
   setTimeout(() => {
     try { server.close(); } catch { /* ignore */ }
     process.exit(success ? 0 : 1);

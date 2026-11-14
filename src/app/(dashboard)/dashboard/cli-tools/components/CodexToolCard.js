@@ -142,7 +142,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     }
   };
 
-  // Sync only when config content changes so local form edits are retained.
   useEffect(() => {
     const config = codexStatus?.config;
     if (config) {
@@ -153,7 +152,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
       const modelMatch = config.match(/^model\s*=\s*"([^"]+)"/m);
       if (modelMatch) setSelectedModel(modelMatch[1]);
 
-      // Parse subagent settings
       const subagentModelMatch = config.match(/^default_subagent_model\s*=\s*"([^"]+)"/m);
       if (subagentModelMatch) setSubagentModel(subagentModelMatch[1]);
     }
@@ -171,7 +169,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   const getEffectiveBaseUrl = () => {
     const url = (customBaseUrl || `${baseUrl}/v1`).replace(/\/+$/, "");
-    // Ensure URL ends with /v1
     return url.endsWith("/v1") ? url : `${url}/v1`;
   };
 
@@ -194,7 +191,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     setApplying(true);
     setMessage(null);
     try {
-      // Use sk_9router for localhost if no key, otherwise use selected key
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
         : (!cloudEnabled ? "sk_9router" : selectedApiKey);
@@ -211,7 +207,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
       });
       const data = await res.json();
       if (res.ok) {
-        // Remember the endpoint so it stays selectable next time
         rememberEndpoint(getEffectiveBaseUrl(), { tunnelPublicUrl, tailscaleUrl });
         setMessage({ type: "success", text: "Settings applied successfully!" });
         checkCodexStatus();
@@ -248,7 +243,6 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   const handleModelSelect = (model) => {
     setSelectedModel(model.value);
-    // Auto-set subagent model if not set
     if (!subagentModel) {
       setSubagentModel(model.value);
     }
@@ -321,11 +315,11 @@ default_subagent_model = "${effectiveSubagentModel}"
                 <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
-                    <p className="font-medium text-yellow-600 dark:text-yellow-400">Codex CLI not detected locally</p>
-                    <p className="text-sm text-text-muted">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-[13px] font-medium text-yellow-600 dark:text-yellow-400 sm:text-sm">Codex CLI not detected locally</p>
+                    <p className="text-[12.5px] text-text-muted sm:text-sm">Manual configuration is still available if 9router is deployed on a remote server.</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 pl-9">
+                <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-9">
                   <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">
                     <span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>
                     Manual Config
@@ -526,7 +520,7 @@ default_subagent_model = "${effectiveSubagentModel}"
                       onClick={handleAddProfileWithAlias}
                       disabled={!aliasInput.trim() || !modelInput.trim() || creatingProfile}
                       loading={creatingProfile}
-                      className="!h-7.5 whitespace-nowrap"
+                      className="!h-7.5 whitespace-nowrap" max-w-full
                     >
                       <span className="material-symbols-outlined text-[15px] mr-1">add</span>
                       Add

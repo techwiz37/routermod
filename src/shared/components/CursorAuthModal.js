@@ -4,10 +4,6 @@ import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
 
-/**
- * Cursor Auth Modal
- * Auto-detect and import token from Cursor IDE's local SQLite database
- */
 export default function CursorAuthModal({ isOpen, onSuccess, onClose }) {
   const [accessToken, setAccessToken] = useState("");
   const [machineId, setMachineId] = useState("");
@@ -43,7 +39,6 @@ export default function CursorAuthModal({ isOpen, onSuccess, onClose }) {
     }
   };
 
-  // Auto-detect tokens when modal opens
   useEffect(() => {
     if (!isOpen) return;
     runAutoDetect();

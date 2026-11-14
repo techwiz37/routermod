@@ -3,7 +3,6 @@ import { getModelAliases, setModelAlias, deleteModelAlias } from "@/models";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/models/alias - Get all aliases
 export async function GET() {
   try {
     const aliases = await getModelAliases();
@@ -14,7 +13,6 @@ export async function GET() {
   }
 }
 
-// PUT /api/models/alias - Set model alias
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -33,7 +31,23 @@ export async function PUT(request) {
   }
 }
 
-// DELETE /api/models/alias?alias=xxx - Delete alias
+export async function PATCH(request) {
+  try {
+    const { oldAlias, newAlias, model } = await request.json();
+    if (!newAlias?.trim() || !model) {
+      return NextResponse.json({ error: "newAlias and model required" }, { status: 400 });
+    }
+    if (oldAlias && oldAlias !== newAlias.trim()) {
+      await deleteModelAlias(oldAlias);
+    }
+    await setModelAlias(newAlias.trim(), model);
+    return NextResponse.json({ success: true, alias: newAlias.trim() });
+  } catch (error) {
+    console.log("Error renaming alias:", error);
+    return NextResponse.json({ error: "Failed to rename alias" }, { status: 500 });
+  }
+}
+
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);

@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   providerStrategies: {},
   quotaVisibility: {},
   comboStrategy: "fallback",
+  modelPrefix: "openrouter",
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},
   capacityAdapter: {
@@ -58,15 +59,16 @@ const DEFAULT_SETTINGS = {
   cavemanLevel: "full",
   ponytailEnabled: false,
   ponytailLevel: "full",
-  // User-authored system prompt, injected independently of the built-in savers.
-  customPromptEnabled: false,
-  customPrompt: "",
   pxpipeEnabled: false,
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
-  // Per-provider user header overrides applied at dispatch: { [providerId]: { headers: {..} } }
   providerOverrides: {},
+  providerPrefixes: {},
+  providerModelSystemPrompts: {},
+  promptInjectionGlobal: null,
+  promptInjectionKeys: {},
+  promptInjectionModels: {},
 };
 
 async function readRaw() {
@@ -75,7 +77,6 @@ async function readRaw() {
   return row ? parseJson(row.data, {}) : {};
 }
 
-// Merge raw settings with defaults; backward-compat for missing keys
 export function mergeWithDefaults(raw) {
   const merged = { ...DEFAULT_SETTINGS, ...(raw || {}) };
   for (const [key, defVal] of Object.entries(DEFAULT_SETTINGS)) {
@@ -109,7 +110,6 @@ export async function getSettings() {
   return mergeWithDefaults(raw);
 }
 
-// Atomic read-merge-write inside transaction (prevents losing concurrent updates)
 export async function updateSettings(updates) {
   const db = await getAdapter();
   let next;

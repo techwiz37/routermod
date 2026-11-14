@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { ALIAS_TO_ID } from "@/shared/constants/providers";
 
-// Module cache: one /api/models fetch shared by every useModelCaps instance.
 let cache = null; // { byFull, byId } | null
 let inflight = null;
 
@@ -31,7 +30,6 @@ function loadModelCaps() {
       return cache;
     })
     .catch(() => {
-      // Keep null so a later mount can retry
       return { byFull: {}, byId: {} };
     })
     .finally(() => { inflight = null; });
@@ -74,7 +72,6 @@ export function useModelCaps() {
     } else {
       loadModelCaps().then(sync);
     }
-    // Custom models change at runtime — drop the shared cache and refetch
     const invalidate = () => {
       cache = null;
       loadModelCaps().then(sync);

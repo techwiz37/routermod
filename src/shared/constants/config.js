@@ -1,23 +1,20 @@
 import pkg from "../../../package.json" with { type: "json" };
 
-// App configuration
 export const APP_CONFIG = {
-  name: "9Router Proxy",
+  name: "RouterMod",
   description: "AI Infrastructure Management",
   version: pkg.version,
 };
 
-// GitHub configuration
 export const GITHUB_CONFIG = {
   changelogUrl: "https://raw.githubusercontent.com/decolua/9router/refs/heads/master/CHANGELOG.md",
   donateUrl: "https://9router.com/api/donate",
 };
 
-// Updater configuration
 export const UPDATER_CONFIG = {
-  npmPackageName: "9router",
-  installCmd: "npm i -g 9router",
-  installCmdLatest: "npm i -g 9router@latest --prefer-online",
+  npmPackageName: "routermod",
+  installCmd: "npm i -g routermod",
+  installCmdLatest: "npm i -g routermod@latest --prefer-online",
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,
@@ -29,16 +26,14 @@ export const UPDATER_CONFIG = {
   waitForExitMinMs: 5000,
   waitForExitMaxMs: 20000,
   waitForExitCheckMs: 500,
-  appPort: 20128,
+  appPort: 1337,
 };
 
-// Theme configuration
 export const THEME_CONFIG = {
   storageKey: "theme",
-  defaultTheme: "system", // "light" | "dark" | "system"
+  defaultTheme: "light", // "light" | "dark" | "system"
 };
 
-// Subscription
 export const SUBSCRIPTION_CONFIG = {
   price: 1.0,
   currency: "USD",
@@ -46,7 +41,6 @@ export const SUBSCRIPTION_CONFIG = {
   planName: "Pro Plan",
 };
 
-// API endpoints
 export const API_ENDPOINTS = {
   users: "/api/users",
   providers: "/api/providers",
@@ -59,10 +53,8 @@ export const CONSOLE_LOG_CONFIG = {
   pollIntervalMs: 1000,
 };
 
-// Client-side store TTL: how long fetched data stays fresh before re-fetching
 export const CLIENT_STORE_TTL_MS = 60000;
 
-// Quota auto-ping: keep 5h windows warm by sending a tiny request right after reset.
 export const QUOTA_AUTOPING_CONFIG = {
   tickIntervalMs: 60000,                // scheduler tick
   pingLeadMs: 5000,                     // fire once reset passes (within tolerance)
@@ -92,7 +84,36 @@ export const QUOTA_AUTOPING_CONFIG = {
   },
 };
 
-// Re-export from providers.js for backward compatibility
+// Proactive health checker for Token Harbor (apikey) accounts.
+//
+// The reactive path (markAccountUnavailable on a real 429) only fires AFTER a
+// user request already hit a limited account. Token Harbor is a prepaid-wallet
+// aggregator, so an exhausted balance surfaces as 402 / "insufficient quota"
+// on the chat endpoint — NOT on /v1/models (which only proves the key is
+// alive). This checker probes each active account on the chat endpoint with a
+// 1-token request to a free model so a limited/exhausted account is detected
+// BEFORE traffic selects it, then locks it via modelLock___all (the same field
+// getProviderCredentials already skips) until it recovers.
+export const TOKENHARBOR_HEALTH_CONFIG = {
+  provider: "tokenharbor",
+  settingsKey: "tokenharborHealthEnabled", // set false in settings to opt out
+  tickIntervalMs: 40000,        // check every 40s
+  initialDelayMs: 20000,        // let server finish booting first
+  maxConcurrent: 3,             // parallel probes per tick
+  requestTimeoutMs: 20000,      // abort a hung probe
+  pingModel: "deepseek-v4.1-flash:free", // free model → probe costs ~nothing
+  pingText: "ping",
+  pingMaxTokens: 1,
+  limitCooldownMs: 5 * 60 * 1000,  // limited/empty wallet → re-probe later
+  deadCooldownMs: 15 * 60 * 1000,  // rejected key → bg health retests & recovers
+  lockedRecheckMs: 2 * 60 * 1000,  // throttle re-probe of already-locked accounts
+  healthyRecheckMs: 40000,         // healthy accounts re-probed each tick
+  limitKeywords: [
+    "quota", "balance", "insufficient", "limit", "allowance",
+    "exhausted", "too many requests", "rate", "credit", "top up", "topup",
+  ],
+};
+
 export {
   FREE_PROVIDERS,
   OAUTH_PROVIDERS,
@@ -102,7 +123,6 @@ export {
   AUTH_METHODS,
 } from "./providers.js";
 
-// Re-export from models.js for backward compatibility
 export {
   PROVIDER_MODELS,
   AI_MODELS,

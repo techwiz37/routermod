@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Badge, Button, Input, Modal, Select } from "@/shared/components";
+import { Badge, Button, Input, Select } from "@/shared/components";
+import AntaresModal from "@/shared/components/AntaresModal";
+import { useNotificationStore } from "@/store/notificationStore";
+import { onLocaleChange, getCurrentLocale, translate } from "@/i18n/runtime";
 
 const VARIANT_CONFIG = {
   openai: {
@@ -12,7 +15,6 @@ const VARIANT_CONFIG = {
     namePlaceholder: "OpenAI Compatible (Prod)",
     prefixPlaceholder: "oc-prod",
     baseUrlHint: "Use the base URL (ending in /v1) for your OpenAI-compatible API.",
-    modelIdPlaceholder: "e.g. gpt-4, claude-3-opus",
     errorLabel: "OpenAI Compatible",
     hasApiType: true,
   },
@@ -23,7 +25,6 @@ const VARIANT_CONFIG = {
     namePlaceholder: "Anthropic Compatible (Prod)",
     prefixPlaceholder: "ac-prod",
     baseUrlHint: "Use the base URL (ending in /v1) for your Anthropic-compatible API. The system will append /messages.",
-    modelIdPlaceholder: "e.g. claude-3-opus",
     errorLabel: "Anthropic Compatible",
     hasApiType: false,
   },
@@ -36,6 +37,7 @@ const API_TYPE_OPTIONS = [
 
 function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   const config = VARIANT_CONFIG[variant];
+  const notify = useNotificationStore();
   const initialFormData = () => ({
     name: "",
     prefix: "",
@@ -46,18 +48,18 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   const [formData, setFormData] = useState(initialFormData);
   const [submitting, setSubmitting] = useState(false);
   const [checkKey, setCheckKey] = useState("");
-  const [checkModelId, setCheckModelId] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
+  const [, bumpLocale] = useState(0);
 
-  // openai: reset baseUrl when apiType changes; anthropic: reset checks when opened
+  useEffect(() => onLocaleChange(() => bumpLocale((value) => value + 1)), []);
+
   useEffect(() => {
     if (config.hasApiType) {
       setFormData((prev) => ({ ...prev, baseUrl: config.defaultBaseUrl }));
     } else if (isOpen) {
       setValidationResult(null);
       setCheckKey("");
-      setCheckModelId("");
     }
   }, [config.hasApiType ? formData.apiType : isOpen]);
 
@@ -67,7 +69,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     try {
       const res = await fetch("/api/provider-nodes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-locale": getCurrentLocale() },
         body: JSON.stringify({
           name: formData.name,
           prefix: formData.prefix,
@@ -76,15 +78,32 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           type: config.type,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         onCreated(data.node);
+        window.dispatchEvent(new CustomEvent("routermod:providers-changed"));
+        try {
+          localStorage.setItem("routermod:providers-changed", String(Date.now()));
+        } catch {}
         setFormData(initialFormData());
         setCheckKey("");
         setValidationResult(null);
+        notify.success(
+          translate("{name} was created successfully.").replace("{name}", formData.name),
+          translate("Provider created")
+        );
+      } else {
+        notify.error(
+          data?.error || translate("We could not create the provider. Please try again."),
+          translate("Failed to create provider")
+        );
       }
     } catch (error) {
       console.log(`Error creating ${config.errorLabel} node:`, error);
+      notify.error(
+        translate("There is a network problem. Check the URL and try again."),
+        translate("Failed to create provider")
+      );
     } finally {
       setSubmitting(false);
     }
@@ -95,18 +114,17 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     try {
       const res = await fetch("/api/provider-nodes/validate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-locale": getCurrentLocale() },
         body: JSON.stringify({
           baseUrl: formData.baseUrl,
           apiKey: checkKey,
           type: config.type,
-          modelId: checkModelId.trim() || undefined,
         }),
       });
       const data = await res.json();
       setValidationResult(data);
     } catch {
-      setValidationResult({ valid: false, error: "Network error" });
+      setValidationResult({ valid: false, error: translate("Network error") });
     } finally {
       setValidating(false);
     }
@@ -118,7 +136,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     if (valid) {
       return (
         <>
-          <Badge variant="success">Valid</Badge>
+          <Badge variant="success">{translate("Valid")}</Badge>
           {method === "chat" && (
             <span className="text-sm text-text-muted">(via inference test)</span>
           )}
@@ -127,56 +145,56 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     }
     return (
       <div className="flex flex-col gap-1">
-        <Badge variant="error">Invalid</Badge>
+          <Badge variant="error">{translate("Invalid")}</Badge>
         {error && <span className="text-sm text-red-500">{error}</span>}
       </div>
     );
   };
 
   return (
-    <Modal isOpen={isOpen} title={config.title} onClose={onClose}>
+    <AntaresModal
+      isOpen={isOpen}
+       title={translate(config.title)}
+       subtitle={translate("Configure endpoint, model prefix, and connection validation.")}
+      onClose={onClose}
+      size="lg"
+    >
       <div className="flex flex-col gap-4">
         <Input
-          label="Name"
+           label={translate("Name")}
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder={config.namePlaceholder}
-          hint="Required. A friendly label for this node."
+           hint={translate("Required. A friendly label for this node.")}
         />
         <Input
-          label="Prefix"
+           label={translate("Prefix")}
           value={formData.prefix}
           onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
           placeholder={config.prefixPlaceholder}
-          hint="Required. Used as the provider prefix for model IDs."
+           hint={translate("Required. Used as the provider prefix for model IDs.")}
         />
         {config.hasApiType && (
           <Select
-            label="API Type"
-            options={API_TYPE_OPTIONS}
+             label={translate("API Type")}
+            options={API_TYPE_OPTIONS.map((o) => ({ ...o, label: translate(o.label) }))}
             value={formData.apiType}
             onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
+            placeholder={translate("Select an option")}
           />
         )}
         <Input
-          label="Base URL"
+           label={translate("Base URL")}
           value={formData.baseUrl}
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder={config.defaultBaseUrl}
-          hint={config.baseUrlHint}
+           hint={translate(config.baseUrlHint)}
         />
         <Input
-          label="API Key (for Check)"
+           label={translate("API Key (for Check)")}
           type="password"
           value={checkKey}
           onChange={(e) => setCheckKey(e.target.value)}
-        />
-        <Input
-          label="Model ID (optional)"
-          value={checkModelId}
-          onChange={(e) => setCheckModelId(e.target.value)}
-          placeholder={config.modelIdPlaceholder}
-          hint="If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead."
         />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button
@@ -185,7 +203,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
             variant="secondary"
             className="w-full sm:w-auto"
           >
-            {validating ? "Checking..." : "Check"}
+             {validating ? translate("Checking...") : translate("Check")}
           </Button>
           {renderValidationResult()}
         </div>
@@ -200,14 +218,14 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
               submitting
             }
           >
-            {submitting ? "Creating..." : "Create"}
+             {submitting ? translate("Creating...") : translate("Create")}
           </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>
-            Cancel
+             {translate("Cancel")}
           </Button>
         </div>
       </div>
-    </Modal>
+    </AntaresModal>
   );
 }
 

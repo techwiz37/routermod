@@ -41,6 +41,32 @@ export const TRANSIENT_COOLDOWN_MS = 30 * 1000;
 // Hard cap for provider-reported rate limit cooldown (e.g. codex resets_at can be 5-6h)
 export const MAX_RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000;
 
+// Synthetic HTTP status for credential-level failures that are not transient
+// capacity/rate limits (invalid key, exhausted wallet, revoked account). A
+// non-transient failure gets a long cooldown instead of an exponential backoff
+// retry loop, so the account is parked until an explicit health recovery.
+export const PERMANENT_AUTH_STATUS = 401;
+
+// Error wording that means "this account is banned/rejected" rather than
+// "temporarily limited". Matched case-insensitively against the upstream error
+// text; such accounts are deactivated instead of cooled down.
+export const DEACTIVATE_KEYWORDS = [
+  "account was rejected",
+  "account is banned",
+  "account banned",
+  "account suspended",
+  "account deactivated",
+  "account disabled",
+  "account deleted",
+  "account terminated",
+  "account has been blocked",
+  "toS violation",
+];
+
+// `rateLimitedUntil` stamped on a deactivated account: effectively permanent,
+// kept so the UI can show when/why the account left rotation.
+export const PERMANENT_COOLDOWN_MS = 100 * 365 * 24 * 60 * 60 * 1000;
+
 // Cooldown durations (ms)
 const COOLDOWN = {
   long: 2 * 60 * 1000,
@@ -59,9 +85,8 @@ const COOLDOWN = {
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
   { provider: "codex", text: "model is not supported when using codex with a chatgpt account", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },
-  // Intl gateway blocks affect the account/IP, so let the connection back off.
-  { provider: "codebuddy-intl", text: "request illegal", backoff: true },
-  { provider: "codebuddy-intl", text: "conversation id missing", backoff: true },
+  { text: "you've used this period's free allowance", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },
+  { text: "free models are turned off", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },
   // NVIDIA NIM returns 400 with "degraded" when specific model cluster is unhealthy.
   // Lock only the degraded model (modelScoped: true) without locking the API key.
   { provider: "nvidia", text: "degraded", cooldownMs: 15 * 60 * 1000, modelScoped: true },
@@ -71,8 +96,11 @@ export const ERROR_RULES = [
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },
-  { text: "insufficient credit",      backoff: true },
-  { text: "credit balance is too low", backoff: true },
+  // Concurrency shedding (e.g. Dahl `model_concurrency`) is *capacity*, not a
+  // quota lock. The message literally says "or switch model" — parking the
+  // account would starve the pool while every account is equally refused on the
+  // busy model, so keep a short cooldown and let another model/account serve.
+  { text: "concurrency capacity",     cooldownMs: COOLDOWN.short },
   { text: "capacity",                 backoff: true },
   { text: "overloaded",               backoff: true },
 

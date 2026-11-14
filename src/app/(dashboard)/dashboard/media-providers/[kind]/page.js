@@ -1,14 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useParams, notFound, useRouter } from "next/navigation";
+import { usePageReady } from "@/shared/components/PageReadyContext";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Card, Badge, Button, Toggle, AddCustomEmbeddingModal } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, getProvidersByKind } from "@/shared/constants/providers";
 
-// Kinds that support combos (currently disabled for image/tts — temporarily hidden).
-// webSearch/webFetch handled by /web page.
 const COMBO_KINDS = new Set([]);
 const COMBO_BASE_NAMES = { image: "image-combo", tts: "tts-combo" };
 
@@ -144,8 +143,9 @@ export default function MediaProviderKindPage() {
   const [customNodes, setCustomNodes] = useState([]);
   const [combos, setCombos] = useState([]);
   const [showAddCustomEmbedding, setShowAddCustomEmbedding] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  usePageReady(!loaded);
 
-  // webSearch/webFetch listing pages are merged into /web
   useEffect(() => {
     if (kind === "webSearch" || kind === "webFetch") {
       router.replace("/dashboard/media-providers/web");
@@ -158,22 +158,29 @@ export default function MediaProviderKindPage() {
 
   useEffect(() => {
     if (!kindConfig) return;
-    fetch("/api/providers", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setConnections(d.connections || []))
-      .catch(() => {});
-    if (isEmbedding) {
-      fetch("/api/provider-nodes", { cache: "no-store" })
+    const jobs = [
+      fetch("/api/providers", { cache: "no-store" })
         .then((r) => r.json())
-        .then((d) => setCustomNodes((d.nodes || []).filter((n) => n.type === "custom-embedding")))
-        .catch(() => {});
+        .then((d) => setConnections(d.connections || []))
+        .catch(() => {}),
+    ];
+    if (isEmbedding) {
+      jobs.push(
+        fetch("/api/provider-nodes", { cache: "no-store" })
+          .then((r) => r.json())
+          .then((d) => setCustomNodes((d.nodes || []).filter((n) => n.type === "custom-embedding")))
+          .catch(() => {})
+      );
     }
     if (supportsCombo) {
-      fetch("/api/combos", { cache: "no-store" })
-        .then((r) => r.json())
-        .then((d) => setCombos(d.combos || []))
-        .catch(() => {});
+      jobs.push(
+        fetch("/api/combos", { cache: "no-store" })
+          .then((r) => r.json())
+          .then((d) => setCombos(d.combos || []))
+          .catch(() => {})
+      );
     }
+    Promise.allSettled(jobs).then(() => setLoaded(true));
   }, [isEmbedding, supportsCombo, kindConfig]);
 
   if (!kindConfig) return notFound();
@@ -181,7 +188,6 @@ export default function MediaProviderKindPage() {
   const providers = getProvidersByKind(kind);
   const kindCombos = combos.filter((c) => c.kind === kind);
 
-  // Map custom nodes to MediaProviderCard shape
   const customProviders = customNodes.map((n) => ({
     id: n.id,
     name: n.name || "Custom Embedding",

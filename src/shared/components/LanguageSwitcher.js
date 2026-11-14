@@ -7,6 +7,8 @@ import { reloadTranslations } from "@/i18n/runtime";
 
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return "en";
+  const stored = localStorage.getItem("app_locale");
+  if (stored) return normalizeLocale(stored);
   const cookie = document.cookie
     .split(";")
     .find((c) => c.trim().startsWith(`${LOCALE_COOKIE}=`));
@@ -14,7 +16,6 @@ function getLocaleFromCookie() {
   return normalizeLocale(value);
 }
 
-// Locale display names and flags - will be translated by runtime i18n
 const getLocaleInfo = (locale) => {
   const locales = {
     "en": { name: "English", flag: "🇺🇸" },
@@ -76,7 +77,6 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
     setLocale(getLocaleFromCookie());
   }, []);
 
-  // Close modal when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
@@ -99,8 +99,7 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: nextLocale }),
       });
-      
-      // Reload translations without full page reload
+      localStorage.setItem("app_locale", nextLocale);
       await reloadTranslations();
       setLocale(nextLocale);
       setIsOpen(false, nextLocale);

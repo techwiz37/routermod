@@ -2,12 +2,12 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
+import { getProviderByAlias } from "@/shared/constants/providers.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
   const trimmed = key.trim();
   if (trimmed.length <= 12) return trimmed.charAt(0) + "***";
-  // Keep the tail: keys sharing a machine-id prefix (team keys) must not collide.
   return trimmed.slice(0, 8) + "***" + trimmed.slice(-4);
 }
 
@@ -16,8 +16,7 @@ const RING_CAP = 50;
 const CONN_CACHE_TTL_MS = 30 * 1000;
 const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 5184000000 };
 
-// In-memory state shared across Next.js modules
-if (!global._pendingRequests) global._pendingRequests = { byModel: {}, byAccount: {} };
+if (!global._pendingRequests) global._pendingRequests = { byModel: {}, byAccount: {}, byApiKey: {} };
 if (!global._lastErrorProvider) global._lastErrorProvider = { provider: "", ts: 0 };
 if (!global._statsEmitter) {
   global._statsEmitter = new EventEmitter();
@@ -124,10 +123,10 @@ async function ensureRingInitialized() {
   recentRing.initialized = true;
   try {
     const db = await getAdapter();
-    const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`, [RING_CAP]);
+    const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens, clientIp FROM usageHistory ORDER BY id DESC LIMIT ?`, [RING_CAP]);
     recentRing.items = rows.reverse().map((r) => ({
       timestamp: r.timestamp, provider: r.provider, model: r.model, connectionId: r.connectionId,
-      apiKey: r.apiKey, endpoint: r.endpoint, cost: r.cost, status: r.status,
+      apiKey: r.apiKey, endpoint: r.endpoint, cost: r.cost, status: r.status, clientIp: r.clientIp,
       tokens: parseJson(r.tokens, {}),
     }));
   } catch {}
@@ -140,9 +139,6 @@ async function calculateCost(provider, model, tokens) {
     const pricing = await getPricingForModel(provider, model);
     if (!pricing) return 0;
 
-    // Delegate the actual math to the single source of truth (avoids the two
-    // copies drifting apart — see open-sse/providers/pricing.js for the
-    // cache-inclusive prompt_tokens convention this assumes).
     const { calculateCostFromTokens } = await import("open-sse/providers/pricing.js");
     return calculateCostFromTokens(tokens, pricing);
   } catch (e) {
@@ -191,7 +187,6 @@ export function trackPendingRequest(model, provider, connectionId, started, erro
     lastErrorProvider.ts = Date.now();
   }
 
-  // [PENDING] console line removed; lifecycle is visible via "▶" and "📊 done" lines
   scheduleStatsEvent("pending");
 }
 
@@ -224,6 +219,7 @@ export async function getActiveRequests() {
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         status: e.status || "ok",
+        clientIp: e.clientIp || null,
       };
     })
     .filter((e) => {
@@ -253,11 +249,9 @@ export async function saveRequestUsage(entry) {
 
     let inserted = false;
 
-    // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
-    // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
     db.transaction(() => {
       const existing = db.get(
-        `SELECT id, endpoint FROM usageHistory
+        `SELECT id, endpoint, clientIp FROM usageHistory
          WHERE timestamp = ?
            AND COALESCE(provider, '') = COALESCE(?, '')
            AND COALESCE(model, '') = COALESCE(?, '')
@@ -277,16 +271,20 @@ export async function saveRequestUsage(entry) {
         if (!existing.endpoint && entry.endpoint) {
           db.run(`UPDATE usageHistory SET endpoint = ? WHERE id = ?`, [entry.endpoint, existing.id]);
         }
+        if (!existing.clientIp && entry.clientIp) {
+          db.run(`UPDATE usageHistory SET clientIp = ? WHERE id = ?`, [entry.clientIp, existing.id]);
+        }
         return;
       }
 
       db.run(
-        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta, duration, clientIp) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson({}),
+          stringifyJson(tokens), stringifyJson({}), entry.duration || 0,
+          entry.clientIp || null,
         ]
       );
 
@@ -299,7 +297,6 @@ export async function saveRequestUsage(entry) {
       aggregateEntryToDay(day, entry);
       db.run(`INSERT INTO usageDaily(dateKey, data) VALUES(?, ?) ON CONFLICT(dateKey) DO UPDATE SET data = excluded.data`, [dateKey, stringifyJson(day)]);
 
-      // Atomic counter increment in same transaction
       const cur = db.get(`SELECT value FROM _meta WHERE key = 'totalRequestsLifetime'`);
       const next = (cur ? parseInt(cur.value, 10) : 0) + 1;
       db.run(`INSERT INTO _meta(key, value) VALUES('totalRequestsLifetime', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [String(next)]);
@@ -372,18 +369,111 @@ export async function getUsageStats(period = "all") {
     if (k.key) apiKeyMap[k.key.trim()] = { name: k.name, id: k.id, createdAt: k.createdAt };
   }
 
-  // recentRequests from live history (last 100 entries enough for 20 deduped)
-  const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status FROM usageHistory ORDER BY id DESC LIMIT 100`);
+  // Keep internal routing IDs out of the overview and show the configured
+  // public/custom model name instead.
+   let modelNames = {};
+   let modelAliases = {};
+   let customModels = [];
+   let providerPrefixes = {};
+   let providerNodePrefixes = {};
+    try {
+      const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
+      try { modelNames = await getModelNames(); } catch {}
+      try { modelAliases = await getModelAliases(); } catch {}
+      try { customModels = await getCustomModels(); } catch {}
+    } catch {}
+    // Keep log formatting independent from repository/module loading. The
+    // usage adapter is already connected, so read the public names directly
+    // when an alias repository is unavailable in the standalone runtime.
+    try {
+      // Always merge the persisted values. This also repairs partially loaded
+      // repository results in standalone/PM2 builds.
+      for (const row of db.all(`SELECT key, value FROM kv WHERE scope = ?`, ["modelNames"])) {
+        const key = row?.key ?? row?.[0];
+        const value = parseJson(row?.value ?? row?.[1]);
+        if (key && value != null && value !== "") modelNames[key] = value;
+      }
+    } catch {}
+    try {
+      const { getSettings } = await import("./settingsRepo.js");
+      providerPrefixes = (await getSettings())?.providerPrefixes || {};
+    } catch {}
+    try {
+      const { getProviderNodes } = await import("./nodesRepo.js");
+      for (const node of (await getProviderNodes()) || []) {
+        if (node?.id && node?.prefix) providerNodePrefixes[node.id] = String(node.prefix).trim();
+      }
+    } catch {}
+    const publicProvider = (providerKey) =>
+      providerNodePrefixes[providerKey] || providerPrefixes[providerKey] || providerKey;
+    // Usage history may contain any of these forms depending on when the
+    // request was recorded: canonical provider id (agnes), public alias
+    // (xro), or a compatible-node prefix (lrp). Resolve all of them to the
+    // configured display name used by the provider list.
+    const providerNameByPublicPrefix = {};
+    for (const [nodeId, nodeName] of Object.entries(providerNodeNameMap)) {
+      providerNameByPublicPrefix[nodeId] = nodeName;
+      if (providerNodePrefixes[nodeId]) {
+        providerNameByPublicPrefix[providerNodePrefixes[nodeId]] = nodeName;
+      }
+    }
+    for (const [alias, target] of Object.entries(modelAliases || {})) {
+      const slash = String(alias).indexOf("/");
+      if (slash <= 0 || typeof target !== "string") continue;
+      const publicPrefix = String(alias).slice(0, slash);
+      const targetProvider = target.split("/")[0];
+      const providerInfo = getProviderByAlias(targetProvider);
+      if (providerInfo?.name) {
+        providerNameByPublicPrefix[publicPrefix] = providerInfo.name;
+        providerNameByPublicPrefix[targetProvider] = providerInfo.name;
+      }
+    }
+    const displayProvider = (providerKey) => {
+      const key = String(providerKey || "");
+      const providerInfo = getProviderByAlias(key);
+      return providerNodeNameMap[key]
+        || providerNameByPublicPrefix[key]
+        || providerInfo?.name
+        || publicProvider(key);
+    };
+   const displayModel = (provider, model) => {
+    const raw = String(model || "");
+    const slash = raw.indexOf("/");
+    const providerKey = slash > 0 ? raw.slice(0, slash) : String(provider || "");
+    const modelId = slash > 0 ? raw.slice(slash + 1) : raw;
+    const fullModel = `${providerKey}/${modelId}`;
+      const publicKey = `${publicProvider(providerKey)}/${modelId}`;
+        const configuredName = modelNames[fullModel]
+       || modelNames[`${provider}/${modelId}`]
+         || modelNames[publicKey]
+       || Object.entries(modelAliases).find(([, value]) =>
+         value === fullModel || value === `${provider}/${modelId}` || value === publicKey
+       )?.[0]?.split("/").slice(1).join("/");
+      const custom = customModels.find((entry) =>
+          (entry?.providerAlias === providerKey || entry?.providerAlias === provider || providerNodePrefixes[entry?.providerAlias] === publicProvider(providerKey)) && String(entry.id) === modelId
+      );
+        // Custom model names are the public IDs shown by /v1/models. The
+        // stored request can still contain the upstream path, so prefer the
+        // configured custom name when resolving historical/live log rows.
+        if (custom) return `${publicProvider(providerKey)}/${custom.name || custom.id}`;
+        if (configuredName) return `${publicProvider(providerKey)}/${configuredName}`;
+     const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
+     if (alias) return alias;
+     return `${publicProvider(providerKey)}/${modelId}`;
+   };
+
+  const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status, clientIp FROM usageHistory ORDER BY id DESC LIMIT 100`);
   const seen = new Set();
   const recentRequests = recentRows
     .map((r) => {
       const t = parseJson(r.tokens, {}) || {};
       return {
-        timestamp: r.timestamp, model: r.model, provider: r.provider || "",
+        timestamp: r.timestamp, model: displayModel(r.provider, r.model), provider: r.provider || "",
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
         status: r.status || "ok",
+        clientIp: r.clientIp || null,
       };
     })
     .filter((e) => {
@@ -407,7 +497,6 @@ export async function getUsageStats(period = "all") {
     errorProvider: (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "",
   };
 
-  // Active requests
   for (const [connectionId, models] of Object.entries(pendingRequests.byAccount)) {
     for (const [modelKey, count] of Object.entries(models)) {
       if (count > 0) {
@@ -422,7 +511,6 @@ export async function getUsageStats(period = "all") {
     }
   }
 
-  // last10Minutes — query 10min window
   const now = new Date();
   const currentMinuteStart = new Date(Math.floor(now.getTime() / 60000) * 60000);
   const tenMinutesAgo = new Date(currentMinuteStart.getTime() - 9 * 60 * 1000);
@@ -463,21 +551,23 @@ export async function getUsageStats(period = "all") {
       stats.totalCost += day.cost || 0;
 
       for (const [prov, p] of Object.entries(day.byProvider || {})) {
-        if (!stats.byProvider[prov]) stats.byProvider[prov] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
-        stats.byProvider[prov].requests += p.requests || 0;
-        stats.byProvider[prov].promptTokens += p.promptTokens || 0;
-        stats.byProvider[prov].completionTokens += p.completionTokens || 0;
-        stats.byProvider[prov].cachedTokens += p.cachedTokens || 0;
-        stats.byProvider[prov].cost += p.cost || 0;
+        const providerDisplayName = displayProvider(prov);
+        const providerStatsKey = providerDisplayName || prov;
+        if (!stats.byProvider[providerStatsKey]) stats.byProvider[providerStatsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+        stats.byProvider[providerStatsKey].requests += p.requests || 0;
+        stats.byProvider[providerStatsKey].promptTokens += p.promptTokens || 0;
+        stats.byProvider[providerStatsKey].completionTokens += p.completionTokens || 0;
+        stats.byProvider[providerStatsKey].cachedTokens += p.cachedTokens || 0;
+        stats.byProvider[providerStatsKey].cost += p.cost || 0;
       }
 
       for (const [mk, m] of Object.entries(day.byModel || {})) {
         const rawModel = m.rawModel || mk.split("|")[0];
         const provider = m.provider || mk.split("|")[1] || "";
         const statsKey = provider ? `${rawModel} (${provider})` : rawModel;
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
-        if (!stats.byModel[statsKey]) {
-          stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, lastUsed: dateKey };
+        const modelDisplayName = displayModel(provider, rawModel);
+       if (!stats.byModel[statsKey]) {
+           stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: modelDisplayName, provider: providerDisplayName, lastUsed: dateKey };
         }
         stats.byModel[statsKey].requests += m.requests || 0;
         stats.byModel[statsKey].promptTokens += m.promptTokens || 0;
@@ -491,7 +581,7 @@ export async function getUsageStats(period = "all") {
         const accountName = connectionMap[connId] || `Account ${connId.slice(0, 8)}...`;
         const rawModel = a.rawModel || "";
         const provider = a.provider || "";
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
+         const providerDisplayName = displayProvider(provider);
         const accountKey = `${rawModel} (${provider} - ${accountName})`;
         if (!stats.byAccount[accountKey]) {
           stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, connectionId: connId, accountName, lastUsed: dateKey };
@@ -507,7 +597,7 @@ export async function getUsageStats(period = "all") {
       for (const [akKey, ak] of Object.entries(day.byApiKey || {})) {
         const rawModel = ak.rawModel || "";
         const provider = ak.provider || "";
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
+         const providerDisplayName = displayProvider(provider);
         const apiKeyVal = ak.apiKey ? ak.apiKey.trim() : null;
         const keyInfo = apiKeyVal ? apiKeyMap[apiKeyVal] : null;
         const apiKeyMasked = maskApiKey(apiKeyVal);
@@ -528,7 +618,7 @@ export async function getUsageStats(period = "all") {
         const endpoint = ep.endpoint || epKey.split("|")[0] || "Unknown";
         const rawModel = ep.rawModel || "";
         const provider = ep.provider || "";
-        const providerDisplayName = providerNodeNameMap[provider] || provider;
+         const providerDisplayName = displayProvider(provider);
         if (!stats.byEndpoint[epKey]) {
           stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, endpoint, rawModel, provider: providerDisplayName, lastUsed: dateKey };
         }
@@ -541,10 +631,7 @@ export async function getUsageStats(period = "all") {
       }
     }
 
-    // Overlay precise lastUsed timestamps from history.
     // ponytail: overlay scans only a recent window; entries older than that keep
-    // day-level lastUsed from usageDaily. Upgrade to a materialized per-key
-    // MAX(timestamp) table if exact old timestamps ever matter.
     const OVERLAY_WINDOW_MS = 2 * 86400000;
     const overlayCutoff = Math.max(
       maxDays ? Date.now() - maxDays * 86400000 : 0,
@@ -575,7 +662,6 @@ export async function getUsageStats(period = "all") {
       if (stats.byEndpoint[endpointKey] && new Date(ts) > new Date(stats.byEndpoint[endpointKey].lastUsed)) stats.byEndpoint[endpointKey].lastUsed = ts;
     }
   } else {
-    // 24h / today: live history
     let cutoff;
     if (period === "today") {
       const startOfDay = new Date();
@@ -595,23 +681,24 @@ export async function getUsageStats(period = "all") {
       const completionTokens = tokens.completion_tokens || tokens.output_tokens || r.completionTokens || 0;
       const cachedTokens = tokens.cached_tokens || tokens.cache_read_input_tokens || 0;
       const entryCost = r.cost || 0;
-      const providerDisplayName = providerNodeNameMap[r.provider] || r.provider;
+       const providerDisplayName = displayProvider(r.provider);
 
       stats.totalPromptTokens += promptTokens;
       stats.totalCompletionTokens += completionTokens;
       stats.totalCachedTokens += cachedTokens;
       stats.totalCost += entryCost;
 
-      if (!stats.byProvider[r.provider]) stats.byProvider[r.provider] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
-      stats.byProvider[r.provider].requests++;
-      stats.byProvider[r.provider].promptTokens += promptTokens;
-      stats.byProvider[r.provider].completionTokens += completionTokens;
-      stats.byProvider[r.provider].cachedTokens += cachedTokens;
-      stats.byProvider[r.provider].cost += entryCost;
+       const providerStatsKey = providerDisplayName || r.provider;
+       if (!stats.byProvider[providerStatsKey]) stats.byProvider[providerStatsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+       stats.byProvider[providerStatsKey].requests++;
+       stats.byProvider[providerStatsKey].promptTokens += promptTokens;
+       stats.byProvider[providerStatsKey].completionTokens += completionTokens;
+       stats.byProvider[providerStatsKey].cachedTokens += cachedTokens;
+       stats.byProvider[providerStatsKey].cost += entryCost;
 
       const modelKey = r.provider ? `${r.model} (${r.provider})` : r.model;
       if (!stats.byModel[modelKey]) {
-        stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
+         stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: displayModel(r.provider, r.model), provider: providerDisplayName, lastUsed: r.timestamp };
       }
       stats.byModel[modelKey].requests++;
       stats.byModel[modelKey].promptTokens += promptTokens;
@@ -639,8 +726,6 @@ export async function getUsageStats(period = "all") {
         const keyInfo = apiKeyMap[apiKeyVal];
         const apiKeyMasked = maskApiKey(apiKeyVal);
         const keyName = keyInfo?.name || apiKeyMasked || r.apiKey.slice(0, 8) + "...";
-        // Key by the FULL api key (same as the daily rollup + lastUsed overlay)
-        // — masking here collided all keys sharing a prefix into one bucket.
         const akKey = `${r.apiKey}|${r.model}|${r.provider || "unknown"}`;
         if (!stats.byApiKey[akKey]) {
           stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
@@ -755,7 +840,6 @@ export async function getChartData(period = "7d") {
   const bucketCount = period === "7d" ? 7 : period === "30d" ? 30 : 60;
   const today = new Date();
 
-  // Build map of dateKey → day data
   const dayRows = loadDaysInRange(db, bucketCount);
   const dayMap = {};
   for (const r of dayRows) dayMap[r.dateKey] = parseJson(r.data, {});
@@ -779,14 +863,38 @@ function formatLogDate(date = new Date()) {
   return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-// No-op: request log is now derived from usageHistory table on read.
-export async function appendRequestLog() {}
+export async function appendRequestLog(entry = {}) {
+  // Chat requests use this lightweight logger for lifecycle entries (pending,
+  // success, and errors). Keep it backed by usageHistory so the login monitor
+  // and usage APIs read the same durable data. Token-bearing completions are
+  // also handled by saveUsageStats/saveRequestUsage; the exact timestamp and
+  // token values prevent accidental duplicate rows there.
+  const tokens = entry.tokens && typeof entry.tokens === "object" ? entry.tokens : {};
+  await saveRequestUsage({
+    provider: entry.provider || "unknown",
+    model: entry.model || "unknown",
+    connectionId: entry.connectionId || undefined,
+    apiKey: entry.apiKey || undefined,
+    endpoint: entry.endpoint || null,
+    clientIp: entry.clientIp || null,
+    timestamp: entry.timestamp || new Date().toISOString(),
+    tokens,
+    status: entry.status || "ok",
+    duration: entry.duration || 0,
+  });
+}
 
 export async function getRecentLogs(limit = 200) {
   try {
     const db = await getAdapter();
     const rows = db.all(
-      `SELECT timestamp, provider, model, connectionId, promptTokens, completionTokens, status, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`,
+      // Lifecycle-only rows (pending/success bookkeeping) have no token
+      // usage and must not appear in the login request feed as duplicate
+      // `0↑ 0↓` entries. Keep only rows with actual input or output tokens.
+      `SELECT timestamp, provider, model, connectionId, promptTokens, completionTokens, status, tokens
+       FROM usageHistory
+       WHERE COALESCE(promptTokens, 0) > 0 OR COALESCE(completionTokens, 0) > 0
+       ORDER BY id DESC LIMIT ?`,
       [limit],
     );
     if (!rows.length) return [];
@@ -798,10 +906,79 @@ export async function getRecentLogs(limit = 200) {
       for (const c of connections) connMap[c.id] = c.name || c.email || "";
     } catch {}
 
+     let modelNames = {};
+     let modelAliases = {};
+     let customModels = [];
+     let providerPrefixes = {};
+     let providerNodePrefixes = {};
+      try {
+        const { getModelNames, getModelAliases, getCustomModels } = await import("./aliasRepo.js");
+        try { modelNames = await getModelNames(); } catch {}
+        try { modelAliases = await getModelAliases(); } catch {}
+        try { customModels = await getCustomModels(); } catch {}
+      } catch {}
+      try {
+        for (const row of db.all(`SELECT key, value FROM kv WHERE scope = ?`, ["modelNames"])) {
+          const key = row?.key ?? row?.[0];
+          const value = parseJson(row?.value ?? row?.[1]);
+          if (key && value != null && value !== "") modelNames[key] = value;
+        }
+      } catch {}
+      try {
+        const { getSettings } = await import("./settingsRepo.js");
+        providerPrefixes = (await getSettings())?.providerPrefixes || {};
+      } catch {}
+      try {
+        const { getProviderNodes } = await import("./nodesRepo.js");
+        for (const node of (await getProviderNodes()) || []) {
+          if (node?.id && node?.prefix) providerNodePrefixes[node.id] = String(node.prefix).trim();
+        }
+      } catch {}
+     const publicProvider = (providerKey) =>
+       providerNodePrefixes[providerKey] || providerPrefixes[providerKey] || providerKey;
+
+    const displayModel = (provider, model) => {
+      const raw = String(model || "");
+      const slash = raw.indexOf("/");
+      const providerKey = slash > 0 ? raw.slice(0, slash) : String(provider || "");
+      const modelId = slash > 0 ? raw.slice(slash + 1) : raw;
+      const fullModel = `${providerKey}/${modelId}`;
+      const publicFullModel = `${publicProvider(providerKey)}/${modelId}`;
+      const normalizedModelNames = Object.fromEntries(
+        Object.entries(modelNames).map(([key, value]) => [String(key).toLowerCase(), value])
+      );
+       const publicKey = `${publicProvider(providerKey)}/${modelId}`;
+      const configuredName = modelNames[fullModel]
+          || modelNames[`${provider}/${modelId}`]
+          || modelNames[publicKey]
+          || normalizedModelNames[fullModel.toLowerCase()]
+          || normalizedModelNames[`${provider}/${modelId}`.toLowerCase()]
+          || normalizedModelNames[publicKey.toLowerCase()]
+          || Object.entries(modelNames).find(([key]) =>
+            String(key).toLowerCase().endsWith(`/${modelId}`.toLowerCase())
+          )?.[1]
+          || Object.entries(modelAliases).find(([, value]) =>
+            value === fullModel || value === `${provider}/${modelId}` || value === publicKey
+          )?.[0]?.split("/").slice(1).join("/");
+        const custom = customModels.find((entry) => (
+          (entry?.providerAlias === providerKey
+            || entry?.providerAlias === provider
+            || providerNodePrefixes[entry?.providerAlias] === publicProvider(providerKey))
+          && String(entry.id) === modelId
+        ));
+        // Custom model names are the public IDs exposed by /v1/models. The
+        // stored row may still contain the upstream/original model ID.
+        if (custom) return `${publicProvider(providerKey)}/${custom.name || custom.id}`;
+        if (configuredName) return `${publicProvider(providerKey)}/${configuredName}`;
+       const alias = Object.entries(modelAliases).find(([, value]) => value === fullModel)?.[0];
+       if (alias) return alias;
+      return publicFullModel;
+     };
+
     return rows.map((r) => {
       const ts = formatLogDate(new Date(r.timestamp));
       const p = r.provider?.toUpperCase() || "-";
-      const m = r.model || "-";
+      const m = displayModel(r.provider, r.model) || "-";
       const account = connMap[r.connectionId] || (r.connectionId ? r.connectionId.slice(0, 8) : "-");
       const tk = r.tokens ? parseJson(r.tokens, {}) : {};
       const sent = r.promptTokens ?? tk.prompt_tokens ?? "-";

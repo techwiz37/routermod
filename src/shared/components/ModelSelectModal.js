@@ -14,7 +14,6 @@ import { parseSearchQuery, matchesSearch } from "@/shared/utils/modelSearchFilte
 import { getDeactivatedProviderIds } from "@/shared/utils/connectionStatus";
 import { NO_AUTH_PROVIDER_IDS } from "@/shared/utils/selectableModels";
 
-// Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
 const PROVIDER_ORDER = [
   ...Object.keys(OAUTH_PROVIDERS),
   ...Object.keys(FREE_PROVIDERS),
@@ -22,17 +21,8 @@ const PROVIDER_ORDER = [
   ...Object.keys(APIKEY_PROVIDERS),
 ];
 
-// Providers with per-account live catalogs via /api/providers/[id]/models.
-// Static registry stays as fallback when live fetch fails or is empty.
-// zed added in #4244: its backend customResolver already returns live models
-// but the frontend omitted it, hiding Zed entirely from the Combo picker.
 const LIVE_CATALOG_PROVIDERS = ["cursor", "cline", "clinepass", "zed"];
 
-// Fetch a provider's account-scoped catalog for every active connection and merge
-// the results. Entries collapse by model id on purpose: two connections of the
-// same provider produce the same picker value (`alias/id`), so keeping the first
-// avoids duplicate rows. There is no per-connection metadata to preserve beyond
-// {id,name}. Empty array means "nothing live" so callers keep the static fallback.
 function useLiveProviderModels(isOpen, connectionIds, label) {
   const [models, setModels] = useState([]);
   const idsKey = (connectionIds ?? []).join("|");
@@ -61,7 +51,6 @@ function useLiveProviderModels(isOpen, connectionIds, label) {
         }));
       })
       .catch((error) => {
-        // Do not hide the static fallback when the account catalog is unavailable.
         console.warn(`Unable to load ${label} models for selector:`, error);
         if (!cancelled) setModels([]);
       });
@@ -95,10 +84,10 @@ export default function ModelSelectModal({
 
   const fetchConnections = async () => {
     try {
-      const res = await fetch("/api/providers");
-      if (!res.ok) throw new Error(`Failed to fetch providers: ${res.status}`);
-      const data = await res.json();
-      setFetchedConnections(data.connections || []);
+      const providersRes = await fetch("/api/providers");
+      if (!providersRes.ok) throw new Error(`Failed to fetch providers: ${providersRes.status}`);
+      const providersData = await providersRes.json();
+      setFetchedConnections(providersData.connections || []);
     } catch (error) {
       console.error("Error fetching providers in ModelSelectModal:", error);
       setFetchedConnections([]);
@@ -113,9 +102,10 @@ export default function ModelSelectModal({
     return fetchedConnections !== null ? fetchedConnections : (activeProviders || []);
   }, [fetchedConnections, activeProviders]);
 
-  // Filter effectiveConnections by active state and serviceKinds when kindFilter set (e.g. "webSearch", "webFetch")
   const filteredActiveProviders = useMemo(() => {
-    const activeOnly = effectiveConnections.filter((p) => p && p.isActive !== false);
+    const activeOnly = effectiveConnections.filter(
+      (p) => p && p.isActive !== false && p.testStatus !== "failed"
+    );
     if (!kindFilter) return activeOnly;
     return activeOnly.filter((p) => {
       const info = AI_PROVIDERS[p.provider];
@@ -124,7 +114,7 @@ export default function ModelSelectModal({
     });
   }, [effectiveConnections, kindFilter]);
 
-  // Set of provider IDs that have connections configured, but ALL of them are deactivated (isActive === false)
+  // Providers that have connections configured, but ALL of them are deactivated
   const deactivatedProviderIds = useMemo(() => {
     return getDeactivatedProviderIds(effectiveConnections);
   }, [effectiveConnections]);
@@ -135,11 +125,6 @@ export default function ModelSelectModal({
   const [providerNodes, setProviderNodes] = useState([]);
   const [customModels, setCustomModels] = useState([]);
   const [disabledModels, setDisabledModels] = useState({});
-  // Cursor and Cline expose the usable catalog per account, so the static catalog is
-  // kept only as a fallback: it goes stale quickly and entitlements differ per account.
-  // Single map driven by LIVE_CATALOG_PROVIDERS so the constant cannot drift
-  // from the memos below; per-provider arrays stay referentially stable unless
-  // activeProviders itself changes.
   const liveConnectionIdsByProvider = useMemo(() => {
     const map = Object.fromEntries(LIVE_CATALOG_PROVIDERS.map((id) => [id, []]));
     for (const p of filteredActiveProviders) {
@@ -223,41 +208,25 @@ export default function ModelSelectModal({
 
   const allProviders = useMemo(() => ({ ...OAUTH_PROVIDERS, ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...APIKEY_PROVIDERS }), []);
 
-  // Group models by provider with priority order
   const groupedModels = useMemo(() => {
     const groups = {};
 
-    // Kinds where the provider IS the model (no per-model selection needed)
     const PROVIDER_AS_MODEL_KINDS = new Set(["webSearch", "webFetch"]);
-    // Kinds that map directly to model.type field
     const TYPED_KINDS = new Set(["image", "tts", "stt", "embedding", "imageToText", "systemone"]);
-    // For these kinds, providers without hardcoded models can still be picked (provider-as-model fallback)
     const ALLOW_PROVIDER_FALLBACK_KINDS = new Set(["tts", "image", "webFetch"]);
 
-    // Filter a models[] array by kindFilter (keep only matching kind)
     const filterByKind = (models) => {
-      // No kindFilter means the LLM selector. Keep custom models visible because
-      // user-added models may have typed capabilities (for example imageToText)
-      // while still being valid chat/combo targets.
       if (!kindFilter) return models.filter((m) => m.isPlaceholder || m.isCustom || !getModelKind(m) || getModelKind(m) === "llm");
       if (!TYPED_KINDS.has(kindFilter)) return models;
       return models.filter((m) => m.isPlaceholder || getModelKind(m) === kindFilter);
     };
 
-    // Get all active provider IDs from connections (filtered by kindFilter if set)
     const activeConnectionIds = filteredActiveProviders.map(p => p.provider);
 
-    // No-auth providers: filter by kindFilter as well
     const noAuthIds = (kindFilter
       ? NO_AUTH_PROVIDER_IDS.filter((id) => (AI_PROVIDERS[id]?.serviceKinds || ["llm"]).includes(kindFilter))
       : NO_AUTH_PROVIDER_IDS).filter((id) => !deactivatedProviderIds.has(id));
 
-    // Compatible nodes (OpenAI/Anthropic Compatible) that already have user-added
-    // custom models should be selectable even without an API-key connection. Local /
-    // self-hosted endpoints (Ollama, internal relays, etc.) don't always need a stored
-    // key, so gating on connections hides models the user already added. These nodes
-    // are LLM-only, so only surface them when no kind filter is active.
-    // See #4177, #2113, #2119, #1988.
     const existingNodeIds = new Set((providerNodes || []).map((n) => n?.id).filter(Boolean));
     const compatibleNodeIds = kindFilter
       ? []
@@ -269,14 +238,12 @@ export default function ModelSelectModal({
             !deactivatedProviderIds.has(alias)
           );
 
-    // Only show connected providers (including both standard and custom)
     const providerIdsToShow = new Set([
       ...activeConnectionIds,  // Only connected providers
       ...noAuthIds,            // No-auth providers (kind-filtered)
       ...compatibleNodeIds,    // Compatible nodes with user-added models
     ].filter((id) => !deactivatedProviderIds.has(id)));
 
-    // Sort by PROVIDER_ORDER
     const sortedProviderIds = [...providerIdsToShow].sort((a, b) => {
       const indexA = PROVIDER_ORDER.indexOf(a);
       const indexB = PROVIDER_ORDER.indexOf(b);
@@ -288,7 +255,6 @@ export default function ModelSelectModal({
       const providerInfo = allProviders[providerId] || { name: providerId, color: "#666" };
       const isCustomProvider = isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
 
-      // For provider-as-model kinds (webSearch/webFetch): emit a single entry where value === providerId
       if (kindFilter && PROVIDER_AS_MODEL_KINDS.has(kindFilter)) {
         groups[providerId] = {
           name: providerInfo.name,
@@ -317,7 +283,6 @@ export default function ModelSelectModal({
             isCustom: true,
           }));
 
-        // For typed kinds, only include hardcoded typed models (aliases are typically LLM-only and lack type info)
         let combined = aliasModels;
         if (kindFilter && TYPED_KINDS.has(kindFilter)) {
           const registeredTyped = customRegisteredModels.filter((m) => getModelKind(m) === kindFilter);
@@ -328,13 +293,11 @@ export default function ModelSelectModal({
             .map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m) }))
             .filter((m) => !registeredTyped.some((registered) => registered.value === m.value)),
           ];
-          // Fallback: provider-as-model when no hardcoded models match (tts/image/webFetch only)
           if (combined.length === 0 && ALLOW_PROVIDER_FALLBACK_KINDS.has(kindFilter)) {
             const supports = (providerInfo.serviceKinds || ["llm"]).includes(kindFilter);
             if (supports) combined = [{ id: providerId, name: providerInfo.name, value: alias }];
           }
         } else {
-          // LLM/null kind: merge hardcoded models (e.g. mimo-free → mimo-auto) with user-added models
           const registeredLlms = customRegisteredModels.filter((m) => !getModelKind(m) || getModelKind(m) === "llm");
           const seen = new Set([...aliasModels, ...registeredLlms].map((m) => m.value));
           const hardcoded = getModelsByProviderId(providerId)
@@ -345,7 +308,6 @@ export default function ModelSelectModal({
         }
 
         if (combined.length > 0) {
-          // Check for custom name from providerNodes (for compatible providers)
           const matchedNode = providerNodes.find(node => node.id === providerId);
           const displayName = matchedNode?.name || providerInfo.name;
 
@@ -357,16 +319,12 @@ export default function ModelSelectModal({
           };
         }
       } else if (isCustomProvider) {
-        // Custom (openai/anthropic-compatible) providers are LLM-only — skip for typed media kinds
         if (kindFilter && TYPED_KINDS.has(kindFilter)) return;
-        // Find connection object to get prefix synchronously without waiting for providerNodes fetch
         const connection = filteredActiveProviders.find(p => p.provider === providerId) || effectiveConnections.find(p => p.provider === providerId);
         const matchedNode = providerNodes.find(node => node.id === providerId);
         const displayName = matchedNode?.name || connection?.name || providerInfo.name;
         const nodePrefix = connection?.providerSpecificData?.prefix || matchedNode?.prefix || providerId;
 
-        // Aliases are stored using the raw providerId as key (e.g. "openai-compatible-chat-<uuid>/glm-4.7"),
-        // so we must filter by providerId, not by the display prefix.
         const nodeModels = Object.entries(modelAliases)
           .filter(([, fullModel]) => fullModel.startsWith(`${providerId}/`))
           .map(([aliasName, fullModel]) => ({
@@ -375,8 +333,6 @@ export default function ModelSelectModal({
             value: `${nodePrefix}/${fullModel.replace(`${providerId}/`, "")}`,
           }));
 
-        // Merge custom models registered via /api/models/custom for this provider
-        // providerAlias in DB uses the raw providerId, not the display prefix
         const registeredCustom = customModels
           .filter((m) => m.providerAlias === providerId)
           .map((m) => ({
@@ -388,8 +344,6 @@ export default function ModelSelectModal({
         const seen = new Set(nodeModels.map((m) => m.value));
         const mergedModels = [...nodeModels, ...registeredCustom.filter((m) => !seen.has(m.value))];
 
-        // Always show compatible providers that are connected, even with no aliases.
-        // When no aliases exist, show a placeholder so users know it's available.
         const modelsToShow = mergedModels.length > 0 ? mergedModels : [{
           id: `__placeholder__${providerId}`,
           name: `${nodePrefix}/model-id`,
@@ -412,8 +366,6 @@ export default function ModelSelectModal({
           : getModelsByProviderId(providerId);
         const hardcodedIds = new Set(hardcodedModels.map((m) => m.id));
 
-        // Custom models: if no hardcoded models (e.g. openrouter), show all aliases for this provider
-        // Otherwise only show aliases where aliasName === modelId ("Add Model" button pattern)
         const hasHardcoded = hardcodedModels.length > 0;
         const customAliasModels = Object.entries(modelAliases)
           .filter(([aliasName, fullModel]) =>
@@ -426,18 +378,16 @@ export default function ModelSelectModal({
             return { id: modelId, name: aliasName, value: fullModel, isCustom: true };
           });
 
-        // Custom models registered via /api/models/custom (provider "Add Model" button)
         const customAliasIds = new Set(customAliasModels.map((m) => m.id));
         const customRegisteredModels = customModels
           .filter((m) => m.providerAlias === alias && !hardcodedIds.has(m.id) && !customAliasIds.has(m.id))
           .map((m) => ({ id: m.id, name: m.name || m.id, value: `${alias}/${m.id}`, isCustom: true }));
 
         const merged = [
-          ...applyQoderModelNames(hardcodedModels, customModels, alias).map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m) })),
+          ...applyQoderModelNames(hardcodedModels, customModels, alias).map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m), deprecated: !!m.deprecated, deprecationDate: m.deprecationDate })),
           ...customAliasModels,
           ...customRegisteredModels,
         ];
-        // Dedupe by value (alias may equal hardcoded id, causing React key collision)
         const seen = new Set();
         let allModels = filterByKind(merged.filter((m) => {
           if (seen.has(m.value)) return false;
@@ -445,8 +395,6 @@ export default function ModelSelectModal({
           return true;
         }));
 
-        // Provider-as-model fallback: providers that support the kind but have no hardcoded models
-        // can still be picked (value = providerAlias). Skips embedding (always needs model).
         if (allModels.length === 0 && kindFilter && ALLOW_PROVIDER_FALLBACK_KINDS.has(kindFilter)) {
           const supports = (providerInfo.serviceKinds || ["llm"]).includes(kindFilter);
           if (supports) {
@@ -465,7 +413,6 @@ export default function ModelSelectModal({
       }
     });
 
-    // Filter out disabled models per provider (disabled keyed by storage alias OR providerId)
     Object.entries(groups).forEach(([providerId, group]) => {
       const aliasKey = getProviderAlias(providerId);
       const disabledIds = new Set([
@@ -477,54 +424,28 @@ export default function ModelSelectModal({
       if (group.models.length === 0) delete groups[providerId];
     });
 
-    // Filter by enabledModels if explicitly configured on any active connection for this provider
-    Object.entries(groups).forEach(([providerId, group]) => {
-      const providerConns = filteredActiveProviders.filter((p) => p.provider === providerId);
-      const explicitEnabled = [];
-      for (const conn of providerConns) {
-        if (Array.isArray(conn.providerSpecificData?.enabledModels) && conn.providerSpecificData.enabledModels.length > 0) {
-          explicitEnabled.push(...conn.providerSpecificData.enabledModels);
-        }
-      }
-      if (explicitEnabled.length > 0) {
-        const enabledSet = new Set(explicitEnabled);
-        const alias = group.alias || getProviderAlias(providerId) || providerId;
-        group.models = group.models.filter((m) =>
-          enabledSet.has(m.id) ||
-          enabledSet.has(m.value) ||
-          enabledSet.has(`${alias}/${m.id}`) ||
-          (m.value && enabledSet.has(m.value.replace(`${alias}/`, "")))
-        );
-        if (group.models.length === 0) delete groups[providerId];
-      }
-    });
-
     return groups;
   }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, effectiveConnections, deactivatedProviderIds, cursorModels, clineModels, clinepassModels, zedModels]);
 
   // Parse search query into structured query (regex, positive tokens, negative tokens)
   const parsedQuery = useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
 
-  // Filter combos by search query (and hide combos when kindFilter is set — combos are LLM-only by design)
   const filteredCombos = useMemo(() => {
     if (kindFilter || capFilter) return [];
     if (parsedQuery.isEmpty) return combos;
     return combos.filter(c => matchesSearch(c.name, parsedQuery));
   }, [combos, parsedQuery, kindFilter, capFilter]);
 
-  // Sort models alphabetically, with added models floated to top
   const sortModels = (models) => {
     const added = models.filter(m => addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
     const rest = models.filter(m => !addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
     return [...added, ...rest];
   };
 
-  // Filter models by search query (supports substring, regex, and negation !token / -token)
   const filteredGroups = useMemo(() => {
     const filtered = {};
     Object.entries(groupedModels).forEach(([providerId, group]) => {
       let models = group.models;
-      // Filter by input-modality capability (vision/pdf/audioInput/videoInput).
       if (capFilter) {
         models = models.filter((m) => getCaps(m.value)?.[capFilter] === true);
         if (models.length === 0) return;
@@ -773,7 +694,7 @@ export default function ModelSelectModal({
                     title={isWildcardAdded ? `Click to remove wildcard ${wildcardValue}` : `Click to allow all models from ${group.name} (${wildcardValue})`}
                     className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer border ${
                       isWildcardAdded
-                        ? "bg-primary text-white border-primary shadow-2xs hover:bg-primary-hover"
+                        ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-[1.5px_1.5px_0px_var(--color-border)]"
                         : "text-primary border-transparent hover:bg-primary/10 hover:border-primary/20"
                     }`}
                   >
@@ -781,7 +702,7 @@ export default function ModelSelectModal({
                       <span className="material-symbols-outlined leading-none text-[12px]">check</span>
                     )}
                     <span>{group.name}</span>
-                    <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${isWildcardAdded ? "bg-white/20 text-white" : "text-text-muted bg-sidebar border border-border/50"}`}>
+                    <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${isWildcardAdded ? "bg-white/20 text-white" : "text-text-muted bg-surface-2 border border-border"}`}>
                       {wildcardValue}
                     </span>
                   </button>
@@ -799,11 +720,16 @@ export default function ModelSelectModal({
               {group.models.map((model) => {
                 const isSelected = selectedModel === model.value;
                 const isPlaceholder = model.isPlaceholder;
+                const isDeprecated = !!model.deprecated;
                 return (
                   <button
                     key={model.value}
                     onClick={() => handleSelect(model)}
-                    title={isPlaceholder ? "Select to pre-fill, then edit model ID in the input" : undefined}
+                    title={
+                      isPlaceholder ? "Select to pre-fill, then edit model ID in the input"
+                      : isDeprecated ? `Retiring ${model.deprecationDate || "soon"} — migrate to a newer model`
+                      : undefined
+                    }
                     className={`
                       px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer
                       ${isPlaceholder
@@ -812,7 +738,9 @@ export default function ModelSelectModal({
                           ? "bg-primary text-white border-primary"
                           : addedModelValues.includes(model.value)
                             ? "bg-primary border-primary text-white hover:bg-primary-hover"
-                            : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
+                            : isDeprecated
+                              ? "bg-surface border-amber-400/60 text-text-muted hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                              : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
                       }
                     `}
                   >
@@ -823,17 +751,26 @@ export default function ModelSelectModal({
                       {isPlaceholder ? (
                         <>
                           <span className="material-symbols-outlined text-[11px]">edit</span>
-                          {model.name}
+                          <span className="font-mono">{model.name}</span>
                         </>
                       ) : model.isCustom ? (
                         <>
-                          {model.name}
-                          <span className="text-[9px] opacity-60 font-normal">custom</span>
+                          <span className="font-mono">{model.name}</span>
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30">
+                            custom
+                          </span>
                           <CapacityBadges caps={getCaps(model.value)} />
+                        </>
+                      ) : isDeprecated ? (
+                        <>
+                          <span className="font-mono">{model.name}</span>
+                          <span className="text-[9px] px-1 rounded bg-amber-400/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-400/40">
+                            retiring
+                          </span>
                         </>
                       ) : (
                         <>
-                          {model.name}
+                          <span className="font-mono">{model.name}</span>
                           <CapacityBadges caps={getCaps(model.value)} />
                         </>
                       )}
@@ -842,18 +779,18 @@ export default function ModelSelectModal({
                 );
               })}
             </div>
-          </div>
-        );
-      })}
+            </div>
+          );
+        })}
 
-      {Object.keys(filteredGroups).length === 0 && filteredCombos.length === 0 && (
-        <div className="text-center py-4 text-text-muted">
-          <span className="material-symbols-outlined text-2xl mb-1 block">
-            search_off
-          </span>
-          <p className="text-xs">No models found</p>
-        </div>
-      )}
+        {Object.keys(filteredGroups).length === 0 && filteredCombos.length === 0 && (
+          <div className="text-center py-4 text-text-muted">
+            <span className="material-symbols-outlined text-2xl mb-1 block">
+              search_off
+            </span>
+            <p className="text-xs">No models found</p>
+          </div>
+        )}
       </div>
     </Modal>
   );

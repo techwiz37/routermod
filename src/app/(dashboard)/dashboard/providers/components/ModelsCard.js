@@ -8,8 +8,8 @@ import { Card, Button, Modal } from "@/shared/components";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { translate, translateServerMessage } from "@/i18n/runtime";
 
-// ── ModelRow ───────────────────────────────────────────────────
 export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
   const borderColor = testStatus === "ok" ? "border-green-500/40" : testStatus === "error" ? "border-red-500/40" : "border-border";
   const iconColor = testStatus === "ok" ? "#22c55e" : testStatus === "error" ? "#ef4444" : undefined;
@@ -32,7 +32,7 @@ export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCusto
               </span>
             </button>
             <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-              {isTesting ? "Testing..." : "Test"}
+               {isTesting ? translate("Testing...") : translate("Test")}
             </span>
           </div>
         )}
@@ -41,12 +41,12 @@ export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCusto
             <span className="material-symbols-outlined text-sm">{copied === `model-${model.id}` ? "check" : "content_copy"}</span>
           </button>
           <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-            {copied === `model-${model.id}` ? "Copied!" : "Copy"}
+             {copied === `model-${model.id}` ? translate("Copied!") : translate("Copy")}
           </span>
         </div>
         {isFree && <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">FREE</span>}
         {isCustom && (
-          <button onClick={onDeleteAlias} className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" title="Remove custom model">
+           <button onClick={onDeleteAlias} className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" title={translate("Remove custom model")}>
             <span className="material-symbols-outlined text-sm">close</span>
           </button>
         )}
@@ -68,7 +68,6 @@ ModelRow.propTypes = {
   isTesting: PropTypes.bool,
 };
 
-// ── AddCustomModelModal ────────────────────────────────────────
 function AddCustomModelModal({ isOpen, onSave, onClose }) {
   const [modelId, setModelId] = useState("");
 
@@ -79,22 +78,22 @@ function AddCustomModelModal({ isOpen, onSave, onClose }) {
   };
 
   return (
-    <Modal isOpen={isOpen} title="Add Custom Model" onClose={onClose}>
+     <Modal isOpen={isOpen} title={translate("Add Custom Model")} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div>
-          <label className="text-xs text-text-muted mb-1 block">Model ID</label>
+           <label className="text-xs text-text-muted mb-1 block">{translate("Model ID")}</label>
           <input
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
             value={modelId}
             onChange={(e) => setModelId(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            placeholder="e.g. tts-1-hd"
+             placeholder={translate("e.g. tts-1-hd")}
             autoFocus
           />
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleSave} fullWidth disabled={!modelId.trim()}>Add</Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
+           <Button onClick={handleSave} fullWidth disabled={!modelId.trim()}>{translate("Add")}</Button>
+           <Button onClick={onClose} variant="ghost" fullWidth>{translate("Cancel")}</Button>
         </div>
       </div>
     </Modal>
@@ -107,9 +106,6 @@ AddCustomModelModal.propTypes = {
   onClose: PropTypes.func.isRequired,
 };
 
-// ── ModelsCard ─────────────────────────────────────────────────
-// Self-contained card: shows models for a provider, filtered by optional `kindFilter`.
-// kindFilter: if provided, only shows models with matching type/kinds field.
 export default function ModelsCard({ providerId, kindFilter, providerAliasOverride }) {
   const { copied, copy } = useCopyToClipboard();
   const [modelAliases, setModelAliases] = useState({});
@@ -184,22 +180,29 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
   const handleTestModel = async (modelId) => {
     if (testingModelId) return;
     setTestingModelId(modelId);
+    setTestError("");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     try {
       const res = await fetch("/api/models/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: `${providerAlias}/${modelId}`, kind: kindFilter }),
+        signal: controller.signal,
       });
       const data = await res.json();
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
-      setTestError(data.ok ? "" : (data.error || "Model not reachable"));
-    } catch {
+      setTestError(data.ok ? "" : (translateServerMessage(data.error) || translate("Model not reachable")));
+    } catch (err) {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
-      setTestError("Network error");
-    } finally { setTestingModelId(null); }
+      const timedOut = err?.name === "AbortError" || err?.name === "TimeoutError";
+      setTestError(timedOut ? translate("No response within 30 seconds") : translate("Network error"));
+    } finally {
+      clearTimeout(timeoutId);
+      setTestingModelId(null);
+    }
   };
 
-  // Built-in models — filter by kindFilter if provided
   const allBuiltIn = getModelsByProviderId(providerId);
   const builtInModels = kindFilter
     ? allBuiltIn.filter((m) => {
@@ -208,7 +211,6 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
       })
     : allBuiltIn;
 
-  // Custom models for this provider + kind, dedupe vs built-in
   const myCustomModels = customModels.filter(
     (m) => m.providerAlias === providerAlias
       && getModelKind(m, "llm") === effectiveType

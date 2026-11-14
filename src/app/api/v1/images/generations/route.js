@@ -1,4 +1,5 @@
 import { handleImageGeneration } from "@/sse/handlers/imageGeneration.js";
+import { trackKeyInFlightResponse } from "@/sse/services/keyInFlight.js";
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -10,7 +11,6 @@ export async function OPTIONS() {
   });
 }
 
-/** POST /v1/images/generations - OpenAI-compatible image generation endpoint */
 export async function POST(request) {
-  return await handleImageGeneration(request);
+  return trackKeyInFlightResponse(request, await handleImageGeneration(request));
 }

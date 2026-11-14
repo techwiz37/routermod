@@ -15,7 +15,6 @@ const isValidModel = (model) => {
   return typeof model === "string" && model.trim().length > 0 && model.length <= 256 && !/[\r\n"]/.test(model);
 };
 
-// GET - List all custom profiles from ~/.codex/*.config.toml
 export async function GET() {
   try {
     const codexDir = getCodexDir();
@@ -56,7 +55,6 @@ export async function GET() {
   }
 }
 
-// POST - Create or update a profile ~/.codex/<name>.config.toml
 export async function POST(request) {
   try {
     const { name, model } = await request.json();
@@ -95,7 +93,6 @@ export async function POST(request) {
   }
 }
 
-// DELETE - Remove a profile ~/.codex/<name>.config.toml
 export async function DELETE(request) {
   try {
     const { name } = await request.json();

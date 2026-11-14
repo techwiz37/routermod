@@ -37,6 +37,12 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Local build/dev logs and debug screenshots (root only)
+/*.log
+/*.err
+/*.png
+/tmp_*
+
 # vercel
 .vercel
 
@@ -98,7 +104,17 @@ graphify-out/*
 .oauth-session.json
 .dev-server.log
 .dev-server-err.log
+dev-out.log
+dev-err.log
 .start-dev.ps1
 start-dev-silent.cjs
 debug.log
-.scratch/
+
+# Local env secrets
+.env.local
+.env.*.local
+
+.agent-media/
+# Local sensitive data (credentials in plain text)
+antigravity-accounts.txt
+free-proxy-list.txt

@@ -7,28 +7,19 @@ import {
   resolveZedOrganizationId,
 } from "open-sse/shared/zedAuth.js";
 
-// Zed — RSA keypair native-app flow (NOT OAuth). prepareConfig generates a fresh
-// keypair; buildAuthUrl returns the native_app_signin URL; exchangeToken decrypts
-// the RSA-encrypted access token from the local callback.
 const zed = {
   config: ZED_HOSTED_CONFIG,
   flowType: "authorization_code",
   callbackPath: "/",
   prepareConfig: async (config, meta) => {
-    // native_app_port is the local callback port (passed via meta from start-proxy).
     const nativeAppPort = Number(meta?.nativeAppPort) || ZED_HOSTED_CONFIG.defaultNativeAppPort;
     const auth = createZedNativeAuthData(config, { nativeAppPort });
     return { ...config, ...auth };
   },
   buildAuthUrl: (config, redirectUri, state) => config.authUrl,
   exchangeToken: async (config, code, redirectUri, codeVerifier, state, meta) => {
-    // code = raw callback URL/query; codeVerifier = encoded private key verifier.
     const { userId, encryptedAccessToken } = parseZedCallbackPayload(code);
     const accessToken = decryptZedAccessToken(encryptedAccessToken, codeVerifier);
-    // Prefer the system_id registered for this login attempt (threaded via
-    // meta from register-session); fall back to the prepared config. Never
-    // mint a fresh one here — exchangeTokens re-runs prepareConfig, which
-    // would otherwise store a system_id unrelated to the zed.dev login.
     return { accessToken, userId, systemId: meta?.systemId || config.systemId };
   },
   postExchange: async (tokens) => {

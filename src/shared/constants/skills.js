@@ -1,5 +1,3 @@
-// Agent Skills metadata — single source of truth for /dashboard/skills page.
-// Each skill = 1 raw GitHub URL the user copies and pastes to any AI agent.
 
 const REPO = "decolua/9router";
 const BRANCH = "master";
@@ -16,6 +14,8 @@ export const SKILLS = [
     description: "Setup + index of all capabilities. Start here — covers base URL, auth, model discovery, and links to every capability skill.",
     endpoint: null,
     icon: "hub",
+    category: "Getting started",
+    usage: "Use this first to understand authentication, base URLs, and available capabilities.",
     isEntry: true,
   },
   {
@@ -24,6 +24,8 @@ export const SKILLS = [
     description: "Chat / code-gen via OpenAI or Anthropic format with streaming.",
     endpoint: "/v1/chat/completions",
     icon: "chat",
+    category: "Text & code",
+    usage: "Use for conversations, coding tasks, and streaming responses.",
   },
   {
     id: "9router-image",
@@ -31,6 +33,8 @@ export const SKILLS = [
     description: "Text-to-image via DALL-E, Imagen, FLUX, MiniMax, SDWebUI…",
     endpoint: "/v1/images/generations",
     icon: "image",
+    category: "Media",
+    usage: "Use when an AI client needs to create images from a text prompt.",
   },
   {
     id: "9router-tts",
@@ -38,6 +42,8 @@ export const SKILLS = [
     description: "OpenAI / ElevenLabs / Edge / Google / Deepgram voices.",
     endpoint: "/v1/audio/speech",
     icon: "record_voice_over",
+    category: "Media",
+    usage: "Use to convert text into spoken audio with a selected voice.",
   },
   {
     id: "9router-stt",
@@ -45,6 +51,8 @@ export const SKILLS = [
     description: "Transcribe audio via OpenAI Whisper, Groq, Gemini, Deepgram, AssemblyAI…",
     endpoint: "/v1/audio/transcriptions",
     icon: "mic",
+    category: "Media",
+    usage: "Use to turn uploaded audio into text or subtitles.",
   },
   {
     id: "9router-embeddings",
@@ -52,6 +60,8 @@ export const SKILLS = [
     description: "Vectors for RAG / semantic search via OpenAI, Gemini, Mistral…",
     endpoint: "/v1/embeddings",
     icon: "scatter_plot",
+    category: "Search & RAG",
+    usage: "Use to create vectors for semantic search and retrieval-augmented generation.",
   },
   {
     id: "9router-web-search",
@@ -59,6 +69,8 @@ export const SKILLS = [
     description: "Web and X search via Tavily / Exa / Brave / Serper / SearXNG / Google PSE / You.com / Xquik.",
     endpoint: "/v1/search",
     icon: "search",
+    category: "Web",
+    usage: "Use when an agent needs current web or X search results.",
   },
   {
     id: "9router-web-fetch",
@@ -66,6 +78,8 @@ export const SKILLS = [
     description: "URL → markdown / text / HTML via Firecrawl, Jina, Tavily, Exa.",
     endpoint: "/v1/web/fetch",
     icon: "language",
+    category: "Web",
+    usage: "Use to fetch a URL and return clean markdown, text, or HTML.",
   },
 ];
 

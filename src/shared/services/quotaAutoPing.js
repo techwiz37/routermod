@@ -1,4 +1,3 @@
-// Quota auto-ping scheduler: warms 5h windows by sending tiny opt-in requests right after reset.
 import "open-sse/index.js";
 
 import { getSettings, getProviderConnections, updateProviderConnection } from "@/lib/localDb";
@@ -8,7 +7,7 @@ import { getExecutor } from "open-sse/executors/index.js";
 import { CLAUDE_CLI_SPOOF_HEADERS } from "open-sse/providers/shared.js";
 import { proxyAwareFetch } from "open-sse/utils/proxyFetch.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
-import { refreshAndUpdateCredentials } from "@/app/api/usage/[connectionId]/route.js";
+import { refreshAndUpdateCredentials } from "@/shared/services/refreshCredentials.js";
 import { QUOTA_AUTOPING_CONFIG } from "@/shared/constants/config";
 import { getDuePingSlot, normalizePingSchedule } from "@/shared/services/quotaPingSchedule";
 
@@ -26,7 +25,6 @@ const providerHandlers = {
   },
 };
 
-// Survive Next.js hot reload and keep one scheduler per server process.
 const g = (global.__quotaAutoPing ??= {
   interval: null,
   running: false,
@@ -181,7 +179,6 @@ async function sendCodexPing(connection, providerConfig, proxyOptions, deps) {
     return false;
   }
 
-  // Codex only starts the 5h window after the streaming response completes.
   await drainResponseBody(response);
   return true;
 }
@@ -199,7 +196,6 @@ async function pingConnection(conn, provider, providerConfig, handler, deps, sta
   const cachedReset = state.resetCache[key];
   if (!schedule && !providerConfig.pingWhenResetAtSlides && cachedReset && Date.now() < new Date(cachedReset).getTime() - C.refreshAheadMs) return;
 
-  // Avoid hammering provider auth/quota endpoints if a ping failed recently.
   if (shouldSkipAfterFailure(state, key)) return;
 
   const proxyCfg = await deps.resolveConnectionProxyConfig(conn.providerSpecificData);

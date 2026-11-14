@@ -2,9 +2,11 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { RequestLogger, CardSkeleton, SegmentedControl } from "@/shared/components";
+import { RequestLogger, CardSkeleton } from "@/shared/components";
+import AntaresSegmented from "@/shared/components/AntaresSegmented";
 import UsageStats from "@/shared/components/UsageStats";
 import RequestDetailsTab from "./components/RequestDetailsTab";
+import LiveServerTab from "./components/LiveServerTab";
 
 const PERIODS = [
   { value: "today", label: "Today" },
@@ -30,7 +32,7 @@ function UsageContent() {
   const [period, setPeriod] = useState("today");
 
   const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl && ["overview", "logs", "details"].includes(tabFromUrl)
+  const activeTab = tabFromUrl && ["overview", "details", "live", "logs"].includes(tabFromUrl)
     ? tabFromUrl
     : "overview";
 
@@ -42,20 +44,21 @@ function UsageContent() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
+    <div className="an-scope flex min-w-0 flex-col gap-5">
       {/* Tabs + period selector on same row */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <SegmentedControl
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <AntaresSegmented
           options={[
-            { value: "overview", label: "Overview" },
-            { value: "details", label: "Details" },
+            { value: "overview", label: "Ringkasan" },
+            { value: "details", label: "Detail Permintaan" },
+            { value: "live", label: "Live Server" },
           ]}
           value={activeTab}
           onChange={handleTabChange}
           className="w-full sm:w-auto"
         />
         {activeTab === "overview" && (
-          <SegmentedControl
+          <AntaresSegmented
             options={PERIODS}
             value={period}
             onChange={setPeriod}
@@ -70,8 +73,9 @@ function UsageContent() {
           <UsageStats period={period} setPeriod={setPeriod} hidePeriodSelector />
         </Suspense>
       )}
-      {activeTab === "logs" && <RequestLogger />}
       {activeTab === "details" && <RequestDetailsTab />}
+      {activeTab === "live" && <LiveServerTab />}
+      {activeTab === "logs" && <RequestLogger />}
     </div>
   );
 }

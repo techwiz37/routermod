@@ -6,6 +6,10 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
+// A model test must fail fast so users can try another model without waiting.
+// If there is no response within 30 seconds the model is declared unavailable.
+const PROBE_TIMEOUT_MS = 30000;
+
 function createSilentWavFile() {
   const sampleRate = 16000;
   const channels = 1;
@@ -43,8 +47,6 @@ async function getInternalHeaders() {
   let apiKey = null;
   try {
     const keys = await getApiKeys();
-    // Prefer an unrestricted key so a dashboard model test is not refused just
-    // because the first key happens to be restricted.
     const activeKeys = keys.filter((k) => k.isActive !== false);
     apiKey = (activeKeys.find((k) => !k.access?.restricted) || activeKeys[0])?.key || null;
   } catch {}
@@ -55,16 +57,19 @@ async function getInternalHeaders() {
   return headers;
 }
 
-export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`) {
+export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`, requestedModel = model) {
   const headers = await getInternalHeaders();
+  // Send the public ID in the probe body so the normal request logger records
+  // the same custom ID shown in the model-test dialog.
+  const probeModel = requestedModel || model;
   const start = Date.now();
 
   if (kind === "embedding") {
     const res = await fetch(`${baseUrl}/api/v1/embeddings`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, input: "test" }),
-      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ model: probeModel, input: "test" }),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -86,8 +91,8 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     const res = await fetch(`${baseUrl}/api/v1/images/generations`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, prompt: "test" }),
-      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ model: probeModel, prompt: "test" }),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -110,13 +115,13 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     const form = new FormData();
     const sampleAudio = createSilentWavFile();
     form.append("file", sampleAudio, "test.wav");
-    form.append("model", model);
+    form.append("model", probeModel);
 
     const res = await fetch(`${baseUrl}/api/v1/audio/transcriptions`, {
       method: "POST",
       headers: Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type")),
       body: form,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -140,13 +145,13 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers,
       body: JSON.stringify({
-        model,
+        model: probeModel,
         state: "Customer: I was charged twice for my order this morning.",
         questions: {
           probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" },
         },
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -169,25 +174,27 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     method: "POST",
     headers,
     body: JSON.stringify({
-      model,
-      // 1024 tokens: reasoning models (ClinePass/kimi-k3, deepseek-v4-pro, etc.) spend
-      // their budget on chain-of-thought before emitting an answer. A tiny probe like
-      // max_tokens:16 starves the answer and yields a false "no choices" failure.
-      // See issue #3010.
+      model: probeModel,
       max_tokens: 1024,
       stream: false,
       messages: [{ role: "user", content: "hi" }],
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
   });
   const latencyMs = Date.now() - start;
 
-  const rawText = await res.text().catch(() => "");
+  let rawText = "";
+  try {
+    rawText = await res.text();
+  } catch (e) {
+    if (e?.name === "TimeoutError" || e?.name === "AbortError") {
+      return { ok: false, latencyMs, status: 0, error: `No response within ${Math.round(PROBE_TIMEOUT_MS / 1000)} seconds` };
+    }
+    return { ok: false, latencyMs, status: 0, error: `Probe aborted: ${e?.message || String(e)}` };
+  }
   let parsed = null;
   try { parsed = rawText ? JSON.parse(rawText) : null; } catch {}
 
-  // Unwrap before the choices checks below. No-op for providers that do not
-  // opt in via transport.quirks.clineEnvelope.
   const providerId = resolveProviderId(String(model).split("/")[0]);
   parsed = unwrapClineEnvelope(parsed, providerId);
 
@@ -223,9 +230,6 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
 
   const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
 
-  // Soft-pass (issue #3010): a reasoning model may burn its whole budget on
-  // chain-of-thought and return finish_reason:"length" with empty content but
-  // non-empty reasoning/thinking. That's a successful connection, not a failure.
   const firstChoice = parsed?.choices?.[0] || {};
   const hasReasoning =
     firstChoice.message?.reasoning ||

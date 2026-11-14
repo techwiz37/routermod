@@ -183,9 +183,10 @@ export function formatSSE(data, sourceFormat) {
 // practice because detectFormatByEndpoint never resolves to OLLAMA.
 export function buildStreamErrorBytes(statusCode, message, clientFormat) {
   const { error } = buildErrorBody(statusCode, message);
+  const claudeError = statusCode >= 500 ? { ...error, type: "overloaded_error" } : error;
 
   const sse = clientFormat === FORMATS.CLAUDE
-    ? formatSSE({ type: "error", error }, FORMATS.CLAUDE)
+    ? formatSSE({ type: "error", error: claudeError }, FORMATS.CLAUDE)
     : formatSSE({ error }, clientFormat) + SSE_DONE;
 
   return sharedEncoder.encode(sse);

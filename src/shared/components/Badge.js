@@ -3,18 +3,18 @@
 import { cn } from "@/shared/utils/cn";
 
 const variants = {
-  default: "bg-surface-2 text-text-muted",
-  primary: "bg-brand-500/10 text-brand-600 dark:text-brand-300",
-  success: "bg-green-500/10 text-green-600 dark:text-green-400",
-  warning: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
-  error: "bg-red-500/10 text-red-600 dark:text-red-400",
-  info: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  default: "bg-surface-2 text-text-muted border-black",
+  primary: "bg-brand-500/15 text-brand-700 dark:text-brand-300 border-brand-500",
+  success: "bg-green-500/15 text-green-700 dark:text-green-300 border-green-600",
+  warning: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-600",
+  error: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-600",
+  info: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-600",
 };
 
 const sizes = {
-  sm: "px-2 py-0.5 text-[10px]",
-  md: "px-2.5 py-1 text-xs",
-  lg: "px-3 py-1.5 text-sm",
+  sm: "px-1.5 py-0.5 text-[10px]",
+  md: "px-2 py-0.5 text-xs",
+  lg: "px-2.5 py-1 text-sm",
 };
 
 export default function Badge({
@@ -28,7 +28,7 @@ export default function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full font-semibold",
+        "inline-flex items-center gap-1.5 rounded-sm font-bold uppercase tracking-wider border-2 border-black shadow-[1.5px_1.5px_0px_#000000]",
         variants[variant],
         sizes[size],
         className

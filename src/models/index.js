@@ -1,4 +1,3 @@
-// Database Models - Export all from localDb
 export {
   getProviderConnections,
   getProviderConnectionById,
@@ -25,6 +24,9 @@ export {
   getModelAliases,
   setModelAlias,
   deleteModelAlias,
+  getModelNames,
+  setModelName,
+  deleteModelName,
   getCustomModels,
   addCustomModel,
   deleteCustomModel,

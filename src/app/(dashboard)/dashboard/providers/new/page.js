@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, Button, Input, Select, Toggle } from "@/shared/components";
 import { AI_PROVIDERS, AUTH_METHODS } from "@/shared/constants/config";
+import { translate } from "@/i18n/runtime";
 
 const providerOptions = Object.values(AI_PROVIDERS).map((p) => ({
   value: p.id,
@@ -81,11 +82,11 @@ export default function NewProviderPage() {
           className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
         >
           <span className="material-symbols-outlined text-lg">arrow_back</span>
-          Back to Providers
+          {translate("Back to Providers")}
         </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">Add New Provider</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{translate("Add New Provider")}</h1>
         <p className="text-text-muted mt-2">
-          Configure a new AI provider to use with your applications.
+          {translate("Configure a new AI provider to use with your applications.")}
         </p>
       </div>
 
@@ -94,11 +95,11 @@ export default function NewProviderPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           {/* Provider Selection */}
           <Select
-            label="Provider"
+            label={translate("Provider")}
             options={providerOptions}
             value={formData.provider}
             onChange={(e) => handleChange("provider", e.target.value)}
-            placeholder="Select a provider"
+            placeholder={translate("Select a provider")}
             error={errors.provider}
             required
           />
@@ -119,7 +120,7 @@ export default function NewProviderPage() {
               <div>
                 <p className="font-medium">{selectedProvider.name}</p>
                 <p className="text-sm text-text-muted">
-                  Selected provider
+                  {translate("Selected provider")}
                 </p>
               </div>
             </Card.Section>
@@ -128,7 +129,7 @@ export default function NewProviderPage() {
           {/* Auth Method */}
           <div className="flex flex-col gap-3">
             <label className="text-sm font-medium">
-              Authentication Method <span className="text-red-500">*</span>
+              {translate("Authentication Method")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-3">
               {authMethodOptions.map((method) => (
@@ -145,7 +146,7 @@ export default function NewProviderPage() {
                   <span className="material-symbols-outlined">
                     {method.value === "api_key" ? "key" : "lock"}
                   </span>
-                  <span className="font-medium">{method.label}</span>
+                  <span className="font-medium">{translate(method.label)}</span>
                 </button>
               ))}
             </div>
@@ -154,13 +155,13 @@ export default function NewProviderPage() {
           {/* API Key Input */}
           {formData.authMethod === "api_key" && (
             <Input
-              label="API Key"
+              label={translate("API Key")}
               type="password"
-              placeholder="Enter your API key"
+              placeholder={translate("Enter your API key")}
               value={formData.apiKey}
               onChange={(e) => handleChange("apiKey", e.target.value)}
               error={errors.apiKey}
-              hint="Your API key will be encrypted and stored securely."
+              hint={translate("Your API key will be encrypted and stored securely.")}
               required
             />
           )}
@@ -169,29 +170,29 @@ export default function NewProviderPage() {
           {formData.authMethod === "oauth2" && (
             <Card.Section>
               <p className="text-sm text-text-muted mb-4">
-                Connect your account using OAuth2 authentication.
+                {translate("Connect your account using OAuth2 authentication.")}
               </p>
               <Button type="button" variant="secondary" icon="link">
-                Connect with OAuth2
+                {translate("Connect with OAuth2")}
               </Button>
             </Card.Section>
           )}
 
           {/* Display Name */}
           <Input
-            label="Display Name"
-            placeholder="e.g., Production API, Dev Environment"
+            label={translate("Display Name")}
+            placeholder={translate("e.g., Production API, Dev Environment")}
             value={formData.displayName}
             onChange={(e) => handleChange("displayName", e.target.value)}
-            hint="Optional. A friendly name to identify this configuration."
+            hint={translate("Optional. A friendly name to identify this configuration.")}
           />
 
           {/* Active Toggle */}
           <Toggle
             checked={formData.isActive}
             onChange={(checked) => handleChange("isActive", checked)}
-            label="Active"
-            description="Enable this provider for use in your applications"
+            label={translate("Active")}
+            description={translate("Enable this provider for use in your applications")}
           />
 
           {/* Error Message */}
@@ -205,11 +206,11 @@ export default function NewProviderPage() {
           <div className="flex gap-3 pt-4 border-t border-border">
             <Link href="/dashboard/providers" className="flex-1">
               <Button type="button" variant="ghost" fullWidth>
-                Cancel
+                {translate("Cancel")}
               </Button>
             </Link>
             <Button type="submit" loading={loading} fullWidth className="flex-1">
-              Create Provider
+              {translate("Create Provider")}
             </Button>
           </div>
         </form>

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 import { isLocalRequest } from "@/dashboardGuard";
+import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
 
-// Fetch with timeout wrapper
 const fetchWithTimeout = (url, options, timeout = 10000) => {
   return Promise.race([
     fetch(url, options),
@@ -12,7 +12,6 @@ const fetchWithTimeout = (url, options, timeout = 10000) => {
   ]);
 };
 
-// Validate URL format
 const isValidUrl = (url) => {
   try {
     new URL(url);
@@ -22,64 +21,58 @@ const isValidUrl = (url) => {
   }
 };
 
-// Parse error details for user-friendly messages
-const getErrorMessage = (error) => {
-  if (error.cause?.code === "ECONNREFUSED") return "Connection refused - provider node offline or unreachable";
-  if (error.cause?.code === "ENOTFOUND") return "DNS lookup failed - invalid domain or network issue";
-  if (error.cause?.code === "ETIMEDOUT") return "Connection timeout - provider node too slow";
-  if (error.message.includes("timeout")) return "Request timeout (>10s) - provider node not responding";
-  if (error.cause?.code === "CERT_HAS_EXPIRED") return "SSL certificate expired";
-  if (error.cause?.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE") return "SSL certificate verification failed";
-  if (error.cause?.code) return `Network error: ${error.cause.code}`;
-  return "Network connection failed - check URL and network connectivity";
+const getErrorMessage = (error, locale) => {
+  if (error.cause?.code === "ECONNREFUSED") return localizedProviderMessage(locale, "connectionRefused");
+  if (error.cause?.code === "ENOTFOUND") return localizedProviderMessage(locale, "dnsLookupFailed");
+  if (error.cause?.code === "ETIMEDOUT") return localizedProviderMessage(locale, "connectionTimeout");
+  if (error.message.includes("timeout")) return localizedProviderMessage(locale, "requestTimeout");
+  if (error.cause?.code === "CERT_HAS_EXPIRED") return localizedProviderMessage(locale, "certExpired");
+  if (error.cause?.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE") return localizedProviderMessage(locale, "certVerifyFailed");
+  if (error.cause?.code) return localizedProviderMessage(locale, "networkError");
+  return localizedProviderMessage(locale, "networkError");
 };
 
-// Get status-specific error message for /models endpoint
-const getModelsErrorMessage = (status) => {
-  if (status === 401 || status === 403) return "API key unauthorized";
-  if (status === 404) return "/models endpoint not found - try chat validation with model ID";
-  if (status >= 500) return "Server error - try again later";
-  return `Unexpected response (${status})`;
+const getModelsErrorMessage = (status, locale) => {
+  if (status === 401 || status === 403) return localizedProviderMessage(locale, "unauthorized");
+  if (status === 404) return localizedProviderMessage(locale, "modelsEndpointNotFound");
+  if (status >= 500) return localizedProviderMessage(locale, "serverError");
+  return localizedProviderMessage(locale, "unexpectedResponse").replace("{status}", String(status));
 };
 
-// Get status-specific error message for /chat/completions endpoint
-const getChatErrorMessage = (status) => {
-  if (status === 401 || status === 403) return "API key unauthorized";
-  if (status === 400) return "Invalid model or bad request";
-  if (status === 404) return "Chat endpoint not found";
-  if (status >= 500) return "Server error - try again later";
-  return `Chat request failed (${status})`;
+const getChatErrorMessage = (status, locale) => {
+  if (status === 401 || status === 403) return localizedProviderMessage(locale, "unauthorized");
+  if (status === 400) return localizedProviderMessage(locale, "invalidModelOrBadRequest");
+  if (status === 404) return localizedProviderMessage(locale, "chatEndpointNotFound");
+  if (status >= 500) return localizedProviderMessage(locale, "serverError");
+  return localizedProviderMessage(locale, "chatRequestFailed").replace("{status}", String(status));
 };
 
-// POST /api/provider-nodes/validate - Validate API key against base URL
 export async function POST(request) {
+  const locale = getRequestLocale(request);
   try {
     const body = await request.json();
     const { baseUrl, apiKey, type, modelId } = body;
 
     if (!baseUrl || !apiKey) {
-      return NextResponse.json({ error: "Base URL and API key required" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "baseUrlApiKeyRequired") }, { status: 400 });
     }
 
-    // Validate URL format
     if (!isValidUrl(baseUrl)) {
-      return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "invalidUrl") }, { status: 400 });
     }
 
-    // SSRF guard for remote callers; local host keeps self-hosted nodes (e.g. ollama-local)
     if (!isLocalRequest(request)) {
       try {
         assertPublicUrl(baseUrl);
       } catch {
-        return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
+        return NextResponse.json({ error: localizedProviderMessage(locale, "urlNotAllowed") }, { status: 400 });
       }
     }
 
-    // Custom Embedding Validation - test POST /embeddings directly
     if (type === "custom-embedding") {
       const normalizedBase = baseUrl.trim().replace(/\/$/, "");
       if (!modelId?.trim()) {
-        return NextResponse.json({ valid: false, error: "Model ID required for embedding validation" });
+        return NextResponse.json({ valid: false, error: localizedProviderMessage(locale, "modelIdRequired") });
       }
       const embedRes = await fetchWithTimeout(`${normalizedBase}/embeddings`, {
         method: "POST",
@@ -95,17 +88,16 @@ export async function POST(request) {
         return NextResponse.json({ valid: true, method: "embeddings", dimensions: dims });
       }
       if (embedRes.status === 401 || embedRes.status === 403) {
-        return NextResponse.json({ valid: false, error: "API key unauthorized" });
+        return NextResponse.json({ valid: false, error: localizedProviderMessage(locale, "unauthorized") });
       }
       const errBody = await embedRes.text().catch(() => "");
       return NextResponse.json({
         valid: false,
-        error: `Embeddings request failed (${embedRes.status})${errBody ? `: ${errBody.slice(0, 200)}` : ""}`,
+        error: `${localizedProviderMessage(locale, "embeddingsRequestFailed").replace("{status}", String(embedRes.status))}${errBody ? `: ${errBody.slice(0, 200)}` : ""}`,
         method: "embeddings"
       });
     }
 
-    // Anthropic Compatible Validation
     if (type === "anthropic-compatible") {
       let normalizedBase = baseUrl.trim().replace(/\/$/, "");
       if (normalizedBase.endsWith("/messages")) {
@@ -124,12 +116,10 @@ export async function POST(request) {
 
       if (res.ok) return NextResponse.json({ valid: true });
 
-      // Auth errors - no point trying chat fallback
       if (res.status === 401 || res.status === 403) {
-        return NextResponse.json({ valid: false, error: "API key unauthorized" });
+        return NextResponse.json({ valid: false, error: localizedProviderMessage(locale, "unauthorized") });
       }
 
-      // Fallback: try chat/completions if modelId provided
       if (modelId) {
         const chatRes = await fetchWithTimeout(`${normalizedBase}/chat/completions`, {
           method: "POST",
@@ -150,33 +140,33 @@ export async function POST(request) {
         }
         return NextResponse.json({
           valid: false,
-          error: getChatErrorMessage(chatRes.status),
+          error: getChatErrorMessage(chatRes.status, locale),
           method: "chat"
         });
       }
 
-      return NextResponse.json({ valid: false, error: getModelsErrorMessage(res.status) });
+      return NextResponse.json({ valid: false, error: getModelsErrorMessage(res.status, locale) });
     }
 
-    // OpenAI Compatible Validation (Default)
     const modelsUrl = `${baseUrl.replace(/\/$/, "")}/models`;
     const res = await fetchWithTimeout(modelsUrl, {
-      headers: { "Authorization": `Bearer ${apiKey}` },
+      headers: {
+        // Send both commonly used OpenAI-compatible authentication headers.
+        // Some gateways/checkers use x-api-key even when the API itself also
+        // accepts the standard Bearer header.
+        "Authorization": `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+      },
     });
 
     if (res.ok) return NextResponse.json({ valid: true });
 
-    // Auth errors - no point trying chat fallback
-    if (res.status === 401 || res.status === 403) {
-      return NextResponse.json({ valid: false, error: "API key unauthorized" });
-    }
-
-    // Fallback: try chat/completions if modelId provided
     if (modelId) {
       const chatRes = await fetchWithTimeout(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
+          "x-api-key": apiKey,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -190,14 +180,18 @@ export async function POST(request) {
       }
       return NextResponse.json({
         valid: false,
-        error: getChatErrorMessage(chatRes.status),
+        error: getChatErrorMessage(chatRes.status, locale),
         method: "chat"
       });
     }
 
-    return NextResponse.json({ valid: false, error: getModelsErrorMessage(res.status) });
+    if (res.status === 401 || res.status === 403) {
+      return NextResponse.json({ valid: false, error: localizedProviderMessage(locale, "unauthorized") });
+    }
+
+    return NextResponse.json({ valid: false, error: getModelsErrorMessage(res.status, locale) });
   } catch (error) {
-    const errorMessage = getErrorMessage(error);
+    const errorMessage = getErrorMessage(error, locale);
     console.error("Error validating provider node:", {
       message: error.message,
       cause: error.cause,

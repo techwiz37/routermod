@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import PropTypes from "prop-types";
 import { Card, Badge, Button, Modal, Select, Toggle, EditConnectionModal, ConfirmModal } from "@/shared/components";
-import WebLoginButton from "./WebLoginButton";
+import { translate } from "@/i18n/runtime";
+import { useNotificationStore } from "@/store/notificationStore";
 
-// ── CooldownTimer ──────────────────────────────────────────────
 function CooldownTimer({ until }) {
   const [remaining, setRemaining] = useState("");
 
@@ -30,11 +30,11 @@ function CooldownTimer({ until }) {
 
 CooldownTimer.propTypes = { until: PropTypes.string.isRequired };
 
-// ── ConnectionRow ──────────────────────────────────────────────
 function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete }) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [updatingProxy, setUpdatingProxy] = useState(false);
   const [isCooldown, setIsCooldown] = useState(false);
+  const addNotification = useNotificationStore((state) => state.addNotification);
   const proxyDropdownRef = useRef(null);
 
   const proxyPoolMap = new Map((proxyPools || []).map((p) => [p.id, p]));
@@ -100,6 +100,15 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
     finally { setUpdatingProxy(false); setShowProxyDropdown(false); }
   };
 
+  const showConnectionError = () => {
+    addNotification({
+      type: "error",
+      title: translate("Connection error"),
+      message: connection.lastError,
+      duration: 8000,
+    });
+  };
+
   return (
     <div className={`group flex flex-col gap-3 p-2 rounded-lg sm:flex-row sm:items-center sm:justify-between hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${connection.isActive === false ? "opacity-60" : ""}`}>
       <div className="flex w-full min-w-0 flex-1 items-start gap-3 sm:items-center">
@@ -121,7 +130,15 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
             {hasAnyProxy && <Badge variant={proxyBadgeVariant} size="sm">Proxy</Badge>}
             {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}
             {connection.lastError && connection.isActive !== false && (
-              <span className="text-xs text-red-500 truncate max-w-[300px]" title={connection.lastError}>{connection.lastError}</span>
+              <button
+                type="button"
+                onClick={showConnectionError}
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-500/15 hover:text-amber-400"
+                title={translate("Show connection error")}
+                aria-label={translate("Show connection error")}
+              >
+                <span className="text-sm leading-none">⚠️</span>
+              </button>
             )}
             <span className="text-xs text-text-muted">#{connection.priority}</span>
           </div>
@@ -194,7 +211,6 @@ ConnectionRow.propTypes = {
   onDelete: PropTypes.func.isRequired,
 };
 
-// ── AddApiKeyModal ─────────────────────────────────────────────
 function AddApiKeyModal({ isOpen, provider, providerName, proxyPools, onSave, onClose }) {
   const NONE = "__none__";
   const [formData, setFormData] = useState({ name: "", apiKey: "", priority: 1, proxyPoolId: NONE });
@@ -294,9 +310,7 @@ AddApiKeyModal.propTypes = {
   onClose: PropTypes.func.isRequired,
 };
 
-// ── ConnectionsCard ────────────────────────────────────────────
-// Self-contained card: fetches, displays and manages all connections for a provider.
-export default function ConnectionsCard({ providerId, isOAuth, loginProviderId = null }) {
+export default function ConnectionsCard({ providerId, isOAuth }) {
   const [connections, setConnections] = useState([]);
   const [proxyPools, setProxyPools] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -431,12 +445,7 @@ export default function ConnectionsCard({ providerId, isOAuth, loginProviderId =
         {connections.length === 0 ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-text-muted">No connections yet</p>
-            <div className="flex flex-wrap gap-2">
-              {loginProviderId && (
-                <WebLoginButton providerId={loginProviderId} onConnected={fetch_} />
-              )}
-              <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add Connection</Button>
-            </div>
+            <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add Connection</Button>
           </div>
         ) : (
           <>
@@ -458,11 +467,8 @@ export default function ConnectionsCard({ providerId, isOAuth, loginProviderId =
                 />
               ))}
             </div>
-            <div className="mt-4 flex justify-stretch gap-2 sm:justify-start">
+            <div className="mt-4 flex justify-stretch sm:justify-start">
               <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add</Button>
-              {loginProviderId && (
-                <WebLoginButton providerId={loginProviderId} onConnected={fetch_} />
-              )}
             </div>
           </>
         )}
@@ -499,5 +505,4 @@ export default function ConnectionsCard({ providerId, isOAuth, loginProviderId =
 ConnectionsCard.propTypes = {
   providerId: PropTypes.string.isRequired,
   isOAuth: PropTypes.bool,
-  loginProviderId: PropTypes.string,
 };

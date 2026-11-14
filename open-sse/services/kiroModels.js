@@ -22,12 +22,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
 import { refreshKiroToken } from "./tokenRefresh.js";
+import { KIRO_IDE_VERSION, KIRO_UA_OS, KIRO_UA_NODE, resolveDefaultProfileArn } from "../config/kiroConstants.js";
 
 const KIRO_RUNTIME_SDK_VERSION = "1.0.0";
-const KIRO_AGENT_OS = "windows";
-const KIRO_AGENT_OS_VERSION = "10.0.26200";
-const KIRO_NODE_VERSION = "22.21.1";
-const KIRO_VERSION = "0.10.32";
 
 const DEFAULT_REGION = "us-east-1";
 const FETCH_TIMEOUT_MS = 30_000;
@@ -75,11 +72,11 @@ function buildKiroFingerprintHeaders(credentials) {
 
   const userAgent =
     `aws-sdk-js/${KIRO_RUNTIME_SDK_VERSION} ua/2.1 ` +
-    `os/${KIRO_AGENT_OS}#${KIRO_AGENT_OS_VERSION} ` +
-    `lang/js md/nodejs#${KIRO_NODE_VERSION} ` +
+    `os/${KIRO_UA_OS} ` +
+    `lang/js md/nodejs#${KIRO_UA_NODE} ` +
     `api/codewhispererruntime#${KIRO_RUNTIME_SDK_VERSION} m/N,E ` +
-    `KiroIDE-${KIRO_VERSION}-${machineId}`;
-  const amzUserAgent = `aws-sdk-js/${KIRO_RUNTIME_SDK_VERSION} KiroIDE-${KIRO_VERSION}-${machineId}`;
+    `KiroIDE-${KIRO_IDE_VERSION}-${machineId}`;
+  const amzUserAgent = `aws-sdk-js/${KIRO_RUNTIME_SDK_VERSION} KiroIDE-${KIRO_IDE_VERSION}-${machineId}`;
 
   return {
     "User-Agent": userAgent,
@@ -157,7 +154,13 @@ function formatDisplayName(modelName, modelId, rateMultiplier) {
  * from the API response, or throws on network/HTTP error.
  */
 async function fetchKiroCatalogRaw(credentials, signal) {
-  const profileArn = credentials?.providerSpecificData?.profileArn || "";
+  // Same profileArn rule as the Kiro executor: Builder ID / social accounts
+  // without their own profileArn use the shared default profile, otherwise
+  // ListAvailableModels answers 400 "Invalid profileArn".
+  const authMethod = credentials?.providerSpecificData?.authMethod;
+  const accountBound = authMethod === "api_key" || authMethod === "idc" || authMethod === "external_idp";
+  const profileArn = credentials?.providerSpecificData?.profileArn
+    || (accountBound ? "" : resolveDefaultProfileArn(authMethod));
   const region = regionFromProfileArn(profileArn);
   const params = new URLSearchParams();
   params.set("origin", "AI_EDITOR");
@@ -168,6 +171,8 @@ async function fetchKiroCatalogRaw(credentials, signal) {
     ...buildKiroFingerprintHeaders(credentials),
     "Authorization": `Bearer ${credentials?.accessToken || ""}`
   };
+  if (authMethod === "api_key") headers["TokenType"] = "API_KEY";
+  else if (authMethod === "external_idp") headers["TokenType"] = "EXTERNAL_IDP";
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort("timeout"), FETCH_TIMEOUT_MS);

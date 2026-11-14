@@ -239,7 +239,7 @@ function rejectExecRequest(execRequest) {
   return wrapExecClientMessage(id, execId, resultField, rejected);
 }
 
-export function encodeKvClientMessage(kvId, resultField, resultPayload, metadata) {
+function encodeKvClientMessage(kvId, resultField, resultPayload, metadata) {
   const parts = [];
   if (kvId) parts.push(encodeField(1, PROTOBUF_VARINT, kvId));
   parts.push(encodeField(resultField, PROTOBUF_LEN, resultPayload || new Uint8Array()));
@@ -273,6 +273,57 @@ const CURSOR_STREAM_DEBUG = process.env.CURSOR_STREAM_DEBUG === "1";
 const debugLog = (...args) => {
   if (CURSOR_STREAM_DEBUG) console.log(...args);
 };
+
+// Long-session empty-turn recovery: Cursor occasionally answers a long
+// history replay with HTTP 200 and zero deltas (empty turn). One retry on a
+// tail-only frame recovers the session instead of failing the client turn.
+const CURSOR_EMPTY_TURN_MAX_RETRIES = (() => {
+  const value = Number(process.env.CURSOR_EMPTY_TURN_MAX_RETRIES);
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
+})();
+
+const CURSOR_TAIL_ONLY_THRESHOLD = (() => {
+  const value = Number(process.env.CURSOR_TAIL_ONLY_THRESHOLD);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 80;
+})();
+
+const CURSOR_EMPTY_TURN_RETRY_DELAY_MS = (() => {
+  const value = Number(process.env.CURSOR_EMPTY_TURN_RETRY_DELAY_MS);
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 400;
+})();
+
+/** Minimal tail for wedged long sessions — drops bulk history and tool XML. */
+export function tailOnlyCursorMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages || [];
+  const systemMessages = messages.filter(
+    (message) => message?.role === ROLE.SYSTEM && !String(message?.content || "").includes("[9router]"),
+  );
+  const chatMessages = messages.filter((message) => message?.role !== ROLE.SYSTEM);
+  let anchor = chatMessages.length - 1;
+  for (let i = chatMessages.length - 1; i >= 0; i--) {
+    if (chatMessages[i]?.role === ROLE.USER || chatMessages[i]?.role === ROLE.TOOL) {
+      anchor = i;
+      break;
+    }
+  }
+  const tailStart = anchor > 0 && chatMessages[anchor - 1]?.role === ROLE.ASSISTANT ? anchor - 1 : anchor;
+  const tail = chatMessages.slice(Math.max(0, tailStart));
+  const note = {
+    role: ROLE.SYSTEM,
+    content: `[9router] Long session: ${messages.length} messages trimmed to the latest turn. Answer the current request; re-read files if needed.`,
+  };
+  return [...systemMessages, note, ...tail];
+}
+
+/**
+ * Retry an empty AgentService turn only when a long-session replay is the
+ * likely cause: upstream accepts the request, streams HTTP 200, and closes
+ * with zero deltas. A first-message empty turn is a protocol condition, not
+ * a wedged replay, and must surface to the client without retry.
+ */
+function shouldRetryEmptyTurn(messageCount) {
+  return messageCount >= CURSOR_TAIL_ONLY_THRESHOLD;
+}
 
 function isComposerModel(model) {
   const modelId = String(model || "").split("/").pop();
@@ -375,57 +426,6 @@ function createErrorResponse(jsonError) {
     status: isRateLimit ? HTTP_STATUS.RATE_LIMITED : HTTP_STATUS.BAD_REQUEST,
     headers: { "Content-Type": "application/json" }
   });
-}
-
-// Long-session empty-turn recovery: Cursor occasionally answers a long
-// history replay with HTTP 200 and zero deltas (empty turn). One retry on a
-// tail-only frame recovers the session instead of failing the client turn.
-const CURSOR_EMPTY_TURN_MAX_RETRIES = (() => {
-  const value = Number(process.env.CURSOR_EMPTY_TURN_MAX_RETRIES);
-  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
-})();
-
-const CURSOR_TAIL_ONLY_THRESHOLD = (() => {
-  const value = Number(process.env.CURSOR_TAIL_ONLY_THRESHOLD);
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 80;
-})();
-
-const CURSOR_EMPTY_TURN_RETRY_DELAY_MS = (() => {
-  const value = Number(process.env.CURSOR_EMPTY_TURN_RETRY_DELAY_MS);
-  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 400;
-})();
-
-/** Minimal tail for wedged long sessions — drops bulk history and tool XML. */
-export function tailOnlyCursorMessages(messages) {
-  if (!Array.isArray(messages) || messages.length === 0) return messages || [];
-  const systemMessages = messages.filter(
-    (message) => message?.role === ROLE.SYSTEM && !String(message?.content || "").includes("[9router]"),
-  );
-  const chatMessages = messages.filter((message) => message?.role !== ROLE.SYSTEM);
-  let anchor = chatMessages.length - 1;
-  for (let i = chatMessages.length - 1; i >= 0; i--) {
-    if (chatMessages[i]?.role === ROLE.USER || chatMessages[i]?.role === ROLE.TOOL) {
-      anchor = i;
-      break;
-    }
-  }
-  const tailStart = anchor > 0 && chatMessages[anchor - 1]?.role === ROLE.ASSISTANT ? anchor - 1 : anchor;
-  const tail = chatMessages.slice(Math.max(0, tailStart));
-  const note = {
-    role: ROLE.SYSTEM,
-    content: `[9router] Long session: ${messages.length} messages trimmed to the latest turn. Answer the current request; re-read files if needed.`,
-  };
-  return [...systemMessages, note, ...tail];
-}
-
-/**
- * Retry an empty AgentService turn only when a long-session replay is the
- * likely cause: upstream accepts the request, streams HTTP 200, and closes
- * with zero deltas. A first-message empty turn is a protocol condition, not
- * a wedged replay, and must surface to the client without retry.
- */
-function shouldRetryEmptyTurn(messageCount) {
-  return messageCount >= CURSOR_TAIL_ONLY_THRESHOLD;
 }
 
 export class CursorExecutor extends BaseExecutor {
@@ -653,10 +653,7 @@ export class CursorExecutor extends BaseExecutor {
       signal.addEventListener("abort", () => requestController.abort(signal.reason), { once: true });
     }
 
-    // Empty-turn recovery works on the original client history so each retry
-    // re-derives its own frame from a clean base (original vs tail-only).
-    const originalMessages = body.messages || [];
-    let workingMessages = originalMessages;
+    let session;
     const tools = body.tools || [];
     // "Auto (Server Picks)" / "default" is a picker alias, not an AgentService
     // model id — sending it verbatim yields an empty turn. Resolve it to the
@@ -671,18 +668,23 @@ export class CursorExecutor extends BaseExecutor {
       }
     }
 
+    // Empty-turn recovery works on the original client history so each retry
+    // re-derives its own frame from a clean base (original vs tail-only).
+    const originalMessages = body.messages || [];
+    let workingMessages = originalMessages;
+
     const openAgentSession = (frameMessages) => {
-      const session = this.openAgentHttp2Stream(url, headers, requestController.signal);
-      session.write(buildAgentRunFrame(frameMessages, runModel, tools, body.reasoning_effort || body.reasoning?.effort));
-      return session;
+      const openSession = this.openAgentHttp2Stream(url, headers, requestController.signal);
+      openSession.write(buildAgentRunFrame(frameMessages, runModel, tools, body.reasoning_effort || body.reasoning?.effort));
+      return openSession;
     };
 
-    let session;
     try {
       session = openAgentSession(workingMessages);
     } catch (error) {
       throw new Error(`Cursor AgentService request failed: ${error.message}`);
     }
+
     let responseHeaders;
     try {
       responseHeaders = await session.responseHeaders;

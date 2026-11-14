@@ -7,7 +7,7 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
-import { getKeyAccessContext, enforceKeyAccessResolved } from "../services/keyAccess.js";
+import { getKeyAccessContext, enforceKeyAccessResolved, enforceKeyPolicy } from "../services/keyAccess.js";
 import { handleEmbeddingsCore } from "open-sse/handlers/embeddingsCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -24,12 +24,6 @@ function exactEmbeddingUsage(raw) {
   return { prompt_tokens: promptTokens, completion_tokens: 0, total_tokens: totalTokens };
 }
 
-/**
- * Handle embeddings request for the SSE/Next.js server.
- * Follows the same auth + fallback pattern as handleChat.
- *
- * @param {Request} request
- */
 export async function handleEmbeddings(request) {
   let body;
   try {
@@ -44,7 +38,6 @@ export async function handleEmbeddings(request) {
 
   log.request("POST", `${url.pathname} | ${modelStr}`);
 
-  // Log API key (masked)
   const apiKey = extractApiKey(request);
   if (apiKey) {
     log.debug("AUTH", `API Key: ${log.maskKey(apiKey)}`);
@@ -52,7 +45,6 @@ export async function handleEmbeddings(request) {
     log.debug("AUTH", "No API key provided (local mode)");
   }
 
-  // Enforce API key if enabled in settings
   const settings = await getSettings();
   if (settings.requireApiKey) {
     if (!apiKey) {
@@ -65,6 +57,8 @@ export async function handleEmbeddings(request) {
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
   }
+  const policyDenied = await enforceKeyPolicy(request);
+  if (policyDenied) return policyDenied;
 
   if (!modelStr) {
     log.warn("EMBEDDINGS", "Missing model");
@@ -84,7 +78,6 @@ export async function handleEmbeddings(request) {
 
   const { provider, model } = modelInfo;
 
-  // Per-key access control: checked before any credential lookup.
   const keyAccessDenied = await enforceKeyAccessResolved(await getKeyAccessContext(request), modelStr, provider, model);
   if (keyAccessDenied) return keyAccessDenied;
 
@@ -94,7 +87,6 @@ export async function handleEmbeddings(request) {
     log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
   }
 
-  // Credential + fallback loop (mirrors handleChat)
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
@@ -102,7 +94,6 @@ export async function handleEmbeddings(request) {
   while (true) {
     const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
 
-    // All accounts unavailable
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
         const errorMsg = lastError || credentials.lastError || "Unavailable";
@@ -122,6 +113,7 @@ export async function handleEmbeddings(request) {
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    const requestStartTime = Date.now();
     const result = await handleEmbeddingsCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
@@ -150,6 +142,7 @@ export async function handleEmbeddings(request) {
           endpoint: url.pathname,
           tokens: usage,
           status: "success",
+          duration: Date.now() - requestStartTime,
         }).catch(() => {});
       }
       return result.response;

@@ -1,9 +1,6 @@
-// Inline stdio<->SSE bridge for MCP. Spawns one child per plugin on demand,
-// broadcasts JSON-RPC frames over SSE, accepts client messages via HTTP POST.
-
-const { spawn } = require("child_process");
-const crypto = require("crypto");
-const { LOCAL_STDIO_PLUGINS } = require("@/shared/constants/coworkPlugins");
+import { spawn } from "child_process";
+import crypto from "crypto";
+import { LOCAL_STDIO_PLUGINS } from "@/shared/constants/coworkPlugins";
 
 const G_KEY = "__9routerMcpBridges";
 const MAX_TEXT_CHARS = 50000;
@@ -11,7 +8,6 @@ const COLLAPSE_THRESHOLD = 30;
 const COLLAPSE_KEEP_HEAD = 10;
 const COLLAPSE_KEEP_TAIL = 5;
 
-// Drop noise nodes, collapse repeated siblings, hard-truncate. Preserve [ref=eXX].
 function smartFilterText(text) {
   if (typeof text !== "string" || text.length < 2000) return text;
   let out = text;
@@ -25,7 +21,6 @@ function smartFilterText(text) {
   return out;
 }
 
-// Group consecutive lines sharing the same leading indent + role prefix; collapse if >= COLLAPSE_THRESHOLD.
 function collapseRepeated(text) {
   const lines = text.split("\n");
   const out = [];
@@ -80,7 +75,6 @@ function findLastNSiblingStart(lines, end, indent, role, n) {
   return positions.length > n ? positions[positions.length - n] : end;
 }
 
-// Apply filter to JSON-RPC tool/result content text blocks only.
 function filterFrame(line) {
   try {
     const msg = JSON.parse(line);
@@ -101,7 +95,6 @@ const getStore = () => {
   return globalThis[G_KEY];
 };
 
-// Only preset stdio plugins may spawn. No user-defined commands (RCE prevention).
 function findPlugin(name) {
   return LOCAL_STDIO_PLUGINS.find((p) => p.name === name) || null;
 }
@@ -118,7 +111,6 @@ function getOrSpawn(name) {
   entry = { proc, sessions: new Map(), buffer: "" };
   store.set(name, entry);
 
-  // Parse newline-delimited JSON-RPC from child stdout, broadcast to all sessions.
   proc.stdout.on("data", (chunk) => {
     entry.buffer += chunk.toString("utf8");
     let idx;
@@ -153,14 +145,12 @@ function unregisterSession(name, sid) {
   const entry = getStore().get(name);
   if (!entry) return;
   entry.sessions.delete(sid);
-  // No sessions left → kill child to avoid idle orphan process leak.
   if (entry.sessions.size === 0) {
     try { entry.proc.kill(); } catch { /* ignore */ }
     getStore().delete(name);
   }
 }
 
-// Kill all spawned MCP children — called on app shutdown to prevent orphans.
 function killAllBridges() {
   const store = getStore();
   for (const [name, entry] of store) {
@@ -180,4 +170,4 @@ function isRunning(name) {
   return !!(entry?.proc && !entry.proc.killed && entry.proc.exitCode === null);
 }
 
-module.exports = { getOrSpawn, registerSession, unregisterSession, sendToChild, isRunning, findPlugin, killAllBridges };
+export { getOrSpawn, registerSession, unregisterSession, sendToChild, isRunning, findPlugin, killAllBridges };

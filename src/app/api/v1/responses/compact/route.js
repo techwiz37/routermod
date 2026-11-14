@@ -1,4 +1,5 @@
 import { handleChat } from "@/sse/handlers/chat.js";
+import { trackKeyInFlightResponse } from "@/sse/services/keyInFlight.js";
 import { initTranslators } from "open-sse/translator/index.js";
 
 let initialized = false;
@@ -20,10 +21,6 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * POST /v1/responses/compact - Compact conversation context
- * Reuses the same handleChat pipeline, signals compact via body._compact
- */
 export async function POST(request) {
   await ensureInitialized();
   const body = await request.json();
@@ -33,5 +30,5 @@ export async function POST(request) {
     headers: request.headers,
     body: JSON.stringify(body)
   });
-  return await handleChat(newRequest);
+  return trackKeyInFlightResponse(newRequest, await handleChat(newRequest));
 }

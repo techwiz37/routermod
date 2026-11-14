@@ -1,38 +1,42 @@
 import { NextResponse } from "next/server";
 import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, updateProviderConnection, updateProviderNode } from "@/models";
+import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
 
-// PUT /api/provider-nodes/[id] - Update provider node
 export async function PUT(request, { params }) {
+  const locale = getRequestLocale(request);
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl } = body;
+    const { name, prefix, apiType, baseUrl, systemPrompt } = body;
     const node = await getProviderNodeById(id);
 
     if (!node) {
-      return NextResponse.json({ error: "Provider node not found" }, { status: 404 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "providerNodeNotFound") }, { status: 404 });
     }
 
-    if (!name?.trim()) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    const finalName = name !== undefined ? name.trim() : node.name;
+    const finalPrefix = prefix !== undefined ? prefix.trim() : node.prefix;
+    const finalBaseUrl = baseUrl !== undefined ? baseUrl.trim() : node.baseUrl;
+    const finalApiType = apiType !== undefined ? apiType : node.apiType;
+
+    if (!finalName?.trim()) {
+      return NextResponse.json({ error: localizedProviderMessage(locale, "nameRequired") }, { status: 400 });
     }
 
-    if (!prefix?.trim()) {
-      return NextResponse.json({ error: "Prefix is required" }, { status: 400 });
+    if (!finalPrefix?.trim()) {
+      return NextResponse.json({ error: localizedProviderMessage(locale, "prefixRequired") }, { status: 400 });
     }
 
-    // Only validate apiType for OpenAI Compatible nodes
-    if (node.type === "openai-compatible" && (!apiType || !["chat", "responses"].includes(apiType))) {
-      return NextResponse.json({ error: "Invalid OpenAI compatible API type" }, { status: 400 });
+    if (node.type === "openai-compatible" && (!finalApiType || !["chat", "responses"].includes(finalApiType))) {
+      return NextResponse.json({ error: localizedProviderMessage(locale, "apiTypeInvalid") }, { status: 400 });
     }
 
-    if (!baseUrl?.trim()) {
-      return NextResponse.json({ error: "Base URL is required" }, { status: 400 });
+    if (!finalBaseUrl?.trim()) {
+      return NextResponse.json({ error: localizedProviderMessage(locale, "baseUrlRequired") }, { status: 400 });
     }
 
-    let sanitizedBaseUrl = baseUrl.trim();
+    let sanitizedBaseUrl = finalBaseUrl.trim();
     
-    // Sanitize Base URL for Anthropic Compatible
     if (node.type === "anthropic-compatible") {
       sanitizedBaseUrl = sanitizedBaseUrl.replace(/\/$/, "");
       if (sanitizedBaseUrl.endsWith("/messages")) {
@@ -40,7 +44,6 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Sanitize Base URL for Custom Embedding (strip trailing slash and /embeddings)
     if (node.type === "custom-embedding") {
       sanitizedBaseUrl = sanitizedBaseUrl.replace(/\/$/, "");
       if (sanitizedBaseUrl.endsWith("/embeddings")) {
@@ -49,13 +52,14 @@ export async function PUT(request, { params }) {
     }
 
     const updates = {
-      name: name.trim(),
-      prefix: prefix.trim(),
+      name: finalName.trim(),
+      prefix: finalPrefix.trim(),
       baseUrl: sanitizedBaseUrl,
+      systemPrompt: systemPrompt !== undefined ? systemPrompt || null : node.systemPrompt,
     };
 
     if (node.type === "openai-compatible") {
-      updates.apiType = apiType;
+      updates.apiType = finalApiType;
     }
 
     const updated = await updateProviderNode(id, updates);
@@ -65,10 +69,11 @@ export async function PUT(request, { params }) {
       updateProviderConnection(connection.id, {
         providerSpecificData: {
           ...(connection.providerSpecificData || {}),
-          prefix: prefix.trim(),
-          apiType: node.type === "openai-compatible" ? apiType : undefined,
+          prefix: finalPrefix.trim(),
+          apiType: node.type === "openai-compatible" ? finalApiType : undefined,
           baseUrl: sanitizedBaseUrl,
           nodeName: updated.name,
+          systemPrompt: systemPrompt !== undefined ? systemPrompt || null : connection.providerSpecificData?.systemPrompt,
         }
       })
     )));
@@ -76,18 +81,18 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ node: updated });
   } catch (error) {
     console.log("Error updating provider node:", error);
-    return NextResponse.json({ error: "Failed to update provider node" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "failedUpdateNode") }, { status: 500 });
   }
 }
 
-// DELETE /api/provider-nodes/[id] - Delete provider node and its connections
 export async function DELETE(request, { params }) {
+  const locale = getRequestLocale(request);
   try {
     const { id } = await params;
     const node = await getProviderNodeById(id);
 
     if (!node) {
-      return NextResponse.json({ error: "Provider node not found" }, { status: 404 });
+      return NextResponse.json({ error: localizedProviderMessage(locale, "providerNodeNotFound") }, { status: 404 });
     }
 
     await deleteProviderConnectionsByProvider(id);
@@ -96,6 +101,6 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error deleting provider node:", error);
-    return NextResponse.json({ error: "Failed to delete provider node" }, { status: 500 });
+    return NextResponse.json({ error: localizedProviderMessage(locale, "failedDeleteNode") }, { status: 500 });
   }
 }

@@ -1,8 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePageReady } from "@/shared/components/PageReadyContext";
 import Link from "next/link";
 import { CardSkeleton } from "@/shared/components";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 import { CLI_TOOLS } from "@/shared/constants/cliTools";
 import { getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import {
@@ -18,6 +20,7 @@ export default function ToolDetailClient({ toolId, machineId }) {
   const tool = CLI_TOOLS[toolId];
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
+  usePageReady(loading);
   const [modelMappings, setModelMappings] = useState({});
   const [cloudEnabled, setCloudEnabled] = useState(false);
   const [tunnelEnabled, setTunnelEnabled] = useState(false);
@@ -82,12 +85,6 @@ export default function ToolDetailClient({ toolId, machineId }) {
         }
       });
 
-      // openai/anthropic-compatible providers are registered with a random UUID (e.g.
-      // "openai-compatible-chat-<uuid>") that has no entry in the static PROVIDER_MODELS
-      // catalog, so `getModelsByProviderId` returns []. Routing still works because the
-      // request path uses the connection's own model config, but `hasActiveProviders`
-      // below would flip to false and disable the Apply button. Fall back to the
-      // connection's own models so these providers are usable from CLI tool pages.
       if (providerModels.length === 0) {
         const prefix = conn.providerSpecificData?.prefix || alias;
         const fallbackModels = [];
@@ -96,8 +93,6 @@ export default function ToolDetailClient({ toolId, machineId }) {
           if (m?.id && !fallbackModels.some(f => f.id === m.id)) fallbackModels.push({ id: m.id, name: m.name || m.id });
         });
         if (fallbackModels.length === 0 && conn.testStatus === "active") {
-          // Provider is confirmed reachable but exposes no model info anywhere;
-          // still let the user apply so they aren't stuck on a permanently disabled button.
           fallbackModels.push({ id: "model-id", name: `${prefix}/model-id` });
         }
         fallbackModels.forEach(m => {
@@ -178,30 +173,57 @@ export default function ToolDetailClient({ toolId, machineId }) {
     }
   };
 
-  // Guard removed/unknown tools (e.g. disabled Cowork) to avoid crash on direct URL.
   if (!tool) {
     return (
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:px-0">
-        <Link href="/dashboard/cli-tools" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary w-fit">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Back to CLI Tools
+      <div className="an-scope an-toolscope flex min-w-0 flex-col gap-4">
+        <Link href="/dashboard/cli-tools" className="an-back">
+          <span className="material-symbols-outlined">arrow_back</span>
+          <span>Back to Tool CLI</span>
         </Link>
-        <p className="text-sm text-text-muted">Tool not found or disabled.</p>
+        <div className="an-panel">
+          <div className="an-panel-pad">
+            <p className="text-[13px] text-[var(--t-muted)]">Tool not found or disabled.</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:px-0">
-      <Link href="/dashboard/cli-tools" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary w-fit">
-        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        Back to CLI Tools
+    <div className="an-scope an-toolscope flex min-w-0 flex-col gap-4">
+      <Link href="/dashboard/cli-tools" className="an-back w-fit">
+        <span className="material-symbols-outlined">arrow_back</span>
+        <span>Back to Tool CLI</span>
       </Link>
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-text-main sm:text-2xl">{tool.name}</h1>
-        <p className="text-sm text-text-muted">{tool.description}</p>
-      </div>
-      {loading ? <CardSkeleton /> : renderToolCard()}
+
+      <section className="an-panel">
+        <header className="an-panel-head">
+          <span className="an-panel-ico" aria-hidden>
+            <span className="material-symbols-outlined">terminal</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="an-panel-title truncate">{tool.name}</h1>
+            <p className="an-panel-sub">{tool.description}</p>
+          </div>
+          {tool.docsUrl && (
+            <div className="an-panel-actions">
+              <a
+                href={tool.docsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                Docs
+              </a>
+            </div>
+          )}
+        </header>
+      </section>
+
+      <SurfaceSkinContext.Provider value="antares">
+        {loading ? <CardSkeleton /> : renderToolCard()}
+      </SurfaceSkinContext.Provider>
     </div>
   );
 }

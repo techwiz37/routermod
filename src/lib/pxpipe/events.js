@@ -11,7 +11,6 @@ function ensureDir() {
   if (!fs.existsSync(PXPIPE_DIR)) fs.mkdirSync(PXPIPE_DIR, { recursive: true });
 }
 
-// Fire-and-forget: stats must never break the request path.
 export function appendPxpipeEvent(event) {
   try {
     ensureDir();
@@ -76,8 +75,6 @@ function finalize(totals) {
   return totals;
 }
 
-// Aggregated stats for the dashboard: all-time + windowed totals, a daily
-// tokens-saved timeline (last `timelineDays`), and the most recent events.
 export function getPxpipeStats({ timelineDays = 30, recentLimit = 100 } = {}) {
   const events = readPxpipeEvents();
   const now = Date.now();

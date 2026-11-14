@@ -5,10 +5,6 @@ import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
-/**
- * Kiro Social OAuth Modal (Google/GitHub)
- * Handles manual callback URL flow for social login
- */
 export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onClose }) {
   const [step, setStep] = useState("loading"); // loading | input | success | error
   const [authUrl, setAuthUrl] = useState("");
@@ -18,12 +14,10 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
   const { copied, copy } = useCopyToClipboard();
   const openedRef = useRef(false);
 
-  // Reset auto-open guard when modal closes so it can re-open next session.
   useEffect(() => {
     if (!isOpen) openedRef.current = false;
   }, [isOpen]);
 
-  // Initialize auth flow
   useEffect(() => {
     if (!isOpen || !provider) return;
 
@@ -43,7 +37,6 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
         setAuthUrl(data.authUrl);
         setStep("input");
 
-        // Auto-open browser once per modal session.
         if (!openedRef.current) {
           openedRef.current = true;
           window.open(data.authUrl, "_blank");
@@ -61,12 +54,10 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
     try {
       setError(null);
       
-      // Parse callback URL - can be either kiro:// or http://localhost format
       let url;
       try {
         url = new URL(callbackUrl);
       } catch (e) {
-        // If URL parsing fails, might be malformed
         throw new Error("Invalid callback URL format");
       }
 
@@ -82,7 +73,6 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
         throw new Error("No authorization code found in URL");
       }
 
-      // Exchange code for tokens
       const res = await fetch("/api/oauth/kiro/social-exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

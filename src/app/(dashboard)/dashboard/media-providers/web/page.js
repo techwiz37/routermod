@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
+import { usePageReady } from "@/shared/components/PageReadyContext";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Button } from "@/shared/components";
@@ -147,6 +148,8 @@ export default function WebProvidersPage() {
   const router = useRouter();
   const [connections, setConnections] = useState([]);
   const [combos, setCombos] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  usePageReady(!loaded);
 
   const fetchAll = async () => {
     try {
@@ -156,7 +159,9 @@ export default function WebProvidersPage() {
       ]);
       if (connsRes.ok) setConnections((await connsRes.json()).connections || []);
       if (combosRes.ok) setCombos((await combosRes.json()).combos || []);
-    } catch { /* noop */ }
+    } catch { /* noop */ } finally {
+      setLoaded(true);
+    }
   };
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -168,7 +173,6 @@ export default function WebProvidersPage() {
   const fetchCombos = combos.filter((c) => c.kind === "webFetch");
 
   const handleCreateCombo = async (kind) => {
-    // Generate unique default name
     const base = kind === "webSearch" ? "search-combo" : "fetch-combo";
     let name = base;
     let i = 1;

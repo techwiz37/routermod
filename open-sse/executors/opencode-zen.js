@@ -15,7 +15,7 @@ const MAX_SESSION_LENGTH = 256;
 
 const RESPONSES_BASE_URL = "https://opencode.ai/zen/v1/responses";
 const MAX_TOOL_NAME_LEN = 128;
-const OPENCODE_UA = "opencode/1.18.31";
+const OPENCODE_UA = "opencode/latest/2.0.26/cli";
 export const OPENCODE_SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
 const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 // Free-tier fingerprint (mirrors opencode executor, PR #4132): upstream 403s
@@ -23,11 +23,8 @@ const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv
 const OPENCODE_FINGERPRINT_TOOLS = ["bash", "glob", "grep", "read"];
 
 function hasValidOpencodeVersion(ua) {
-  const m = String(ua || "").match(/opencode\/(\d+)\.(\d+)(?:\.(\d+))?/i);
-  if (!m) return false;
-  const major = parseInt(m[1], 10);
-  const minor = parseInt(m[2], 10);
-  return major > 1 || (major === 1 && minor >= 17);
+  const m = String(ua || "").match(/^opencode\/[a-z0-9-]+\/(\d+)\.\d+\.\d+\/[a-z0-9-]+$/i);
+  return !!m && parseInt(m[1], 10) >= 2;
 }
 
 function unstableRandom() {

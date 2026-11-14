@@ -11,9 +11,10 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import Card from "@/shared/components/Card";
+import AntaresSegmented from "@/shared/components/AntaresSegmented";
 
 const fmtTokens = (n) => {
+  if (n >= 1000000000) return `${(n / 1000000000).toFixed(1)}B`;
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return String(n || 0);
@@ -39,10 +40,10 @@ export default function UsageChart({ period = "7d" }) {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("tokens");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch(`/api/usage/chart?period=${period}`);
+      const res = await fetch(`/api/usage/chart?period=${period}`, { cache: "no-store" });
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -50,92 +51,107 @@ export default function UsageChart({ period = "7d" }) {
     } catch (e) {
       console.error("Failed to fetch chart data:", e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [period]);
 
   useEffect(() => {
     fetchData();
+    const timer = setInterval(() => fetchData({ silent: true }), 15000);
+    return () => clearInterval(timer);
   }, [fetchData]);
 
   const cfg = VIEW_CONFIG[viewMode];
   const hasData = data.some((d) => (d[cfg.dataKey] || 0) > 0);
 
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
-      <div
-        className="grid w-full items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:w-auto sm:self-start"
-        style={{ gridTemplateColumns: `repeat(${VIEW_MODES.length}, minmax(0, 1fr))` }}
-      >
-        {VIEW_MODES.map((m) => (
-          <button
-            key={m.value}
-            onClick={() => setViewMode(m.value)}
-            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === m.value ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+    <section className="an-panel">
+      <div className="an-chart">
+        <div className="an-chart-head">
+          <span className="an-chart-title">
+            <span className="material-symbols-outlined" aria-hidden>show_chart</span>
+            <span className="truncate">Grafik Penggunaan & Beban</span>
+          </span>
+          <AntaresSegmented
+            options={VIEW_MODES}
+            value={viewMode}
+            onChange={setViewMode}
+            size="sm"
+            className="w-full sm:w-auto"
+          />
+        </div>
 
       {loading ? (
-        <div className="h-48 flex items-center justify-center text-text-muted text-sm">Loading...</div>
+        <div className="h-52 flex items-center justify-center text-[var(--t-muted)] text-sm gap-2">
+          <span className="material-symbols-outlined animate-spin text-[var(--t-star-ink)] text-[18px]">progress_activity</span>
+          Memuat data...
+        </div>
       ) : !hasData ? (
-        <div className="h-48 flex items-center justify-center text-text-muted text-sm">No data for this period</div>
+        <div className="h-52 flex flex-col items-center justify-center text-[var(--t-muted)] gap-2">
+          <span className="material-symbols-outlined text-[32px] opacity-30">bar_chart</span>
+          <span className="text-xs font-medium">Belum ada data untuk periode ini</span>
+        </div>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="gradTokens" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradRequests" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradCost" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.08} vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.45 }}
               tickLine={false}
               axisLine={false}
               interval="preserveStartEnd"
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.45 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={cfg.formatter}
               width={50}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
-              formatter={(value) => [cfg.formatter(value), cfg.label]}
+              content={({ active, payload, label }) =>
+                active && payload?.length ? (
+                  <div className="an-tip">
+                    <div className="an-tip-label">{label}</div>
+                    {payload.map((p) => (
+                      <div key={p.dataKey} className="flex items-center justify-between gap-4">
+                        <span style={{ color: p.color }}>{cfg.label}</span>
+                        <span>{cfg.formatter(p.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null
+              }
             />
             <Area
               type="monotone"
               dataKey={cfg.dataKey}
               stroke={cfg.color}
-              strokeWidth={2}
+              strokeWidth={2.5}
               fill={`url(#${cfg.gradId})`}
               dot={false}
-              activeDot={{ r: 4 }}
+              activeDot={{ r: 5, strokeWidth: 2, fill: "var(--color-surface)", stroke: cfg.color }}
             />
           </AreaChart>
         </ResponsiveContainer>
       )}
-    </Card>
+      </div>
+    </section>
   );
 }
 

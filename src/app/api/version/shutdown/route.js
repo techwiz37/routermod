@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { killAppProcesses } from "@/lib/appUpdater";
 
-// Shutdown app to release file locks for manual update
 export async function POST() {
   try {
     await killAppProcesses();

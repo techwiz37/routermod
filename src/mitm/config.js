@@ -1,10 +1,8 @@
-// All intercepted domains + URL patterns per tool
 
 const fs = require("fs");
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
-// Resolve lsof absolute path — packaged apps / sudo secure_path may strip /usr/sbin from PATH
 const LSOF_BIN = (() => {
   if (process.platform === "win32") return null;
   for (const p of ["/usr/sbin/lsof", "/usr/bin/lsof", "/sbin/lsof"]) {
@@ -26,18 +24,10 @@ const TARGET_HOSTS = [
 const URL_PATTERNS = {
   antigravity: [":generateContent", ":streamGenerateContent"],
   copilot: ["/chat/completions", "/v1/messages", "/responses"],
-  // Legacy path form. Kiro IDE 1.0.228+ posts to `/` with x-amz-target instead —
-  // see isChatRequest() for the header-based match.
   kiro: ["/generateAssistantResponse"],
   cursor: ["/BidiAppend", "/RunSSE", "/RunPoll", "/Run"],
 };
 
-/**
- * Whether this request is a chat turn we should intercept (vs passthrough).
- * Kiro Runtime moved GenerateAssistantResponse from path `/generateAssistantResponse`
- * to `POST /` + `x-amz-target: KiroRuntimeService.GenerateAssistantResponse`
- * (verified via live mitmproxy capture of Kiro IDE 1.0.228).
- */
 function isChatRequest(tool, req) {
   const patterns = URL_PATTERNS[tool] || [];
   if (patterns.some((p) => (req.url || "").includes(p))) return true;
@@ -48,7 +38,6 @@ function isChatRequest(tool, req) {
   return false;
 }
 
-// Synonym map: rawModel from request → canonical alias key in mitmAlias DB
 const MODEL_SYNONYMS = {
   antigravity: {
     "gemini-default": "gemini-3.8-flash-medium",
@@ -95,8 +84,6 @@ const MODEL_SYNONYMS = {
   },
 };
 
-// Pattern fallback: rawModel regex → canonical alias key (when exact + prefix match fail)
-// Order matters: more specific patterns first. Catches AG renamed variants (e.g. gemini-pro-agent)
 const MODEL_PATTERNS = {
   antigravity: [
     { match: /flash.*extra.*low|extra.*low.*flash|flash.*low|low.*flash/i, alias: "gemini-3.8-flash-low" },
@@ -118,17 +105,10 @@ const MODEL_PATTERNS = {
   ],
 };
 
-// Models that must NEVER be re-routed — always passthrough to the real upstream, even when
-// the tool's other models are mapped. Antigravity's tab-autocomplete (`tab_jump_flash_lite_preview`,
-// `tab_flash_lite_preview`, requestType tab/tab_jump) is latency-critical inline completion; routing
-// it through 9Router to an external chat model makes typing laggy and burns provider quota per
-// keystroke. Without this guard the broad `flash` pattern in MODEL_PATTERNS hijacks them onto the
-// flash-agent slot. Verified via MITM dump capture of streamGenerateContent (see AI_JOURNAL).
 const MODEL_NO_MAP = {
   antigravity: [/^tab[_-]/i],
 };
 
-// URL substrings whose request/response should NOT be dumped to file (telemetry, polling, empty)
 const LOG_BLACKLIST_URL_PARTS = [
   "recordCodeAssistMetrics",
   "recordTrajectoryAnalytics",
@@ -160,7 +140,6 @@ function isBinaryData(buffer) {
   return (nonPrintable / sample.length) > 0.3;
 }
 
-// Extract model from URL path (Gemini), body (OpenAI/Anthropic), or Kiro conversationState.
 function extractModel(url, body) {
   const urlMatch = url.match(/\/models\/([^/:]+)/);
   const urlModel = urlMatch?.[1] || null;

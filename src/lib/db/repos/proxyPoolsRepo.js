@@ -70,6 +70,9 @@ export async function createProxyPool(data) {
     testStatus: data.testStatus || "unknown",
     lastTestedAt: data.lastTestedAt || null,
     lastError: data.lastError || null,
+    // Where the traffic leaves from - filled in by the test.
+    exitIp: data.exitIp || null,
+    exitCountry: data.exitCountry || null,
     createdAt: now,
     updatedAt: now,
   };

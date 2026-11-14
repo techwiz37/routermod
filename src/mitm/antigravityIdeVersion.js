@@ -1,10 +1,7 @@
 "use strict";
 
-// Rewrite Antigravity IDE markers on generation requests so upstream AG 2.x
-// backend accepts them. Catalog and other passthrough requests retain the
-// client's current identity. Hardcoded MVP — toggle/version configurable later.
 
-const ANTIGRAVITY_IDE_VERSION = "2.24.0";
+const ANTIGRAVITY_IDE_VERSION = "2.22.0";
 const ANTIGRAVITY_IDE_VERSION_OVERRIDE_ENABLED = true;
 
 function shouldRewriteMetadata(metadata) {

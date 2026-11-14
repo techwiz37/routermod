@@ -1,9 +1,4 @@
-// ⚠️ AGENT/DEV: Bump this by +1 EVERY TIME you change the schema below
-// (add/remove/alter a table, column, or index in TABLES). It drives the
-// pre-change safety backup in migrate.js: when the stored version is lower,
-// one lightweight DB backup is taken before applying schema changes. Forgetting
-// to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 5;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -15,9 +10,6 @@ PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
 `;
 
-// Declarative current schema. Used by syncSchemaFromTables() to
-// auto-add missing tables/columns/indexes after versioned migrations.
-// For destructive changes (drop/rename/type-change), write a migration file.
 export const TABLES = {
   _meta: {
     columns: {
@@ -83,10 +75,21 @@ export const TABLES = {
       machineId: "TEXT",
       isActive: "INTEGER DEFAULT 1",
       createdAt: "TEXT NOT NULL",
-      // Per-key access control. Additive columns, picked up by
-      // syncSchemaFromTables() on boot; existing rows read as unrestricted (0).
       accessRestricted: "INTEGER DEFAULT 0",
       accessAllow: "TEXT",
+      dailyLimit: "INTEGER DEFAULT 0",
+      minuteLimit: "INTEGER DEFAULT 0",
+      hourLimit: "INTEGER DEFAULT 0",
+      monthLimit: "INTEGER DEFAULT 0",
+      tokenLimit: "INTEGER DEFAULT 0",
+      tokenLimitWindow: "TEXT DEFAULT '24h'",
+      spendLimit: "REAL DEFAULT 0",
+      tokensPerMinuteLimit: "INTEGER DEFAULT 0",
+      maxConcurrentLimit: "INTEGER DEFAULT 0",
+      maintenanceEnabled: "INTEGER DEFAULT 0",
+      maintenanceMessage: "TEXT",
+      expiresAt: "TEXT",
+      ipBlacklist: "TEXT",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },
@@ -125,6 +128,8 @@ export const TABLES = {
       status: "TEXT",
       tokens: "TEXT",
       meta: "TEXT",
+      duration: "INTEGER DEFAULT 0",
+      clientIp: "TEXT",
     },
     indexes: [
       "CREATE INDEX IF NOT EXISTS idx_uh_ts ON usageHistory(timestamp DESC)",
