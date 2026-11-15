@@ -15,7 +15,20 @@ const antigravity = {
     });
     return `${config.authorizeUrl}?${params.toString()}`;
   },
-  exchangeToken: async (config, code, redirectUri) => {
+  exchangeToken: async (config, rawCode, redirectUri) => {
+    let code = rawCode;
+    let effectiveRedirectUri = redirectUri;
+    if (typeof code === "string" && (code.includes("code=") || code.startsWith("http"))) {
+      try {
+        const parsed = new URL(code, "http://localhost");
+        const extractedCode = parsed.searchParams.get("code");
+        if (extractedCode) code = extractedCode;
+        if (!effectiveRedirectUri && parsed.origin && parsed.pathname) {
+          effectiveRedirectUri = `${parsed.origin}${parsed.pathname}`;
+        }
+      } catch {}
+    }
+
     const response = await fetch(config.tokenUrl, {
       method: "POST",
       headers: {
@@ -27,7 +40,7 @@ const antigravity = {
         client_id: config.clientId,
         client_secret: config.clientSecret,
         code: code,
-        redirect_uri: redirectUri,
+        redirect_uri: effectiveRedirectUri,
       }),
     });
 

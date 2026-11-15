@@ -48,7 +48,7 @@ export async function PUT(request, { params }) {
       updateData[field] = limit;
     }
     if (tokenLimitWindow !== undefined) {
-      if (!TOKEN_WINDOWS[tokenLimitWindow]) return NextResponse.json({ error: "tokenLimitWindow must be one of 1h, 24h, 7d, 30d" }, { status: 400 });
+      if (!TOKEN_WINDOWS[tokenLimitWindow]) return NextResponse.json({ error: "tokenLimitWindow must be one of 1m, 1h, 24h, 7d, 30d" }, { status: 400 });
       updateData.tokenLimitWindow = tokenLimitWindow;
     }
     if (spendLimit !== undefined) {

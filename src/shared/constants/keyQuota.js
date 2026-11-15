@@ -1,6 +1,7 @@
 // Rolling windows available for the per-key token quota.
 // `ms` is the lookback used when summing usageHistory rows.
 export const TOKEN_WINDOWS = {
+  "1m": { ms: 60 * 1000, label: "1 minute" }, // For testing only
   "1h": { ms: 60 * 60 * 1000, label: "1 hour" },
   "24h": { ms: 24 * 60 * 60 * 1000, label: "24 hours" },
   "7d": { ms: 7 * 24 * 60 * 60 * 1000, label: "7 days" },

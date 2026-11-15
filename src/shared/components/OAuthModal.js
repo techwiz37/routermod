@@ -618,13 +618,25 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       const input = callbackUrl.trim();
 
       if (PROXY_OAUTH_PROVIDERS.has(provider) && input) {
+        let code = input;
+        let redirectUri = authData?.redirectUri;
+        if (code.includes("code=") || code.startsWith("http")) {
+          try {
+            const u = new URL(code, "http://localhost");
+            const extractedCode = u.searchParams.get("code");
+            if (extractedCode) code = extractedCode;
+            if (!redirectUri && u.origin && u.pathname) {
+              redirectUri = `${u.origin}${u.pathname}`;
+            }
+          } catch {}
+        }
         const res = await fetch(`/api/oauth/${provider}/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            code: input,
+            code,
             state: authData?.state,
-            ...(authData?.redirectUri ? { redirectUri: authData.redirectUri } : {}),
+            ...(redirectUri ? { redirectUri } : {}),
             ...(authData?.codeVerifier ? { codeVerifier: authData.codeVerifier } : {}),
             ...(authData?.systemId ? { systemId: authData.systemId } : {}),
           }),
@@ -721,20 +733,66 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             {authMode === "browser" && (
               <>
                 {step === "waiting" && (
-                  <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
-                    <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
-                    <span className="text-sm">Waiting for browser authorization…</span>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
+                      <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
+                      <span className="text-sm">Menunggu otorisasi browser…</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-border/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-muted">Akses dari HP / perangkat lain?</span>
+                        {authData?.authUrl && (
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              icon={copied === "auth_url" ? "check" : "content_copy"}
+                              onClick={() => copy(authData.authUrl, "auth_url")}
+                            >
+                              Salin Link
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => window.open(authData.authUrl, "_blank")}
+                              icon="open_in_new"
+                            >
+                              Buka
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-text-muted">
+                        Setelah login di Google, browser akan diarahkan ke link <code>http://127.0.0.1:...</code> (pada HP mungkin muncul pesan &apos;tidak dapat terhubung&apos;). Cukup salin seluruh URL dari bilah alamat browser lalu tempel di sini:
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={callbackUrl}
+                          onChange={(e) => setCallbackUrl(e.target.value)}
+                          placeholder="http://127.0.0.1:.../callback?code=..."
+                          className="font-mono text-xs flex-1"
+                        />
+                        <Button
+                          onClick={handleManualSubmit}
+                          disabled={!callbackUrl.trim()}
+                          size="sm"
+                        >
+                          Hubungkan
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {step === "input" && (
                   <div className="space-y-3">
                     <p className="text-sm text-text-muted">
-                      Popup was blocked. After authorizing in the browser, paste the full callback URL here:
+                      Popup diblokir atau login selesai. Tempelkan seluruh callback URL dari browser di sini:
                     </p>
                     <Input
                       value={callbackUrl}
                       onChange={(e) => setCallbackUrl(e.target.value)}
-                      placeholder="http://127.0.0.1:.../callback?..."
+                      placeholder="http://127.0.0.1:.../callback?code=..."
                       className="font-mono text-xs"
                     />
                     <div className="flex gap-2">

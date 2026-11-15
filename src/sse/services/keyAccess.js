@@ -2,6 +2,60 @@
 import { getCombos } from "@/lib/db/repos/combosRepo.js";
 import { getKeyInFlight } from "@/lib/db/repos/keyUsageRepo.js";
 import { tokenWindowMs } from "@/shared/constants/keyQuota.js";
+
+/**
+ * Calculate the start of the current quota cycle.
+ * Must match the cycle calculation in keyUsageRepo.js
+ */
+function getQuotaCycleStart(window) {
+  const now = Date.now();
+  const windowMs = tokenWindowMs(window);
+  
+  if (window === "1m") {
+    // Reset every minute (for testing) - e.g., 14:23:00, 14:24:00, 14:25:00
+    const nowDate = new Date(now);
+    return new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      nowDate.getUTCDate(),
+      nowDate.getUTCHours(),
+      nowDate.getUTCMinutes(),
+      0, 0
+    )).toISOString();
+  } else if (window === "24h") {
+    // Reset at midnight UTC
+    const nowDate = new Date(now);
+    return new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      nowDate.getUTCDate(),
+      0, 0, 0, 0
+    )).toISOString();
+  } else if (window === "7d") {
+    // Reset at midnight UTC every Monday
+    const nowDate = new Date(now);
+    const dayOfWeek = nowDate.getUTCDay(); // 0=Sunday, 1=Monday, ...
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days since last Monday
+    return new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      nowDate.getUTCDate() - daysToMonday,
+      0, 0, 0, 0
+    )).toISOString();
+  } else if (window === "30d") {
+    // Reset at midnight UTC on the 1st of each month
+    const nowDate = new Date(now);
+    return new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      1,
+      0, 0, 0, 0
+    )).toISOString();
+  } else {
+    // 1h or any other: simple modulo-based cycle
+    return new Date(Math.floor(now / windowMs) * windowMs).toISOString();
+  }
+}
 import { getModelInfo, getComboModels } from "./model.js";
 import { resolveProviderId } from "@/shared/constants/providers.js";
 import {
@@ -198,7 +252,7 @@ export async function enforceKeyPolicy(request) {
 
   if (tokenLimit > 0 || tokensPerMinuteLimit > 0 || spendLimit > 0) {
     const tokenWindow = record.tokenLimitWindow || "24h";
-    const since = new Date(Date.now() - tokenWindowMs(tokenWindow)).toISOString();
+    const since = getQuotaCycleStart(tokenWindow);
     const totals = db.get(
       `SELECT COALESCE(SUM(promptTokens), 0) AS promptTokens,
               COALESCE(SUM(completionTokens), 0) AS completionTokens,

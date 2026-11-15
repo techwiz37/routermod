@@ -367,6 +367,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [periodLocal, setPeriodLocal] = useState("today");
   const isInitialLoad = useRef(true);
   const hasLoadedStats = useRef(false);
+  const statsCache = useRef({});
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
 
@@ -400,19 +401,62 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       .catch(() => {});
   }, []);
 
+  // Prefetch all common periods after initial load
   useEffect(() => {
-    if (isInitialLoad.current) {
-      isInitialLoad.current = false;
+    const periodsToPreload = ["24h", "7d", "30d", "60d"];
+    const preloadTimer = setTimeout(() => {
+      periodsToPreload.forEach(p => {
+        if (p !== period && !statsCache.current[p]) {
+          fetch(`/api/usage/stats?period=${encodeURIComponent(p)}`, { cache: "no-store" })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (data) statsCache.current[p] = data;
+            })
+            .catch(() => {});
+        }
+      });
+    }, 1000);
+    return () => clearTimeout(preloadTimer);
+  }, [period]);
+
+  useEffect(() => {
+    const initial = isInitialLoad.current;
+    if (initial) isInitialLoad.current = false;
+
+    // Check cache first for instant display
+    if (statsCache.current[period]) {
+      setStats((prev) => ({ ...prev, ...statsCache.current[period] }));
+      if (initial) setLoading(false);
+      setFetching(false);
+      hasLoadedStats.current = true;
+
+      // Refresh in background
+      fetch(`/api/usage/stats?period=${period}`, { cache: "no-store" })
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (data) {
+            statsCache.current[period] = data;
+            setStats((prev) => ({ ...prev, ...data }));
+          }
+        })
+        .catch(() => {});
+
+      return;
+    }
+
+    // No cache: normal load
+    if (initial) {
       setLoading(true);
     } else {
       setFetching(true);
     }
 
-    fetch(`/api/usage/stats?period=${period}`)
+    fetch(`/api/usage/stats?period=${period}`, { cache: "no-store" })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data) {
           hasLoadedStats.current = true;
+          statsCache.current[period] = data;
           setStats((prev) => ({ ...prev, ...data }));
         }
       })

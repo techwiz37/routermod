@@ -1,146 +1,172 @@
 import { getAdapter } from "../driver.js";
 import { tokenWindowMs } from "@/shared/constants/keyQuota.js";
 
-// In-flight request counters per API key. Kept on `global` so every route
-// module in the same server process shares one view (Next.js can load a
-// module more than once across route bundles).
 if (!global._keyInFlight) global._keyInFlight = {};
-
 const inFlight = global._keyInFlight;
 
-export function trackKeyInFlight(apiKey, delta) {
-  if (!apiKey || typeof apiKey !== "string") return;
-  const next = Math.max(0, (inFlight[apiKey] || 0) + delta);
-  if (next === 0) delete inFlight[apiKey];
-  else inFlight[apiKey] = next;
+export function trackKeyInFlight(key, delta) {
+  if (!key || typeof key !== "string") return;
+  const next = Math.max(0, (inFlight[key] || 0) + delta);
+  if (next) inFlight[key] = next;
+  else delete inFlight[key];
 }
 
-export function getKeyInFlight(apiKey) {
-  if (!apiKey) return 0;
-  return inFlight[apiKey] || 0;
-}
-
-function sumTokens(row) {
-  return (Number(row?.promptTokens) || 0) + (Number(row?.completionTokens) || 0);
+export function getKeyInFlight(key) {
+  return key ? inFlight[key] || 0 : 0;
 }
 
 /**
- * Live counters for one API key, read straight from usageHistory so the
- * numbers survive a restart and match the usage page.
+ * Calculate the start and end of the current quota cycle.
+ * Uses fixed cycles that reset at predictable times:
+ * - 1m: resets every minute (e.g., 14:00:00, 14:01:00, 14:02:00) - for testing
+ * - 1h: resets every hour (e.g., 14:00, 15:00, 16:00)
+ * - 24h: resets at midnight UTC every day
+ * - 7d: resets at midnight UTC every Monday
+ * - 30d: resets at midnight UTC on the 1st of each month
+ * 
+ * @param {string} window - Window type (1m, 1h, 24h, 7d, 30d)
+ * @returns {{ start: string, end: string, resetAt: string }} ISO timestamps
  */
-export async function getKeyLiveStats(apiKey, { window = "24h" } = {}) {
-  const empty = {
+function getQuotaCycle(window) {
+  const now = Date.now();
+  const windowMs = tokenWindowMs(window);
+  
+  let cycleStart, cycleEnd;
+  
+  if (window === "1m") {
+    // Reset every minute (for testing) - e.g., 14:23:00, 14:24:00, 14:25:00
+    const nowDate = new Date(now);
+    cycleStart = new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      nowDate.getUTCDate(),
+      nowDate.getUTCHours(),
+      nowDate.getUTCMinutes(),
+      0, 0
+    ));
+    cycleEnd = new Date(cycleStart.getTime() + windowMs);
+  } else if (window === "24h") {
+    // Reset at midnight UTC
+    const nowDate = new Date(now);
+    cycleStart = new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      nowDate.getUTCDate(),
+      0, 0, 0, 0
+    ));
+    cycleEnd = new Date(cycleStart.getTime() + windowMs);
+  } else if (window === "7d") {
+    // Reset at midnight UTC every Monday
+    const nowDate = new Date(now);
+    const dayOfWeek = nowDate.getUTCDay(); // 0=Sunday, 1=Monday, ...
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days since last Monday
+    cycleStart = new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      nowDate.getUTCDate() - daysToMonday,
+      0, 0, 0, 0
+    ));
+    cycleEnd = new Date(cycleStart.getTime() + windowMs);
+  } else if (window === "30d") {
+    // Reset at midnight UTC on the 1st of each month
+    const nowDate = new Date(now);
+    cycleStart = new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      1,
+      0, 0, 0, 0
+    ));
+    cycleEnd = new Date(Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth() + 1,
+      1,
+      0, 0, 0, 0
+    ));
+  } else {
+    // 1h or any other: simple modulo-based cycle
+    cycleStart = new Date(Math.floor(now / windowMs) * windowMs);
+    cycleEnd = new Date(cycleStart.getTime() + windowMs);
+  }
+  
+  return {
+    start: cycleStart.toISOString(),
+    end: cycleEnd.toISOString(),
+    resetAt: cycleEnd.toISOString()
+  };
+}
+
+function emptyStats(key) {
+  return {
     requestsPerMinute: 0,
-    inFlight: getKeyInFlight(apiKey),
+    inFlight: getKeyInFlight(key),
     requests: 0,
     promptTokens: 0,
     completionTokens: 0,
     tokensUsed: 0,
     cost: 0,
     lastUsedAt: null,
+    windowStart: null,
+    resetAt: null,
   };
-  if (!apiKey || typeof apiKey !== "string") return empty;
+}
 
-  const db = await getAdapter();
-  const since = new Date(Date.now() - tokenWindowMs(window)).toISOString();
-  const minuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
-
-  const windowRow = db.get(
-    `SELECT COUNT(*) AS requests,
-            COALESCE(SUM(promptTokens), 0) AS promptTokens,
-            COALESCE(SUM(completionTokens), 0) AS completionTokens,
-            COALESCE(SUM(cost), 0) AS cost,
-            MAX(timestamp) AS lastUsedAt
-       FROM usageHistory
-      WHERE apiKey = ? AND timestamp >= ?`,
-    [apiKey, since]
-  );
-
-  const minuteRow = db.get(
-    `SELECT COUNT(*) AS requests FROM usageHistory WHERE apiKey = ? AND timestamp >= ?`,
-    [apiKey, minuteAgo]
-  );
-
-  const promptTokens = Number(windowRow?.promptTokens) || 0;
-  const completionTokens = Number(windowRow?.completionTokens) || 0;
+function mapStats(row, minute, key, window, cycle) {
+  const promptTokens = Number(row?.promptTokens) || 0;
+  const completionTokens = Number(row?.completionTokens) || 0;
 
   return {
-    requestsPerMinute: Number(minuteRow?.requests) || 0,
-    inFlight: getKeyInFlight(apiKey),
-    requests: Number(windowRow?.requests) || 0,
+    requestsPerMinute: Number(minute?.requests) || 0,
+    inFlight: getKeyInFlight(key),
+    requests: Number(row?.requests) || 0,
     promptTokens,
     completionTokens,
     tokensUsed: promptTokens + completionTokens,
-    cost: Number(windowRow?.cost) || 0,
-    lastUsedAt: windowRow?.lastUsedAt || null,
+    cost: Number(row?.cost) || 0,
+    lastUsedAt: row?.lastUsedAt || null,
+    windowStart: cycle.start,
+    resetAt: cycle.resetAt,
   };
 }
 
-/**
- * Live counters for every key at once. One grouped query keeps the endpoint
- * page cheap even with many keys.
- */
-export async function getKeysLiveStats(keys, { window = "24h" } = {}) {
-  const list = Array.isArray(keys) ? keys.filter((k) => k?.key) : [];
-  const out = {};
-  for (const k of list) {
-    out[k.id] = {
-      requestsPerMinute: 0,
-      inFlight: getKeyInFlight(k.key),
-      requests: 0,
-      promptTokens: 0,
-      completionTokens: 0,
-      tokensUsed: 0,
-      cost: 0,
-      lastUsedAt: null,
-    };
-  }
-  if (list.length === 0) return out;
+export async function getKeyLiveStats(key, { window = "24h" } = {}) {
+  if (!key || typeof key !== "string") return emptyStats(key);
 
   const db = await getAdapter();
-  const since = new Date(Date.now() - tokenWindowMs(window)).toISOString();
-  const minuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
+  const cycle = getQuotaCycle(window);
 
-  const rows = db.all(
-    `SELECT apiKey,
-            COUNT(*) AS requests,
-            COALESCE(SUM(promptTokens), 0) AS promptTokens,
-            COALESCE(SUM(completionTokens), 0) AS completionTokens,
-            COALESCE(SUM(cost), 0) AS cost,
+  const row = db.get(
+    `SELECT COUNT(*) AS requests,
+            COALESCE(SUM(promptTokens),0) AS promptTokens,
+            COALESCE(SUM(completionTokens),0) AS completionTokens,
+            COALESCE(SUM(cost),0) AS cost,
+            MIN(timestamp) AS windowStart,
             MAX(timestamp) AS lastUsedAt
-       FROM usageHistory
-      WHERE timestamp >= ?
-      GROUP BY apiKey`,
-    [since]
-  );
-  const minuteRows = db.all(
-    `SELECT apiKey, COUNT(*) AS requests
-       FROM usageHistory
-      WHERE timestamp >= ?
-      GROUP BY apiKey`,
-    [minuteAgo]
+     FROM usageHistory
+     WHERE apiKey = ? AND timestamp >= ?`,
+    [key, cycle.start]
   );
 
-  const byKey = new Map(rows.map((r) => [r.apiKey, r]));
-  const byKeyMinute = new Map(minuteRows.map((r) => [r.apiKey, r]));
+  const minute = db.get(
+    `SELECT COUNT(*) AS requests
+     FROM usageHistory
+     WHERE apiKey = ? AND timestamp >= ?`,
+    [key, new Date(Date.now() - 60000).toISOString()]
+  );
 
-  for (const k of list) {
-    const row = byKey.get(k.key);
-    const minuteRow = byKeyMinute.get(k.key);
-    const promptTokens = Number(row?.promptTokens) || 0;
-    const completionTokens = Number(row?.completionTokens) || 0;
-    out[k.id] = {
-      requestsPerMinute: Number(minuteRow?.requests) || 0,
-      inFlight: getKeyInFlight(k.key),
-      requests: Number(row?.requests) || 0,
-      promptTokens,
-      completionTokens,
-      tokensUsed: promptTokens + completionTokens,
-      cost: Number(row?.cost) || 0,
-      lastUsedAt: row?.lastUsedAt || null,
-    };
-  }
-  return out;
+  return mapStats(row, minute, key, window, cycle);
 }
 
-export { sumTokens };
+export async function getKeysLiveStats(keys, { window = "24h" } = {}) {
+  const list = Array.isArray(keys) ? keys.filter((key) => key?.key) : [];
+  const entries = await Promise.all(
+    list.map(async (key) => [
+      key.id,
+      await getKeyLiveStats(key.key, { window: key.tokenLimitWindow || window }),
+    ])
+  );
+  return Object.fromEntries(entries);
+}
+
+export function sumTokens(row) {
+  return (Number(row?.promptTokens) || 0) + (Number(row?.completionTokens) || 0);
+}

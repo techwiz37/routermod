@@ -1,5 +1,8 @@
 import crypto from "crypto";
+import { createRequire } from "module";
 import { NextResponse } from "next/server";
+
+const requireCjs = createRequire(import.meta.url);
 import {
   getProvider,
   generateAuthData,
@@ -118,6 +121,32 @@ export async function GET(request, { params }) {
           authorizeUrl,
           redirectUri,
           port: proxyResult.port,
+        });
+      }
+
+      if (provider === "antigravity") {
+        const proxyResult = await startAntigravityProxy();
+        if (!proxyResult.success) {
+          return NextResponse.json({ error: `Failed to start callback server: ${proxyResult.reason}` }, { status: 500 });
+        }
+
+        const state = crypto.randomUUID();
+        const codeVerifier = searchParams.get("code_verifier") || crypto.randomBytes(32).toString("base64url");
+        const redirectUri = proxyResult.callbackUrl;
+
+        // Register the antigravity session
+        registerAntigravitySession({ state, codeVerifier, redirectUri });
+
+        // Generate auth data using the standard flow
+        const authData = await generateAuthData(provider, redirectUri);
+        
+        return NextResponse.json({
+          state,
+          authUrl: authData.authUrl,
+          redirectUri,
+          port: proxyResult.port,
+          codeVerifier,
+          flowType: authData.flowType,
         });
       }
 
@@ -361,7 +390,28 @@ export async function POST(request, { params }) {
     }
 
     if (action === "exchange") {
-      const { code, redirectUri, codeVerifier, state, meta, systemId, cookieJar } = body;
+      let { code, redirectUri, codeVerifier, state, meta, systemId, cookieJar } = body;
+
+      if (typeof code === "string" && (code.includes("code=") || code.startsWith("http"))) {
+        try {
+          const parsed = new URL(code, "http://localhost");
+          const extractedCode = parsed.searchParams.get("code");
+          if (extractedCode) code = extractedCode;
+          const extractedState = parsed.searchParams.get("state");
+          if (extractedState && !state) state = extractedState;
+          if (!redirectUri && parsed.origin && parsed.pathname) {
+            redirectUri = `${parsed.origin}${parsed.pathname}`;
+          }
+        } catch {}
+      }
+
+      if (provider === "antigravity") {
+        const session = state ? getAntigravitySessionStatus(state) : null;
+        if (session) {
+          if (!redirectUri && session.redirectUri) redirectUri = session.redirectUri;
+          if (!codeVerifier && session.codeVerifier) codeVerifier = session.codeVerifier;
+        }
+      }
 
       if (provider === "xiaomi-mimo") {
         if (!state) {
@@ -508,6 +558,22 @@ export async function POST(request, { params }) {
         testStatus: "active",
       });
 
+      if (provider === "antigravity") {
+        const session = state ? getAntigravitySessionStatus(state) : null;
+        if (session) {
+          session.status = "done";
+          session.connectionId = connection.id;
+          session.email = connection.email;
+        }
+        stopAntigravityProxy();
+        try {
+          const { seedCookieFromOAuth } = requireCjs("@/bot/cookie_refresher.js");
+          if (seedCookieFromOAuth) {
+            seedCookieFromOAuth({ id: connection.id, email: connection.email }).catch(() => {});
+          }
+        } catch (_e) {}
+      }
+
       return NextResponse.json({ 
         success: true, 
         connection: {
@@ -529,7 +595,13 @@ export async function POST(request, { params }) {
       if (!connection) {
         return NextResponse.json({ error: "Connection not found" }, { status: 404 });
       }
-      const saved = await persistAntigravityCookieJar(connection, cookies);
+      let saved = false;
+      try {
+        const sessionStore = requireCjs("@/bot/session_store.js");
+        if (sessionStore?.saveSession) {
+          saved = !!sessionStore.saveSession(connection.id, connection.email, cookies);
+        }
+      } catch (_e) {}
       return NextResponse.json({ success: !!saved, saved });
     }
 

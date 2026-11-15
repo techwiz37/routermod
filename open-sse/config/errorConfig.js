@@ -71,7 +71,9 @@ export const PERMANENT_COOLDOWN_MS = 100 * 365 * 24 * 60 * 60 * 1000;
 const COOLDOWN = {
   long: 2 * 60 * 1000,
   short: 5 * 1000,
+  antigravityLong: 24 * 60 * 60 * 1000, // 24 hours for Antigravity suspension/validation
 };
+
 
 /**
  * Unified error classification rules.
@@ -84,6 +86,12 @@ const COOLDOWN = {
  */
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
+  // Antigravity (Google Cloud Code) suspension/validation errors: 24-hour cooldown
+  { provider: "antigravity", text: "toS violation", cooldownMs: COOLDOWN.antigravityLong },
+  { provider: "antigravity", text: "validation error", cooldownMs: COOLDOWN.antigravityLong },
+  { provider: "antigravity", text: "requires re-validation", cooldownMs: COOLDOWN.antigravityLong },
+  { provider: "antigravity", text: "account suspended", cooldownMs: COOLDOWN.antigravityLong },
+  
   { provider: "codex", text: "model is not supported when using codex with a chatgpt account", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },
   { text: "you've used this period's free allowance", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },
   { text: "free models are turned off", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },

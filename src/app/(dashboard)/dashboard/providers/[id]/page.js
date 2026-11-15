@@ -29,6 +29,7 @@ import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import CustomConfigCard from "./CustomConfigCard";
 import SessionRateLimitCard from "./SessionRateLimitCard";
 import JailbreakCard from "./JailbreakCard";
+import ModelConfigCarousel from "./ModelConfigCarousel";
 import ProviderAlert from "../components/ProviderAlert";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
 import WebLoginButton, { WEB_LOGIN_PROVIDERS } from "../components/WebLoginButton.js";
@@ -1629,31 +1630,33 @@ export default function ProviderDetailPage() {
             providerDisplayAlias={providerDisplayAlias}
             onBulkPrefixChange={handleBulkPrefixChange}
           />
-          <SystemPromptCard
-            providerDisplayAlias={providerDisplayAlias}
-            modelOptions={systemPromptModelOptions}
-            systemPromptModel={systemPromptModel}
-            onSystemPromptModelChange={handleSelectSystemPromptModel}
-            systemPromptDraft={systemPromptDraft}
-            onSystemPromptDraftChange={setSystemPromptDraft}
-            systemPrompts={systemPrompts}
-            savingSystemPrompt={savingSystemPrompt}
-            onSystemPromptSave={(id, prompt) => handleSaveSystemPrompt(id, prompt)}
-          />
-          {providerNode && (
-            <SessionRateLimitCard
-              providerId={providerId}
-              providerNode={providerNode}
+          <ModelConfigCarousel>
+            <SystemPromptCard
               providerDisplayAlias={providerDisplayAlias}
               modelOptions={systemPromptModelOptions}
-              onNodeUpdated={(node) => setProviderNode(node)}
+              systemPromptModel={systemPromptModel}
+              onSystemPromptModelChange={handleSelectSystemPromptModel}
+              systemPromptDraft={systemPromptDraft}
+              onSystemPromptDraftChange={setSystemPromptDraft}
+              systemPrompts={systemPrompts}
+              savingSystemPrompt={savingSystemPrompt}
+              onSystemPromptSave={(id, prompt) => handleSaveSystemPrompt(id, prompt)}
             />
-          )}
-          <JailbreakCard
-            providerId={providerId}
-            providerDisplayAlias={providerDisplayAlias}
-            modelOptions={systemPromptModelOptions}
-          />
+            {providerNode && (
+              <SessionRateLimitCard
+                providerId={providerId}
+                providerNode={providerNode}
+                providerDisplayAlias={providerDisplayAlias}
+                modelOptions={systemPromptModelOptions}
+                onNodeUpdated={(node) => setProviderNode(node)}
+              />
+            )}
+            <JailbreakCard
+              providerId={providerStorageAlias}
+              providerDisplayAlias={providerDisplayAlias}
+              modelOptions={systemPromptModelOptions}
+            />
+          </ModelConfigCarousel>
           <CompatibleModelsSection
             providerStorageAlias={providerStorageAlias}
             providerDisplayAlias={providerDisplayAlias}
@@ -1705,22 +1708,24 @@ export default function ProviderDetailPage() {
             providerDisplayAlias={providerDisplayAlias}
             onBulkPrefixChange={handleBulkPrefixChange}
           />
-          <SystemPromptCard
-            providerDisplayAlias={providerDisplayAlias}
-            modelOptions={systemPromptModelOptions}
-            systemPromptModel={systemPromptModel}
-            onSystemPromptModelChange={handleSelectSystemPromptModel}
-            systemPromptDraft={systemPromptDraft}
-            onSystemPromptDraftChange={setSystemPromptDraft}
-            systemPrompts={systemPrompts}
-            savingSystemPrompt={savingSystemPrompt}
-            onSystemPromptSave={(id, prompt) => handleSaveSystemPrompt(id, prompt)}
-          />
-          <JailbreakCard
-            providerId={providerId}
-            providerDisplayAlias={providerDisplayAlias}
-            modelOptions={systemPromptModelOptions}
-          />
+          <ModelConfigCarousel>
+            <SystemPromptCard
+              providerDisplayAlias={providerDisplayAlias}
+              modelOptions={systemPromptModelOptions}
+              systemPromptModel={systemPromptModel}
+              onSystemPromptModelChange={handleSelectSystemPromptModel}
+              systemPromptDraft={systemPromptDraft}
+              onSystemPromptDraftChange={setSystemPromptDraft}
+              systemPrompts={systemPrompts}
+              savingSystemPrompt={savingSystemPrompt}
+              onSystemPromptSave={(id, prompt) => handleSaveSystemPrompt(id, prompt)}
+            />
+            <JailbreakCard
+              providerId={providerStorageAlias}
+              providerDisplayAlias={providerDisplayAlias}
+              modelOptions={systemPromptModelOptions}
+            />
+          </ModelConfigCarousel>
           <CompatibleModelsSection
             providerStorageAlias={providerStorageAlias}
             providerDisplayAlias={providerDisplayAlias}

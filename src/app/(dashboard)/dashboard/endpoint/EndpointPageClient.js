@@ -299,6 +299,10 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const refreshKeyLiveStats = useCallback(async () => {
+    try { const res = await fetch("/api/keys/live-stats", { cache: "no-store" }); if (res.ok) { const data = await res.json(); if (data?.stats) setLiveStats(data.stats); } } catch { /* retain latest stats */ }
+  }, []);
+
   const fetchData = async () => {
     try {
       const fetchKeys = async () => {
@@ -1037,12 +1041,12 @@ export default function APIPageClient({ machineId }) {
             {keys.map((key) => (
               <div
                 key={key.id}
-                className={`group py-3 border-b border-[var(--t-line-soft)] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
+                className={`group min-w-0 rounded-xl border border-[var(--t-line-soft)] bg-[var(--t-surface)] p-3 shadow-sm transition hover:border-[var(--t-accent)]/40 sm:p-4 ${key.isActive === false ? "opacity-60" : ""}`}
               >
                 {/* Top row: name + actions */}
-                <div className="flex items-center justify-between gap-2 min-w-0">
-                  <p className="text-sm font-medium truncate min-w-0">{key.name}</p>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="min-w-0 truncate text-sm font-semibold text-[var(--t-ink)]">{key.name}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
                     <button
                       onClick={() => toggleKeyVisibility(key.id)}
                       className="p-1 hover:bg-[var(--t-raised)] rounded text-[var(--t-muted)] hover:text-[var(--t-ink)] transition-colors"
@@ -1119,11 +1123,11 @@ export default function APIPageClient({ machineId }) {
                   </div>
                 </div>
                 {/* Key value */}
-                <code className="block mt-1.5 text-xs text-[var(--t-muted)] font-mono break-all leading-relaxed">
+                <code className="mt-3 block max-w-full overflow-hidden rounded-lg bg-[var(--t-raised)] px-2.5 py-2 text-[11px] leading-relaxed text-[var(--t-muted)] font-mono break-all">
                   {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
                 </code>
                 {/* Meta */}
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <p className="text-xs text-[var(--t-muted)]">
                     {translate("Created")} {new Date(key.createdAt).toLocaleDateString()}
                   </p>
@@ -1131,7 +1135,7 @@ export default function APIPageClient({ machineId }) {
                     <span className="text-xs text-[var(--color-warning)]">· {translate("Paused")}</span>
                   )}
                 </div>
-                <KeyLiveStats keyData={key} stats={liveStats[key.id]} />
+                <KeyLiveStats keyData={key} stats={liveStats[key.id]} onReset={refreshKeyLiveStats} />
                 <KeyAccessControls
                   apiKey={key}
                   onChange={(access) => handleUpdateKeyAccess(key.id, access)}

@@ -908,7 +908,7 @@ export function startAntigravityProxy() {
 
     const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, "http://localhost");
-      if (url.pathname !== "/callback") {
+      if (url.pathname !== "/callback" && url.pathname !== "/antigravity/callback") {
         res.writeHead(404);
         res.end("Not found");
         return;
