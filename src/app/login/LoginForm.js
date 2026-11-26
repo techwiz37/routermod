@@ -29,6 +29,7 @@ const I18N = {
     hide: "Sembunyikan password",
     btnSubmit: "Masuk ke dashboard",
     btnLoading: "Memverifikasi...",
+    buyKey: "Beli API key",
     orDivider: "atau",
     defaultPwdText: "Password bawaan",
     defaultPwdVal: "merdeka",
@@ -79,6 +80,7 @@ const I18N = {
     hide: "Hide password",
     btnSubmit: "Open dashboard",
     btnLoading: "Verifying...",
+    buyKey: "Buy an API key",
     orDivider: "or",
     defaultPwdText: "Default password",
     defaultPwdVal: "merdeka",
@@ -518,6 +520,12 @@ export default function LoginForm() {
                         )}
                       </form>
                     )}
+
+                  <a href="/buy-key" className="an-btn an-ghost an-full lf-buy-key-btn">
+                    <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
+                    {t.buyKey}
+                  </a>
+
                   <CheckModels locale={locale} />
                 </div>
               </div>

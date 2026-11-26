@@ -54,6 +54,8 @@ export default function TopupTokenPage() {
   const [qris, setQris] = useState(null);
   const [creating, setCreating] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [claiming, setClaiming] = useState(false);
   const [, setLocaleVersion] = useState(0);
   const hydrated = useRef(false);
   const syncedOnce = useRef(false);
@@ -204,6 +206,45 @@ export default function TopupTokenPage() {
     }
   };
 
+  const claimPromoCode = async (event) => {
+    event?.preventDefault();
+    if (claiming) return;
+    const code = promoCode.trim().toUpperCase();
+    if (!code) {
+      setNotice({ variant: "danger", text: translate("Enter a promo code first.") });
+      return;
+    }
+    setClaiming(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/public/promos/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (response.status === 401) { router.replace("/login-key"); return; }
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || translate("Could not claim the promo code."));
+      setPromoCode("");
+      setTopup((previous) => ({
+        ...previous,
+        tokens: Number(result.totalTokens) || 0,
+        expiresAt: result.expiresAt || previous.expiresAt,
+      }));
+      setNotice({
+        variant: "info",
+        text: translate("Promo claimed. {tokens} tokens were added and are valid until {date}.")
+          .replace("{tokens}", compact(result.tokens, locale))
+          .replace("{date}", displayDate(result.expiresAt, true)),
+      });
+      await refreshBilling();
+    } catch (claimError) {
+      setNotice({ variant: "danger", text: translateServerMessage(claimError.message) || translate("Could not claim the promo code.") });
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   // Restore the QR for a pending invoice after a page reload. The create
   // endpoint reuses the live pending invoice instead of making a duplicate.
   // Restoring is silent: the reused-invoice notice belongs to an explicit
@@ -298,6 +339,39 @@ export default function TopupTokenPage() {
                   tone={remaining == null ? "default" : percent >= 90 ? "danger" : percent >= 70 ? "warn" : "ok"}
                 />
               </section>
+
+              <AntaresPanel
+                className="topup-promo-panel"
+                icon="redeem"
+                title={translate("Claim a promo code")}
+                subtitle={translate("Have a promo code? Enter it to add bonus tokens to your topup balance.")}
+              >
+                <form onSubmit={claimPromoCode} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor="promo-claim-code" className="an-label">{translate("Promo code")}</label>
+                    <input
+                      id="promo-claim-code"
+                      type="text"
+                      value={promoCode}
+                      onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+                      placeholder={translate("Enter your promo code")}
+                      maxLength={32}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="an-input font-mono uppercase tracking-wide"
+                    />
+                  </div>
+                  <AntaresButton
+                    type="submit"
+                    icon="redeem"
+                    loading={claiming}
+                    disabled={!promoCode.trim()}
+                    className="w-full sm:w-auto"
+                  >
+                    {translate("Claim code")}
+                  </AntaresButton>
+                </form>
+              </AntaresPanel>
 
               <AntaresPanel
                 className="topup-packs-panel"

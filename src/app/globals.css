@@ -757,6 +757,7 @@ button:disabled,
 
 /* -- SSO button -- */
 .lf-sso-btn { height: 46px; border-radius: var(--t-radius); gap: 8px; }
+.lf-buy-key-btn { height: 44px; border-radius: var(--t-radius); gap: 8px; font-size: 13px; }
 
 /* -- Password strength row -- */
 .lf-str-row {

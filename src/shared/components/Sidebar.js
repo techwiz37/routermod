@@ -22,6 +22,7 @@ const navItems = [
   { href: "/dashboard/combos", label: "Combo & Vision Adapter", icon: "layers" },
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
   { href: "/dashboard/informations", label: "Informations", icon: "campaign" },
+  { href: "/dashboard/promos", label: "Promo", icon: "redeem" },
   { href: "/dashboard/quota", label: "Check Limit", icon: "data_usage" },
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
   { href: "/dashboard/automate", label: "Automate", icon: "automation" },

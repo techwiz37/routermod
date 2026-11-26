@@ -216,6 +216,34 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_information_reads_key ON informationReads(keyId)",
     ],
   },
+  promos: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      code: "TEXT NOT NULL",
+      tokens: "INTEGER NOT NULL",
+      expiresAt: "TEXT NOT NULL",
+      isActive: "INTEGER DEFAULT 1",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_promos_code ON promos(code)",
+      "CREATE INDEX IF NOT EXISTS idx_promos_active ON promos(isActive, expiresAt)",
+    ],
+  },
+  promoClaims: {
+    columns: {
+      id: "INTEGER PRIMARY KEY AUTOINCREMENT",
+      promoId: "TEXT NOT NULL",
+      keyId: "TEXT NOT NULL",
+      tokens: "INTEGER NOT NULL",
+      claimedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_claims_unique ON promoClaims(promoId, keyId)",
+      "CREATE INDEX IF NOT EXISTS idx_promo_claims_key ON promoClaims(keyId)",
+    ],
+  },
 };
 
 export function buildCreateTableSql(name, def) {
