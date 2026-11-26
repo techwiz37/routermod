@@ -881,7 +881,7 @@ export async function getRecentLogs(limit = 200) {
       // Lifecycle-only rows (pending/success bookkeeping) have no token
       // usage and must not appear in the login request feed as duplicate
       // `0↑ 0↓` entries. Keep only rows with actual input or output tokens.
-      `SELECT timestamp, provider, model, connectionId, promptTokens, completionTokens, status, tokens, clientIp
+      `SELECT timestamp, provider, model, connectionId, promptTokens, completionTokens, status, tokens, clientIp, apiKey
        FROM usageHistory
        WHERE COALESCE(promptTokens, 0) > 0 OR COALESCE(completionTokens, 0) > 0
        ORDER BY id DESC LIMIT ?`,
@@ -894,6 +894,16 @@ export async function getRecentLogs(limit = 200) {
       const { getProviderConnections } = await import("./connectionsRepo.js");
       const connections = await getProviderConnections();
       for (const c of connections) connMap[c.id] = c.name || c.email || "";
+    } catch {}
+
+    // The feed tells the administrator which credential spent the tokens.
+    // Resolve the stored key value to its owner-facing name so the row never
+    // has to print a secret; unnamed keys fall back to a masked suffix.
+    const keyMap = {};
+    try {
+      for (const row of db.all(`SELECT key, name FROM apiKeys`)) {
+        if (row?.key) keyMap[row.key] = row.name || "";
+      }
     } catch {}
 
      let modelNames = {};
@@ -975,7 +985,11 @@ export async function getRecentLogs(limit = 200) {
       const tk = r.tokens ? parseJson(r.tokens, {}) : {};
       const sent = r.promptTokens ?? tk.prompt_tokens ?? "-";
       const received = r.completionTokens ?? tk.completion_tokens ?? "-";
-      return `${ts} | ${m} | ${p} | ${account} | ${sent} | ${received} | ${r.status || "-"} | ${r.clientIp || ""}`;
+      // Fields 8 and 9 stay separate so the feed can show the readable key
+      // name and keep the masked value only in the tooltip.
+      const keyName = String(keyMap[r.apiKey] || "").replace(/\s*\|\s*/g, " ");
+      const keyMasked = maskApiKey(r.apiKey) || "";
+      return `${ts} | ${m} | ${p} | ${account} | ${sent} | ${received} | ${r.status || "-"} | ${r.clientIp || ""} | ${keyName} | ${keyMasked}`;
     });
   } catch (e) {
     console.error("[usageRepo] getRecentLogs failed:", e.message);

@@ -169,6 +169,21 @@ function RequestIp({ ip, geo }) {
   );
 }
 
+function RequestKey({ name, masked }) {
+  const label = (name || masked || "").trim();
+  if (!label) return null;
+  const title = [name, masked].filter(Boolean).join(" · ");
+  return (
+    <span
+      className="inline-flex h-6 min-w-0 max-w-[8.5rem] shrink items-center gap-1 rounded-md border border-[var(--t-line-soft)] bg-[var(--t-raised)] px-2 text-[var(--t-muted)] sm:max-w-[12rem]"
+      title={title}
+    >
+      <span className="material-symbols-outlined shrink-0" style={{ fontSize: 12, lineHeight: 1 }}>key</span>
+      <span className="truncate font-mono text-[10.5px] text-[var(--t-text)]">{label}</span>
+    </span>
+  );
+}
+
 function RecentRequests({ requests = [] }) {
   const [, setLocaleVersion] = useState(0);
   const [liveRequests, setLiveRequests] = useState([]);
@@ -198,6 +213,8 @@ function RecentRequests({ requests = [] }) {
             completionTokens: Number(String(parts[5] || "0").replace(/,/g, "")) || 0,
             status: parts[6] || "ok",
             clientIp: parts[7] || null,
+            apiKeyName: parts[8] || "",
+            apiKeyMasked: parts[9] || "",
           };
         }));
         setFeedState("live");
@@ -267,7 +284,8 @@ function RecentRequests({ requests = [] }) {
                       {fmt(r.completionTokens)}
                     </span>
                   </div>
-                  <div className="flex min-w-0 max-w-full justify-end">
+                  <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
+                    <RequestKey name={r.apiKeyName} masked={r.apiKeyMasked} />
                     <RequestIp ip={r.clientIp} geo={r.clientIp ? geo.get(r.clientIp) : null} />
                   </div>
                 </div>
