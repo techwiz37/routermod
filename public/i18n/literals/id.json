@@ -2626,5 +2626,15 @@
   "Claim code": "Klaim kode",
   "Enter a promo code first.": "Masukkan kode promo terlebih dahulu.",
   "Could not claim the promo code.": "Kode promo tidak dapat diklaim.",
-  "Promo claimed. {tokens} tokens were added and are valid until {date}.": "Promo berhasil diklaim. {tokens} token ditambahkan dan berlaku sampai {date}."
+  "Promo claimed. {tokens} tokens were added and are valid until {date}.": "Promo berhasil diklaim. {tokens} token ditambahkan dan berlaku sampai {date}.",
+  "Promo": "Promo",
+  "Promo & rewards": "Promo & hadiah",
+  "Claim history": "Riwayat klaim",
+  "Promo codes this key has claimed.": "Kode promo yang sudah diklaim key ini.",
+  "No promo claims yet. Enter a code above to add bonus tokens.": "Belum ada klaim promo. Masukkan kode di atas untuk menambah token bonus.",
+  "Could not load your promo claims.": "Riwayat klaim promo tidak dapat dimuat.",
+  "Claim a promo code to add bonus tokens to your topup balance. Every code can be claimed once per key.": "Klaim kode promo untuk menambah token bonus ke saldo topup Anda. Setiap kode hanya bisa diklaim satu kali per key.",
+  "Share the code with key owners. They claim it from the Promo page.": "Bagikan kode ke pemilik key. Mereka mengklaimnya dari halaman Promo.",
+  "A key owner enters the code on the Promo page.": "Pemilik key memasukkan kode di halaman Promo.",
+  "Delete “{code}”? It stops working immediately, but claim history is kept.": "Hapus “{code}”? Kode langsung tidak berlaku, tetapi riwayat klaim tetap disimpan."
 }

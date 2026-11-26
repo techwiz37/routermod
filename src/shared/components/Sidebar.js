@@ -37,6 +37,7 @@ const keyNavItems = [
   { href: "/dashboard-keys/top-models-keys", label: "Top Models & Keys", icon: "leaderboard" },
   { href: "/dashboard-keys/billing", label: "Billing", icon: "receipt_long" },
   { href: "/dashboard-keys/topup", label: "Topup Token", icon: "add_card" },
+  { href: "/dashboard-keys/promos", label: "Promo", icon: "redeem" },
   { href: "/dashboard-keys/manage-keys", label: "Manage Keys", icon: "key" },
   { href: "/dashboard-keys/permissions", label: "Permissions & List IP", icon: "shield_person" },
 ];

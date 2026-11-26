@@ -139,13 +139,32 @@ export async function updatePromo(id, body = {}) {
   return { promo: await getPromo(id) };
 }
 
+// Claims are intentionally kept: a deleted promo must not erase the owner's
+// history, and the claim snapshot already stores the code.
 export async function deletePromo(id) {
   const db = await getAdapter();
-  db.transaction(() => {
-    db.run(`DELETE FROM promoClaims WHERE promoId = ?`, [id]);
-    db.run(`DELETE FROM promos WHERE id = ?`, [id]);
-  });
+  db.run(`DELETE FROM promos WHERE id = ?`, [id]);
   return { deleted: !(await getPromo(id)) };
+}
+
+export async function listClaimsForKey(keyId) {
+  if (!keyId) return [];
+  const db = await getAdapter();
+  const rows = db.all(
+    `SELECT id, promoId, code, tokens, promoExpiresAt, claimedAt
+       FROM promoClaims
+      WHERE keyId = ?
+      ORDER BY claimedAt DESC, id DESC`,
+    [keyId]
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    promoId: row.promoId,
+    code: row.code || "",
+    tokens: Number(row.tokens) || 0,
+    expiresAt: row.promoExpiresAt || null,
+    claimedAt: row.claimedAt || null,
+  }));
 }
 
 /**
@@ -191,8 +210,8 @@ export async function claimPromo({ code, keyId }) {
       const nextExpiryMs = Math.max(stillActive ? currentExpiry : 0, expiresMs);
 
       db.run(
-        `INSERT INTO promoClaims(promoId, keyId, tokens, claimedAt) VALUES(?, ?, ?, ?)`,
-        [promo.id, keyId, addedTokens, isoNow()]
+        `INSERT INTO promoClaims(promoId, keyId, code, tokens, promoExpiresAt, claimedAt) VALUES(?, ?, ?, ?, ?, ?)`,
+        [promo.id, keyId, promo.code, addedTokens, promo.expiresAt, isoNow()]
       );
       db.run(
         `UPDATE apiKeys SET topupTokens = ?, topupExpiresAt = ? WHERE id = ?`,

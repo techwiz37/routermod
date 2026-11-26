@@ -223,7 +223,7 @@ export default function PromosPage() {
             <AntaresButton variant="ghost" icon="add" onClick={openCreate}>{translate("Add promo")}</AntaresButton>
           </div>
         ) : (
-          <ul className="flex flex-col">
+          <ul className="flex flex-col promo-list-scroll" tabIndex={0} aria-label={translate("Promo list")}>
             {promos.map((promo) => {
               const expired = Date.parse(promo.expiresAt) <= now;
               return (
@@ -273,10 +273,10 @@ export default function PromosPage() {
         )}
       </AntaresPanel>
 
-      <AntaresPanel icon="help" title={translate("How promos work")} subtitle={translate("Share the code with key owners. They claim it from the Topup Token page.")}>
+      <AntaresPanel icon="help" title={translate("How promos work")} subtitle={translate("Share the code with key owners. They claim it from the Promo page.")}>
         <ol className="topup-steps">
           <li><span>1</span><p>{translate("Create a code, set how many tokens it grants, and choose an expiry date.")}</p></li>
-          <li><span>2</span><p>{translate("A key owner enters the code on the Topup Token page.")}</p></li>
+          <li><span>2</span><p>{translate("A key owner enters the code on the Promo page.")}</p></li>
           <li><span>3</span><p>{translate("The tokens are added to their topup balance and stay valid until the promo expiry, or longer if they already have a later topup expiry.")}</p></li>
         </ol>
       </AntaresPanel>
@@ -343,7 +343,7 @@ export default function PromosPage() {
         onClose={() => { if (!deleting) setDeleteTarget(null); }}
         onConfirm={confirmDelete}
         title={translate("Delete promo")}
-        message={translate("Delete “{code}”? Its claim history is removed too.").replace("{code}", deleteTarget?.code || "")}
+        message={translate("Delete “{code}”? It stops working immediately, but claim history is kept.").replace("{code}", deleteTarget?.code || "")}
         confirmText={translate("Delete")}
         cancelText={translate("Cancel")}
         loading={deleting}

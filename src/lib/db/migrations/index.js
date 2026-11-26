@@ -12,8 +12,9 @@ import m013 from "./013-api-key-change-key-toggle.js";
 import m014 from "./014-api-key-manage-ip-toggle.js";
 import m015 from "./015-informations.js";
 import m016 from "./016-promos.js";
+import m017 from "./017-promo-claim-snapshots.js";
 
-export const MIGRATIONS = [m001, m002, m003, m004, m007, m008, m009, m010, m011, m012, m013, m014, m015, m016].sort((a, b) => a.version - b.version);
+export const MIGRATIONS = [m001, m002, m003, m004, m007, m008, m009, m010, m011, m012, m013, m014, m015, m016, m017].sort((a, b) => a.version - b.version);
 
 export function latestVersion() {
   return MIGRATIONS.length ? MIGRATIONS[MIGRATIONS.length - 1].version : 0;

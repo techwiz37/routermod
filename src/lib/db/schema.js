@@ -236,7 +236,9 @@ export const TABLES = {
       id: "INTEGER PRIMARY KEY AUTOINCREMENT",
       promoId: "TEXT NOT NULL",
       keyId: "TEXT NOT NULL",
+      code: "TEXT",
       tokens: "INTEGER NOT NULL",
+      promoExpiresAt: "TEXT",
       claimedAt: "TEXT NOT NULL",
     },
     indexes: [
