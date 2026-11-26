@@ -3,67 +3,83 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import { Toggle, Button } from "@/shared/components";
-import Modal from "@/shared/components/Modal";
+import AntaresModal from "@/shared/components/AntaresModal";
+import AntaresCheckbox from "@/shared/components/AntaresCheckbox";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import { cn } from "@/shared/utils/cn";
 import { getProviderIconSrc, getCompatibleIconSrc, getDynamicProviderName } from "@/shared/utils/providerIcon";
 import { getProviderByAlias } from "@/shared/constants/providers";
 import { useNotificationStore } from "@/store/notificationStore";
-import { getCurrentLocale, translate, translateServerMessage, onLocaleChange } from "@/i18n/runtime";
+import { getCurrentLocale, translateServerMessage, onLocaleChange } from "@/i18n/runtime";
 
 const TOAST_TEXT = {
   id: {
-    testDone: "Test Selesai",
+    testDone: "Tes selesai",
     summary: (ok, fail, total) => `${ok} sukses · ${fail} gagal dari ${total} model`,
-    testOk: "Test Sukses",
-    testFail: "Test Gagal",
+    testOk: "Tes sukses",
+    testFail: "Tes gagal",
     responded: (label, ms) => `${label} merespon (${ms}ms)`,
     noResponse: "Model tidak merespon",
-    netError: "Network error",
-    modalTitle: "Tes Akses Model",
+    netError: "Gagal terhubung ke server",
+    modalTitle: "Uji akses model",
     testing: (n) => `Menguji ${n} model…`,
-    retest: "Test ulang",
+    testingShort: "Menguji...",
+    failed: "gagal",
+    models: "model",
+    retest: "Tes ulang",
     done: "Selesai",
     stop: "Berhenti",
     restrictModels: "Batasin model",
+    restrictHint: "Pilih model mana saja yang boleh dipakai key ini",
     testModels: (n) => `Tes ${n} model`,
     loadingModels: "Memuat daftar model…",
     selectAll: "Pilih semua",
-    deselectAll: "Copot semua",
-    scrollHint: "geser → · toggle untuk memilih · ikon tabung reagen untuk test",
-    searchModels: "Cari model…",
+    deselectAll: "Batalkan semua",
+    providersCount: (n) => `${n} provider · pilih salah satu`,
+    changeProvider: "Ganti provider",
+    modelsCount: (n) => `${n} model tersedia`,
+    scrollHint: "centang untuk pilih · ikon flask untuk tes",
+    searchModels: "Cari model...",
     clearSearch: "Hapus pencarian",
-    noMatch: "Tidak ada model yang cocok dengan filter Anda.",
-    notTested: "belum dites",
+    noMatch: "Tidak ada model yang cocok.",
+    notTested: "belum ditest",
     testModel: "Tes model",
     loadFailed: "Gagal memuat daftar model/provider",
     loadEmpty: "Belum ada model/provider yang bisa dipilih",
     loadEmptyHint: "Pastikan ada provider/model aktif, lalu muat ulang daftar.",
     retry: "Coba lagi",
     reload: "Muat ulang",
-    lockedKey: "Belum ada model dipilih — kunci ini menolak semua permintaan.",
+    lockedKey: "Belum ada model dipilih — key ini menolak semua request.",
     unresolved: (n) => `${n} entri allow-list tidak cocok dengan model aktif, jadi tidak akan pernah dipakai.`,
     fixIds: "Rapikan ID",
     dropUnresolved: "Hapus yang tidak cocok",
   },
   en: {
-    testDone: "Test Complete",
+    testDone: "Test complete",
     summary: (ok, fail, total) => `${ok} passed · ${fail} failed out of ${total} models`,
-    testOk: "Test Passed",
-    testFail: "Test Failed",
+    testOk: "Test passed",
+    testFail: "Test failed",
     responded: (label, ms) => `${label} responded (${ms}ms)`,
     noResponse: "Model did not respond",
     netError: "Network error",
-    modalTitle: "Model Access Test",
+    modalTitle: "Model access test",
     testing: (n) => `Testing ${n} model${n !== 1 ? "s" : ""}…`,
+    testingShort: "Testing...",
+    failed: "failed",
+    models: "models",
     retest: "Retest",
     done: "Done",
     stop: "Stop",
     restrictModels: "Restrict models",
+    restrictHint: "Choose exactly which models this key may use",
     testModels: (n) => `Test ${n} model${n !== 1 ? "s" : ""}`,
     loadingModels: "Loading models…",
     selectAll: "Select all",
     deselectAll: "Deselect all",
-    scrollHint: "scroll → · toggle to pick · flask icon to test",
+    providersCount: (n) => `${n} providers · pick one`,
+    changeProvider: "Change provider",
+    modelsCount: (n) => `${n} models available`,
+    scrollHint: "tick to select · flask icon to test",
     searchModels: "Search models...",
     clearSearch: "Clear search",
     noMatch: "No models match your filter.",
@@ -144,18 +160,18 @@ function getModelIdCandidates(m, dynamicNames = {}) {
 function TestBadge({ result }) {
   if (!result) return null;
   if (result === "pending")
-    return <span className="text-[10px] font-mono text-[var(--color-text-muted)] animate-pulse">{translate("Testing...")}</span>;
+    return <span className="text-[10px] font-mono text-[var(--t-muted)] animate-pulse">{tt().testingShort}</span>;
   if (result.ok)
     return (
-      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[var(--color-success)] bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 rounded px-1.5 py-0.5">
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[var(--t-ok)] bg-[var(--t-ok-soft)] border border-[var(--t-ok)]/30 rounded-full px-1.5 py-0.5">
         <span className="material-symbols-outlined" style={{ fontSize: 11 }}>bolt</span>
         {result.ms < 1000 ? `${result.ms}ms` : `${(result.ms / 1000).toFixed(1)}s`}
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[var(--color-danger)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 rounded px-1.5 py-0.5">
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[var(--t-danger)] bg-[var(--t-danger-soft)] border border-[var(--t-danger)]/30 rounded-full px-1.5 py-0.5">
       <span className="material-symbols-outlined" style={{ fontSize: 11 }}>error</span>
-      {translate("failed")}
+      {tt().failed}
     </span>
   );
 }
@@ -163,42 +179,32 @@ function TestBadge({ result }) {
 function ProviderCard({ group, selectedModels, dynamicNames, active, onClick }) {
   const { meta } = group;
   const selectedCount = group.models.filter(m => getModelIdCandidates(m, dynamicNames).some(id => selectedModels.has(id))).length;
+  const total = group.models.length;
+  const allSelected = total > 0 && selectedCount === total;
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`shrink-0 w-40 text-left rounded-xl border-2 transition-all bg-[var(--color-surface)] ${
+      aria-pressed={active}
+      title={meta.name}
+      className={cn(
+        "flex min-w-0 items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left transition-colors",
         active
-          ? "border-[var(--color-primary)] shadow-[3px_4px_0px_var(--color-primary)] -translate-y-0.5"
-          : "border-[var(--color-border)] shadow-[2px_3px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_4px_0px_var(--color-border)]"
-      }`}
+          ? "border-[var(--t-accent)] bg-[var(--t-accent-soft)]"
+          : "border-[var(--t-line)] bg-[var(--t-field)] hover:border-[var(--t-dim)] hover:bg-[var(--t-raised)]",
+      )}
     >
-      <div className="p-3 flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="size-8 rounded-lg bg-[var(--color-surface-2)] border-2 border-[var(--color-border)] flex items-center justify-center overflow-hidden p-1 shrink-0">
-            {meta.iconSrc
-              ? <ProviderIcon src={meta.iconSrc} alt={meta.name} size={20} className="object-contain" />
-              : <span className="material-symbols-outlined text-[16px]" style={{ color: meta.color || "var(--color-text-muted)" }}>{meta.fallbackIcon}</span>
-            }
-          </div>
-          <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
-            selectedCount > 0
-              ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10 border-[var(--color-primary)]/30"
-              : "text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border-[var(--color-border)]"
-          }`}>
-            {selectedCount}/{group.models.length}
-          </span>
-        </div>
-
-        <div className="min-w-0">
-          <div className="font-mono font-black text-xs text-[var(--color-text-main)] truncate tracking-wide">
-            {meta.name}
-          </div>
-          <div className="font-mono text-[10px] text-[var(--color-text-muted)]">
-            {group.models.length} model{group.models.length !== 1 ? "s" : ""}
-          </div>
-        </div>
-      </div>
+      <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-[8px] border border-[var(--t-line)] bg-[var(--t-card)] p-1">
+        {meta.iconSrc
+          ? <ProviderIcon src={meta.iconSrc} alt={meta.name} size={17} className="object-contain" />
+          : <span className="material-symbols-outlined text-[15px]" style={{ color: meta.color || "var(--t-dim)" }}>{meta.fallbackIcon}</span>
+        }
+      </span>
+      <span className={cn("min-w-0 flex-1 truncate text-[11.5px]", active ? "font-medium text-[var(--t-star-ink)]" : "text-[var(--t-ink)]")}>
+        {meta.name} <span className="font-mono text-[10.5px] text-[var(--t-dim)]">({total})</span>
+      </span>
+      {allSelected && <span className="material-symbols-outlined shrink-0 text-[13px] text-[var(--t-ok)]">check_circle</span>}
     </button>
   );
 }
@@ -218,21 +224,21 @@ function TestModal({ isOpen, onClose, models, labels = {}, testIds = {} }) {
     setResults({});
 
     let ok = 0, fail = 0;
-       for (const modelId of models) {
+    for (const modelId of models) {
       if (abortRef.current) break;
       setResults(prev => ({ ...prev, [modelId]: "pending" }));
       const t0 = Date.now();
       try {
-         const res = await fetch("/api/models/test", {
+        const res = await fetch("/api/models/test", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-           // The UI label/public alias is kept separate from the canonical
-           // provider model sent to the test API.
-           body: JSON.stringify({ model: testIds[modelId] || modelId }),
+          // The UI label/public alias is kept separate from the canonical
+          // provider model sent to the test API.
+          body: JSON.stringify({ model: testIds[modelId] || modelId }),
           signal: AbortSignal.timeout(30000),
         });
         const data = await res.json().catch(() => ({}));
-        const good = res.ok && data.ok !== false;
+        const good = res.ok && data.ok === true;
         if (good) ok++; else fail++;
         setResults(prev => ({ ...prev, [modelId]: { ok: good, ms: data.latencyMs || Date.now() - t0 } }));
       } catch {
@@ -261,61 +267,75 @@ function TestModal({ isOpen, onClose, models, labels = {}, testIds = {} }) {
   const ok = Object.values(results).filter(r => r && r !== "pending" && r.ok).length;
   const fail = Object.values(results).filter(r => r && r !== "pending" && !r.ok).length;
   const pending = Object.values(results).filter(r => r === "pending").length;
+  const finished = ok + fail;
+  const progress = models.length ? (finished / models.length) * 100 : 0;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={tt().modalTitle} size="lg">
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3 p-3 rounded-xl border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] shadow-[2px_2px_0_var(--color-border)]">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-mono text-[var(--color-text-muted)]">{tt().testing(models.length)}</p>
-            <div className="mt-1.5 h-1.5 w-full rounded-full bg-[var(--color-border)] overflow-hidden">
-              <div className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-300" style={{ width: `${models.length ? ((ok + fail) / models.length) * 100 : 0}%` }} />
+    <AntaresModal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="lg"
+      hideScrollbar
+      className="!max-h-[78dvh] sm:!max-h-[86dvh]"
+      title={tt().modalTitle}
+      subtitle={`${finished}/${models.length} ${tt().models}`}
+      footer={
+        <div className="flex w-full items-center gap-2">
+          {running ? (
+            <button
+              onClick={() => { abortRef.current = true; setRunning(false); setDone(true); }}
+              className="w-full h-9 rounded-[10px] border border-[var(--t-line)] bg-transparent text-xs font-medium text-[var(--t-muted)] hover:text-[var(--t-danger)] hover:border-[var(--t-danger)]/40 transition-colors"
+            >
+              {tt().stop}
+            </button>
+          ) : (
+            <>
+              <Button skin="antares" variant="ghost" onClick={runTests} fullWidth>{tt().retest}</Button>
+              <Button skin="antares" onClick={onClose} fullWidth>{tt().done}</Button>
+            </>
+          )}
+        </div>
+      }
+    >
+      <div className="flex min-h-0 flex-col gap-3">
+        <div className="flex shrink-0 items-center gap-3 rounded-xl border border-[var(--t-line)] bg-[var(--t-field)] p-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-[var(--t-muted)]">{tt().testing(models.length)}</p>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--t-line-soft)]">
+              <div className="h-full rounded-full bg-[var(--t-accent)] transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
           </div>
-          <div className="flex items-center gap-3 shrink-0 text-xs font-mono font-bold">
-            {ok > 0 && <span className="text-[var(--color-success)]">✓ {ok}</span>}
-            {fail > 0 && <span className="text-red-500">✗ {fail}</span>}
-            {pending > 0 && <span className="text-[var(--color-text-muted)] animate-pulse">… {pending}</span>}
+          <div className="flex shrink-0 items-center gap-2.5 text-xs font-mono font-medium tabular-nums">
+            {ok > 0 && <span className="text-[var(--t-ok)]">✓ {ok}</span>}
+            {fail > 0 && <span className="text-[var(--t-danger)]">✗ {fail}</span>}
+            {pending > 0 && <span className="text-[var(--t-muted)] animate-pulse">… {pending}</span>}
           </div>
         </div>
 
-        <div className="max-h-80 overflow-y-auto flex flex-col gap-1 pr-1">
-           {models.map(id => {
-             const r = results[id];
+        <div className="scrollbar-none max-h-[42dvh] min-h-0 overflow-y-auto overscroll-contain rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)]">
+          {models.map((id) => {
+            const r = results[id];
+            const tone = r === "pending"
+              ? "border-[var(--t-line)] bg-[var(--t-raised)]"
+              : r?.ok
+                ? "border-[var(--t-ok)]/25 bg-[var(--t-ok-soft)]/20"
+                : r
+                  ? "border-[var(--t-danger)]/25 bg-[var(--t-danger-soft)]/20"
+                  : "border-[var(--t-line-soft)] bg-transparent";
+            const dot = r === "pending"
+              ? "bg-[var(--t-muted)] animate-pulse"
+              : r?.ok ? "bg-[var(--t-ok)]" : r ? "bg-[var(--t-danger)]" : "bg-[var(--t-line)]";
             return (
-              <div key={id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
-                r === "pending" ? "border-[var(--color-border)] bg-[var(--color-surface)] animate-pulse" :
-                r?.ok ? "border-[var(--color-success)]/20 bg-[var(--color-success)]/5" :
-                r ? "border-red-500/25 bg-red-500/5" :
-                "border-[var(--color-border)] bg-[var(--color-surface)]"
-              }`}>
-                <span className={`size-1.5 rounded-full shrink-0 ${
-                  r === "pending" ? "bg-[var(--color-text-muted)]" :
-                  r?.ok ? "bg-[var(--color-success)]" :
-                  r ? "bg-red-500" : "bg-[var(--color-border)]"
-                }`} />
-                 <span className="text-xs font-mono text-[var(--color-text-main)] flex-1 min-w-0 truncate">{labels[id] || id}</span>
+              <div key={id} className={`flex items-center gap-2.5 border-b border-[var(--t-line-soft)] px-3 py-2 last:border-0 ${tone}`}>
+                <span className={`size-1.5 shrink-0 rounded-full ${dot}`} />
+                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-[var(--t-ink)]">{labels[id] || id}</span>
                 <TestBadge result={r} />
               </div>
             );
           })}
         </div>
-
-        {done && (
-          <div className="flex gap-2">
-            <button onClick={runTests} className="flex-1 h-9 rounded-xl border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-xs font-mono font-bold text-[var(--color-text-muted)] shadow-[2px_2px_0_var(--color-border)] hover:-translate-y-px transition-all">
-              {tt().retest}
-            </button>
-            <Button onClick={onClose} className="flex-1">{tt().done}</Button>
-          </div>
-        )}
-        {running && (
-          <button onClick={() => { abortRef.current = true; setRunning(false); setDone(true); }} className="w-full h-9 rounded-xl border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] text-xs font-mono text-[var(--color-text-muted)] hover:text-red-500 transition-colors">
-            {tt().stop}
-          </button>
-        )}
       </div>
-    </Modal>
+    </AntaresModal>
   );
 }
 
@@ -332,10 +352,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const [testResults, setTestResults] = useState({});
   const [activeProvider, setActiveProvider] = useState(null);
   const [modelQuery, setModelQuery] = useState("");
-  const sliderRef = useRef(null);
   const loadRequestRef = useRef(0);
-  const isDragging = useRef(false);
-  const dragStart = useRef({ x: 0, scrollLeft: 0 });
   const addNotification = useNotificationStore((s) => s.addNotification);
   const [, setLocaleVersion] = useState(0);
 
@@ -474,7 +491,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
         signal: AbortSignal.timeout(30000),
       });
       const data = await res.json().catch(() => ({}));
-      const good = res.ok && data.ok !== false;
+      const good = res.ok && data.ok === true;
       const ms = data.latencyMs || Date.now() - t0;
       setTestResults(prev => ({ ...prev, [id]: { ok: good, ms } }));
       if (good) {
@@ -510,18 +527,6 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       onChange({ restricted: false, allow: [...selectedModels] });
     }
   };
-
-  const onMouseDown = (e) => {
-    isDragging.current = true;
-    dragStart.current = { x: e.pageX - sliderRef.current.offsetLeft, scrollLeft: sliderRef.current.scrollLeft };
-  };
-  const onMouseMove = (e) => {
-    if (!isDragging.current) return;
-    e.preventDefault();
-    const x = e.pageX - sliderRef.current.offsetLeft;
-    sliderRef.current.scrollLeft = dragStart.current.scrollLeft - (x - dragStart.current.x);
-  };
-  const onMouseUp = () => { isDragging.current = false; };
 
   // Existing keys can contain legacy upstream IDs. Resolve those entries to
   // the public IDs returned by /v1/models before rendering the test modal.
@@ -609,37 +614,26 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
     });
   };
 
-  const modelSliderRef = useRef(null);
-  const modelIsDragging = useRef(false);
-  const modelDragStart = useRef({ x: 0, scrollLeft: 0 });
-
-  const onModelMouseDown = (e) => {
-    modelIsDragging.current = true;
-    modelDragStart.current = { x: e.pageX - modelSliderRef.current.offsetLeft, scrollLeft: modelSliderRef.current.scrollLeft };
-  };
-  const onModelMouseMove = (e) => {
-    if (!modelIsDragging.current) return;
-    e.preventDefault();
-    const x = e.pageX - modelSliderRef.current.offsetLeft;
-    modelSliderRef.current.scrollLeft = modelDragStart.current.scrollLeft - (x - modelDragStart.current.x);
-  };
-  const onModelMouseUp = () => { modelIsDragging.current = false; };
-
   return (
     <div className="mt-3" data-testid="key-access">
-      <div className="flex items-center justify-between gap-3">
-        <Toggle
-          size="sm"
-          checked={access.restricted}
-          label={tt().restrictModels}
-          onChange={handleToggleRestrict}
-        />
+      {/* Setting row — one action per row on phones */}
+      <div className="flex flex-col gap-3 rounded-[12px] border border-[var(--t-line)] bg-[var(--t-field)] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <Toggle
+            size="sm"
+            checked={access.restricted}
+            label={tt().restrictModels}
+            onChange={handleToggleRestrict}
+          />
+          <p className="an-meta mt-1 pl-11">{tt().restrictHint}</p>
+        </div>
         {access.restricted && selectedList.length > 0 && (
           <button
+            type="button"
             onClick={() => setTestModalOpen(true)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface)] shadow-[2px_2px_0_var(--color-border)] text-[10px] font-mono font-bold text-[var(--color-primary)] hover:-translate-y-px active:translate-y-0 transition-all"
+            className="an-btn an-ghost h-9 w-full shrink-0 justify-start px-3 text-[11px] sm:w-auto"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>play_circle</span>
+            <span className="material-symbols-outlined text-[15px] text-[var(--t-star-ink)]">play_circle</span>
             {tt().testModels(selectedList.length)}
           </button>
         )}
@@ -648,23 +642,23 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       {access.restricted && (
         <div className="mt-3 flex flex-col gap-3">
           {selectedList.length === 0 && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>
+            <p className="flex items-center gap-2 rounded-[10px] border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11.5px] text-amber-600 dark:text-amber-400">
+              <span className="material-symbols-outlined shrink-0 text-[15px]">warning</span>
               {tt().lockedKey}
             </p>
           )}
 
           {!showInitialLoading && unresolvedList.length > 0 && (
-            <div className="flex items-start gap-2 rounded-xl border-2 border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
-              <span className="material-symbols-outlined text-[16px] shrink-0">link_off</span>
+            <div className="flex items-start gap-2 rounded-[10px] border border-amber-500/30 bg-amber-500/5 p-3 text-[11.5px] text-amber-700 dark:text-amber-300">
+              <span className="material-symbols-outlined shrink-0 text-[16px]">link_off</span>
               <div className="min-w-0 flex-1">
-                <p className="font-mono font-bold">{tt().unresolved(unresolvedList.length)}</p>
-                <p className="mt-1 break-all opacity-90 font-mono text-[10px]">{unresolvedList.join(", ")}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <p className="font-medium">{tt().unresolved(unresolvedList.length)}</p>
+                <p className="mt-1 break-all font-mono text-[10px] opacity-90">{unresolvedList.join(", ")}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     onClick={() => fixSelection(false)}
-                    className="inline-flex items-center gap-1 font-mono font-bold text-[var(--color-primary)] hover:underline"
+                    className="inline-flex items-center gap-1 font-mono text-[11px] font-medium text-[var(--t-star-ink)] hover:underline"
                   >
                     <span className="material-symbols-outlined text-[14px]">build</span>
                     {tt().fixIds}
@@ -672,7 +666,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                   <button
                     type="button"
                     onClick={() => fixSelection(true)}
-                    className="inline-flex items-center gap-1 font-mono font-bold text-[var(--color-danger)] hover:underline"
+                    className="inline-flex items-center gap-1 font-mono text-[11px] font-medium text-[var(--t-danger)] hover:underline"
                   >
                     <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
                     {tt().dropUnresolved}
@@ -683,22 +677,22 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
           )}
 
           {showInitialLoading && (
-            <div className="flex items-center gap-2 py-3 text-xs text-[var(--color-text-muted)] font-mono animate-pulse">
-              <span className="material-symbols-outlined text-[16px] animate-spin text-[var(--color-primary)]">progress_activity</span>
+            <div className="an-meta flex items-center gap-2 py-3">
+              <span className="material-symbols-outlined animate-spin text-[15px] text-[var(--t-star-ink)]">progress_activity</span>
               {tt().loadingModels}
             </div>
           )}
 
           {!showInitialLoading && loadError && providerGroups.length === 0 && (
-            <div className="flex items-start gap-2 rounded-xl border-2 border-red-500/30 bg-red-500/5 p-3 text-xs text-red-600 dark:text-red-400">
-              <span className="material-symbols-outlined text-[16px] shrink-0">error</span>
+            <div className="flex items-start gap-2 rounded-[10px] border border-[var(--t-danger)]/30 bg-[var(--t-danger-soft)] p-3 text-[11.5px] text-[var(--t-danger)]">
+              <span className="material-symbols-outlined shrink-0 text-[16px]">error</span>
               <div className="min-w-0 flex-1">
-                <p className="font-mono font-bold">{tt().loadFailed}</p>
+                <p className="font-medium">{tt().loadFailed}</p>
                 <p className="mt-0.5 break-words opacity-90">{loadError}</p>
                 <button
                   type="button"
                   onClick={loadModels}
-                  className="mt-2 inline-flex items-center gap-1 font-mono font-bold text-[var(--color-primary)] hover:underline"
+                  className="mt-2 inline-flex items-center gap-1 font-mono text-[11px] font-medium hover:underline"
                 >
                   <span className="material-symbols-outlined text-[14px]">refresh</span>
                   {tt().retry}
@@ -708,15 +702,15 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
           )}
 
           {!showInitialLoading && !loadError && providerGroups.length === 0 && (
-            <div className="flex items-start gap-2 rounded-xl border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] p-3 text-xs text-[var(--color-text-muted)]">
-              <span className="material-symbols-outlined text-[16px] shrink-0">info</span>
+            <div className="flex items-start gap-2 rounded-[10px] border border-[var(--t-line)] bg-[var(--t-card)] p-3 text-[11.5px] text-[var(--t-muted)]">
+              <span className="material-symbols-outlined shrink-0 text-[16px]">info</span>
               <div className="min-w-0 flex-1">
-                <p className="font-mono font-bold text-[var(--color-text-main)]">{tt().loadEmpty}</p>
+                <p className="font-medium text-[var(--t-ink)]">{tt().loadEmpty}</p>
                 <p className="mt-0.5">{tt().loadEmptyHint}</p>
                 <button
                   type="button"
                   onClick={loadModels}
-                  className="mt-2 inline-flex items-center gap-1 font-mono font-bold text-[var(--color-primary)] hover:underline"
+                  className="mt-2 inline-flex items-center gap-1 font-mono text-[11px] font-medium text-[var(--t-star-ink)] hover:underline"
                 >
                   <span className="material-symbols-outlined text-[14px]">refresh</span>
                   {tt().reload}
@@ -726,159 +720,157 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
           )}
 
           {!showInitialLoading && !loadError && providerGroups.length > 0 && (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
-                  {providerGroups.length} {translate("providers · scroll →")}
-                </span>
-                {activeGroup && (
-                  <button
-                    onClick={toggleAllActive}
-                    className="font-mono text-[10px] font-bold text-[var(--color-primary)] hover:underline"
-                  >
-                    {activeAllSelected ? tt().deselectAll : tt().selectAll} ({activeGroup.meta.name})
-                  </button>
-                )}
-              </div>
-
-              <div
-                ref={sliderRef}
-                className="flex gap-3 overflow-x-auto pb-3"
-                style={{ scrollbarWidth: "thin", scrollbarColor: "var(--color-border) transparent", cursor: "grab" }}
-                onMouseDown={onMouseDown}
-                onMouseMove={onMouseMove}
-                onMouseUp={onMouseUp}
-                onMouseLeave={onMouseUp}
-              >
-                {providerGroups.map(group => (
-                  <ProviderCard
-                    key={group.provider}
-                    group={group}
-                    selectedModels={selectedModels}
-                    dynamicNames={dynamicNames}
-                    active={activeProvider === group.provider}
-                    onClick={() => { setModelQuery(""); setActiveProvider(prev => prev === group.provider ? null : group.provider); }}
-                  />
-                ))}
-              </div>
-
-              {activeGroup && (
-                <div className="rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-surface)] shadow-[3px_4px_0px_var(--color-primary)] overflow-hidden">
-                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[var(--color-primary)]/10 border-b-2 border-[var(--color-primary)]/30">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {activeGroup.meta.iconSrc
-                        ? <ProviderIcon src={activeGroup.meta.iconSrc} alt={activeGroup.meta.name} size={16} className="object-contain shrink-0" />
-                        : <span className="material-symbols-outlined text-[15px] text-[var(--color-primary)] shrink-0">{activeGroup.meta.fallbackIcon}</span>
-                      }
-                      <span className="font-mono text-[11px] font-black text-[var(--color-primary)] truncate">
-                        {activeGroup.meta.name} · {activeGroup.models.length} model
-                      </span>
-                    </div>
+            <div className="flex flex-col gap-3">
+              {!activeGroup && (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="an-meta">{tt().providersCount(providerGroups.length)}</span>
                     <button
-                      onClick={() => { setModelQuery(""); setActiveProvider(null); }}
-                      className="material-symbols-outlined text-[16px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                      type="button"
+                      onClick={loadModels}
+                      title={tt().reload}
+                      aria-label={tt().reload}
+                      className="grid size-7 shrink-0 place-items-center rounded-lg border border-[var(--t-line)] text-[var(--t-dim)] transition-colors hover:border-[var(--t-dim)] hover:text-[var(--t-ink)]"
                     >
-                      close
+                      <span className="material-symbols-outlined text-[14px]">refresh</span>
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-[var(--color-border)]/40 bg-[var(--color-surface-2)]">
-                    <span className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--color-text-muted)]">
-                      {tt().scrollHint}
+                  <div className="scrollbar-none grid max-h-[112px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {providerGroups.map(group => (
+                      <ProviderCard
+                        key={group.provider}
+                        group={group}
+                        selectedModels={selectedModels}
+                        dynamicNames={dynamicNames}
+                        active={activeProvider === group.provider}
+                        onClick={() => { setModelQuery(""); setActiveProvider(group.provider); }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {activeGroup && (
+                <div className="an-panel">
+                  <div className="an-panel-head an-panel-head-stack flex-wrap">
+                    <span className="an-panel-ico" aria-hidden>
+                      <span className="material-symbols-outlined">hub</span>
                     </span>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="an-panel-title truncate" title={activeGroup.meta.name}>{activeGroup.meta.name}</h4>
+                      <p className="an-panel-sub">{tt().modelsCount(activeGroup.models.length)}</p>
+                    </div>
+                    <div className="an-panel-actions flex-wrap">
+                      <button
+                        type="button"
+                        onClick={toggleAllActive}
+                        className="an-btn an-ghost h-8 px-3 text-[11px]"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">
+                          {activeAllSelected ? "deselect" : "select_all"}
+                        </span>
+                        {activeAllSelected ? tt().deselectAll : tt().selectAll}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setModelQuery(""); setActiveProvider(null); }}
+                        title={tt().changeProvider}
+                        aria-label={tt().changeProvider}
+                        className="grid size-8 place-items-center rounded-lg border border-[var(--t-line)] text-[var(--t-dim)] transition-colors hover:border-[var(--t-dim)] hover:text-[var(--t-ink)]"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">arrow_back</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)]/40 bg-[var(--color-surface)]">
-                    <div className="relative flex-1 min-w-0">
-                      <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[14px] text-[var(--color-text-muted)] pointer-events-none">search</span>
+                  <div className="flex items-center gap-2 border-b border-[var(--t-line-soft)] bg-[var(--t-field)] px-3 py-2.5">
+                    <div className="an-field relative min-w-0 flex-1">
+                      <span className="fi" aria-hidden><span className="material-symbols-outlined">search</span></span>
                       <input
                         type="text"
                         value={modelQuery}
                         onChange={(e) => setModelQuery(e.target.value)}
                         placeholder={tt().searchModels}
-                        className="w-full h-7 pl-7 pr-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] text-[11px] font-mono text-[var(--color-text-main)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
+                        aria-label={tt().searchModels}
+                        className="an-input !h-9 !py-0 text-[12px]"
                       />
                       {modelQuery && (
                         <button
                           type="button"
                           onClick={() => setModelQuery("")}
-                          title={translate("Clear search")}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px] leading-none text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                          title={tt().clearSearch}
+                          aria-label={tt().clearSearch}
+                          className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[14px] leading-none text-[var(--t-dim)] hover:text-[var(--t-star-ink)]"
                         >
                           close
                         </button>
                       )}
                     </div>
-                    <span className="shrink-0 text-[9.5px] font-mono font-bold text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded px-1.5 py-0.5">
+                    <span className="shrink-0 rounded-full border border-[var(--t-line)] bg-[var(--t-card)] px-2 py-1 font-mono text-[10px] text-[var(--t-dim)]">
                       {visibleModels.length}/{activeGroup.models.length}
                     </span>
                   </div>
 
-                  <div
-                    ref={modelSliderRef}
-                    className="flex gap-2.5 overflow-x-auto p-3"
-                    style={{ scrollbarWidth: "thin", scrollbarColor: "var(--color-border) transparent", cursor: "grab" }}
-                    onMouseDown={onModelMouseDown}
-                    onMouseMove={onModelMouseMove}
-                    onMouseUp={onModelMouseUp}
-                    onMouseLeave={onModelMouseUp}
-                  >
+                  <div className="scrollbar-none grid max-h-[300px] grid-cols-1 gap-2 overflow-y-auto p-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {visibleModels.length === 0 && (
-                      <span className="p-2 text-[11px] font-mono text-[var(--color-text-muted)]">
-                        {translate("No models match your filter.")}
-                      </span>
+                      <div className="col-span-full flex items-center gap-2 py-4 text-[11.5px] text-[var(--t-muted)]">
+                        <span className="material-symbols-outlined text-[15px]">search_off</span>
+                        {tt().noMatch}
+                      </div>
                     )}
-                    {visibleModels.map(m => {
+                    {visibleModels.map((m, idx) => {
                       const requestId = getModelRequestId(m, dynamicNames);
-                      const id = requestId;
                       const displayId = m.displayId || requestId;
                       const on = getModelIdCandidates(m, dynamicNames).some(candidate => selectedModels.has(candidate));
                       const res = testResults[requestId];
                       const busy = res === "pending";
                       return (
                         <div
-                          key={id}
-                          className={`shrink-0 w-48 flex flex-col gap-2 rounded-xl border-2 p-2.5 transition-all ${
+                          key={`${m.provider}:${requestId}:${idx}`}
+                          className={cn(
+                            "flex min-w-0 items-center gap-2 rounded-[10px] border px-2 py-1.5 transition-colors",
                             on
-                              ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5 shadow-[2px_3px_0px_var(--color-primary)]"
-                              : "border-[var(--color-border)] bg-[var(--color-surface)] shadow-[2px_2px_0px_var(--color-border)]"
-                          }`}
+                              ? "border-[var(--t-accent)]/40 bg-[var(--t-accent-soft)]"
+                              : "border-[var(--t-line-soft)] bg-[var(--t-card)] hover:border-[var(--t-line)]",
+                          )}
                         >
-                          <button
-                             onClick={() => handleToggleModel(requestId, !on, getModelIdCandidates(m, dynamicNames).filter(candidate => candidate !== requestId))}
-                            className="flex items-center gap-2 cursor-pointer text-left"
-                          >
-                            <span
-                              className="relative shrink-0 rounded-full border-2 border-[var(--color-border)] transition-all"
-                              style={{ width: 30, height: 18, background: on ? "var(--color-primary)" : "var(--color-surface-3)" }}
-                            >
-                              <span className={`absolute top-0.5 size-3 rounded-full bg-white border-2 border-[var(--color-border)] shadow-sm transition-transform duration-200 ${on ? "translate-x-3" : "translate-x-0.5"}`} />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className={`block text-[11px] font-mono truncate ${on ? "text-[var(--color-text-main)] font-bold" : "text-[var(--color-text-muted)]"}`}>
-                                {m.name || m.model}
-                              </span>
-                              <span className="block text-[9px] font-mono text-[var(--color-text-muted)] truncate">{displayId}</span>
-                            </span>
-                          </button>
-
-                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-[var(--color-border)]/40">
+                          <AntaresCheckbox
+                            compact
+                            checked={on}
+                            ariaLabel={displayId}
+                            onChange={(e) => handleToggleModel(
+                              requestId,
+                              e.target.checked,
+                              getModelIdCandidates(m, dynamicNames).filter(candidate => candidate !== requestId),
+                            )}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[12px] font-medium text-[var(--t-ink)]" title={m.name || m.model}>
+                              {m.name || m.model}
+                            </div>
+                            <div className="truncate font-mono text-[10px] text-[var(--t-dim)]" title={displayId}>
+                              {displayId}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
                             {res && res !== "pending"
                               ? <TestBadge result={res} />
-                              : res === "pending"
-                                ? <span className="text-[10px] font-mono text-[var(--color-text-muted)] animate-pulse">{translate("Testing...")}</span>
-                                : <span className="text-[9px] font-mono text-[var(--color-text-muted)]">{tt().notTested}</span>
+                              : busy
+                                ? <span className="font-mono text-[9.5px] text-[var(--t-muted)] animate-pulse">{tt().testingShort}</span>
+                                : <span className="hidden font-mono text-[9.5px] text-[var(--t-dim)] sm:inline">{tt().notTested}</span>
                             }
                             <button
-                               onClick={() => handleTestModel(requestId, requestId, requestId)}
+                              type="button"
+                              onClick={() => handleTestModel(requestId, requestId, requestId)}
                               disabled={busy}
                               title={tt().testModel}
-                              className="group flex items-center justify-center size-7 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-primary)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 shadow-[2px_2px_0_var(--color-border)] hover:shadow-[3px_3px_0_var(--color-border)] transition-all"
+                              aria-label={tt().testModel}
+                              className="grid size-8 place-items-center rounded-[8px] border border-[var(--t-line)] bg-[var(--t-field)] text-[var(--t-dim)] transition-colors hover:border-[var(--t-accent)] hover:text-[var(--t-star-ink)] disabled:opacity-50"
                             >
-                              {busy
-                                ? <span className="material-symbols-outlined text-[14px] animate-spin text-white">progress_activity</span>
-                                : <span className="material-symbols-outlined text-[14px] text-white">science</span>
-                              }
+                              <span className={cn("material-symbols-outlined text-[15px]", busy && "animate-spin")}>
+                                {busy ? "progress_activity" : "science"}
+                              </span>
                             </button>
                           </div>
                         </div>
@@ -887,7 +879,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       )}

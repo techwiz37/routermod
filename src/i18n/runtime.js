@@ -2,6 +2,15 @@
 
 import { DEFAULT_LOCALE, LOCALE_COOKIE, normalizeLocale } from "./config";
 
+// Right-to-left locales need the document direction, not just translated text.
+const RTL_LOCALES = new Set(["ar", "he", "fa", "ur"]);
+
+function applyDocumentLocale(locale) {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang = locale;
+  document.documentElement.dir = RTL_LOCALES.has(locale) ? "rtl" : "ltr";
+}
+
 let translationMap = {};
 let currentLocale = DEFAULT_LOCALE;
 let reloadCallbacks = [];
@@ -132,6 +141,7 @@ export async function initRuntimeI18n() {
   if (typeof window === "undefined") return;
   
   currentLocale = getLocaleFromCookie();
+  applyDocumentLocale(currentLocale);
   await loadTranslations(currentLocale);
   
   processElement(document.body);
@@ -161,6 +171,7 @@ export async function initRuntimeI18n() {
 
 export async function reloadTranslations() {
   currentLocale = getLocaleFromCookie();
+  applyDocumentLocale(currentLocale);
   await loadTranslations(currentLocale);
   
   reloadCallbacks.forEach(callback => callback());

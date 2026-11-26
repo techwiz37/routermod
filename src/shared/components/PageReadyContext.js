@@ -81,3 +81,21 @@ export function usePageReady(loading) {
 export function usePageReadyState() {
   return useContext(PageReadyContext);
 }
+
+/**
+ * Server-rendered pending flag for the app-wide preloader.
+ *
+ * `usePageReady` registers from an effect, and those effects only run after
+ * React has hydrated this route's client component — which, for streamed
+ * dynamic routes, is later than the moment the preloader decides to close.
+ * Rendering this marker while the first payload is missing fixes that
+ * ordering: the element is already present in the server HTML, so the
+ * preloader can see that the page is still loading no matter when hydration
+ * runs. It disappears on the render where the data (or error) is ready.
+ *
+ * @param {{ active: boolean }} props - mark while the page is still fetching.
+ */
+export function PagePendingMarker({ active }) {
+  if (!active) return null;
+  return <span data-page-pending="" aria-hidden="true" hidden />;
+}

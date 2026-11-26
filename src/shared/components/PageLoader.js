@@ -10,7 +10,7 @@ import StarField from "./StarField";
  * Use this for any page-level "still fetching" state so every route shows the
  * same preloader instead of a bare "Loading..." string.
  */
-export default function PageLoader({ message = "Memuat...", className = "" }) {
+export default function PageLoader({ message = "Loading...", className = "" }) {
   return (
     <div className={`an-scope an-shell flex items-center justify-center min-h-screen ${className}`}>
       <div className="an-shell-bg" aria-hidden>

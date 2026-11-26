@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, expiresInDays, ipBlacklist } = body;
+    const { isActive, access, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, tokenResetEnabled, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, expiresInDays, ipBlacklist } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -51,6 +51,12 @@ export async function PUT(request, { params }) {
       if (!TOKEN_WINDOWS[tokenLimitWindow]) return NextResponse.json({ error: "tokenLimitWindow must be one of 1m, 1h, 24h, 7d, 30d" }, { status: 400 });
       updateData.tokenLimitWindow = tokenLimitWindow;
     }
+    if (tokenResetEnabled !== undefined) {
+      updateData.tokenResetEnabled = Boolean(tokenResetEnabled);
+      // Restart the cycle from "now" when the operator re-enables reset so the
+      // countdown matches the moment they turned it on.
+      if (updateData.tokenResetEnabled) updateData.tokenCycleStart = new Date().toISOString();
+    }
     if (spendLimit !== undefined) {
       const limit = Number(spendLimit);
       if (!Number.isFinite(limit) || limit < 0) return NextResponse.json({ error: "spendLimit must be a non-negative number" }, { status: 400 });
@@ -62,6 +68,19 @@ export async function PUT(request, { params }) {
       const days = Number(expiresInDays);
       if (!Number.isInteger(days) || days < 0) return NextResponse.json({ error: "expiresInDays must be a non-negative integer" }, { status: 400 });
       updateData.expiresAt = days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
+    }
+
+    // With "Reset token" off the quota window is a fixed lifetime. Restart that
+    // lifetime when reset is disabled or the window changes, otherwise a 7-day
+    // key edited today could expire instantly because its anchor is old.
+    const nextResetEnabled = updateData.tokenResetEnabled !== undefined
+      ? updateData.tokenResetEnabled
+      : existing.tokenResetEnabled !== false;
+    if (nextResetEnabled === false) {
+      const wasResetEnabled = existing.tokenResetEnabled !== false;
+      const windowChanged = updateData.tokenLimitWindow !== undefined
+        && updateData.tokenLimitWindow !== existing.tokenLimitWindow;
+      if (wasResetEnabled || windowChanged) updateData.tokenCycleStart = new Date().toISOString();
     }
 
     if (ipBlacklist !== undefined) {

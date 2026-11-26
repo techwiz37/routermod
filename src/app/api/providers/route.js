@@ -11,6 +11,7 @@ import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompat
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
 import { toProviderConnectionResponse } from "@/lib/providerConnectionResponse";
 import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
+import { getProviderModelTests } from "@/lib/db/repos/providerModelTestRepo";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,10 @@ async function normalizeProxyPoolId(proxyPoolId) {
 
 export async function GET(request) {
   try {
-    const connections = await getProviderConnections();
+    const searchParams = new URL(request.url).searchParams;
+    const provider = searchParams.get("provider");
+    const summary = searchParams.get("view") === "summary";
+    const connections = await getProviderConnections(provider ? { provider } : {});
 
     let nodeNameMap = {};
     try {
@@ -65,6 +69,18 @@ export async function GET(request) {
       const name = isCompatible
         ? (c.name || nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
         : c.name;
+      if (summary) {
+        return {
+          id: c.id, provider: c.provider, authType: c.authType, name,
+          isActive: c.isActive, testStatus: c.testStatus,
+          lastError: c.lastError, lastErrorAt: c.lastErrorAt, errorCode: c.errorCode,
+          providerSpecificData: {
+            nodeName: c.providerSpecificData?.nodeName,
+            apiType: c.providerSpecificData?.apiType,
+          },
+          ...Object.fromEntries(Object.entries(c).filter(([key]) => key.startsWith("modelLock_"))),
+        };
+      }
       return {
         ...toProviderConnectionResponse(c),
         name,
@@ -72,7 +88,7 @@ export async function GET(request) {
       };
     });
 
-    return NextResponse.json({ connections: safeConnections });
+    return NextResponse.json({ connections: safeConnections, ...(summary ? { modelTests: await getProviderModelTests() } : {}) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.log("Error fetching providers:", error);
     return NextResponse.json({ error: localizedProviderMessage(getRequestLocale(request), "failedFetchProviders") }, { status: 500 });

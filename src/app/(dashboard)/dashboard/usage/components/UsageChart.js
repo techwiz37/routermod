@@ -89,7 +89,7 @@ export default function UsageChart({ period = "7d" }) {
       ) : !hasData ? (
         <div className="h-52 flex flex-col items-center justify-center text-[var(--t-muted)] gap-2">
           <span className="material-symbols-outlined text-[32px] opacity-30">bar_chart</span>
-          <span className="text-xs font-medium">Belum ada data untuk periode ini</span>
+          <span className="text-xs font-medium">Pending ada data untuk periode ini</span>
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={240}>

@@ -12,6 +12,8 @@ export default function Footer() {
     {
       title: t("footProduct"),
       links: [
+        { label: t("navBuyKey"), href: "/buy-key" },
+        { label: t("navModels"), href: "/models" },
         { label: t("footFeatures"), href: "#features" },
         { label: t("footHow"), href: "#how-it-works" },
         { label: t("footStart"), href: "#get-started" },
@@ -37,13 +39,13 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="relative border-t border-[var(--l-line)] bg-[var(--l-bg-veil-strong)] px-5 pb-8 pt-14 sm:px-8">
-      <div className="mx-auto max-w-none">
+    <footer className="landing-section relative border-t border-[var(--l-line)] bg-[var(--l-bg-veil-strong)] pb-8 pt-16">
+      <div className="mx-auto landing-container">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-5 lg:gap-12">
           {/* Brand */}
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-[9px] border border-[var(--l-line)] bg-[var(--l-raised)] text-[var(--l-accent-ink)]">
+              <span className="an-ic !size-8 !w-8 !h-8" aria-hidden>
                 <span className="material-symbols-outlined text-[19px]">hub</span>
               </span>
               <span className="flex flex-col items-start leading-none">
@@ -69,7 +71,7 @@ export default function Footer() {
                   rel="noopener noreferrer"
                   aria-label={label}
                   title={label}
-                  className="flex size-9 items-center justify-center rounded-[9px] border border-[var(--l-line)] bg-[var(--l-raised)] text-[var(--l-muted)] transition-colors hover:border-[var(--l-accent)]/40 hover:text-[var(--l-ink)]"
+                  className="an-btn an-ghost size-9 p-0"
                 >
                   <Icon className="size-4" />
                 </a>
@@ -113,11 +115,11 @@ export default function Footer() {
         {/* Bottom */}
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-[var(--l-line)] pt-6 sm:flex-row">
           <p className="font-mono text-[11px] text-[var(--l-dim)]">
-            Â© {new Date().getFullYear()} {APP_CONFIG.name} · v{APP_CONFIG.version}
+            © {new Date().getFullYear()} {APP_CONFIG.name} · v{APP_CONFIG.version}
           </p>
           <div className="flex items-center gap-4 font-mono text-[11px] text-[var(--l-dim)]">
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-[var(--l-ok)]" />
+              <span className="size-1.5 rounded-full bg-[var(--l-dim)]" />
               {t("footAllOk")}
             </span>
             <span className="text-[var(--l-line)]">·</span>

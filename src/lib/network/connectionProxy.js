@@ -1,4 +1,5 @@
-import { getProxyPoolById } from "@/models";
+import { getProxyPoolById, getProxyPools } from "@/models";
+import { getSettings } from "@/lib/localDb";
 
 function normalizeString(value) {
   if (value === undefined || value === null) return "";
@@ -75,12 +76,38 @@ function normalizeLegacyProxy(providerSpecificData = {}) {
 }
 
 export async function resolveConnectionProxyConfig(
-  providerSpecificData = {}
+  providerSpecificData = {},
+  providerId = ""
 ) {
   try {
-    const proxyPoolIdRaw = normalizeString(
+    let proxyPoolIdRaw = normalizeString(
       providerSpecificData?.proxyPoolId
     );
+
+    // Provider-level RouterMod proxy (set from the dashboard for ANY
+    // provider) overrides the per-connection choice and applies to all
+    // traffic: requests, account refresh/health checks and model fetching.
+    if (providerId) {
+      try {
+        const settings = await getSettings();
+        const override = (settings?.providerStrategies || {})[providerId] || {};
+        let pickedId = normalizeString(override.proxyPoolId);
+        const strategy = override.rotateStrategy || "none";
+        if (strategy !== "none" && pickedId && pickedId !== "__none__") {
+          const pools = (await getProxyPools({ isActive: true }))
+            .filter((p) => p?.proxyUrl && p.isActive !== false);
+          const selected = pools.find((p) => p.id === pickedId);
+          // Rotation must stay inside the pool the operator explicitly chose.
+          // Rotating across every active pool would silently swap a healthy
+          // WARP tunnel for an unrelated (often dead/auth-required) proxy.
+          const candidates = selected?.exitIp
+            ? pools.filter((p) => p.id === pickedId || p.exitIp === selected.exitIp)
+            : selected ? [selected] : pools;
+          pickedId = pickProxyPoolId(candidates, strategy, providerId) || pickedId;
+        }
+        if (pickedId && pickedId !== "__none__") proxyPoolIdRaw = pickedId;
+      } catch { /* fall through to the connection-level setting */ }
+    }
 
     const proxyPoolId =
       proxyPoolIdRaw === "__none__" ? "" : proxyPoolIdRaw;

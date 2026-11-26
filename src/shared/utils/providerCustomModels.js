@@ -20,7 +20,7 @@ export function getProviderCustomModelRows({
   includeBuiltInCustomModels = false,
 }) {
   const builtInIds = new Set(builtInModels.map((model) => model.id));
-  const seenFullModels = new Set();
+  const seenRows = new Set();
   const rows = [];
 
   for (const model of customModels) {
@@ -30,8 +30,9 @@ export function getProviderCustomModelRows({
     if (builtInIds.has(model.id) && !includeBuiltInCustomModels) continue;
 
     const fullModel = `${providerAlias}/${model.id}`;
-    if (seenFullModels.has(fullModel)) continue;
-    seenFullModels.add(fullModel);
+    const rowKey = `custom:${fullModel}`;
+    if (seenRows.has(rowKey)) continue;
+    seenRows.add(rowKey);
     rows.push({
       id: model.id,
       name: model.name || model.id,
@@ -49,13 +50,18 @@ export function getProviderCustomModelRows({
   for (const [alias, fullModel] of Object.entries(modelAliases || {})) {
     if (typeof fullModel !== "string" || !fullModel.startsWith(prefix)) continue;
     const id = fullModel.slice(prefix.length);
-    if (!id || builtInIds.has(id) || seenFullModels.has(fullModel)) continue;
+    // A legacy alias may intentionally point at a built-in model. It is still
+    // its own public row and must remain editable/deletable independently.
+    if (!id) continue;
+    const rowKey = `alias:${alias}`;
+    if (seenRows.has(rowKey)) continue;
 
-    seenFullModels.add(fullModel);
+    seenRows.add(rowKey);
     rows.push({
       id,
       alias,
-      fullModel,
+      fullModel: alias,
+      canonicalModel: fullModel,
       source: "legacyAlias",
       type: type || "llm",
     });

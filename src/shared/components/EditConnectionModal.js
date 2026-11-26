@@ -2,18 +2,21 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import Modal from "@/shared/components/Modal";
+import AntaresModal from "@/shared/components/AntaresModal";
 import Input from "@/shared/components/Input";
 import Button from "@/shared/components/Button";
 import Badge from "@/shared/components/Badge";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
-import Select from "@/shared/components/Select";
+import AntaresSelect from "@/shared/components/AntaresSelect";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
+import { translate } from "@/i18n/runtime";
 
 export default function EditConnectionModal({ isOpen, connection, proxyPools, onSave, onClose }) {
   const [formData, setFormData] = useState({
     name: "",
     priority: 1,
     apiKey: "",
+    customAlias: "",
   });
   const [azureData, setAzureData] = useState({
     azureEndpoint: "",
@@ -37,6 +40,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         name: connection.name || "",
         priority: connection.priority || 1,
         apiKey: "",
+        customAlias: connection.providerSpecificData?.customAlias || "",
       });
       if (connection.provider === "azure" && connection.providerSpecificData) {
         setAzureData({
@@ -138,6 +142,10 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       const updates = {
         name: formData.name,
         priority: formData.priority,
+        providerSpecificData: {
+          ...(connection.providerSpecificData || {}),
+          customAlias: formData.customAlias.trim() || null,
+        },
       };
       if (!isOAuth && formData.apiKey) {
         updates.apiKey = formData.apiKey;
@@ -176,6 +184,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       
       if (isAzure) {
         updates.providerSpecificData = {
+          ...(updates.providerSpecificData || {}),
           azureEndpoint: azureData.azureEndpoint,
           apiVersion: azureData.apiVersion,
           deployment: azureData.deployment,
@@ -183,13 +192,22 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         };
       }
       if (isCloudflareAi) {
-        updates.providerSpecificData = { accountId: cloudflareData.accountId };
+        updates.providerSpecificData = {
+          ...(updates.providerSpecificData || {}),
+          accountId: cloudflareData.accountId,
+        };
       }
       if (usesAwsCredentialForm) {
-        updates.providerSpecificData = buildAwsSpecificData();
+        updates.providerSpecificData = {
+          ...(updates.providerSpecificData || {}),
+          ...buildAwsSpecificData(),
+        };
       }
       if (providerRegions && region) {
-        updates.providerSpecificData = buildRegionSpecificData();
+        updates.providerSpecificData = {
+          ...(updates.providerSpecificData || {}),
+          ...buildRegionSpecificData(),
+        };
       }
       
       await onSave(updates);
@@ -201,7 +219,27 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   if (!connection) return null;
 
   return (
-    <Modal isOpen={isOpen} title="Edit Connection" onClose={onClose}>
+    <AntaresModal
+      isOpen={isOpen}
+      title="Edit Connection"
+      subtitle={translate("Update connection details.")}
+      size="lg"
+      hideScrollbar
+      onClose={onClose}
+      footer={
+        <SurfaceSkinContext.Provider value="antares">
+          <div className="flex w-full gap-2">
+            <Button skin="antares" onClick={handleSubmit} fullWidth disabled={saving}>
+              {saving ? translate("Saving...") : translate("Save")}
+            </Button>
+            <Button skin="antares" variant="ghost" onClick={onClose} fullWidth>
+              {translate("Cancel")}
+            </Button>
+          </div>
+        </SurfaceSkinContext.Provider>
+      }
+    >
+      <SurfaceSkinContext.Provider value="antares">
       <div className="flex flex-col gap-4">
         <Input
           label="Name"
@@ -221,10 +259,18 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           value={formData.priority}
           onChange={(e) => setFormData({ ...formData, priority: Number.parseInt(e.target.value, 10) || 1 })}
         />
+        
+        <Input
+          label="Custom Alias (Optional)"
+          value={formData.customAlias}
+          onChange={(e) => setFormData({ ...formData, customAlias: e.target.value })}
+          placeholder="e.g. coa, myapi"
+          hint="Override the provider prefix in model IDs. Leave blank to use default."
+        />
 
         {!isOAuth && (
           <>
-            <div className="flex gap-2">
+            <div className="flex items-end gap-2">
               <Input
                 label="API Key"
                 type="password"
@@ -232,13 +278,12 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
                 onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
                 placeholder="Enter new API key"
                 hint="Leave blank to keep the current API key."
-                className="flex-1"
+                className="min-w-0 flex-1"
+                inputClassName="!h-[42px] !py-0"
               />
-              <div className="pt-6">
-                <Button onClick={handleValidate} disabled={!formData.apiKey || validating || saving} variant="secondary">
-                  {validating ? "Checking..." : "Check"}
-                </Button>
-              </div>
+              <Button onClick={handleValidate} disabled={!formData.apiKey || validating || saving} variant="secondary" className="!h-[42px] shrink-0">
+                {validating ? "Checking..." : "Check"}
+              </Button>
             </div>
             {validationResult && (
               <Badge variant={validationResult === "success" ? "success" : "error"}>
@@ -332,12 +377,16 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         )}
 
         {providerRegions && (
-          <Select
-            label="Region"
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--t-ink)]">{translate("Region")}</label>
+            <AntaresSelect
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              ariaLabel={translate("Region")}
+              buttonClassName="h-[42px] font-mono"
+              options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
+            />
+          </div>
         )}
 
         {!isCompatible && !isAzure && !isCloudflareAi && (
@@ -353,12 +402,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
-        </div>
       </div>
-    </Modal>
+      </SurfaceSkinContext.Provider>
+    </AntaresModal>
   );
 }
 

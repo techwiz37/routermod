@@ -5,6 +5,8 @@ import { usePageReady } from "./PageReadyContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { onLocaleChange, translate } from "@/i18n/runtime";
+import Pagination from "@/shared/components/Pagination";
+import AntaresSelect from "./AntaresSelect";
 
 function isLLMProvider(id) {
   const p = AI_PROVIDERS[id];
@@ -169,38 +171,78 @@ function RequestIp({ ip, geo }) {
 
 function RecentRequests({ requests = [] }) {
   const [, setLocaleVersion] = useState(0);
+  const [liveRequests, setLiveRequests] = useState([]);
+  const [feedState, setFeedState] = useState("loading");
   useEffect(() => onLocaleChange(() => setLocaleVersion((value) => value + 1)), []);
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+    const load = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const response = await fetch("/api/usage/logs", { cache: "no-store" });
+        if (!response.ok) throw new Error("Request feed unavailable");
+        const logs = await response.json();
+        if (!active || !Array.isArray(logs)) return;
+        setLiveRequests(logs.slice(0, 40).map((log) => {
+          const parts = String(log).split(" | ");
+          const stamp = parts[0] || "";
+          const match = stamp.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+          return {
+            id: `${stamp}|${parts[1]}|${parts[3]}`,
+            timestamp: match ? `${match[1]}T${match[2]}Z` : stamp,
+            model: parts[1] || "Unknown model",
+            provider: parts[2] || "",
+            promptTokens: Number(String(parts[4] || "0").replace(/,/g, "")) || 0,
+            completionTokens: Number(String(parts[5] || "0").replace(/,/g, "")) || 0,
+            status: parts[6] || "ok",
+            clientIp: parts[7] || null,
+          };
+        }));
+        setFeedState("live");
+      } catch {
+        if (active) setFeedState("offline");
+      } finally {
+        inFlight = false;
+      }
+    };
+    load();
+    const timer = setInterval(load, 1500);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
+  const feedRequests = liveRequests.length ? liveRequests : requests;
   const ips = useMemo(
-    () => [...new Set(requests.map((r) => r.clientIp).filter(Boolean))].sort(),
-    [requests]
+    () => [...new Set(feedRequests.map((r) => r.clientIp).filter(Boolean))].sort(),
+    [feedRequests]
   );
   const geo = useIpGeo(ips);
 
   return (
-    <section className="an-panel flex min-w-0 flex-col overflow-hidden h-[300px] sm:h-[360px] lg:h-full lg:min-h-[320px] lg:max-h-[560px]">
+    <section className="an-panel flex min-w-0 flex-col overflow-hidden h-[min(78dvh,820px)] min-h-[min(680px,78dvh)] lg:h-full lg:min-h-[700px] lg:max-h-[960px]">
       <header className="an-panel-head">
         <span className="an-panel-ico" aria-hidden>
           <span className="material-symbols-outlined">bolt</span>
         </span>
         <div className="min-w-0 flex-1">
            <h2 className="an-panel-title">{translate("Live Request Feed")}</h2>
-           <p className="an-panel-sub">{translate("Incoming requests")}</p>
+            <p className="an-panel-sub">{translate("Incoming requests")} · {feedState === "live" ? translate("Live") : feedState === "offline" ? translate("Connection unavailable") : translate("Connecting…")}</p>
         </div>
       </header>
 
-      {!requests.length ? (
+      {!feedRequests.length ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-[var(--t-muted)]">
           <span className="material-symbols-outlined text-[32px] opacity-30">chat_bubble_outline</span>
            <span className="text-xs font-medium">{translate("No incoming requests yet")}</span>
         </div>
       ) : (
         <ul className="flex-1 overflow-y-auto divide-y divide-[var(--t-line-soft)]">
-          {requests.map((r, i) => {
+          {feedRequests.slice(0, 40).map((r, i) => {
             const ok = !r.status || r.status === "ok" || r.status === "success";
             return (
               <li
-                key={i}
-                className="flex flex-col gap-1.5 px-4 py-2.5 transition-colors hover:bg-[var(--t-raised)]/60"
+                key={r.id || i}
+                className="flex flex-col gap-1 px-3 py-1.5 transition-colors hover:bg-[var(--t-raised)]/60 sm:px-4 sm:py-2"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span
@@ -233,6 +275,59 @@ function RecentRequests({ requests = [] }) {
             );
           })}
         </ul>
+      )}
+    </section>
+  );
+}
+
+function RequestIpStats() {
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState({ ips: [], pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0 } });
+  const ips = useMemo(() => data.ips.map((item) => item.ip), [data.ips]);
+  const geo = useIpGeo(ips);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => fetch(`/api/usage/ip-stats?page=${page}&pageSize=10`, { cache: "no-store" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((next) => { if (active && next) setData(next); })
+      .catch(() => {});
+    load();
+    const timer = setInterval(load, 5000);
+    return () => { active = false; clearInterval(timer); };
+  }, [page]);
+
+  return (
+    <section className="an-panel flex min-w-0 flex-col overflow-hidden">
+      <header className="an-panel-head">
+        <span className="an-panel-ico" aria-hidden><span className="material-symbols-outlined">public</span></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="an-panel-title">{translate("Requests by IP")}</h2>
+          <p className="an-panel-sub">{translate("Most active client addresses")}</p>
+        </div>
+      </header>
+      {!data.ips.length ? (
+        <div className="px-4 py-8 text-center text-xs text-[var(--t-muted)]">{translate("No client IP data yet")}</div>
+      ) : (
+        <>
+          <ol className="divide-y divide-[var(--t-line-soft)]">
+            {data.ips.map((item, index) => (
+              <li key={item.ip} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="w-6 shrink-0 text-center font-mono text-xs text-[var(--t-dim)]">{(page - 1) * data.pagination.pageSize + index + 1}</span>
+                <div className="min-w-0 flex-1"><RequestIp ip={item.ip} geo={geo.get(item.ip)} /></div>
+                <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--t-text)]">{Number(item.requests).toLocaleString()}</span>
+                <span className="hidden shrink-0 text-[10px] text-[var(--t-dim)] sm:inline">{translate("requests")}</span>
+              </li>
+            ))}
+          </ol>
+          <Pagination
+            currentPage={data.pagination.page}
+            pageSize={data.pagination.pageSize}
+            totalItems={data.pagination.totalItems}
+            onPageChange={setPage}
+            className="gap-2 py-2"
+          />
+        </>
       )}
     </section>
   );
@@ -335,7 +430,7 @@ const ENDPOINT_COLUMNS = [
 ];
 
 const TABLE_OPTIONS = [
-  { value: "model", label: "Penggunaan per Model" },
+  { value: "model", label: "Usage per Model" },
   { value: "account", label: "Penggunaan per Akun" },
   { value: "apiKey", label: "Penggunaan per API Key" },
   { value: "endpoint", label: "Penggunaan per Endpoint" },
@@ -631,7 +726,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   );
 
   return (
-    <div className="an-scope flex min-w-0 flex-col gap-5">
+    <div className="an-scope us-page-content">
       {/* Period selector (hidden when controlled by parent) */}
       {!hidePeriodSelector && (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
@@ -648,74 +743,87 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         </div>
       )}
 
-      {/* Overview cards */}
-      {loading ? spinner : <OverviewCards stats={stats} />}
+      {/* 01 — Overview cards */}
+      <section className="us-section">
+        {loading ? spinner : <OverviewCards stats={stats} />}
+      </section>
 
-      {/* Provider topology + Recent Requests */}
-      {loading ? spinner : (
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-          <ProviderTopology
-            providers={providers}
-            activeRequests={stats.activeRequests || []}
-            lastProvider={stats.recentRequests?.[0]?.provider || ""}
-            errorProvider={stats.errorProvider || ""}
-          />
-          <RecentRequests requests={stats.recentRequests || []} />
-        </div>
-      )}
-
-      {/* Token / Cost chart - sync period */}
-      {loading ? spinner : <UsageChart period={period} />}
-
-      {/* Provider and model breakdown charts */}
-      {!loading && (stats.byProvider || stats.byModel) && (
-        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
-          <ProviderBarChart byProvider={stats.byProvider} />
-          <TopModelsChart byModel={stats.byModel} />
-        </div>
-      )}
-
-      {/* Table with dropdown selector */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <select
-            value={tableView}
-            onChange={(e) => setTableView(e.target.value)}
-            className="an-select w-full sm:w-auto"
-          >
-            {TABLE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <div className="flex items-center gap-2">
-            <AntaresSegmented
-              options={[
-                { value: "costs", label: "Biaya" },
-                { value: "tokens", label: "Token" },
-              ]}
-              value={viewMode}
-              onChange={setViewMode}
-              size="sm"
+      {/* 02 — Provider topology + recent requests */}
+      <section className="us-section">
+        {loading ? spinner : (
+          <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+            <ProviderTopology
+              providers={providers}
+              activeRequests={stats.activeRequests || []}
+              lastProvider={stats.recentRequests?.[0]?.provider || ""}
+              errorProvider={stats.errorProvider || ""}
             />
+            <RecentRequests requests={stats.recentRequests || []} />
           </div>
-        </div>
-        {loading ? spinner : activeTableConfig && (
-          <UsageTable
-            title=""
-            columns={activeTableConfig.columns}
-            groupedData={activeTableConfig.groupedData}
-            tableType={tableView}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onToggleSort={toggleSort}
-            viewMode={viewMode}
-            storageKey={activeTableConfig.storageKey}
-            renderSummaryCells={activeTableConfig.renderSummaryCells}
-            renderDetailCells={activeTableConfig.renderDetailCells}
-            emptyMessage={activeTableConfig.emptyMessage}
-          />
         )}
-      </div>
+      </section>
+
+      {/* 03 — Client IPs */}
+      <section className="us-section">
+        <RequestIpStats />
+      </section>
+
+      {/* 04 — Token / Cost chart - sync period */}
+      <section className="us-section">
+        {loading ? spinner : <UsageChart period={period} />}
+      </section>
+
+      {/* 05 — Provider and model breakdown charts */}
+      {!loading && (stats.byProvider || stats.byModel) && (
+        <section className="us-section">
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+            <ProviderBarChart byProvider={stats.byProvider} />
+            <TopModelsChart byModel={stats.byModel} />
+          </div>
+        </section>
+      )}
+
+      {/* 06 — Table with dropdown selector */}
+      <section className="us-section">
+        <div className="flex flex-col gap-3">
+          <div className="us-table-toolbar">
+            <AntaresSelect
+              value={tableView}
+              onChange={(e) => setTableView(e.target.value)}
+              ariaLabel={translate("View")}
+              className="w-full sm:w-auto"
+              options={TABLE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+            />
+            <div className="flex items-center gap-2">
+              <AntaresSegmented
+                options={[
+                  { value: "costs", label: translate("Cost") },
+                  { value: "tokens", label: translate("Tokens") },
+                ]}
+                value={viewMode}
+                onChange={setViewMode}
+                size="sm"
+              />
+            </div>
+          </div>
+          {loading ? spinner : activeTableConfig && (
+            <UsageTable
+              title={TABLE_OPTIONS.find((opt) => opt.value === tableView)?.label || "Usage Breakdown"}
+              columns={activeTableConfig.columns}
+              groupedData={activeTableConfig.groupedData}
+              tableType={tableView}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onToggleSort={toggleSort}
+              viewMode={viewMode}
+              storageKey={activeTableConfig.storageKey}
+              renderSummaryCells={activeTableConfig.renderSummaryCells}
+              renderDetailCells={activeTableConfig.renderDetailCells}
+              emptyMessage={activeTableConfig.emptyMessage}
+            />
+          )}
+        </div>
+      </section>
     </div>
   );
 }

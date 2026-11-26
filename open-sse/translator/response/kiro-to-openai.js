@@ -97,6 +97,7 @@ export function kiroToOpenAIResponse(chunk, state) {
 
   const eventType = data._eventType || data.event || "";
 
+
   // Handle different Kiro event types
   if (eventType === "assistantResponseEvent" || data.assistantResponseEvent) {
     const content = data.assistantResponseEvent?.content || data.content || "";

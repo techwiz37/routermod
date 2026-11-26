@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { getLoginLogs, loadLoginLogs } from "./loginStats";
 
 const I18N = {
   id: {
     title: "Aktivitas Gateway",
-    subtitle: "Live Request Feed",
+    subtitle: "Aliran request langsung",
     loading: "Memuat data...",
     unavailable: "Tidak tersedia",
     empty: "Belum ada request",
+    emptyHint: "Nunggu request pertama...",
+    count: (n) => `${n} request`,
     model: "Model",
     status: "Status",
     time: "Waktu",
@@ -16,10 +19,12 @@ const I18N = {
   },
   en: {
     title: "Gateway Activity",
-    subtitle: "Live Request Feed",
+    subtitle: "Live request feed",
     loading: "Loading...",
     unavailable: "Unavailable",
     empty: "No requests yet",
+    emptyHint: "Waiting for the first request...",
+    count: (n) => `${n} ${n === 1 ? "request" : "requests"}`,
     model: "Model",
     status: "Status",
     time: "Time",
@@ -59,11 +64,11 @@ function timeAgoShort(ts) {
   }
   if (isNaN(d.getTime())) return ts;
   const diff = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (diff < 1) return "1 dtk";
-  if (diff < 60) return `${diff} dtk`;
-  if (diff < 3600) return `${Math.floor(diff / 60)} mnt`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} jam`;
-  return `${Math.floor(diff / 86400)} hari`;
+  if (diff < 1) return "1s";
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
 }
 
 function FeedRow({ log, isNew }) {
@@ -92,7 +97,7 @@ function FeedRow({ log, isNew }) {
 }
 
 export default function RecentRequestsMonitor({ locale = "en" }) {
-  const t = I18N[locale] || I18N.id;
+  const t = I18N[locale] || I18N.en;
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -108,14 +113,19 @@ export default function RecentRequestsMonitor({ locale = "en" }) {
 
   useEffect(() => {
     let alive = true;
+    let inFlight = false;
 
-    const load = async () => {
+    const load = async (usePrefetch = false) => {
+      if (inFlight) return;
+      inFlight = true;
       try {
-        const res = await fetch("/api/usage/logs");
-        const data = res.ok ? await res.json() : null;
+        // The first render reuses the request started with the login bundle.
+        const data = (usePrefetch && getLoginLogs())
+          ? await getLoginLogs()
+          : await loadLoginLogs();
         if (!alive) return;
 
-        const next = Array.isArray(data) ? data : [];
+        const next = Array.isArray(data) ? data.slice(0, 30) : [];
         const prev = prevLogsRef.current;
         const freshKeys = new Set();
 
@@ -138,12 +148,13 @@ export default function RecentRequestsMonitor({ locale = "en" }) {
       } catch {
         if (alive) setFailed(true);
       } finally {
+        inFlight = false;
         if (alive) setLoading(false);
       }
     };
 
-    load();
-    const timer = setInterval(load, 3000);
+    load(true);
+    const timer = setInterval(() => load(false), 3000);
     return () => {
       alive = false;
       clearInterval(timer);
@@ -170,7 +181,7 @@ export default function RecentRequestsMonitor({ locale = "en" }) {
         </div>
       </div>
 
-      <div className="lrm-feed" style={{ maxHeight: 700, overflowY: "auto" }}>
+      <div className="lrm-feed">
         {loading ? (
           <div className="lrm-state">
             <span className="lrm-spinner" />
@@ -189,7 +200,7 @@ export default function RecentRequestsMonitor({ locale = "en" }) {
               <span className="material-symbols-outlined">inbox</span>
             </div>
             <div>{t.empty}</div>
-            <div className="lrm-empty-hint">Menunggu request pertama...</div>
+            <div className="lrm-empty-hint">{t.emptyHint}</div>
           </div>
         ) : (
           logs.map((log, idx) => (
@@ -200,13 +211,13 @@ export default function RecentRequestsMonitor({ locale = "en" }) {
 
       <div className="lrm-footer">
         <span className="lrm-count">
-          {logs.length > 0 ? `${logs.length} request` : ""}
+          {logs.length > 0 ? t.count(logs.length) : ""}
         </span>
         <span className="lrm-refresh-hint">
           <span className="material-symbols-outlined" style={{ fontSize: 11, verticalAlign: "middle" }}>
             sync
           </span>
-          {" "}3s
+          {" "}1.5s
         </span>
       </div>
     </section>

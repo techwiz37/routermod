@@ -39,6 +39,9 @@ export function checkFallbackError(status, errorText, backoffLevel = 0, provider
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
         return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
       }
+      if (rule.cooldownMs === 0) {
+        return { shouldFallback: false, cooldownMs: 0, requestScoped: true };
+      }
       return {
         shouldFallback: true,
         cooldownMs: rule.cooldownMs,

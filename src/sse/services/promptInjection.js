@@ -11,6 +11,25 @@
  * never breaks the chat.
  */
 
+import { resolveProviderAlias, resolveModelAliasFromMap } from "../../../open-sse/services/model.js";
+
+export function getPromptModelCandidates({ provider, model, requestedModel, aliases = {} }) {
+  const candidates = new Set();
+  const add = (id) => {
+    if (!id) return;
+    candidates.add(id);
+    const slash = id.indexOf("/");
+    if (slash >= 0) candidates.add(id.slice(slash + 1));
+  };
+  add(requestedModel);
+  candidates.add(model);
+  for (const alias of Object.keys(aliases)) {
+    const target = resolveModelAliasFromMap(alias, aliases);
+    if (target?.provider === resolveProviderAlias(provider) && target.model === model) add(alias);
+  }
+  return [...candidates].filter(Boolean);
+}
+
 export const INJECTION_MODES = ["system", "script"];
 export const INJECTION_POSITIONS = ["prepend", "append"];
 
@@ -36,6 +55,11 @@ function normalizeEntry(entry) {
 
 function lookupModelEntry(map, providerKeys, modelCandidates) {
   if (!map || typeof map !== "object") return null;
+  // Exact public IDs (which may use a different provider prefix) must take
+  // precedence over upstream-scoped legacy entries for the resolved model.
+  for (const mKey of modelCandidates) {
+    if (mKey.includes("/") && map[mKey]) return map[mKey];
+  }
   for (const pKey of providerKeys) {
     for (const mKey of modelCandidates) {
       const entry = map[`${pKey}/${mKey}`];
@@ -49,6 +73,14 @@ function lookupModelEntry(map, providerKeys, modelCandidates) {
 // `providerModelSystemPrompts`; treat them as a prepended system prompt.
 function lookupLegacyModelPrompt(map, providerKeys, modelCandidates) {
   if (!map || typeof map !== "object") return null;
+  for (const mKey of modelCandidates) {
+    if (mKey.includes("/")) {
+      const value = map[mKey];
+      if (typeof value === "string" && value.trim()) {
+        return { mode: "system", position: "prepend", text: value.trim(), script: [] };
+      }
+    }
+  }
   for (const pKey of providerKeys) {
     for (const mKey of modelCandidates) {
       const value = map[`${pKey}/${mKey}`];
@@ -58,6 +90,16 @@ function lookupLegacyModelPrompt(map, providerKeys, modelCandidates) {
     }
   }
   return null;
+}
+
+/**
+ * Resolves the jailbreak text for one request. A model with no enabled entry —
+ * including when the whole map is empty after a reset — must stay untouched.
+ */
+export function resolveJailbreakText({ settings, providerKeys = [], modelCandidates = [] }) {
+  const entry = lookupModelEntry(settings?.jailbreakModels, providerKeys, modelCandidates);
+  if (!entry || entry.enabled === false) return null;
+  return typeof entry.text === "string" && entry.text.trim() ? entry.text.trim() : null;
 }
 
 /**

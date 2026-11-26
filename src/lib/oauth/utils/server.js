@@ -899,10 +899,14 @@ export function clearAntigravitySession(state) {
   if (!state || (antigravitySession && antigravitySession.state === state)) antigravitySession = null;
 }
 
-export function startAntigravityProxy() {
+export function startAntigravityProxy(requestOrigin = null) {
   return new Promise((resolve) => {
     if (antigravityProxyServer) {
-      resolve({ success: true, port: antigravityProxyPort, callbackUrl: `http://127.0.0.1:${antigravityProxyPort}/callback` });
+      const isLocalhost = isLoopbackOrigin(requestOrigin);
+      const callbackUrl = isLocalhost
+        ? `http://127.0.0.1:${antigravityProxyPort}/callback`
+        : `${requestOrigin}/callback`;
+      resolve({ success: true, port: antigravityProxyPort, callbackUrl });
       return;
     }
 
@@ -997,10 +1001,14 @@ export function startAntigravityProxy() {
       antigravityProxyPort = server.address().port;
       antigravityProxyTimeout = setTimeout(() => stopAntigravityProxy(), ANTIGRAVITY_PROXY_TIMEOUT_MS);
       console.log(`[antigravity oauth proxy] listening on port ${antigravityProxyPort}`);
+      const isLocalhost = isLoopbackOrigin(requestOrigin);
+      const callbackUrl = isLocalhost
+        ? `http://127.0.0.1:${antigravityProxyPort}/callback`
+        : `${requestOrigin}/callback`;
       resolve({
         success: true,
         port: antigravityProxyPort,
-        callbackUrl: `http://127.0.0.1:${antigravityProxyPort}/callback`,
+        callbackUrl,
       });
     });
 

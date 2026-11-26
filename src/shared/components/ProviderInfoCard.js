@@ -1,6 +1,6 @@
 "use client";
 
-import Card from "./Card";
+import AntaresPanel from "./AntaresPanel";
 
 const FIELD_SCHEMA = {
   mode:             { label: "Mode",       format: (v) => v },
@@ -34,48 +34,58 @@ export default function ProviderInfoCard({ config, provider, title = "Provider I
   const noticeText = provider?.notice?.text;
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {signupUrl && (
+    <AntaresPanel
+      icon="info"
+      title={title}
+      action={
+        signupUrl ? (
           <a
             href={signupUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+            className="an-chip accent"
           >
-            <span className="material-symbols-outlined text-sm">open_in_new</span>
+            <span className="material-symbols-outlined">open_in_new</span>
             Get API Key
           </a>
-        )}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+        ) : null
+      }
+    >
+      <dl className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
         {rows.map((r) => (
-          <div key={r.key} className="flex items-center gap-3 min-w-0">
-            <span className="text-xs text-text-muted w-28 shrink-0">{r.label}</span>
-            {r.isLink ? (
-              <a
-                href={r.raw}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`text-sm text-primary hover:underline truncate ${r.mono ? "font-mono" : ""}`}
-              >
-                {r.value}
-              </a>
-            ) : (
-              <span className={`text-sm text-text-main truncate ${r.mono ? "font-mono" : ""}`}>
-                {r.value}
-              </span>
-            )}
+          <div key={r.key} className="flex min-w-0 items-baseline gap-3">
+            <dt className="w-24 shrink-0 font-mono text-[10.5px] uppercase tracking-[0.08em] text-[var(--t-muted)]">
+              {r.label}
+            </dt>
+            <dd className="min-w-0 flex-1">
+              {r.isLink ? (
+                <a
+                  href={r.raw}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`block break-words text-[13px] text-[var(--t-star-ink)] hover:underline ${r.mono ? "font-mono" : ""}`}
+                >
+                  {r.value}
+                </a>
+              ) : (
+                <span className={`block break-words text-[13px] text-[var(--t-ink)] ${r.mono ? "font-mono" : ""}`}>
+                  {r.value}
+                </span>
+              )}
+            </dd>
           </div>
         ))}
         {noticeText && (
-          <div className="flex items-start gap-3 min-w-0 sm:col-span-2">
-            <span className="text-xs text-text-muted w-28 shrink-0 mt-0.5">Notice</span>
-            <span className="text-sm text-text-main leading-relaxed">{noticeText}</span>
+          <div className="flex min-w-0 items-start gap-3 sm:col-span-2">
+            <dt className="w-24 shrink-0 font-mono text-[10.5px] uppercase tracking-[0.08em] text-[var(--t-muted)]">
+              Notice
+            </dt>
+            <dd className="min-w-0 flex-1 text-[13px] leading-relaxed text-[var(--t-ink)]">
+              {noticeText}
+            </dd>
           </div>
         )}
-      </div>
-    </Card>
+      </dl>
+    </AntaresPanel>
   );
 }

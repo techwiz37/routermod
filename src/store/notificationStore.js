@@ -27,6 +27,17 @@ export const useNotificationStore = create((set, get) => ({
     return id;
   },
 
+  updateNotification: (id, patch = {}) => {
+    set((s) => ({
+      notifications: s.notifications.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+    }));
+
+    const entry = get().notifications.find((n) => n.id === id);
+    if (entry && entry.duration > 0) {
+      setTimeout(() => get().removeNotification(id), entry.duration);
+    }
+  },
+
   removeNotification: (id) => {
     set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) }));
   },

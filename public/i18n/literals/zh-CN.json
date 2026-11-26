@@ -1428,5 +1428,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "使用 5–128 个字符：字母、数字、连字符（-）或下划线（_）。rmod- 前缀为可选项。请避免使用容易被猜到的词语。",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "API 密钥必须为 5–128 个字符，且只能包含字母、数字、连字符（-）或下划线（_）。"
 }

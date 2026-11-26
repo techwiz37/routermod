@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "Usa da 5 a 128 caratteri: lettere, numeri, trattini (-) o trattini bassi (_). Il prefisso rmod- è opzionale. Evita parole facilmente indovinabili.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "La chiave API deve contenere da 5 a 128 caratteri e solo lettere, numeri, trattini (-) o trattini bassi (_)."
 }

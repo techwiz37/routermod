@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "استخدم من 5 إلى 128 حرفًا: أحرف أو أرقام أو شرطات (-) أو شرطات سفلية (_). البادئة rmod- اختيارية. تجنب الكلمات التي يسهل تخمينها.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "يجب أن يتكون مفتاح API من 5 إلى 128 حرفًا وأن يحتوي على أحرف أو أرقام أو شرطات (-) أو شرطات سفلية (_) فقط."
 }

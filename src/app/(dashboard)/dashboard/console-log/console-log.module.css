@@ -1,0 +1,159 @@
+/* Provider / result dropdowns. Surfaces use the dashboard tokens so the
+   menus sit on the same Antares palette as the rest of the page. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.filterField {
+  position: relative;
+  display: flex;
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 300px;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.filterField label,
+.levelField > span {
+  color: var(--t-muted);
+  font-family: var(--t-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.selectTrigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--t-line);
+  border-radius: 9px;
+  background: var(--t-field);
+  color: var(--t-ink);
+  padding: 7px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.selectTrigger:hover { border-color: var(--t-hover-line); }
+.selectTrigger[aria-expanded="true"] { border-color: var(--t-accent); }
+.selectTrigger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.selectValue {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-weight: 500;
+}
+.selectTrigger > span:last-child,
+.selectIcon { font-size: 18px; color: var(--t-dim); flex-shrink: 0; }
+
+.selectMenu {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  width: max(100%, 236px);
+  max-width: calc(100vw - 48px);
+  max-height: min(55dvh, 340px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--t-line);
+  border-radius: 11px;
+  background: var(--t-card);
+  box-shadow: 0 16px 40px #0009;
+}
+
+.selectMenu.selectMenuUp {
+  top: auto;
+  bottom: calc(100% + 7px);
+}
+
+.menuSearch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 2px 6px;
+  padding: 0 9px;
+  border: 1px solid var(--t-line);
+  border-radius: 8px;
+  color: var(--t-dim);
+  background: var(--t-field);
+}
+.menuSearch > span { font-size: 17px; }
+.menuSearch input {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  color: var(--t-ink);
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+}
+.menuSearch input::placeholder { color: var(--t-dim); }
+
+.optionList { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.selectOption {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 9px;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--t-ink);
+  cursor: pointer;
+  text-align: left;
+  font-size: 12.5px;
+}
+.selectOption > span:first-child { color: var(--t-dim); font-size: 17px; }
+.selectOption > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.selectOption small { display: block; margin-top: 1px; font-size: 10.5px; color: var(--t-dim); }
+.selectOption[aria-selected="true"] { background: var(--t-accent-soft); color: var(--t-star-ink); font-weight: 600; }
+.selectOption:hover { background: var(--t-hover); }
+.selectOption[aria-selected="true"]:hover { background: var(--t-accent-soft); }
+.selectOption > span:last-child:not(:nth-child(2)) { font-size: 16px; }
+
+.selectTrigger:focus-visible,
+.selectOption:focus-visible,
+.menuSearch input:focus-visible,
+.retry:focus-visible {
+  outline: 2px solid var(--t-accent);
+  outline-offset: 2px;
+}
+
+.menuEmpty { padding: 10px; color: var(--t-muted); font-size: 12px; }
+.retry { padding: 0; cursor: pointer; text-decoration: underline; color: inherit; }
+
+.levelField { display: flex; flex-direction: column; gap: 7px; }
+
+@media (max-width: 639px) {
+  .filters { gap: 10px; }
+  .filterField { flex-basis: calc(50% - 5px); max-width: none; }
+  .selectTrigger { min-height: 40px; font-size: 12px; gap: 6px; padding: 7px 8px; }
+  .selectTrigger > span:last-child,
+  .selectIcon { font-size: 17px; }
+  .selectMenu {
+    top: calc(100% + 5px);
+    width: max(100%, 210px);
+    max-width: calc(100vw - 44px);
+    max-height: min(44dvh, 300px);
+  }
+  .menuSearch input { min-height: 40px; font-size: 13px; }
+  .selectOption { min-height: 42px; padding: 7px 8px; font-size: 12px; }
+  .filterField:nth-child(2) .selectMenu { left: auto; right: 0; }
+  .selectMenu.selectMenuUp { bottom: calc(100% + 5px); }
+  .levelField { flex-basis: 100%; }
+}

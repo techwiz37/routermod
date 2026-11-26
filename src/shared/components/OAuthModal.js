@@ -2,40 +2,43 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button, Input } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
+import AntaresModal from "./AntaresModal";
+import { SurfaceSkinContext } from "./SurfaceSkinContext";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { translate } from "@/i18n/runtime";
 
 function friendlyError(msg) {
-  if (!msg) return "Terjadi kesalahan yang tidak diketahui.";
+  if (!msg) return "An unknown error occurred.";
   const m = String(msg);
   if (/fetch failed|network|ETIMEDOUT|ECONNREFUSED|ENOTFOUND/i.test(m))
-    return "Gagal terhubung ke server. Periksa koneksi internet dan coba lagi.";
+    return "Could not connect to the server. Check your internet connection and try again.";
   if (/timeout/i.test(m))
-    return "Waktu koneksi habis. Silakan coba lagi.";
+    return "Connection timed out. Please try again.";
   if (/unauthorized|401/i.test(m))
-    return "Token atau kredensial tidak valid. Pastikan kamu sudah login dengan benar.";
+    return "Token or credentials are invalid. Make sure you are logged in correctly.";
   if (/forbidden|403/i.test(m))
-    return "Akses ditolak. Akun tidak memiliki izin untuk tindakan ini.";
+    return "Access denied. The account does not have permission for this action.";
   if (/not found|404/i.test(m))
-    return "Endpoint tidak ditemukan. Provider mungkin belum dikonfigurasi.";
+    return "Endpoint not found. The provider may not be configured.";
   if (/invalid.*token|token.*invalid|token.*expired|expired.*token/i.test(m))
-    return "Token tidak valid atau sudah kedaluwarsa. Silakan hubungkan ulang.";
+    return "Token is invalid or expired. Please reconnect.";
   if (/invalid.*code|code.*invalid/i.test(m))
-    return "Kode otorisasi tidak valid atau sudah digunakan.";
+    return "Authorization code is invalid or already used.";
   if (/popup.*blocked|blocked.*popup/i.test(m))
-    return "Popup diblokir oleh browser. Izinkan popup untuk situs ini lalu coba lagi.";
+    return "Popup blocked by the browser. Allow popups for this site and try again.";
   if (/cancelled|canceled|cancel/i.test(m))
-    return "Proses dibatalkan.";
+    return "Operation cancelled.";
   if (/No authorization URL/i.test(m))
-    return "Provider tidak mengembalikan URL otorisasi. Periksa konfigurasi provider.";
+    return "Provider did not return an authorization URL. Check the provider configuration.";
   if (/Authentication failed/i.test(m))
-    return "Autentikasi gagal. Pastikan akun kamu aktif dan coba lagi.";
+    return "Authentication failed. Make sure your account is active and try again.";
   if (/invalid_grant/i.test(m))
-    return "Kode otorisasi tidak valid atau sudah kedaluwarsa. Silakan mulai ulang proses login.";
+    return "Authorization code is invalid or expired. Please restart the login process.";
   if (/invalid_client/i.test(m))
-    return "Konfigurasi client tidak valid. Periksa Client ID dan Client Secret.";
+    return "Client configuration is invalid. Check the Client ID and Client Secret.";
   if (/access_denied/i.test(m))
-    return "Akses ditolak oleh provider. Pastikan kamu menyetujui izin yang diminta.";
+    return "Access denied by the provider. Make sure you approved the requested permissions.";
   return m.split("\n")[0];
 }
 
@@ -81,16 +84,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const startOAuthFlowRef = useRef(null);
   const { copied, copy } = useCopyToClipboard();
 
-  const [isLocalhost, setIsLocalhost] = useState(false);
-  const [placeholderUrl, setPlaceholderUrl] = useState("/callback?code=...");
+  const [isLocalhost] = useState(() => typeof window !== "undefined");
+  const [placeholderUrl] = useState(() => (typeof window !== "undefined" ? `${window.location.origin}/callback?code=...` : "/callback?code=..."));
+  const [autoDetecting, setAutoDetecting] = useState(false);
+  const [manualExpanded, setManualExpanded] = useState(false);
   const callbackProcessedRef = useRef(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setIsLocalhost(true); // always popup-capable when same-origin
-      setPlaceholderUrl(`${window.location.origin}/callback?code=...`);
-    }
-  }, []);
 
 
   const exchangeTokens = useCallback(async (code, state) => {
@@ -189,7 +187,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       }
     }
 
-    setError("Waktu otorisasi habis. Silakan coba lagi.");
+    setError("Authorization timed out. Please try again.");
     setStep("error");
     setPolling(false);
   }, [provider]);
@@ -505,7 +503,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         }
         if (data.status === "error") {
           callbackProcessedRef.current = true;
-          setError(friendlyError(data.error) || "Autentikasi gagal. Silakan coba lagi.");
+          setError(friendlyError(data.error) || "Authentication failed. Please try again.");
           setStep("error");
           return;
         }
@@ -513,7 +511,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       }
       if (attempts >= MAX_ATTEMPTS) {
         callbackProcessedRef.current = true;
-        setError("Waktu autentikasi habis. Silakan coba lagi.");
+        setError("Authentication timed out. Please try again.");
         setStep("error");
         return;
       }
@@ -596,40 +594,61 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     };
   }, [authData, exchangeTokens]);
 
-  const handleManualSubmit = async () => {
+  const processOAuthCallback = useCallback(async (rawInput) => {
+    if (!rawInput || typeof rawInput !== "string" || callbackProcessedRef.current) return false;
+    let input = rawInput.trim();
+    if (!input) return false;
+
+    // Check if input looks like an OAuth URL or authorization code
+    const isUrl = input.startsWith("http://") || input.startsWith("https://");
+    const hasCodeParam = input.includes("code=");
+    const isLoopback = input.includes("127.0.0.1") || input.includes("localhost");
+    const isRawGoogleCode = (input.startsWith("4/") || input.startsWith("4%2F")) && input.length >= 20;
+    const isJwt = input.startsWith("eyJ") && input.includes(".");
+
+    if (!isUrl && !hasCodeParam && !isLoopback && !isRawGoogleCode && !isJwt && provider !== "xai" && provider !== "kimchi") {
+      return false;
+    }
+
     try {
+      setAutoDetecting(true);
       setError(null);
+      setCallbackUrl(input);
 
       if (authMode === "paste-token" && PASTE_TOKEN_PROVIDERS[provider]) {
-        const token = pasteToken.trim();
-        if (!token) throw new Error("Missing token");
         const res = await fetch(`/api/oauth/${provider}/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: token }),
+          body: JSON.stringify({ code: input }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+        callbackProcessedRef.current = true;
         setStep("success");
         onSuccessRef.current?.();
-        return;
+        return true;
       }
 
-      const input = callbackUrl.trim();
+      let code = input;
+      let redirectUri = authData?.redirectUri;
+      if (code.includes("code=") || code.startsWith("http")) {
+        try {
+          const u = new URL(code, "http://localhost");
+          const extractedCode = u.searchParams.get("code");
+          if (extractedCode) code = extractedCode;
+          if (code.startsWith("http") && u.origin && u.pathname) {
+            redirectUri = `${u.origin}${u.pathname}`;
+          } else if (!redirectUri && u.origin && u.pathname) {
+            redirectUri = `${u.origin}${u.pathname}`;
+          }
+        } catch {}
+      }
 
-      if (PROXY_OAUTH_PROVIDERS.has(provider) && input) {
-        let code = input;
-        let redirectUri = authData?.redirectUri;
-        if (code.includes("code=") || code.startsWith("http")) {
-          try {
-            const u = new URL(code, "http://localhost");
-            const extractedCode = u.searchParams.get("code");
-            if (extractedCode) code = extractedCode;
-            if (!redirectUri && u.origin && u.pathname) {
-              redirectUri = `${u.origin}${u.pathname}`;
-            }
-          } catch {}
-        }
+      if (code.includes("%")) {
+        try { code = decodeURIComponent(code); } catch {}
+      }
+
+      if (PROXY_OAUTH_PROVIDERS.has(provider) || provider === "antigravity") {
         const res = await fetch(`/api/oauth/${provider}/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -643,28 +662,32 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+        callbackProcessedRef.current = true;
         setStep("success");
         onSuccessRef.current?.();
-        return;
+        return true;
       }
 
-      if (input.startsWith("eyJ") && input.includes(".")) {
-        await exchangeTokens(input, null);
-        return;
+      if (isJwt) {
+        await exchangeTokens(code, null);
+        callbackProcessedRef.current = true;
+        return true;
       }
 
       if (provider === "xai" && input && !input.includes("://") && !input.includes("?") && !input.includes("code=")) {
         await completeXaiManualCode(input);
-        return;
+        callbackProcessedRef.current = true;
+        return true;
       }
 
       if (provider === "kimchi" && input && !input.includes("://") && !input.includes("?")) {
         await exchangeTokens(input, null);
-        return;
+        callbackProcessedRef.current = true;
+        return true;
       }
 
       const url = new URL(input);
-      const code = url.searchParams.get("code");
+      const extractedCode = url.searchParams.get("code");
       const token = url.searchParams.get("token");
       const state = url.searchParams.get("state");
       const errorParam = url.searchParams.get("error");
@@ -673,7 +696,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         throw new Error(url.searchParams.get("error_description") || errorParam);
       }
 
-      if (!code && !token) {
+      if (!extractedCode && !token) {
         throw new Error(
           provider === "xai"
             ? "Paste the callback URL or copied xAI code"
@@ -683,9 +706,80 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         );
       }
 
-      await exchangeTokens(token || code, state);
+      await exchangeTokens(token || extractedCode, state);
+      callbackProcessedRef.current = true;
+      return true;
     } catch (err) {
-      setError(friendlyError(err.message));      setStep("error");
+      setError(friendlyError(err.message));
+      return false;
+    } finally {
+      setAutoDetecting(false);
+    }
+  }, [authData, authMode, completeXaiManualCode, exchangeTokens, provider]);
+
+  // Auto-detect callback URL or code from clipboard when returning to the tab
+  useEffect(() => {
+    if (!isOpen || (step !== "waiting" && step !== "input")) return;
+    if (!PROXY_OAUTH_PROVIDERS.has(provider) && provider !== "xai" && provider !== "codex") return;
+
+    let activeCheck = false;
+    let lastChecked = "";
+
+    const checkClipboard = async () => {
+      if (activeCheck || callbackProcessedRef.current) return;
+      activeCheck = true;
+      try {
+        if (typeof navigator === "undefined" || !navigator.clipboard?.readText) return;
+        const text = await navigator.clipboard.readText();
+        if (!text || typeof text !== "string") return;
+        const trimmed = text.trim();
+        if (!trimmed || trimmed === lastChecked) return;
+        lastChecked = trimmed;
+
+        const hasCodeParam = trimmed.includes("code=");
+        const isLoopback = trimmed.includes("127.0.0.1") || trimmed.includes("localhost");
+        const isRawGoogleCode = (trimmed.startsWith("4/") || trimmed.startsWith("4%2F")) && trimmed.length >= 20;
+
+        if (hasCodeParam || isLoopback || isRawGoogleCode) {
+          console.log("[OAuthModal] Auto-detected OAuth callback in clipboard!");
+          await processOAuthCallback(trimmed);
+        }
+      } catch {
+      } finally {
+        activeCheck = false;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkClipboard();
+      }
+    };
+
+    const handleFocus = () => {
+      checkClipboard();
+    };
+
+    const handlePointerDown = () => {
+      checkClipboard();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isOpen, step, provider, processOAuthCallback]);
+
+  const handleManualSubmit = async () => {
+    if (authMode === "paste-token") {
+      await processOAuthCallback(pasteToken);
+    } else {
+      await processOAuthCallback(callbackUrl);
     }
   };
 
@@ -706,8 +800,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       : placeholderUrl;
 
   return (
-    <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
-      <div className="flex flex-col gap-4">
+    <AntaresModal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
+      <SurfaceSkinContext.Provider value="antares">
+        <div className="flex flex-col gap-4">
         {/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
         {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
           <>
@@ -716,14 +811,14 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                 <button
                   type="button"
                   onClick={() => { setAuthMode("browser"); setError(null); setStep("waiting"); startOAuthFlow(); }}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${authMode === "browser" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
+                  className={`min-h-11 flex-1 rounded-lg border px-3 text-sm transition-colors ${authMode === "browser" ? "border-primary bg-primary/10 text-[var(--t-accent)]" : "border-[var(--t-line)] text-[var(--t-muted)] hover:text-[var(--t-accent)]"}`}
                 >
                   🌐 Sign in with browser
                 </button>
                 <button
                   type="button"
                   onClick={() => { setAuthMode("paste-token"); setError(null); setStep("input"); }}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${authMode === "paste-token" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
+                  className={`min-h-11 flex-1 rounded-lg border px-3 text-sm transition-colors ${authMode === "paste-token" ? "border-primary bg-primary/10 text-[var(--t-accent)]" : "border-[var(--t-line)] text-[var(--t-muted)] hover:text-[var(--t-accent)]"}`}
                 >
                   🔑 Paste token
                 </button>
@@ -731,77 +826,118 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             )}
 
             {authMode === "browser" && (
-              <>
-                {step === "waiting" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
-                      <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
-                      <span className="text-sm">Menunggu otorisasi browser…</span>
-                    </div>
+              <div className="space-y-4">
+                {/* Status indicator */}
+                <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 border border-[var(--t-line)] rounded-lg bg-[var(--t-raised)]">
+                  <span className="material-symbols-outlined shrink-0 text-base text-[var(--t-accent)] animate-spin">progress_activity</span>
+                  <span className="text-xs font-medium leading-snug sm:text-sm">
+                    {autoDetecting
+                      ? translate("Processing callback from clipboard...")
+                      : translate("Waiting for browser authorization…")}
+                  </span>
+                </div>
 
-                    <div className="pt-2 border-t border-border/50 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-text-muted">Akses dari HP / perangkat lain?</span>
-                        {authData?.authUrl && (
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              icon={copied === "auth_url" ? "check" : "content_copy"}
-                              onClick={() => copy(authData.authUrl, "auth_url")}
-                            >
-                              Salin Link
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => window.open(authData.authUrl, "_blank")}
-                              icon="open_in_new"
-                            >
-                              Buka
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-text-muted">
-                        Setelah login di Google, browser akan diarahkan ke link <code>http://127.0.0.1:...</code> (pada HP mungkin muncul pesan &apos;tidak dapat terhubung&apos;). Cukup salin seluruh URL dari bilah alamat browser lalu tempel di sini:
-                      </p>
-                      <div className="flex gap-2">
-                        <Input
-                          value={callbackUrl}
-                          onChange={(e) => setCallbackUrl(e.target.value)}
-                          placeholder="http://127.0.0.1:.../callback?code=..."
-                          className="font-mono text-xs flex-1"
-                        />
-                        <Button
-                          onClick={handleManualSubmit}
-                          disabled={!callbackUrl.trim()}
-                          size="sm"
-                        >
-                          Hubungkan
-                        </Button>
-                      </div>
-                    </div>
+                {/* Open login button (crucial for mobile when popup is blocked or opens in background) */}
+                {authData?.authUrl && (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      onClick={() => window.open(authData.authUrl, "_blank")}
+                      icon="open_in_new"
+                      className="w-full sm:flex-1"
+                    >
+                      Buka Halaman Login {providerInfo.name}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      icon={copied === "auth_url" ? "check" : "content_copy"}
+                      onClick={() => copy(authData.authUrl, "auth_url")}
+                      className="w-full sm:w-auto"
+                    >
+                      Copy Link
+                    </Button>
                   </div>
                 )}
-                {step === "input" && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-text-muted">
-                      Popup diblokir atau login selesai. Tempelkan seluruh callback URL dari browser di sini:
-                    </p>
-                    <Input
-                      value={callbackUrl}
-                      onChange={(e) => setCallbackUrl(e.target.value)}
-                      placeholder="http://127.0.0.1:.../callback?code=..."
-                      className="font-mono text-xs"
-                    />
-                    <div className="flex gap-2">
-                      <Button onClick={handleManualSubmit} fullWidth disabled={!callbackUrl}>Connect</Button>
-                      <Button onClick={handleClose} variant="ghost" fullWidth>Cancel</Button>
-                    </div>
+
+                {/* Automated Connect Card for Remote/Mobile Users */}
+                <div className="rounded-xl border-2 border-[var(--t-line)] bg-[var(--t-raised)] p-3 space-y-3 shadow-sm sm:p-4">
+                  <div className="flex items-start gap-2 text-xs font-semibold leading-snug text-[var(--t-accent)] sm:text-sm">
+                    <span className="material-symbols-outlined shrink-0 text-lg animate-pulse">magic_button</span>
+                    <span>{translate("Access from phone / external network (automatic)")}</span>
                   </div>
-                )}
-              </>
+                  <ol className="break-words text-[11px] text-[var(--t-muted)] space-y-1.5 list-decimal list-inside leading-relaxed sm:text-xs">
+                    <li>
+                      {translate("Open the login page and choose your {provider} account.").replace("{provider}", providerInfo.name)}
+                    </li>
+                    <li>
+                      {translate("When the")}{" "}
+                      <code className="break-all text-[var(--t-accent)] font-mono font-medium">127.0.0.1</code>{" "}
+                      {translate("page appears (\"connection refused\"),")}{" "}
+                      <strong>{translate("copy the link")}</strong>{" "}
+                      {translate("from the browser address bar.")}
+                    </li>
+                    <li>
+                      {translate("Return to this tab — the system will automatically detect and connect, no input needed!")}
+                    </li>
+                  </ol>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        setAutoDetecting(true);
+                        const text = await navigator.clipboard?.readText();
+                        if (text) {
+                          const ok = await processOAuthCallback(text);
+                          if (!ok) {
+                            setError("Clipboard does not contain a valid callback URL/code. Make sure the link from the 127.0.0.1 tab was copied.");
+                          }
+                        } else {
+                          setError("Clipboard is empty. Copy the link from the browser address bar first.");
+                        }
+                      } catch (err) {
+                        setError("Clipboard permission blocked by the browser. Please paste the link below.");
+                        setManualExpanded(true);
+                      } finally {
+                        setAutoDetecting(false);
+                      }
+                    }}
+                    loading={autoDetecting}
+                    className="min-h-11 w-full text-xs font-medium sm:text-sm"
+                    icon="auto_awesome"
+                  >
+                    ⚡ Sambungkan Otomatis Sekarang
+                  </Button>
+                </div>
+
+                {/* Collapsible Manual Input as Fallback */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setManualExpanded(prev => !prev)}
+                    className="flex min-h-11 items-center gap-1.5 py-2 text-left text-xs text-[var(--t-muted)] hover:text-[var(--t-ink)] transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-sm">{manualExpanded ? "expand_less" : "expand_more"}</span>
+                    <span>Input manual link callback (opsional)</span>
+                  </button>
+
+                  {manualExpanded && (
+                    <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        value={callbackUrl}
+                        onChange={(e) => setCallbackUrl(e.target.value)}
+                        placeholder="http://127.0.0.1:.../callback?code=..."
+                        className="w-full font-mono text-xs sm:flex-1"
+                      />
+                      <Button
+                        onClick={handleManualSubmit}
+                        disabled={!callbackUrl.trim() || autoDetecting}
+                        size="sm"
+                        className="min-h-11 w-full sm:w-auto sm:min-h-0"
+                      >
+                        Hubungkan
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {authMode === "paste-token" && PASTE_TOKEN_PROVIDERS[provider] && (
@@ -814,14 +950,14 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                       : ` Install ${PASTE_TOKEN_PROVIDERS[provider].ideName} IDE to get the token, or use "Sign in with browser".`}
                   </div>
                 )}
-                <p className="text-sm text-text-muted">{PASTE_TOKEN_PROVIDERS[provider].instructions}</p>
+                <p className="text-sm text-[var(--t-muted)]">{PASTE_TOKEN_PROVIDERS[provider].instructions}</p>
                 <Input
                   value={pasteToken}
                   onChange={(e) => setPasteToken(e.target.value)}
                   placeholder={PASTE_TOKEN_PROVIDERS[provider].placeholder}
                   className="font-mono text-xs"
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Button onClick={handleManualSubmit} fullWidth disabled={!pasteToken}>Connect</Button>
                   <Button onClick={handleClose} variant="ghost" fullWidth>Cancel</Button>
                 </div>
@@ -834,8 +970,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {(step === "waiting" || step === "input") && !isDeviceCode && !PROXY_OAUTH_PROVIDERS.has(provider) && (
           <>
             {/* Option A: Auto via popup */}
-            <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
-              <span className="material-symbols-outlined text-base text-primary animate-spin">
+            <div className="flex items-center gap-2 px-3 py-2 border border-[var(--t-line)] rounded-lg bg-[var(--t-raised)]">
+              <span className="material-symbols-outlined text-base text-[var(--t-accent)] animate-spin">
                 progress_activity
               </span>
               <span className="text-sm">
@@ -844,9 +980,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             </div>
 
             {/* Divider */}
-            <div className="flex items-center gap-3 my-1">
+            <div className="flex items-center gap-2 sm:gap-3 my-1">
               <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-text-muted uppercase tracking-wider">Or paste callback URL manually</span>
+              <span className="text-[10px] sm:text-xs text-[var(--t-muted)] uppercase tracking-wider text-center">Or paste callback URL manually</span>
               <div className="flex-1 h-px bg-border" />
             </div>
 
@@ -868,7 +1004,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                 <p className="text-sm font-medium mb-2">
                   Step 2: Paste the {provider === "xai" ? "callback URL or copied code" : isKimchiProvider ? "callback URL or copied token" : "callback URL"} here
                 </p>
-                <p className="text-xs text-text-muted mb-2">
+                <p className="text-xs text-[var(--t-muted)] mb-2">
                   {provider === "xai"
                     ? "If xAI shows a code instead of redirecting, paste that code here."
                     : isKimchiProvider
@@ -898,49 +1034,54 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {/* Device Code Flow - Waiting */}
         {step === "waiting" && isDeviceCode && deviceData && (
           <>
-            <div className="text-center py-4">
-              <p className="text-sm text-text-muted mb-4">
+            <div className="text-center py-2 sm:py-4">
+              <p className="text-xs sm:text-sm text-[var(--t-muted)] mb-3 sm:mb-4">
                 Visit the login URL below and authorize:
               </p>
-              <div className="bg-sidebar p-4 rounded-lg mb-4">
-                <p className="text-xs text-text-muted mb-1">Login URL</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-sm break-all">{deviceLoginUrl}</code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={copied === "login_url" ? "check" : "content_copy"}
-                    onClick={() => copy(deviceLoginUrl, "login_url")}
-                    disabled={!deviceLoginUrl}
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon="open_in_new"
-                    onClick={() => window.open(deviceLoginUrl, "_blank", "noopener,noreferrer")}
-                    disabled={!deviceLoginUrl}
-                  >
-                    Open
-                  </Button>
+              <div className="bg-sidebar p-2.5 sm:p-4 rounded-lg mb-3 sm:mb-4">
+                <p className="text-xs text-[var(--t-muted)] mb-1.5">Login URL</p>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+                  <code className="min-w-0 flex-1 break-all text-xs sm:text-sm">{deviceLoginUrl}</code>
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={copied === "login_url" ? "check" : "content_copy"}
+                      onClick={() => copy(deviceLoginUrl, "login_url")}
+                      disabled={!deviceLoginUrl}
+                      className="min-h-9 min-w-9 sm:min-h-8 sm:min-w-8"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon="open_in_new"
+                      onClick={() => window.open(deviceLoginUrl, "_blank", "noopener,noreferrer")}
+                      disabled={!deviceLoginUrl}
+                      className="min-h-9 min-w-9 sm:min-h-8 sm:min-w-8"
+                    >
+                      <span className="hidden sm:inline">Open</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
               {deviceData.user_code && (
-                <div className="bg-primary/10 p-4 rounded-lg">
-                  <p className="text-xs text-text-muted mb-1">Your Code</p>
-                  <div className="flex items-center justify-center gap-2">
-                    <p className="text-2xl font-mono font-bold text-primary">{deviceData.user_code}</p>
+                <div className="bg-primary/10 p-2.5 sm:p-4 rounded-lg">
+                  <p className="text-xs text-[var(--t-muted)] mb-1.5">Your Code</p>
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <p className="text-xl sm:text-2xl font-mono font-bold text-[var(--t-accent)] break-all">{deviceData.user_code}</p>
                     <Button
                       size="sm"
                       variant="ghost"
                       icon={copied === "user_code" ? "check" : "content_copy"}
                       onClick={() => copy(deviceData.user_code, "user_code")}
+                      className="min-h-9 min-w-9 sm:min-h-8 sm:min-w-8 shrink-0"
                     />
                   </div>
                 </div>
               )}
             </div>
             {polling && (
-              <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
+              <div className="flex items-center justify-center gap-2 text-sm text-[var(--t-muted)]">
                 <span className="material-symbols-outlined animate-spin">progress_activity</span>
                 Waiting for authorization...
               </div>
@@ -955,7 +1096,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
               <span className="material-symbols-outlined text-3xl text-green-600">check_circle</span>
             </div>
             <h3 className="text-lg font-semibold mb-2">Connected Successfully!</h3>
-            <p className="text-sm text-text-muted mb-4">
+            <p className="text-sm text-[var(--t-muted)] mb-4">
               Your {providerInfo.name} account has been connected.
             </p>
             <Button onClick={handleClose} fullWidth>
@@ -970,20 +1111,21 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             <div className="size-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <span className="material-symbols-outlined text-3xl text-red-600">error</span>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Koneksi Gagal</h3>
+            <h3 className="text-lg font-semibold mb-2">{translate("Connection failed")}</h3>
             <p className="text-sm text-red-600 mb-4">{error}</p>
             <div className="flex gap-2">
               <Button onClick={startOAuthFlow} variant="secondary" fullWidth>
-                Coba Lagi
+                {translate("Try again")}
               </Button>
               <Button onClick={handleClose} variant="ghost" fullWidth>
-                Batal
+                {translate("Cancel")}
               </Button>
             </div>
           </div>
         )}
-      </div>
-    </Modal>
+        </div>
+      </SurfaceSkinContext.Provider>
+    </AntaresModal>
   );
 }
 

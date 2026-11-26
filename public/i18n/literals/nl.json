@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "Gebruik 5–128 tekens: letters, cijfers, koppeltekens (-) of underscores (_). Het voorvoegsel rmod- is optioneel. Vermijd gemakkelijk te raden woorden.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "De API-sleutel moet 5–128 tekens lang zijn en mag alleen letters, cijfers, koppeltekens (-) of underscores (_) bevatten."
 }

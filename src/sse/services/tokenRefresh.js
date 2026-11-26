@@ -1,5 +1,8 @@
 import * as log from "../utils/logger.js";
-import { getProviderConnectionById, updateProviderConnection } from "../../lib/localDb.js";
+import { getProviderConnectionById, updateProviderConnection, deleteProviderConnectionById } from "../../lib/localDb.js";
+import { isKiroSuspension } from "open-sse/shared/kiroSuspension.js";
+import { runKiroSuspensionHook } from "../../lib/kiroSuspensionHook.js";
+import { getKiroRefreshRejection, kiroRefreshRejectedError } from "open-sse/shared/kiroRefreshState.js";
 import {
   getProjectIdForConnection,
   invalidateProjectId,
@@ -34,6 +37,35 @@ export const TOKEN_EXPIRY_BUFFER_MS = BUFFER_MS;
 // rejected upstream (invalid_grant, account deleted, ...). auth.js preserves
 // this lastError so a later generic "[401]: HTTP 401" doesn't overwrite it.
 export const REFRESH_REJECTED_PREFIX = "Refresh token ditolak";
+
+// Called after a successful upstream request. A working account must not keep
+// a hidden "refresh rejected" marker: it would be picked last forever, shown
+// as healthy in the dashboard, and surface a stale 401 the moment any later
+// account fails for an unrelated reason.
+export async function clearKiroRefreshRejection(connectionId) {
+  if (!connectionId) return;
+  const latest = await getProviderConnectionById(connectionId);
+  if (!latest || latest.provider !== "kiro" || !latest.providerSpecificData?.kiroRefreshError) return;
+  const { kiroRefreshError, ...providerSpecificData } = latest.providerSpecificData;
+  await updateProviderConnection(connectionId, { providerSpecificData });
+}
+
+export async function recordKiroRefreshRejection(connectionId, credentials, result) {
+  if (!connectionId || !isUnrecoverableRefreshError(result)) return;
+  const latest = await getProviderConnectionById(connectionId);
+  if (!latest || latest.refreshToken !== credentials.refreshToken) return;
+  // A concurrent reauthorization must not be overwritten by an old failure.
+  const next = { ...latest.providerSpecificData, kiroRefreshError: result };
+  if (!getKiroRefreshRejection({ ...latest, providerSpecificData: next })) return;
+  if (getKiroRefreshRejection(latest)) return;
+  await updateProviderConnection(connectionId, {
+    providerSpecificData: next,
+    testStatus: "error",
+    lastError: `${REFRESH_REJECTED_PREFIX}: ${result.code}. Silakan login ulang Kiro.`,
+    errorCode: "kiro_refresh_rejected",
+    lastErrorAt: result.rejectedAt || new Date().toISOString(),
+  });
+}
 
 
 export const refreshAccessToken = (provider, refreshToken, credentials) =>
@@ -130,6 +162,11 @@ function _refreshProjectId(provider, connectionId, accessToken) {
 export async function updateProviderCredentials(connectionId, newCredentials) {
   try {
     const updates = {};
+    const latest = await getProviderConnectionById(connectionId);
+    if (latest?.provider === "kiro" && isUnrecoverableRefreshError(newCredentials)) {
+      await recordKiroRefreshRejection(connectionId, latest, newCredentials);
+      return false;
+    }
 
     if (newCredentials.accessToken)         updates.accessToken  = newCredentials.accessToken;
     if (newCredentials.refreshToken)        updates.refreshToken = newCredentials.refreshToken;
@@ -149,6 +186,7 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
     }
     if (newCredentials.providerSpecificData) {
       updates.providerSpecificData = {
+        ...(latest?.providerSpecificData || {}),
         ...(newCredentials.existingProviderSpecificData || {}),
         ...newCredentials.providerSpecificData,
       };
@@ -161,6 +199,14 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
       };
     }
     if (newCredentials.projectId)            updates.projectId = newCredentials.projectId;
+    if (latest?.provider === "kiro" && newCredentials.accessToken) {
+      updates.providerSpecificData = {
+        ...latest.providerSpecificData, ...updates.providerSpecificData, kiroRefreshError: null,
+      };
+      if (String(latest.lastError || "").startsWith(REFRESH_REJECTED_PREFIX)) {
+        Object.assign(updates, { testStatus: "active", lastError: null, lastErrorAt: null, errorCode: null });
+      }
+    }
 
     const result = await updateProviderConnection(connectionId, updates);
     log.info("TOKEN_REFRESH", "Credentials updated in localDb", {
@@ -222,7 +268,16 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
     const credsRefreshMs = Date.parse(creds.lastRefreshAt || "");
     const dbIsNewer = Number.isFinite(latestRefreshMs)
       && (!Number.isFinite(credsRefreshMs) || latestRefreshMs > credsRefreshMs);
-    if (dbIsNewer && latest.refreshToken && latest.refreshToken !== creds.refreshToken) {
+    if (provider === "kiro" && latest) {
+      creds = {
+        ...creds,
+        refreshToken: latest.refreshToken,
+        accessToken: latest.accessToken,
+        expiresAt: latest.expiresAt || latest.tokenExpiresAt,
+        lastRefreshAt: latest.lastRefreshAt,
+        providerSpecificData: { ...creds.providerSpecificData, ...latest.providerSpecificData },
+      };
+    } else if (dbIsNewer && latest.refreshToken && latest.refreshToken !== creds.refreshToken) {
       creds = {
         ...creds,
         refreshToken: latest.refreshToken,
@@ -234,6 +289,11 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
   }
 
   const force = options?.force === true;
+  const rejection = provider === "kiro" && getKiroRefreshRejection(creds);
+  if (rejection) {
+    if (Date.parse(creds.expiresAt || "") > Date.now()) return creds;
+    throw kiroRefreshRejectedError(rejection);
+  }
 
   if (force || _shouldRefreshCredentials(provider, creds)) {
     const expiresAt = creds.expiresAt ? new Date(creds.expiresAt).getTime() : null;
@@ -247,9 +307,23 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
       lastRefreshAt: creds.lastRefreshAt || null,
     });
 
-    const newCreds = await _refreshProviderCredentials(provider, creds, log);
+    let newCreds;
+    try {
+      newCreds = await _refreshProviderCredentials(provider, creds, log);
+    } catch (error) {
+      if (provider === "kiro" && isKiroSuspension(error) && creds.connectionId) {
+        await deleteProviderConnectionById(creds.connectionId);
+        runKiroSuspensionHook(creds.connectionId);
+      }
+      throw error;
+    }
 
     if (isUnrecoverableRefreshError(newCreds)) {
+      if (provider === "kiro") {
+        await recordKiroRefreshRejection(creds.connectionId, creds, newCreds);
+        if (Date.parse(creds.expiresAt || "") > Date.now()) return creds;
+        throw kiroRefreshRejectedError(newCreds);
+      }
       // Permanent rejection (invalid_grant / account deleted): persist a clear,
       // human-readable reason on the connection instead of failing silently,
       // so the dashboard doesn't just show a cryptic "HTTP 401".

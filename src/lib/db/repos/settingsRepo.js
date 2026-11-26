@@ -1,5 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { resolveOpencodeRotationSettings } from "open-sse/config/runtimeConfig.js";
 
 const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
 const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhost:8787";
@@ -70,6 +71,11 @@ const DEFAULT_SETTINGS = {
   promptInjectionKeys: {},
   promptInjectionModels: {},
   jailbreakModels: {},
+  // OpenCode free-lane WARP rotation. Enforced by the executor to always reach
+  // at least 100 distinct exit IPs before a 429 is declared final.
+  warpHopCooldownSec: 5,
+  opencodeMaxHops: 100,
+  opencodeHopBudgetSec: 3600,
 };
 
 async function readRaw() {
@@ -93,6 +99,13 @@ export function mergeWithDefaults(raw) {
       }
     }
   }
+  // Stale installs may still hold the old 7-hop / 610 s / 45 s values. Keep
+  // what the dashboard shows in sync with what the executor enforces.
+  const rotation = resolveOpencodeRotationSettings(merged);
+  merged.opencodeMaxHops = rotation.maxHops;
+  merged.warpHopCooldownSec = rotation.cooldownMs / 1000;
+  merged.opencodeHopBudgetSec = rotation.budgetMs / 1000;
+
   if (merged.capacityAdapter && typeof merged.capacityAdapter === "object") {
     for (const capKey of Object.keys(merged.capacityAdapter)) {
       const entry = merged.capacityAdapter[capKey];

@@ -13,6 +13,7 @@ function buildMaps(models) {
   for (const m of models || []) {
     if (!m.caps) continue;
     if (m.fullModel) byFull[m.fullModel] = m.caps;
+    if (m.provider && m.model) byFull[`${ALIAS_TO_ID[m.provider] || m.provider}/${m.model}`] = m.caps;
     if (m.routedModel) byFull[m.routedModel] = m.caps;
     if (m.model) byId[m.model] = m.caps;
   }
@@ -45,9 +46,11 @@ export function resolveCaps(byFull, byId, key) {
   if (!key) return null;
   if (byFull[key]) return byFull[key];
   const bare = key.includes("/") ? key.slice(key.indexOf("/") + 1) : key;
-  if (byId[bare]) return byId[bare];
+  // A model name can exist on several providers with different capabilities.
+  if (!key.includes("/") && byId[bare]) return byId[bare];
   const alias = key.includes("/") ? key.slice(0, key.indexOf("/")) : null;
   const provider = alias ? (ALIAS_TO_ID[alias] || alias) : null;
+  if (provider && byFull[`${provider}/${bare}`]) return byFull[`${provider}/${bare}`];
   const c = getCapabilitiesForModel(provider, bare);
   return {
     vision: c.vision,

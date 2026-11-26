@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePageReady } from "@/shared/components/PageReadyContext";
 import PageLoader from "@/shared/components/PageLoader";
 import { renderMarkdown } from "./MarkdownText";
@@ -150,10 +151,10 @@ function friendlyModelName(id) {
 }
 
 const TOOL_META = {
-  list_dir: { icon: "folder_open", label: "Menelusuri folder", tone: "text-sky-500" },
-  read_file: { icon: "description", label: "Membaca file", tone: "text-sky-500" },
-  write_file: { icon: "edit_document", label: "Menulis file", tone: "text-amber-500" },
-  delete_path: { icon: "delete", label: "Menghapus path", tone: "text-rose-500" },
+  list_dir: { icon: "folder_open", label: "Browsing folder", tone: "text-sky-500" },
+  read_file: { icon: "description", label: "Reading file", tone: "text-sky-500" },
+  write_file: { icon: "edit_document", label: "Writing file", tone: "text-amber-500" },
+  delete_path: { icon: "delete", label: "Deleting path", tone: "text-rose-500" },
   run_command: { icon: "terminal", label: "Menjalankan perintah", tone: "text-violet-500" },
 };
 
@@ -247,15 +248,55 @@ function ToolCard({ entry }) {
 function ModelPicker({ models, value, onChange, disabled }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const ref = useRef(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
 
-  useEffect(() => {
-    const onDoc = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+
+    const placeMenu = () => {
+      const anchor = triggerRef.current;
+      const menu = menuRef.current;
+      if (!anchor || !menu) return;
+      const rect = anchor.getBoundingClientRect();
+      const margin = 12;
+      const width = Math.min(420, window.innerWidth - margin * 2);
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+      const usableHeight = Math.max(120, window.innerHeight - margin * 2);
+      const below = Math.max(0, window.innerHeight - margin - rect.bottom - 8);
+      const above = Math.max(0, rect.top - margin - 8);
+      const placeAbove = below < 280 && above > below;
+      const maxHeight = Math.min(480, usableHeight, Math.max(150, placeAbove ? above : below));
+      const idealTop = placeAbove ? rect.top - maxHeight - 8 : rect.bottom + 8;
+      const top = Math.max(margin, Math.min(idealTop, window.innerHeight - margin - maxHeight));
+      Object.assign(menu.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${maxHeight}px`, visibility: "visible" });
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
+
+    const onPointerDown = (event) => {
+      if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+      setQuery("");
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setQuery("");
+        triggerRef.current?.focus();
+      }
+    };
+
+    placeMenu();
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", placeMenu);
+    window.addEventListener("scroll", placeMenu, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", placeMenu);
+      window.removeEventListener("scroll", placeMenu, true);
+    };
+  }, [open]);
 
   const selected = models.find((m) => m.id === value);
   const q = query.trim().toLowerCase();
@@ -275,40 +316,77 @@ function ModelPicker({ models, value, onChange, disabled }) {
   groups.sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div ref={ref} className="relative min-w-0 w-full">
+    <div className="relative min-w-0 w-full">
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled || models.length === 0}
-        onClick={() => setOpen((o) => !o)}
-        className="an-btn an-ghost h-8 w-full min-w-0 gap-1.5 px-2.5 py-0 justify-start disabled:opacity-50 cursor-pointer"
-        title={selected ? selected.name : "Pilih model"}
+        onClick={() => {
+          setQuery("");
+          setOpen((current) => !current);
+        }}
+        aria-label={selected ? `Model: ${selected.name}` : "Select model"}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className="an-btn an-ghost h-10 w-full min-w-0 gap-2 px-3 py-0 justify-start disabled:opacity-50 cursor-pointer !rounded-xl !font-sans !text-left"
+        title={selected ? selected.name : "Select model"}
       >
-        <span className="material-symbols-outlined text-[15px] text-text-muted shrink-0">neurology</span>
-        <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">
-          {selected ? selected.name : models.length ? "Pilih model…" : "(belum ada model)"}
+        <span className="material-symbols-outlined text-[17px] text-primary shrink-0">neurology</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+          {selected ? selected.name : models.length ? "Select model…" : "(no models yet)"}
         </span>
-        <span className="material-symbols-outlined text-[14px] text-text-muted shrink-0">expand_more</span>
+        <span className="material-symbols-outlined text-[16px] text-text-muted shrink-0 transition-transform" style={{ transform: open ? "rotate(180deg)" : undefined }}>expand_more</span>
       </button>
 
-      {open && (
-        <div className="an-panel absolute z-30 mt-1 left-0 w-[300px] sm:w-[380px] max-w-[calc(100vw-32px)] overflow-hidden">
-          <div className="p-2 border-b border-border">
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari model…"
-              className="an-input !py-1.5 !px-2.5 !text-[12px] !font-sans w-full"
-            />
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          role="dialog"
+          aria-label="Select model AI"
+          className="an-scope login-skin an-panel fixed z-[120] flex flex-col overflow-hidden !rounded-2xl !bg-[var(--t-card)] !text-[var(--t-ink)] !shadow-[0_18px_55px_rgba(0,0,0,0.35)]"
+          style={{ visibility: "hidden" }}
+        >
+          <div className="shrink-0 border-b border-border bg-surface p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold text-text">Select model</p>
+                <p className="mt-0.5 text-[10px] text-text-muted">{models.length} model tersedia</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); setQuery(""); }}
+                aria-label="Close model picker"
+                className="grid size-8 shrink-0 place-items-center rounded-lg text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
+              >
+                <span className="material-symbols-outlined text-[17px]">close</span>
+              </button>
+            </div>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-text-muted">search</span>
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name or model ID…"
+                aria-label="Search models"
+                className="an-input !h-10 !w-full !rounded-xl !py-2 !pl-9 !pr-3 !text-[12px] !font-sans"
+              />
+            </div>
           </div>
-          <div className="max-h-[60vh] sm:max-h-72 overflow-y-auto py-1 overscroll-contain">
-            {filtered.length === 0 && <p className="px-3 py-2 text-xs text-text-muted">Tidak ada model.</p>}
+          <div className="min-h-0 flex-1 overflow-y-auto py-1.5 overscroll-contain">
+            {filtered.length === 0 && (
+              <div className="px-4 py-8 text-center">
+                <span className="material-symbols-outlined mb-1 block text-[22px] text-text-muted">search_off</span>
+                <p className="text-xs font-medium text-text">Model tidak ditemukan</p>
+                <p className="mt-1 text-[10px] text-text-muted">Coba kata kunci lain.</p>
+              </div>
+            )}
             {groups.map((g) => (
               <div key={g.name}>
-                <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-surface-2/95 backdrop-blur px-3 py-1.5 border-y border-border">
-                  <span className="material-symbols-outlined text-[13px] text-primary">dns</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{g.name}</span>
-                  <span className="text-[10px] text-text-muted/70">({g.items.length})</span>
+                <div className="sticky top-0 z-10 flex items-center gap-2 border-y border-border/70 bg-[var(--t-raised)] px-4 py-2">
+                  <span className="material-symbols-outlined text-[14px] text-primary">dns</span>
+                  <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wide text-text-muted">{g.name}</span>
+                  <span className="text-[10px] tabular-nums text-text-muted/70">{g.items.length}</span>
                 </div>
                 {g.items.map((m) => {
                   const active = m.id === value;
@@ -321,28 +399,36 @@ function ModelPicker({ models, value, onChange, disabled }) {
                         setOpen(false);
                         setQuery("");
                       }}
-                      className={`flex w-full items-start gap-2 text-left px-3 py-2 text-xs hover:bg-surface-2 transition-colors ${active ? "bg-primary/5 text-primary" : "text-text"}`}
+                      className={`flex w-full items-start gap-3 border-l-2 px-4 py-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${active ? "border-primary bg-primary/5 text-primary" : "border-transparent text-text"}`}
                     >
+                      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-border/70 bg-surface-2 text-text-muted">
+                        <span className="material-symbols-outlined text-[16px]">{active ? "check" : "neurology"}</span>
+                      </span>
                       <span className="min-w-0 flex-1">
-                        <span className={`block truncate font-medium ${active ? "" : "text-text"}`}>
+                        <span className={`block truncate text-[12px] font-semibold ${active ? "text-primary" : "text-text"}`}>
                           {m.name || friendlyModelName(m.id)}
                         </span>
-                        <span className="mt-0.5 flex items-center gap-1.5 flex-wrap text-text-muted">
-                          <span className="text-[9px] font-mono opacity-70 truncate max-w-[160px]">{m.id}</span>
+                        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-text-muted">
+                          <span className="max-w-full truncate font-mono text-[10px] opacity-75">{m.id}</span>
                           {m.caps?.contextWindow ? (
-                            <span className="text-[9px] opacity-70">{fmtContext(m.caps.contextWindow)}</span>
+                            <span className="text-[9px] opacity-75">{fmtContext(m.caps.contextWindow)}</span>
                           ) : null}
                           <CapBadges caps={m.caps} size="text-[9px]" />
                         </span>
                       </span>
-                      {active && <span className="material-symbols-outlined text-[15px] shrink-0 mt-0.5">check</span>}
+                      {active && <span className="shrink-0 self-center text-[9px] font-semibold uppercase tracking-wide text-primary">Active</span>}
                     </button>
                   );
                 })}
               </div>
             ))}
           </div>
-        </div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-surface px-4 py-2 text-[10px] text-text-muted">
+            <span className="truncate">Select model untuk percakapan agent</span>
+            <span className="shrink-0">Esc untuk tutup</span>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -392,7 +478,7 @@ export default function AgentPageClient() {
   }
 
   if (!status) {
-    return <PageLoader message="Memuat agent..." />;
+    return <PageLoader message="Loading agent..." />;
   }
 
   if (!status.enabled) {
@@ -404,7 +490,7 @@ export default function AgentPageClient() {
               <span className="material-symbols-outlined text-amber-500">warning</span>
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="an-panel-title">AI Agent Nonaktif</h2>
+              <h2 className="an-panel-title">AI Agent Inactive</h2>
               <p className="an-panel-sub">
                 Fitur ini memberikan akses file, terminal, dan eksekusi model AI ke server.
               </p>
@@ -414,9 +500,9 @@ export default function AgentPageClient() {
             <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
               <span className="material-symbols-outlined text-amber-500 text-xl shrink-0 mt-0.5">info</span>
               <div className="flex-1 text-sm">
-                <p className="font-semibold text-[var(--t-ink)] mb-1">Cara Mengaktifkan</p>
+                <p className="font-semibold text-[var(--t-ink)] mb-1">Cara Mengactivekan</p>
                 <p className="text-[var(--t-muted)] leading-relaxed">
-                  Tambahkan environment variables berikut, lalu restart server untuk mengaktifkan AI Agent.
+                  Tambahkan environment variables berikut, lalu restart server untuk mengactivekan AI Agent.
                 </p>
               </div>
             </div>
@@ -529,12 +615,12 @@ AGENT_TERMINAL_TIMEOUT_MS=120000`}
               <button
                 type="button"
                 onClick={() => setShowChanged((v) => !v)}
-                title="Lihat file yang diubah agent"
+                title="View files changed by the agent"
                 className={`an-chip ${showChanged ? "accent" : "ok"} cursor-pointer shrink-0`}
               >
                 <span className="material-symbols-outlined text-[13px]">edit_document</span>
                 <span className="tabular-nums">{changedFiles.length}</span>
-                <span className="hidden sm:inline">file diubah</span>
+                <span className="hidden sm:inline">changed files</span>
               </button>
             ) : null}
           </div>
@@ -544,7 +630,7 @@ AGENT_TERMINAL_TIMEOUT_MS=120000`}
               value={project}
               onChange={(e) => setProject(e.target.value)}
               className="bg-transparent text-[11.5px] font-medium outline-none cursor-pointer w-full min-w-0 truncate"
-              aria-label="Pilih project"
+              aria-label="Select project"
             >
               {projects.length === 0 && <option value="">(tidak ada folder project)</option>}
               {projects.map((p) => (
@@ -780,7 +866,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
 
   const forgetSession = async () => {
     if (!sessionId || busy) return;
-    if (!confirm("Hapus sesi chat ini? Riwayatnya hilang permanen.")) return;
+    if (!confirm("Delete this chat session? Its history will be lost permanently.")) return;
     const id = sessionId;
     openingRef.current = true;
     setSessions((s) => s.filter((x) => x.id !== id));
@@ -869,9 +955,8 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
       // Still running: re-attach and keep showing the output.
       setBusy(true);
       runIdRef.current = runId;
-      setNotice("Agent masih berjalan dari sebelumnya — melanjutkan…");
+      setNotice("Agent is still running from before — resuming…");
       source = new EventSource(`/api/agent/runs/${runId}/stream`);
-      let assistantText = "";
       source.onmessage = (e) => {
         let ev = null;
         try {
@@ -880,20 +965,20 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           return;
         }
         lastEventRef.current = Date.now();
+        if (ev.type === "ping") return;
         if (ev.type === "assistant_text") {
           if (!ev.text) return;
-          assistantText += ev.text;
           setLog((l) => {
             const copy = [...l];
-            if (copy[copy.length - 1]?.kind === "assistant") {
-              copy[copy.length - 1] = { kind: "assistant", text: assistantText };
+            const last = copy[copy.length - 1];
+            if (last?.kind === "assistant") {
+              copy[copy.length - 1] = { kind: "assistant", text: (last.text || "") + ev.text };
             } else {
-              copy.push({ kind: "assistant", text: assistantText });
+              copy.push({ kind: "assistant", text: ev.text });
             }
             return copy;
           });
         } else if (ev.type === "tool_call") {
-          assistantText = "";
           setLog((l) => replaceToolEntry(l, { kind: "tool", id: ev.id, name: ev.name, args: ev.args, result: null, state: "running" }));
         } else if (ev.type === "tool_result") {
           setLog((l) =>
@@ -922,7 +1007,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           }
           setBusy(false);
           setNotice("");
-          setLog((l) => [...l, { kind: "notice", text: "Proses dihentikan." }]);
+          setLog((l) => [...l, { kind: "notice", text: "Process stopped." }]);
         } else if (ev.type === "__end__") {
           runIdRef.current = "";
           try {
@@ -948,7 +1033,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
         }
         const silentFor = Date.now() - lastEventRef.current;
         if (silentFor > 90000) {
-          setNotice("Model sedang lambat merespons - proses masih berjalan. Tekan Stop jika ingin membatalkan.");
+          setNotice("The model is slow to respond — the process is still running. Press Stop to cancel.");
         }
         try {
           const res = await fetch(`/api/agent/runs/${runId}`);
@@ -1100,7 +1185,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
     for (const e of log) {
       if (e.kind !== "tool" || !e.args?.path) continue;
       if (e.name === "write_file") map.set(e.args.path, "dibuat");
-      else if (e.name === "edit_file") map.set(e.args.path, "diubah");
+      else if (e.name === "edit_file") map.set(e.args.path, "modified");
       else if (e.name === "delete_path") map.set(e.args.path, "dihapus");
     }
     const list = [...map.entries()].map(([p, action]) => ({ path: p, action }));
@@ -1114,8 +1199,20 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
     setBusy(true);
     runIdRef.current = runId;
     lastEventRef.current = Date.now();
-    const source = new EventSource(`/api/agent/runs/${runId}/stream`);
-    let assistantText = "";
+    let lastSeq = 0;
+    let source = null;
+    let settled = false;
+    let watchdog = null;
+
+    const openStream = () => {
+      try { source?.close(); } catch { /* ignore */ }
+      // Replay anything produced while the connection was down. Only events
+      // after the last seen sequence are delivered, so text is never doubled.
+      source = new EventSource(`/api/agent/runs/${runId}/stream?after=${lastSeq}`);
+      attachSourceHandlers(source);
+    };
+
+    const attachSourceHandlers = (source) => {
     source.onmessage = (e) => {
       let ev = null;
       try {
@@ -1123,21 +1220,25 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
       } catch {
         return;
       }
+      if (ev._seq) lastSeq = Math.max(lastSeq, ev._seq);
       lastEventRef.current = Date.now();
+      if (ev.type === "ping") return;
+      setNotice("");
       if (ev.type === "assistant_text") {
         if (!ev.text) return;
-        assistantText += ev.text;
+        // Append to whatever is already rendered. Safe across reconnects: no
+        // local accumulator to lose, and no duplicate text on replay.
         setLog((l) => {
           const copy = [...l];
-          if (copy[copy.length - 1]?.kind === "assistant") {
-            copy[copy.length - 1] = { kind: "assistant", text: assistantText };
+          const last = copy[copy.length - 1];
+          if (last?.kind === "assistant") {
+            copy[copy.length - 1] = { kind: "assistant", text: (last.text || "") + ev.text };
           } else {
-            copy.push({ kind: "assistant", text: assistantText });
+            copy.push({ kind: "assistant", text: ev.text });
           }
           return copy;
         });
       } else if (ev.type === "tool_call") {
-        assistantText = "";
         setLog((l) => replaceToolEntry(l, {
           kind: "tool",
           id: ev.id,
@@ -1169,21 +1270,46 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
         runIdRef.current = "";
         setBusy(false);
         setNotice("");
-        setLog((l) => [...l, { kind: "notice", text: "Proses dihentikan." }]);
+        setLog((l) => [...l, { kind: "notice", text: "Process stopped." }]);
       } else if (ev.type === "__end__") {
+        settled = true;
         runIdRef.current = "";
         setBusy(false);
         setNotice("");
-        try {
-          source.close();
-        } catch {
-          /* ignore */
-        }
+        if (watchdog) clearInterval(watchdog);
+        try { source.close(); } catch { /* ignore */ }
       }
     };
-    source.onerror = () => {
-      setBusy(false);
+      source.onerror = () => {
+        // EventSource retries automatically. Keep the UI honest: the run is
+        // still going on the server, we are merely re-connecting to it.
+        if (settled) return;
+        setNotice("Connection lost — reconnecting to the agent process…");
+      };
     };
+
+    openStream();
+
+    // Detect the run ending while the connection is down (e.g. the server
+    // finished between retries). Without this the UI could spin forever.
+    watchdog = setInterval(async () => {
+      if (settled) { clearInterval(watchdog); return; }
+      try {
+        const res = await fetch(`/api/agent/runs/${runId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.status && data.status !== "running") {
+          settled = true;
+          clearInterval(watchdog);
+          runIdRef.current = "";
+          try { localStorage.removeItem(runKey(project)); } catch { /* ignore */ }
+          setBusy(false);
+          setNotice("");
+          try { source?.close(); } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }, 4000);
+
     return source;
   };
 
@@ -1193,14 +1319,14 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
   const continueProcess = async () => {
     if (busy) return;
     setBusy(true);
-    setNotice("Melanjutkan di background…");
+    setNotice("Resuming process — showing progress live…");
     try {
       const d = await api("/api/agent/continue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project, sessionId, providerId, model }),
       });
-      if (!d?.runId) throw new Error("Gagal memulai proses lanjutan");
+      if (!d?.runId) throw new Error("Failed to start the continuation process");
       runIdRef.current = d.runId;
       try {
         localStorage.setItem(runKey(project), d.runId);
@@ -1209,7 +1335,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
       }
       setLog((l) => [
         ...l,
-        { kind: "notice", text: "Melanjutkan pekerjaan di background…" },
+        { kind: "notice", text: "Process resumed — progress is shown below." },
       ]);
       attachToRun(d.runId);
     } catch (e) {
@@ -1298,7 +1424,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
     setNotice("");
     setLog((l) => [
       ...l,
-      { kind: "notice", text: "Proses dihentikan." },
+      { kind: "notice", text: "Process stopped." },
     ]);
   };
 
@@ -1437,7 +1563,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           } else if (ev.type === "cancelled") {
             setLog((l) => [
               ...l,
-              { kind: "notice", text: "Proses dihentikan." },
+              { kind: "notice", text: "Process stopped." },
             ]);
             setBusy(false);
           } else if (ev.type === "done") {
@@ -1453,7 +1579,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
               } else if (!sawText) {
                 copy.push({
                   kind: "notice",
-                  text: "Model tidak mengembalikan balasan. Coba kirim ulang atau pilih model lain.",
+                  text: "The model did not return a reply. Try again or select another model.",
                 });
               }
               return copy;
@@ -1471,11 +1597,19 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
     } catch (e) {
       const aborted = e?.name === "AbortError" || /stopped/i.test(e?.message || "");
       if (!aborted) {
+        const runId = runIdRef.current;
+        // The run keeps going on the server even if this browser dropped.
+        // Re-attach instead of stopping mid-answer with a bare error card.
+        if (runId) {
+          setNotice("Connection lost — reconnecting to the agent process…");
+          attachToRun(runId);
+          return;
+        }
         setLog((l) => [...l, { kind: "error", text: e?.message || String(e) }]);
       }
     } finally {
       abortRef.current = null;
-      setBusy(false);
+      if (!runIdRef.current) setBusy(false);
     }
   };
 
@@ -1486,16 +1620,16 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden min-w-0">
-            <div className="px-3 sm:px-4 py-2 sm:py-2.5 border-b border-[var(--t-line-soft)] flex flex-wrap items-center gap-1.5 min-w-0">
-        {/* Baris 1 - provider + model */}
-        <div className="flex items-center gap-1.5 min-w-0 w-full sm:w-auto sm:flex-none">
-          <div className="flex items-center gap-1.5 rounded-[9px] border border-[var(--t-line)] bg-[var(--t-field)] px-2 h-8 min-w-0 flex-1 sm:flex-none sm:w-[180px]">
-            <span className="material-symbols-outlined text-[15px] text-[var(--t-muted)] shrink-0">hub</span>
+      <div className="grid grid-cols-1 gap-2.5 border-b border-[var(--t-line-soft)] px-3 py-3 sm:px-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] xl:items-center">
+        {/* Model controls stay on their own row on narrow layouts. */}
+        <div className="flex items-center gap-2 min-w-0 w-full">
+          <div className="flex items-center gap-1.5 rounded-xl border border-[var(--t-line)] bg-[var(--t-field)] px-2.5 h-10 min-w-0 flex-[0.85] sm:flex-none sm:w-[180px]">
+            <span className="material-symbols-outlined text-[16px] text-[var(--t-muted)] shrink-0">hub</span>
             <select
               value={providerId}
               onChange={(e) => onSelectProvider(e.target.value)}
-              aria-label="Provider"
-              className="bg-transparent text-[11.5px] outline-none cursor-pointer w-full min-w-0 truncate"
+              aria-label="Select AI provider"
+              className="bg-transparent text-[12px] outline-none cursor-pointer w-full min-w-0 truncate"
             >
               {providers.length === 0 && <option value="">(belum ada provider)</option>}
               {providers.map((p) => (
@@ -1503,7 +1637,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
               ))}
             </select>
           </div>
-          <div className="min-w-0 flex-1 sm:flex-none sm:w-[250px]">
+          <div className="min-w-0 flex-[1.15] sm:flex-none sm:w-[250px]">
             <ModelPicker
               models={models}
               value={model}
@@ -1516,9 +1650,9 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           </div>
         </div>
 
-        {/* Baris 2 - sesi + aksi */}
-        <div className="flex items-center gap-1.5 min-w-0 w-full sm:w-auto sm:flex-1">
-          <div className="relative min-w-0 flex-1 sm:max-w-[240px]" ref={sessionMenuRef}>
+        {/* Session history and actions flow into a second row when space is limited. */}
+        <div className="flex items-center gap-1.5 min-w-0 w-full">
+          <div className="relative min-w-0 flex-1 xl:max-w-[280px]" ref={sessionMenuRef}>
             <button
               type="button"
               onClick={() => setSessionOpen((o) => !o)}
@@ -1538,7 +1672,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
                 </div>
                 <div className="max-h-[260px] overflow-y-auto py-1">
                   {sessions.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-[var(--t-muted)]">Belum ada sesi.</p>
+                    <p className="px-3 py-2 text-xs text-[var(--t-muted)]">Pending ada sesi.</p>
                   ) : null}
                   {sessions.map((s) => (
                     <div
@@ -1561,7 +1695,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
                           e.stopPropagation();
                           deleteSession(s.id, s.title);
                         }}
-                        title="Hapus sesi ini"
+                        title="Delete this session"
                         aria-label={`Hapus sesi ${(s.title || "Sesi").slice(0, 40)}`}
                         className="grid place-items-center h-7 w-7 rounded-lg text-[var(--t-muted)] hover:text-[var(--t-star-ink)] hover:bg-[var(--t-accent-soft)] shrink-0 transition-colors cursor-pointer"
                       >
@@ -1578,8 +1712,8 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
             <button
               onClick={reload}
               disabled={reloading || !providerId}
-              title="Muat ulang daftar model"
-              aria-label="Muat ulang daftar model"
+              title="Reload model list"
+              aria-label="Reload model list"
               className="grid place-items-center size-8 rounded-[9px] border border-[var(--t-line)] text-[var(--t-muted)] hover:text-[var(--t-ink)] hover:bg-[var(--t-raised)] transition-colors cursor-pointer disabled:opacity-40 shrink-0"
             >
               {reloading ? <Spinner /> : <span className="material-symbols-outlined text-[17px]">refresh</span>}
@@ -1596,8 +1730,8 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
             <button
               onClick={forgetSession}
               disabled={busy || !sessionId || sessions.length === 0}
-              title="Hapus sesi ini"
-              aria-label="Hapus sesi ini"
+              title="Delete this session"
+              aria-label="Delete this session"
               className="grid place-items-center size-8 rounded-[9px] border border-[rgba(232,0,31,0.28)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] transition-colors cursor-pointer disabled:opacity-40 shrink-0"
             >
               <span className="material-symbols-outlined text-[17px]">delete_sweep</span>
@@ -1640,8 +1774,8 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
               </div>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
                 {[
-                  "Jelaskan struktur project ini",
-                  "Cari bug lalu perbaiki",
+                  "Explain this project structure",
+                  "Find bugs and fix them",
                   "Jalankan build dan laporkan",
                 ].map((q) => (
                   <button
@@ -1751,7 +1885,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
                           type="button"
                           onClick={() => retryMessage(i)}
                           disabled={busy}
-                          title="Jalankan ulang prompt ini"
+                          title="Rerun this prompt"
                           className="an-chip !h-auto !px-1.5 !py-0.5 gap-1 cursor-pointer disabled:opacity-40 hover:!text-[var(--t-ink)]"
                         >
                           <span className="material-symbols-outlined text-[13px]">refresh</span>
@@ -1761,7 +1895,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
                           type="button"
                           onClick={() => startEdit(i)}
                           disabled={busy}
-                          title="Edit prompt lalu jalankan ulang"
+                          title="Edit the prompt then rerun it"
                           className="an-chip !h-auto !px-1.5 !py-0.5 gap-1 cursor-pointer disabled:opacity-40 hover:!text-[var(--t-ink)]"
                         >
                           <span className="material-symbols-outlined text-[13px]">edit</span>
@@ -1854,8 +1988,8 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
               const el = scrollRef.current;
               if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
             }}
-            aria-label="Scroll ke bawah"
-            title="Scroll ke bawah"
+            aria-label="Scroll down"
+            title="Scroll down"
             className="pointer-events-auto grid place-items-center size-9 rounded-full border border-[var(--t-line)] bg-[var(--t-card)]/95 backdrop-blur shadow-[0_8px_20px_rgba(0,0,0,0.4)] text-[var(--t-muted)] hover:text-[var(--t-ink)] transition-colors cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">keyboard_double_arrow_down</span>
@@ -1869,7 +2003,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           <button
             type="button"
             onClick={continueProcess}
-            title="Lanjutkan proses dari titik terakhir"
+            title="Resume from the last point"
             className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5"
           >
             <span className="material-symbols-outlined text-[16px]">skip_next</span>
@@ -1878,14 +2012,14 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           <button
             type="button"
             onClick={restartProcess}
-            title="Ulangi proses dari awal"
+            title="Restart from the beginning"
             className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5"
           >
             <span className="material-symbols-outlined text-[16px]">restart_alt</span>
             Ulangi proses
           </button>
           <span className="text-[10.5px] text-text-muted">
-            {"Lanjutkan untuk melanjutkan, Ulangi untuk mengulang dari awal"}
+            {"Resume continues from the last point, Restart begins again"}
           </span>
         </div>
       ) : null}
@@ -1895,7 +2029,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           <button
             type="button"
             onClick={continueProcess}
-            title="Lanjutkan proses dari titik terakhir"
+            title="Resume from the last point"
             className="an-btn an-ghost h-7 px-2.5 text-[10.5px] gap-1"
           >
             <span className="material-symbols-outlined text-[15px]">skip_next</span>
@@ -1904,7 +2038,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           <button
             type="button"
             onClick={restartProcess}
-            title="Ulangi proses dari awal"
+            title="Restart from the beginning"
             className="an-btn an-ghost h-7 px-2.5 text-[10.5px] gap-1"
           >
             <span className="material-symbols-outlined text-[15px]">restart_alt</span>
@@ -1950,8 +2084,8 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={busy || attachments.length >= MAX_ATTACH_FILES}
-            aria-label="Lampirkan gambar atau video"
-            title="Lampirkan gambar atau video"
+            aria-label="Attach an image or video"
+            title="Attach an image or video"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">attach_file</span>
@@ -1970,14 +2104,14 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
               }
             }}
             rows={1}
-            placeholder={ready ? "Tulis instruksi untuk agent…" : "Pilih model dulu"}
-            title="Enter untuk kirim, Shift+Enter untuk baris baru"
+            placeholder={ready ? "Write instructions for the agent…" : "Select a model first"}
+            title="Enter to send, Shift+Enter for a new line"
             className="flex-1 min-w-0 bg-transparent py-2 text-[13.5px] leading-relaxed resize-none outline-none max-h-40 placeholder:text-[var(--t-dim)]"
           />
           {busy ? (
             <button
               onClick={stopRun}
-              title="Hentikan proses agent"
+              title="Stop agent process"
               className="flex items-center justify-center gap-1.5 h-9 w-9 sm:w-auto sm:px-3 rounded-[10px] border border-[rgba(232,0,31,0.4)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] hover:bg-[var(--t-accent)] hover:text-white transition-colors cursor-pointer shrink-0"
             >
               <span className="material-symbols-outlined text-[18px] sm:text-[17px]">stop_circle</span>
@@ -1987,7 +2121,7 @@ function AgentChat({ project, terminalEnabled, onChangedFiles }) {
           <button
             onClick={send}
             disabled={busy || (!input.trim() && !attachments.length) || !ready}
-            title="Kirim (Enter)"
+            title="Send (Enter)"
             className="flex items-center justify-center gap-1.5 h-9 w-9 sm:w-auto sm:px-3.5 rounded-[10px] bg-primary text-white disabled:opacity-40 hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
           >
             {busy ? (
@@ -2040,7 +2174,7 @@ function FileManager({ project }) {
     try {
       const d = await api(`/api/agent/files?action=read&project=${encodeURIComponent(project)}&path=${encodeURIComponent(p)}`);
       if (d.binary) {
-        setErr("File biner, tidak bisa dibuka di editor.");
+        setErr("Binary file, cannot be opened in the editor.");
         return;
       }
       setEditing({ path: p, content: d.content });
@@ -2180,7 +2314,7 @@ function FileManager({ project }) {
               setNewName("");
             }}
             className="grid place-items-center size-7 rounded-lg border border-[var(--t-line)] text-text-muted cursor-pointer"
-            title="Batal"
+            title="Cancel"
           >
             <span className="material-symbols-outlined text-[14px]">close</span>
           </button>
@@ -2206,7 +2340,7 @@ function FileManager({ project }) {
           <button
             onClick={rename}
             className="grid place-items-center size-7 rounded-lg bg-primary text-white cursor-pointer"
-            title="Simpan nama"
+            title="Save name"
           >
             <span className="material-symbols-outlined text-[14px]">check</span>
           </button>
@@ -2216,7 +2350,7 @@ function FileManager({ project }) {
               setNewName("");
             }}
             className="grid place-items-center size-7 rounded-lg border border-[var(--t-line)] text-text-muted cursor-pointer"
-            title="Batal"
+            title="Cancel"
           >
             <span className="material-symbols-outlined text-[14px]">close</span>
           </button>
@@ -2250,7 +2384,7 @@ function FileManager({ project }) {
           <button
             className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-[var(--t-muted)] hover:text-rose-500 transition-colors cursor-pointer shrink-0 grid place-items-center size-6 rounded-md"
             onClick={() => remove(e.name)}
-            title="Hapus"
+            title="Delete"
           >
             <span className="material-symbols-outlined text-[15px]">delete</span>
           </button>
@@ -2268,7 +2402,7 @@ function FileManager({ project }) {
         <button
           onClick={() => setSidebarOpen((o) => !o)}
           className="lg:hidden grid place-items-center size-7 rounded-lg border border-[var(--t-line)] text-text-muted hover:text-primary cursor-pointer shrink-0"
-          title="Buka daftar file"
+          title="Open file list"
         >
           <span className="material-symbols-outlined text-[17px]">menu</span>
         </button>
@@ -2340,7 +2474,7 @@ function FileManager({ project }) {
             <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden grid place-items-center size-6 rounded-lg text-text-muted cursor-pointer"
-              title="Tutup daftar"
+              title="Close list"
             >
               <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
@@ -2376,14 +2510,14 @@ function FileManager({ project }) {
                 <button
                   onClick={() => remove()}
                   className="grid place-items-center size-7 rounded-lg border border-[rgba(232,0,31,0.32)] bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] cursor-pointer shrink-0"
-                  title="Hapus file"
+                  title="Delete file"
                 >
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                 </button>
                 <button
                   onClick={() => setEditing(null)}
                   className="grid place-items-center size-7 rounded-lg border border-[var(--t-line)] text-text-muted hover:text-primary cursor-pointer shrink-0"
-                  title="Tutup"
+                  title="Close"
                 >
                   <span className="material-symbols-outlined text-[16px]">close</span>
                 </button>
@@ -2537,8 +2671,8 @@ function Terminal({ project }) {
           type="button"
           onClick={copyAll}
           disabled={!lines.length}
-          title="Salin semua output"
-          aria-label="Salin semua output"
+          title="Copy all output"
+          aria-label="Copy all output"
           className="grid place-items-center size-7 rounded-[8px] border border-[var(--t-line)] text-[var(--t-muted)] hover:text-[var(--t-ink)] hover:bg-[var(--t-raised)] transition-colors cursor-pointer disabled:opacity-40 shrink-0"
         >
           <span className="material-symbols-outlined text-[15px]">{copied ? "check" : "content_copy"}</span>
@@ -2561,7 +2695,7 @@ function Terminal({ project }) {
           <div className="h-full grid place-items-center text-center">
             <div className="max-w-[320px] space-y-2">
               <span className="material-symbols-outlined text-[28px] text-[#3d444d]">terminal</span>
-              <p className="text-[12px] text-[#8b949e]">Belum ada perintah dijalankan.</p>
+              <p className="text-[12px] text-[#8b949e]">Pending ada perintah dijalankan.</p>
               <p className="text-[10.5px] text-[#6e7681]">
                 Command dijalankan di folder project ({projectName}). Tekan Enter untuk menjalankan.
               </p>
@@ -2717,7 +2851,7 @@ function ProviderSettings() {
   };
 
   const del = async (id) => {
-    if (!confirm("Hapus provider ini?")) return;
+    if (!confirm("Delete this provider?")) return;
     await api("/api/agent/providers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2739,7 +2873,7 @@ function ProviderSettings() {
         </div>
         <input placeholder="Nama (mis. OpenAI, DeepSeek, lokal)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
         <input placeholder="Base URL (mis. https://api.openai.com/v1)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} className={`${inputCls} font-mono`} />
-        <input type="password" placeholder={form.id ? "API key (kosongkan = tidak diubah)" : "API key"} value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} className={`${inputCls} font-mono`} />
+        <input type="password" placeholder={form.id ? "API key (leave blank to keep unchanged)" : "API key"} value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} className={`${inputCls} font-mono`} />
         {duplicate && (
           <div className="flex items-start gap-2 rounded-xl bg-amber-500/5 border border-amber-500/20 px-3 py-2">
             <span className="material-symbols-outlined text-[16px] text-amber-500">warning</span>
@@ -2770,7 +2904,7 @@ function ProviderSettings() {
           <h3 className="font-semibold text-sm">Provider tersimpan</h3>
           <span className="text-[11px] text-text-muted">({providers.length})</span>
         </div>
-        {providers.length === 0 && <p className="text-sm text-text-muted">Belum ada provider.</p>}
+        {providers.length === 0 && <p className="text-sm text-text-muted">Pending ada provider.</p>}
         {providers.map((p) => (
           <div key={p.id} className="an-panel p-3.5 space-y-2">
             <div className="flex items-center gap-2">

@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request, { params }) {
   const { id } = await params;
+  const afterSeq = Number(new URL(request.url).searchParams.get("after") || 0) || 0;
   const run = getRun(id);
 
   if (!run) {
@@ -36,7 +37,7 @@ export async function GET(request, { params }) {
         }
       };
 
-      const unsubscribe = subscribeRun(run, send);
+      const unsubscribe = subscribeRun(run, send, afterSeq);
       const heartbeat = setInterval(() => {
         if (closed) return;
         try {

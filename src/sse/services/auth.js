@@ -2,13 +2,21 @@ import {
   getProviderConnections,
   validateApiKey,
   updateProviderConnection,
+  deleteProviderConnectionById,
   getSettings,
   getProxyPools,
   getProviderNodeById,
 } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
-import { MAX_RATE_LIMIT_COOLDOWN_MS, PERMANENT_AUTH_STATUS, DEACTIVATE_KEYWORDS, PERMANENT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
+import {
+  MAX_RATE_LIMIT_COOLDOWN_MS,
+  PERMANENT_AUTH_STATUS,
+  DEACTIVATE_KEYWORDS,
+  PERMANENT_COOLDOWN_MS,
+  KIRO_LIMIT_REACTIVATION_MS,
+  KIRO_LIMIT_REACTIVATION_FIELD,
+} from "open-sse/config/errorConfig.js";
 import {
   resolveProviderId,
   getProviderAlias,
@@ -20,6 +28,9 @@ import {
 import { getAntigravityQuotaCache, getAntigravityModelQuota } from "./antigravityQuota.js";
 import { REFRESH_REJECTED_PREFIX } from "./tokenRefresh.js";
 import * as log from "../utils/logger.js";
+import { isKiroSuspension } from "open-sse/shared/kiroSuspension.js";
+import { getKiroRefreshRejection } from "open-sse/shared/kiroRefreshState.js";
+import { runKiroSuspensionHook } from "@/lib/kiroSuspensionHook";
 
 let selectionMutex = Promise.resolve();
 
@@ -74,6 +85,23 @@ function githubMonthlyResetMs(status, errorText, provider) {
   if (!String(errorText || "").toLowerCase().includes(GITHUB_MONTHLY_USAGE_LIMIT)) return null;
   const now = new Date();
   return Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+}
+
+// Kiro 402 (credits/billing) and account-wide 429 (quota/rate limit) take the
+// credential out of rotation for 24 hours. The background connection health
+// tick sees `reactivateAt` and switches it back on automatically; the Kiro
+// suspension hook registers a replacement in the meantime. The lockfile inside
+// runKiroSuspensionHook prevents duplicate krg batches when many accounts hit
+// the limit in one window.
+function kiroLimitResetMs(status, errorText, provider) {
+  if (resolveProviderId(provider) !== "kiro") return null;
+  // Suspension is permanent: delete the account instead of parking it.
+  if (isKiroSuspension(errorText)) return null;
+  const code = Number(status);
+  if (code !== 402 && code !== 429) return null;
+  // Per-model concurrency ("switch model") is not a wallet limit.
+  if (MODEL_SCOPED_SHEDDING_WORDING.test(String(errorText || ""))) return null;
+  return Date.now() + KIRO_LIMIT_REACTIVATION_MS;
 }
 
 // Deactivate-until epoch for provider responses that announce a platform ban.
@@ -150,10 +178,14 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       let pickedId = override.proxyPoolId || null;
       if (strategy !== "none") {
         const allPools = await getProxyPools({ isActive: true });
-        // Pass the whole pool objects: the rotation groups them by exit IP so
-        // it really changes the egress address instead of only the port.
         const usablePools = allPools.filter((p) => p.proxyUrl && p.isActive !== false);
-        pickedId = pickProxyPoolId(usablePools, strategy, providerId);
+        const selected = usablePools.find((p) => p.id === pickedId);
+        // Keep rotation scoped to the operator-selected pool. Rotating over
+        // every active pool pulls in unrelated/dead proxies that require auth.
+        const candidates = selected?.exitIp
+          ? usablePools.filter((p) => p.id === pickedId || p.exitIp === selected.exitIp)
+          : selected ? [selected] : usablePools;
+        pickedId = pickProxyPoolId(candidates, strategy, providerId);
       }
       const resolvedProxy = await resolveConnectionProxyConfig({ proxyPoolId: pickedId || "" });
       return {
@@ -241,9 +273,19 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const providerOverride = (settings.providerStrategies || {})[providerId] || {};
     const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
 
+    // A Kiro account whose refresh grant was rejected cannot sign in again
+    // until the user reauthorizes it. Do not let it win selection ahead of a
+    // freshly added, working account. Keep rejected accounts as a last resort
+    // so the caller can still surface the real rejection when they are all bad.
+    let selectionPool = availableConnections;
+    if (providerId === "kiro") {
+      const usable = availableConnections.filter((c) => !getKiroRefreshRejection(c));
+      if (usable.length) selectionPool = usable;
+    }
+
     let connection;
     if (preferredConnectionId) {
-      connection = availableConnections.find((c) => c.id === preferredConnectionId);
+      connection = selectionPool.find((c) => c.id === preferredConnectionId);
       if (connection) {
         log.info("AUTH", `${provider} | pinned to ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"})`);
       }
@@ -252,7 +294,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
 
-      const byRecency = [...availableConnections].sort((a, b) => {
+      const byRecency = [...selectionPool].sort((a, b) => {
         if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
         if (!a.lastUsedAt) return 1;
         if (!b.lastUsedAt) return -1;
@@ -269,7 +311,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           consecutiveUseCount: (connection.consecutiveUseCount || 0) + 1
         });
       } else {
-        const sortedByOldest = [...availableConnections].sort((a, b) => {
+        const sortedByOldest = [...selectionPool].sort((a, b) => {
           if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
           if (!a.lastUsedAt) return -1;
           if (!b.lastUsedAt) return 1;
@@ -284,10 +326,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         });
       }
     } else {
-      connection = availableConnections[0];
+      connection = selectionPool[0];
     }
 
-    const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+    const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {}, providerId);
 
     const node = isOpenAICompatibleProvider(provider) || isAnthropicCompatibleProvider(provider) || isCustomEmbeddingProvider(provider)
       ? await getProviderNodeById(provider).catch(() => null)
@@ -331,22 +373,38 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
 export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null) {
   if (!connectionId || connectionId === "noauth") return { shouldFallback: false, cooldownMs: 0 };
+  if (resolveProviderId(provider) === "kiro" && isKiroSuspension(errorText)) {
+    const deleted = await deleteProviderConnectionById(connectionId);
+    const account = deleted?.displayName || deleted?.name || deleted?.email || connectionId.slice(0, 8);
+    log.warn("AUTH", `${account} permanently deleted (Kiro user suspended) [${status}]`);
+    runKiroSuspensionHook(connectionId);
+    return { shouldFallback: true, cooldownMs: 0 };
+  }
   const connections = await getProviderConnections({ provider });
   const conn = connections.find(c => c.id === connectionId);
   const backoffLevel = conn?.backoffLevel || 0;
 
   const githubResetAtMs = githubMonthlyResetMs(status, errorText, provider);
+  const kiroResetAtMs = kiroLimitResetMs(status, errorText, provider);
 
   let shouldFallback, cooldownMs, newBackoffLevel;
-  if (githubResetAtMs) {
+  if (kiroResetAtMs) {
+    // Kiro quota exhausted: disable the account now, re-enable in 24h from the
+    // background health tick, and register a replacement in the meantime.
+    shouldFallback = true;
+    cooldownMs = kiroResetAtMs - Date.now();
+    newBackoffLevel = 0;
+    const account = conn?.displayName || conn?.name || conn?.email || connectionId.slice(0, 8);
+    log.warn("AUTH", `${account} Kiro quota exhausted (${status}) — off until ${new Date(kiroResetAtMs).toISOString()}`);
+    runKiroSuspensionHook(connectionId);
+  } else if (githubResetAtMs) {
     shouldFallback = true;
     cooldownMs = githubResetAtMs - Date.now();
     newBackoffLevel = 0;
   } else if (resetsAtMs && resetsAtMs > Date.now()) {
     shouldFallback = true;
-    cooldownMs = resolveProviderId(provider) === "antigravity"
-      ? resetsAtMs - Date.now()
-      : Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
+    // Always honor the exact reset time from upstream provider up to the hard cap
+    cooldownMs = Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
     newBackoffLevel = 0;
   } else {
     ({ shouldFallback, cooldownMs, newBackoffLevel } = checkFallbackError(status, errorText, backoffLevel, resolveProviderId(provider)));
@@ -363,14 +421,24 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   // Capacity shedding is per model, not per wallet: account-wide statuses only
   // widen the lock when the provider did not name the model itself.
   const modelScopedShedding = MODEL_SCOPED_SHEDDING_WORDING.test(String(errorText || ""));
-  const lockUpdate = buildModelLockUpdate(githubResetAtMs || (accountScoped && !modelScopedShedding) ? null : model, cooldownMs);
+  const lockUpdate = buildModelLockUpdate(githubResetAtMs || kiroResetAtMs || (accountScoped && !modelScopedShedding) ? null : model, cooldownMs);
 
   // Platform-account bans (e.g. "your account was rejected / banned") are not
   // time-boxed: retrying the account cannot succeed without a new credential.
-  // Deactivate it so `getProviderCredentials` (which only reads isActive rows)
-  // never selects it again; the reset value is the far-future deactivateAt so a
-  // manual/API reactivation still shows when it happened.
+  // For Kiro provider specifically, permanently delete suspended accounts instead
+  // of just deactivating them.
   const deactivateAtMs = permanentBanResetMs(status, errorText);
+  const shouldDelete = deactivateAtMs && resolveProviderId(provider) === "kiro";
+
+  if (shouldDelete) {
+    const deleted = await deleteProviderConnectionById(connectionId);
+    const connName = deleted?.displayName || deleted?.name || deleted?.email || connectionId.slice(0, 8);
+    log.warn("AUTH", `${connName} PERMANENTLY DELETED (Kiro suspended) [${status}]: ${reason}`);
+    console.error(`🗑️  DELETED: ${provider} [${status}]: ${reason}`);
+    runKiroSuspensionHook(connectionId);
+    return { shouldFallback: true, cooldownMs: 0 };
+  }
+
   const patch = {
     ...lockUpdate,
     testStatus: "unavailable",
@@ -382,6 +450,14 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   if (deactivateAtMs) {
     patch.isActive = false;
     patch.rateLimitedUntil = new Date(deactivateAtMs).toISOString();
+    patch.deactivatedReason = reason;
+  }
+  if (kiroResetAtMs) {
+    // Off now, back on in 24h: the scheduler keys off this stamp and the
+    // activation patch clears rateLimitedUntil / model locks / error badges.
+    patch.isActive = false;
+    patch.rateLimitedUntil = new Date(kiroResetAtMs).toISOString();
+    patch[KIRO_LIMIT_REACTIVATION_FIELD] = new Date(kiroResetAtMs).toISOString();
     patch.deactivatedReason = reason;
   }
 
@@ -398,7 +474,7 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
 
   const lockKey = Object.keys(lockUpdate)[0];
   const connName = conn?.displayName || conn?.name || conn?.email || connectionId.slice(0, 8);
-  log.warn("AUTH", `${connName} locked ${lockKey} for ${Math.round(cooldownMs / 1000)}s [${status}]${deactivateAtMs ? " | DEACTIVATED (banned)" : ""}`);
+  log.warn("AUTH", `${connName} locked ${lockKey} for ${Math.round(cooldownMs / 1000)}s [${status}]${deactivateAtMs ? " | DEACTIVATED (banned)" : ""}${kiroResetAtMs ? " | OFF (Kiro limit, auto-on in 24h)" : ""}`);
 
   if (provider && status && reason) {
     console.error(`❌ ${provider} [${status}]: ${reason}`);

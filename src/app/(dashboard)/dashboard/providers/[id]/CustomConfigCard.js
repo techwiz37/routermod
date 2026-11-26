@@ -9,7 +9,7 @@ import { translate } from "@/i18n/runtime";
 const BLOCKED_HEADERS = ["host", "content-length", "content-type", "connection", "transfer-encoding", "authorization", "cookie"];
 const HEADER_NAME_RE = /^[A-Za-z0-9-]+$/;
 
-export default function CustomConfigCard({ providerId }) {
+export default function CustomConfigCard({ providerId, showWhenEmpty = false }) {
   const notify = useNotificationStore();
   const [expanded, setExpanded] = useState(false);
   const [rows, setRows] = useState([{ name: "", value: "" }]);
@@ -80,7 +80,10 @@ export default function CustomConfigCard({ providerId }) {
     setRows(Object.entries(builtin).map(([name, value]) => ({ name, value })));
   };
 
-  if (Object.keys(builtin).length === 0 && !hasOverride) return null;
+  // Providers without registry headers still get the card when it is used as
+  // one of the three config cards on the provider page: the user can add their
+  // own headers from an empty list.
+  if (!showWhenEmpty && Object.keys(builtin).length === 0 && !hasOverride) return null;
 
   return (
     <Card padding="xs">
@@ -174,4 +177,5 @@ export default function CustomConfigCard({ providerId }) {
 
 CustomConfigCard.propTypes = {
   providerId: PropTypes.string.isRequired,
+  showWhenEmpty: PropTypes.bool,
 };

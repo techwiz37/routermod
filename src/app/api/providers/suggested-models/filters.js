@@ -1,4 +1,5 @@
 import { normalizeNousFreeModels } from "open-sse/services/nous.js";
+import { importedModelCaps } from "@/shared/utils/modelCapabilities";
 
 const KNOWN_FREE_OPENCODE_MODELS = ["big-pickle"];
 
@@ -14,6 +15,7 @@ export const FILTERS = {
       .filter((m) => typeof m?.id === "string" && m.id.trim() !== "")
       .map((m) => ({
         id: m.id,
+        caps: importedModelCaps(m),
         name: m.name || m.id,
         contextLength: Number(m.context_length ?? m.contextLength ?? m.limit?.context) || undefined,
       }))
@@ -27,23 +29,23 @@ export const FILTERS = {
           m.pricing?.completion === "0" &&
           m.context_length >= 200000
       )
-      .map((m) => ({ id: m.id, name: m.name, contextLength: m.context_length }))
+      .map((m) => ({ id: m.id, name: m.name, contextLength: m.context_length, caps: importedModelCaps(m) }))
       .sort((a, b) => b.contextLength - a.contextLength),
 
   "opencode-free": (models) =>
     models
       .filter((m) => (m.id?.endsWith("-free") || KNOWN_FREE_OPENCODE_MODELS.includes(m.id)) && !DEAD_FREE_OPENCODE_MODELS.has(m.id))
-      .map((m) => ({ id: m.id, name: m.id })),
+      .map((m) => ({ id: m.id, name: m.id, caps: importedModelCaps(m) })),
 
   "opencode-go": (models) =>
     (Array.isArray(models) ? models : [])
       .filter((m) => typeof m?.id === "string")
-      .map((m) => ({ id: m.id, name: m.id })),
+      .map((m) => ({ id: m.id, name: m.id, caps: importedModelCaps(m) })),
 
   "mimo-free": (models) =>
     (Array.isArray(models) ? models : [])
       .filter((m) => m.id?.startsWith("mimo") || m.name?.toLowerCase().includes("mimo"))
-      .map((m) => ({ id: m.id, name: m.name || m.id })),
+      .map((m) => ({ id: m.id, name: m.name || m.id, caps: importedModelCaps(m) })),
 
   "minimax-code": (raw) => {
     const env = Array.isArray(raw) ? raw[0] : raw;
@@ -52,14 +54,14 @@ export const FILTERS = {
     if (!ms || typeof ms !== "object") return [];
     return Object.entries(ms)
       .filter(([id, m]) => typeof id === "string" && id.trim() !== "" && m && typeof m === "object")
-      .map(([id, m]) => ({ id, name: m?.name || id, contextLength: Number(m?.limit?.context) || undefined }))
+      .map(([id, m]) => ({ id, name: m?.name || id, contextLength: Number(m?.limit?.context) || undefined, caps: importedModelCaps(m) }))
       .sort((a, b) => (b.contextLength || 0) - (a.contextLength || 0));
   },
 
   "airforce-free": (models) =>
     (Array.isArray(models) ? models : [])
       .filter((m) => (m.tier === "free" || m.id?.endsWith(":free")) && m.supports_chat === true && (!m.media_type || m.media_type === "chat" || m.media_type === "text"))
-      .map((m) => ({ id: m.id, name: m.name || m.id, contextLength: m.context_length }))
+      .map((m) => ({ id: m.id, name: m.name || m.id, contextLength: m.context_length, caps: importedModelCaps(m) }))
       .sort((a, b) => String(a.id).localeCompare(String(b.id))),
 
   "nous-free": normalizeNousFreeModels,

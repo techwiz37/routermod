@@ -1,9 +1,12 @@
-import { HTTP_STATUS, RETRY_CONFIG, DEFAULT_RETRY_CONFIG, resolveRetryEntry, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.js";
+import { HTTP_STATUS, RETRY_CONFIG, DEFAULT_RETRY_CONFIG, resolveRetryEntry, RETRY_AFTER_CAP_MS, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.js";
+import { parseRetryAfterMs } from "../utils/error.js";
 import { shouldRefreshCredentials } from "../services/oauthCredentialManager.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { dbg } from "../utils/debugLog.js";
 import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE } from "../providers/shared.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
+import { prepareUpstreamBody } from "../utils/upstreamBodyLimit.js";
+import { BODY_TRIMMED_HEADER } from "../config/upstreamBodyLimits.js";
 
 const FIRST_CHUNK_TIMEOUT_MS = Number(process.env.UPSTREAM_FIRST_CHUNK_TIMEOUT_MS) || 45000;
 const STREAM_IDLE_TIMEOUT_MS = Number(process.env.UPSTREAM_STREAM_IDLE_TIMEOUT_MS) || 60000;
@@ -133,6 +136,22 @@ export class BaseExecutor {
     return status === HTTP_STATUS.RATE_LIMITED && urlIndex + 1 < this.getFallbackCount();
   }
 
+  /**
+   * Default Retry-After handling for 429/503. Upstreams such as FreePi send
+   * `Retry-After` (seconds or HTTP date) on `upstream_rate_limited`; honouring
+   * it turns a hard 429 into a short wait + retry instead of a failed request.
+   * Subclasses (e.g. antigravity) can override with provider-specific logic.
+   */
+  async computeRetryDelay(response, attempt, defaultDelayMs) {
+    if (!response || (response.status !== HTTP_STATUS.RATE_LIMITED && response.status !== 503)) {
+      return defaultDelayMs;
+    }
+    const resetAt = parseRetryAfterMs(response.headers);
+    if (resetAt == null) return defaultDelayMs;
+    const waitMs = Math.max(0, resetAt - Date.now());
+    return Math.min(waitMs || defaultDelayMs, RETRY_AFTER_CAP_MS);
+  }
+
   // Override in subclass for provider-specific refresh
   async refreshCredentials(credentials, log, proxyOptions = null) {
     return null;
@@ -146,8 +165,13 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null, directFetch = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null, directFetch = null, _preparedCache = null }) {
     const fallbackCount = this.getFallbackCount();
+    // Reuse the transformed/serialized body across status retries and caller
+    // replays (e.g. OpenCode's WARP hops) — transforming a long history over
+    // and over is pure latency. The cache is per execute()/request, so a later
+    // context-trimmed retry from the handler still builds a fresh body.
+    const preparedByUrl = _preparedCache || new Map();
     let lastError = null;
     let lastStatus = 0;
     const retryAttemptsByUrl = {};
@@ -176,10 +200,23 @@ export class BaseExecutor {
 
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const url = this.buildUrl(model, stream, urlIndex, credentials);
-      const transformedBody = this.transformRequest(model, body, stream, credentials);
+      let prepared = preparedByUrl.get(urlIndex);
+      if (!prepared) {
+        prepared = prepareUpstreamBody(url, this.transformRequest(model, body, stream, credentials));
+        preparedByUrl.set(urlIndex, prepared);
+      }
+      const transformedBody = prepared.body;
       const headers = this.buildHeaders(credentials, stream, url, model, transformedBody);
       // User per-provider override wins over registry headers (blocked names filtered at the API)
       if (providerOverrides?.headers) Object.assign(headers, providerOverrides.headers);
+
+      if (prepared.errorResponse) {
+        log?.warn?.("BODY_LIMIT", `${this.provider}/${model} | ${prepared.beforeBytes} bytes exceeds upstream limit; no request sent`);
+        return { response: prepared.errorResponse, url, headers, transformedBody };
+      }
+      if (prepared.removedGroups) {
+        log?.warn?.("BODY_LIMIT", `${this.provider}/${model} | ${prepared.beforeBytes} -> ${prepared.afterBytes} UTF-8 bytes | ${prepared.removedGroups} oldest complete turn(s) omitted; latest turn, instructions and tool schemas preserved`);
+      }
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 
@@ -190,9 +227,9 @@ export class BaseExecutor {
       const mergedSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;
 
       try {
-        const bodyStr = JSON.stringify(transformedBody);
+        const bodyStr = prepared.serialized ?? JSON.stringify(transformedBody);
         const fetchT0 = Date.now();
-        dbg("FETCH", `${this.provider.toUpperCase()} → ${url} | body=${bodyStr.length}B | connectTimeout=${timeoutMs}ms`);
+        dbg("FETCH", `${this.provider.toUpperCase()} → ${url} | body=${Buffer.byteLength(bodyStr, "utf8")}B | connectTimeout=${timeoutMs}ms`);
         const effectiveProxyOptions = forceFreshSocketByUrl[urlIndex]
           ? { ...(proxyOptions || {}), forceFreshSocket: true }
           : proxyOptions;
@@ -210,6 +247,9 @@ export class BaseExecutor {
         const cl = response.headers?.get?.("content-length") || "?";
         dbg("FETCH", `${this.provider.toUpperCase()} ← ${response.status} | ttft=${Date.now() - fetchT0}ms | ct=${ct} | cl=${cl}`);
 
+        if (this.isTerminalResponse && await this.isTerminalResponse(response)) {
+          return { response, url, headers, transformedBody };
+        }
         if (await tryRetry(urlIndex, response.status, `status ${response.status}`, response)) {
           // A 502 from an edge is typically a poisoned keep-alive socket — retry fresh.
           if (response.status === HTTP_STATUS.BAD_GATEWAY) forceFreshSocketByUrl[urlIndex] = true;
@@ -223,7 +263,12 @@ export class BaseExecutor {
           continue;
         }
 
-        const guarded = stream && response.ok && response.body ? await guardStream(response) : response;
+        let guarded = stream && response.ok && response.body ? await guardStream(response) : response;
+        if (prepared.removedGroups) {
+          const responseHeaders = new Headers(guarded.headers);
+          responseHeaders.set(BODY_TRIMMED_HEADER, String(prepared.removedGroups));
+          guarded = new Response(guarded.body, { status: guarded.status, statusText: guarded.statusText, headers: responseHeaders });
+        }
         return { response: guarded, url, headers, transformedBody };
       } catch (error) {
         clearTimeout(connectTimer);

@@ -121,9 +121,19 @@ export class AntigravityExecutor extends BaseExecutor {
       try {
         const json = JSON.parse(bodyText);
         const err = json?.error;
+        const detailList = Array.isArray(err?.details) ? err.details : [];
+        const message = String(err?.message || "");
+        const quotaFailureDetail = detailList.some((detail) =>
+          /QuotaFailure/i.test(String(detail?.["@type"] || detail?.type || "")) ||
+          (detail?.quotaId && Array.isArray(detail?.violations)) ||
+          (detail?.metadata?.quotaId && detail?.metadata?.consumer) ||
+          (/ErrorInfo/i.test(String(detail?.["@type"] || detail?.type || "")) && /QUOTA|RESOURCE_EXHAUSTED/i.test(String(detail?.reason || "")))
+        );
+        const quotaExhausted = String(err?.status || "").toUpperCase() === "RESOURCE_EXHAUSTED" && (
+          /resource has been exhausted|quota (?:is )?(?:exceeded|exhausted)|quota failure/i.test(message) || quotaFailureDetail
+        );
         let resetsAtMs = null;
-        const details = Array.isArray(err?.details) ? err.details : [];
-        for (const d of details) {
+        for (const d of detailList) {
           if (d?.metadata?.quotaResetTimeStamp) {
             const ms = new Date(d.metadata.quotaResetTimeStamp).getTime();
             if (!isNaN(ms) && ms > Date.now()) {
@@ -143,8 +153,9 @@ export class AntigravityExecutor extends BaseExecutor {
           }
         }
         if (resetsAtMs) {
-          return { status: response.status, message: err?.message || bodyText, resetsAtMs };
+          return { status: response.status, message: err?.message || bodyText, resetsAtMs, quotaExhausted };
         }
+        if (quotaExhausted) return { status: response.status, message: err?.message || bodyText, quotaExhausted: true };
       } catch { /* fall through to default */ }
     }
     return super.parseError(response, bodyText);

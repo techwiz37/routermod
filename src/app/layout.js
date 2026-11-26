@@ -37,17 +37,19 @@ export default function RootLayout({ children }) {
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <script src="/load-fonts.js" defer />
-        {/* Google Fonts loaded at runtime (not build-time) */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Preload the local icon font so ligatures never flash as raw text. */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
-          rel="stylesheet"
+          rel="preload"
+          href="/fonts/material-symbols-outlined.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Orbitron:wght@700;800;900&family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
+        <noscript>
+          <style>{`html .material-symbols-outlined { visibility: visible !important; }`}</style>
+        </noscript>
+        {/* UI fonts are self-hosted in /fonts (see globals.css) so page render
+            never waits on an external font CDN. */}
       </head>
       <body
         suppressHydrationWarning

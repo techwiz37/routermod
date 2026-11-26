@@ -136,7 +136,14 @@ export function createDisconnectAwareStream(transformStream, streamController, o
         // Controller already closed = downstream ended; not an upstream error, skip noisy log.
         const msg0 = error?.message || "";
         const isControllerClosed = msg0.includes("already closed") || msg0.includes("Invalid state");
-        if (!isControllerClosed) streamController.handleError(error);
+        // A WARP hop can sever an in-flight upstream body. This is a transport
+        // close, not a model failure: don't log it as a red ERROR line. The
+        // OpenCode TLS client already replays an early one; a late one is
+        // closed gracefully with a terminal SSE frame below.
+        const isBrokenPipe =
+          /broken pipe|stream closed|error decoding response body|error reading a body from connection/i.test(msg0)
+          || error?.cause?.code === "EPIPE";
+        if (!isControllerClosed && !isBrokenPipe) streamController.handleError(error);
         reader.cancel().catch(() => {});
         writer.abort().catch(() => {});
 
@@ -158,7 +165,7 @@ export function createDisconnectAwareStream(transformStream, streamController, o
         // Graceful close on network/abort, or when a structured terminal is available
         // (Responses passthrough prefers response.failed + [DONE] over a raw transport error)
         try {
-          if (!wasConnected || isNetworkClose || onAbortTerminal) {
+          if (!wasConnected || isNetworkClose || isBrokenPipe || onAbortTerminal) {
             emitTerminal(controller);
             controller.close();
           } else {

@@ -2,18 +2,25 @@
 
 import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
+import AntaresPanel from "@/shared/components/AntaresPanel";
 import { Button, VisionSelector, visionFromCaps } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import { useNotificationStore } from "@/store/notificationStore";
 import { translate } from "@/i18n/runtime";
 import ModelListPagination from "./ModelListPagination";
+import { publicModelId } from "@/shared/utils/publicModelId.js";
+import ModelTestButton from "@/shared/components/ModelTestButton";
+import { testModel } from "@/shared/utils/testModel";
+import { importedModelCaps } from "@/shared/utils/modelCapabilities";
+import ModelCapabilities from "@/shared/components/ModelCapabilities";
+import TestAllModelsButton from "@/shared/components/TestAllModelsButton";
 
 const MODELS_PER_PAGE = 5;
 
-function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onDeleteAlias, onEdit, onTest, testStatus, isTesting, isFree, isPaid, prefix, aliasKey, isDisabled, onDisable, onEnable, caps, canEditCaps }) {
+function CompatibleModelRow({ modelId, modelName, fullModel, canonicalModel, copied, onCopy, onDeleteAlias, onRemoveTestedModel, onEdit, onTest, testStatus, isTesting, isFree, isPaid, prefix, aliasKey, isDisabled, onDisable, onEnable, caps, canEditCaps }) {
   const [editing, setEditing] = useState(false);
   const [draftId,   setDraftId]   = useState(modelId);
-  const [draftName, setDraftName] = useState(modelName || modelId);
+  const [draftName, setDraftName] = useState(fullModel);
   const [draftVision, setDraftVision] = useState("auto");
   const [initialVision, setInitialVision] = useState("auto");
   const firstRef = useRef(null);
@@ -27,7 +34,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
 
   function startEdit() {
     setDraftId(modelId);
-    setDraftName(modelName || modelId);
+    setDraftName(fullModel);
     const initial = visionFromCaps(caps);
     setInitialVision(initial);
     setDraftVision(initial);
@@ -57,7 +64,8 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
         <div className="flex-1 min-w-0">
           <div className="min-w-0">
             <p className="break-all text-sm font-medium"><span className="text-primary">#{prefix || "model"}</span><span className="px-1 text-text-muted">-</span>{modelName || modelId}</p>
-            <div className="flex items-center gap-1 mt-1">
+            <div className="flex flex-wrap items-center gap-1 mt-1">
+              <ModelCapabilities model={canonicalModel || fullModel} caps={caps} />
               {isDisabled && (
                 <span className="shrink-0 rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-500">
                   DISABLED
@@ -75,12 +83,12 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
               )}
             </div>
           </div>
-          <code className="mt-1 block break-all text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{`${prefix || "model"}/${modelName || modelId}`}</code>
+          <code className="mt-1 block break-all text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
         </div>
       </div>
 
-      <div className="mt-2 flex min-h-7 items-center justify-end gap-1 border-t border-border/60 pt-1.5">
-         {onTest && !isDisabled && <button onClick={onTest} disabled={isTesting} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={isTesting ? translate("Testing...") : translate("Test")}><span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>{isTesting ? "progress_activity" : "science"}</span></button>}
+      <div className="mt-2 flex min-h-7 flex-wrap items-center justify-end gap-1 border-t border-border/60 pt-1.5">
+         <ModelTestButton model={fullModel} resultModel={canonicalModel || fullModel} disabled={isDisabled} hideControl={!onTest} onRemove={onRemoveTestedModel || onDeleteAlias} />
          <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={copied === `model-${modelId}` ? translate("Copied!") : translate("Copy")}><span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span></button>
          {onEdit && !isDisabled && <button onClick={() => editing ? setEditing(false) : startEdit()} className={`rounded p-1 ${editing ? "text-primary" : "text-text-muted hover:bg-sidebar hover:text-primary"}`} title={translate("Edit")}><span className="material-symbols-outlined text-sm">edit</span></button>}
          {isDisabled && onEnable ? (
@@ -101,6 +109,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
             <input
               ref={firstRef}
               value={draftId}
+              required
               onChange={(e) => setDraftId(e.target.value)}
               className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
               placeholder={translate("e.g. gpt-4o-mini")}
@@ -111,11 +120,12 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
             <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{translate("Custom ID")}</span>
             <input
               value={draftName}
+              required
               onChange={(e) => setDraftName(e.target.value)}
               className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-              placeholder={translate("e.g. GPT-4o Mini")}
+              placeholder={translate("e.g. gpt-4o-mini or myalias/gpt4")}
             />
-            <span className="text-[10px] text-text-muted/60 mt-0.5">{translate("The ID used by the API — this is what shows in the model list.")}</span>
+            <span className="text-[10px] text-text-muted/60 mt-0.5">{translate("The ID used by the API. Can include alias (e.g. coa/gpt4) or just the name.")}</span>
           </label>
           {canEditCaps && (
             <div className="rounded border border-border/60 bg-bg/40 p-2">
@@ -136,7 +146,7 @@ function CompatibleModelRow({ modelId, modelName, fullModel, copied, onCopy, onD
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, modelNames, customModels, copied, onCopy, onSetAlias, onDeleteAlias, onAddCustomModel, onEditAlias, onEditCustomModel, onEditBuiltinModel, onDeleteCustomModel, onDeleteAllModels, connections, isAnthropic, modelPrefix, onAdd, onImport, onImporting = false, disabledModelIds = [], onDisable, onEnable }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, modelNames, customModels, copied, onCopy, onSetAlias, onDeleteAlias, onAddCustomModel, onEditAlias, onEditCustomModel, onEditBuiltinModel, onDeleteCustomModel, onRemoveTestedModel, onDeleteAllModels, connections, isAnthropic, modelPrefix, onAdd, onImport, onImporting = false, disabledModelIds = [], onDisable, onEnable, testModels, onModelsDeleted }) {
   const [newModel, setNewModel] = useState("");
   const [newVision, setNewVision] = useState("auto");
   const [adding, setAdding] = useState(false);
@@ -146,29 +156,24 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   const [modelsPage, setModelsPage] = useState(1);
   const addNotification = useNotificationStore((s) => s.addNotification);
 
-  const handleTestModel = async (modelId) => {
+  const handleTestModel = async (modelId, requestModel = `${providerStorageAlias}/${modelId}`) => {
     if (testingModelId) return;
     setTestingModelId(modelId);
     try {
-      const res = await fetch("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
-      });
-      const data = await res.json();
+      const data = await testModel(requestModel);
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
       if (data.ok) {
         addNotification({
           type: "success",
           title: translate("Test Sukses"),
-          message: `${modelId} ${translate("berhasil merespon")} (${data.latencyMs || data.latency || 0}ms)`,
+          message: `${modelId} ${translate("responded successfully")} (${data.latencyMs || data.latency || 0}ms)`,
           duration: 4000,
         });
       } else {
         addNotification({
           type: "error",
-          title: translate("Test Gagal"),
-          message: `${modelId}: ${data.error || translate("Model tidak merespon")}`,
+          title: translate("Test Failed"),
+          message: `${modelId}: ${data.error || translate("Model did not respond")}`,
           duration: 6000,
         });
       }
@@ -176,7 +181,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
       addNotification({
         type: "error",
-        title: translate("Test Gagal"),
+        title: translate("Test Failed"),
         message: `${modelId}: ${translate("Network error")}`,
         duration: 6000,
       });
@@ -219,7 +224,8 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     const caps = newVision === "auto" ? undefined : { vision: newVision === "yes" };
     setAdding(true);
     try {
-      await onAddCustomModel(modelId, caps);
+      const saved = await (onAdd || onAddCustomModel)(modelId, caps);
+      if (saved === false) return;
       setNewModel("");
       setNewVision("auto");
     } catch (error) {
@@ -253,7 +259,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         const modelId = model.id || model.name || model.model;
         if (!modelId) continue;
         if (allModels.some((entry) => entry.id === modelId)) continue;
-        await onAddCustomModel(modelId);
+        await onAddCustomModel(modelId, importedModelCaps(model));
         importedCount += 1;
       }
       if (importedCount === 0) {
@@ -272,8 +278,6 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   const canImport = connections.some((conn) => conn.isActive !== false);
 
   const onAddLocal = async () => {
-    const caps = newVision === "auto" ? undefined : { vision: newVision === "yes" };
-    if (onAdd) return onAdd(newModel.trim(), caps);
     await handleAdd();
   };
 
@@ -283,6 +287,11 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   };
 
   return (
+    <AntaresPanel
+      icon="list_alt"
+      title={translate("Models")}
+      subtitle={translate("Add, import and manage model IDs for this provider")}
+    >
     <div className="flex flex-col gap-4">
       {/* Add Model Form */}
       <div>
@@ -335,6 +344,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
           <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
           {translate("Delete All Models")}
         </button>
+        <TestAllModelsButton key={providerStorageAlias} providerAlias={providerStorageAlias} models={testModels || allModels} onModelsDeleted={onModelsDeleted} />
 
         {!canImport && !onAdd && (
           <p className="text-xs text-text-muted">
@@ -351,21 +361,25 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
               const isDisabled = disabledModelIds.includes(id);
               return (
                 <CompatibleModelRow
-                  key={`${source}-${providerStorageAlias}/${id}`}
+                   key={`${source}-${providerStorageAlias}/${alias || id}`}
                   modelId={id}
                   modelName={name}
-                  fullModel={`${providerDisplayAlias}/${id}`}
+                   canonicalModel={`${providerStorageAlias}/${id}`}
+                    fullModel={source === "legacyAlias" ? (alias || `${modelPrefix || providerDisplayAlias}/${id}`) : publicModelId(modelPrefix || providerDisplayAlias, id, name || alias)}
                   copied={copied}
                   onCopy={onCopy}
                   isFree={isFree === true}
                   isPaid={isFree === false}
-                  onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
-                  onEdit={(vals) => source === "custom"
-                    ? onEditCustomModel?.({ modelId: id, name: vals.name, aliasKey: alias, prefix: providerDisplayAlias, providerAlias: providerDisplayAlias, caps: vals.caps })
+                    onDeleteAlias={() => source === "legacyAlias" ? onDeleteAlias?.(alias) : onDeleteCustomModel(id)}
+                   onRemoveTestedModel={() => source === "legacyAlias" ? onDeleteAlias?.(alias) : (onRemoveTestedModel ? onRemoveTestedModel(id) : onDeleteCustomModel(id))}
+                   onEdit={(vals) => source === "legacyAlias"
+                     ? onEditBuiltinModel?.({ modelId: vals.modelId, customId: vals.name, aliasKey: alias, prefix: providerDisplayAlias, providerAlias: providerDisplayAlias })
+                     : source === "custom"
+                     ? onEditCustomModel?.({ modelId: id, newId: vals.modelId, name: vals.name, aliasKey: alias, prefix: providerDisplayAlias, providerAlias: providerDisplayAlias, caps: vals.caps })
                     : onEditBuiltinModel?.({ modelId: id, name: vals.name, aliasKey: alias, prefix: providerDisplayAlias, providerAlias: providerDisplayAlias })}
-                  onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
-                  testStatus={modelTestResults[id]}
-                  isTesting={testingModelId === id}
+                   onTest={connections.length > 0 ? () => handleTestModel(source === "legacyAlias" ? alias : id, source === "legacyAlias" ? alias : `${providerStorageAlias}/${id}`) : undefined}
+                   testStatus={modelTestResults[source === "legacyAlias" ? alias : id]}
+                   isTesting={testingModelId === (source === "legacyAlias" ? alias : id)}
                   prefix={modelPrefix || providerDisplayAlias}
                   aliasKey={alias}
                   isDisabled={isDisabled}
@@ -391,6 +405,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         </div>
       )}
     </div>
+    </AntaresPanel>
   );
 }
 
@@ -408,7 +423,10 @@ CompatibleModelsSection.propTypes = {
   onEditBuiltinModel: PropTypes.func,
   onAddCustomModel: PropTypes.func.isRequired,
   onDeleteCustomModel: PropTypes.func.isRequired,
+  onRemoveTestedModel: PropTypes.func,
   onDeleteAllModels: PropTypes.func.isRequired,
+  testModels: PropTypes.array,
+  onModelsDeleted: PropTypes.func,
   connections: PropTypes.arrayOf(PropTypes.shape({
     id: PropTypes.string,
     isActive: PropTypes.bool,

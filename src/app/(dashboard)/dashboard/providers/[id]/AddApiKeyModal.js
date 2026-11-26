@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { Button, Badge, Input, Modal, Select } from "@/shared/components";
+import { Button, Badge, Input } from "@/shared/components";
+import AntaresModal from "@/shared/components/AntaresModal";
+import AntaresSelect from "@/shared/components/AntaresSelect";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { planBulkAdd } from "@/shared/utils/bulkAdd";
 import { useNotificationStore } from "@/store/notificationStore";
+import { translate } from "@/i18n/runtime";
 
 const BULK_PLACEHOLDER = `name1|sk-key1\nname2|sk-key2\nsk-key-only-auto-named`;
 
@@ -233,7 +236,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     addNotification({
       type: failed === 0 ? "success" : success > 0 ? "info" : "error",
       title: "Bulk Add Selesai",
-      message: `${success} berhasil ditambahkan${failed > 0 ? `, ${failed} gagal` : ""}`,
+      message: `${success} added successfully${failed > 0 ? `, ${failed} failed` : ""}`,
       duration: 5000,
     });
     if (success > 0 && onBulkDone) onBulkDone();
@@ -243,7 +246,36 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
   if (!provider) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Add ${providerName || provider} ${credentialLabel}`} onClose={onClose}>
+    <AntaresModal
+      isOpen={isOpen}
+      title={`Add ${providerName || provider} ${credentialLabel}`}
+      subtitle={translate("Add a credential for this provider")}
+      size="lg"
+      hideScrollbar
+      onClose={onClose}
+      footer={
+        mode === "bulk" ? (
+          <div className="flex w-full gap-2">
+            <Button skin="antares" onClick={handleBulkSubmit} fullWidth disabled={saving || !bulkText.trim()}>
+              {saving ? `Processing ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? "..."}...` : "Add All Keys"}
+            </Button>
+            <Button skin="antares" variant="ghost" onClick={onClose} fullWidth>Cancel</Button>
+          </div>
+        ) : (
+          <div className="flex w-full gap-2">
+            <Button
+              skin="antares"
+              onClick={handleSubmit}
+              fullWidth
+              disabled={saving || (!isOllamaLocal && (!formData.name || !apiKeySatisfied())) || (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization)) || (isCloudflareAi && !cloudflareData.accountId)}
+            >
+              {saving ? "Saving..." : "Save"}
+            </Button>
+            <Button skin="antares" variant="ghost" onClick={onClose} fullWidth>Cancel</Button>
+          </div>
+        )
+      }
+    >
       <div className="flex flex-col gap-4">
         {/* Mode switcher. Hidden for AWS credentials: bulk lines carry only a key, so a
             Bedrock entry would be saved with no access key id or profile and never work. */}
@@ -270,16 +302,10 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
-            <div className="flex gap-2">
-              <Button onClick={handleBulkSubmit} fullWidth disabled={saving || !bulkText.trim()}>
-                {saving ? `Memproses ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? "..."}...` : "Add All Keys"}
-              </Button>
-              <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
-            </div>
             {bulkProgress && (
               <div className="flex flex-col gap-1.5">
                 <div className="flex justify-between text-[11px] font-mono font-bold text-[var(--color-text-muted)]">
-                  <span>{bulkProgress.done}/{bulkProgress.total} diproses</span>
+                  <span>{bulkProgress.done}/{bulkProgress.total} processed</span>
                   <span className="flex gap-3">
                     <span className="text-[var(--color-success)]">✓ {bulkProgress.success}</span>
                     {bulkProgress.failed > 0 && <span className="text-[#ef4444]">✗ {bulkProgress.failed}</span>}
@@ -304,19 +330,23 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           placeholder={isOllamaLocal ? "Ollama Local" : "Production Key"}
         />
         {isOllamaLocal && (
-          <div className="flex gap-2">
+          <div className="flex items-end gap-2">
             <Input
               label="Ollama Host URL"
               value={formData.ollamaHostUrl}
               onChange={(e) => setFormData({ ...formData, ollamaHostUrl: e.target.value })}
               placeholder="http://localhost:11434"
-              className="flex-1"
+              className="min-w-0 flex-1"
+              inputClassName="!h-[42px] !py-0"
             />
-            <div className="pt-6">
-              <Button onClick={handleValidate} disabled={validating || saving} variant="secondary">
-                {validating ? "Checking..." : "Check"}
-              </Button>
-            </div>
+            <Button
+              onClick={handleValidate}
+              disabled={validating || saving}
+              variant="secondary"
+              className="!h-[42px] shrink-0"
+            >
+              {validating ? "Checking..." : "Check"}
+            </Button>
           </div>
         )}
         {provider === "commandcode" && (
@@ -337,20 +367,24 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           </div>
         )}
         {!isOllamaLocal && (
-          <div className="flex gap-2">
+          <div className="flex items-end gap-2">
             <Input
               label={credentialLabel}
               type={isCookie ? "text" : "password"}
               value={formData.apiKey}
               onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
               placeholder={credentialPlaceholder}
-              className="flex-1"
+              className="min-w-0 flex-1"
+              inputClassName="!h-[42px] !py-0"
             />
-            <div className="pt-6">
-              <Button onClick={handleValidate} disabled={!apiKeySatisfied() || validating || saving} variant="secondary">
-                {validating ? "Checking..." : "Check"}
-              </Button>
-            </div>
+            <Button
+              onClick={handleValidate}
+              disabled={!apiKeySatisfied() || validating || saving}
+              variant="secondary"
+              className="!h-[42px] shrink-0"
+            >
+              {validating ? "Checking..." : "Check"}
+            </Button>
           </div>
         )}
         {isXaiApiKey && (
@@ -372,12 +406,16 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           </p>
         )}
         {providerRegions && (
-          <Select
-            label="Region"
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--t-ink)]">{translate("Region")}</label>
+            <AntaresSelect
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              ariaLabel={translate("Region")}
+              buttonClassName="h-[42px] font-mono"
+              options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
+            />
+          </div>
         )}
         {isOllamaLocal && (
           <p className="text-xs text-text-muted">
@@ -488,16 +526,23 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           onChange={(e) => setFormData({ ...formData, priority: Number.parseInt(e.target.value) || 1 })}
         />
 
-        <Select
-          label="Proxy Pool"
-          value={formData.proxyPoolId}
-          onChange={(e) => setFormData({ ...formData, proxyPoolId: e.target.value })}
-          options={[
-            { value: NONE_PROXY_POOL_VALUE, label: "None" },
-            ...(proxyPools || []).map((pool) => ({ value: pool.id, label: pool.name })),
-          ]}
-          placeholder="None"
-        />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-[var(--t-ink)]">{translate("Proxy Pool")}</label>
+          <AntaresSelect
+            value={formData.proxyPoolId}
+            onChange={(e) => setFormData({ ...formData, proxyPoolId: e.target.value })}
+            ariaLabel={translate("Proxy Pool")}
+            portal
+            placement="top"
+            maxVisible={5}
+            buttonClassName="h-[42px] font-mono"
+            options={[
+              { value: NONE_PROXY_POOL_VALUE, label: translate("None") },
+              ...(proxyPools || []).map((pool) => ({ value: pool.id, label: pool.name })),
+            ]}
+            placeholder={translate("None")}
+          />
+        </div>
 
         {(proxyPools || []).length === 0 && (
           <p className="text-xs text-text-muted">
@@ -509,17 +554,9 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           Legacy manual proxy fields are still accepted by API for backward compatibility.
         </p>
 
-        <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={saving || (!isOllamaLocal && (!formData.name || !apiKeySatisfied())) || (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization)) || (isCloudflareAi && !cloudflareData.accountId)}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>
-            Cancel
-          </Button>
-        </div>
         </>)}
       </div>
-    </Modal>
+    </AntaresModal>
   );
 }
 

@@ -30,6 +30,6 @@ export const CONTACTS = [
     url: "mailto:techwiz.id@gmail.com",
     icon: "mail",
     color: "#e8001f",
-    desc: "Untuk diskusi panjang",
+    desc: "For longer discussions",
   },
 ];

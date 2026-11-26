@@ -19,6 +19,27 @@ export async function deleteModelAlias(alias) {
   await aliasKv.remove(alias);
 }
 
+// Only public identity changes. Never put the generated ID into the upstream
+// model field, and allocate it transactionally so two additions cannot collide.
+export async function addModelAliasVariant({ providerAlias, id, prefix }) {
+  const db = await getAdapter();
+  const target = `${providerAlias}/${id}`;
+  let alias;
+  db.transaction(() => {
+    const used = new Set(db.all("SELECT key FROM kv WHERE scope = 'modelAliases'").map((row) => row.key));
+    for (const row of db.all("SELECT value FROM kv WHERE scope = 'customModels'")) {
+      const model = parseJson(row.value);
+      if (!model?.id) continue;
+      used.add(`${prefix}/${model.id}`);
+      if (model.name) used.add(model.name.includes("/") ? model.name : `${prefix}/${model.name}`);
+    }
+    let suffix = 2;
+    do { alias = `${prefix}/${id}-custom-${suffix++}`; } while (used.has(alias));
+    db.run("INSERT INTO kv(scope, key, value) VALUES('modelAliases', ?, ?)", [alias, stringifyJson(target)]);
+  });
+  return alias;
+}
+
 function customKey(providerAlias, id, type) {
   return `${providerAlias}|${id}|${type}`;
 }

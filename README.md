@@ -1,387 +1,278 @@
 <div align="center">
 
-<img src="./images/routermod-login.png" alt="RouterMod Login" width="800" style="border-radius:12px;margin-bottom:8px"/>
-<img src="./images/routermod-dashboard.png" alt="RouterMod Dashboard" width="800" style="border-radius:12px"/>
-
-<br/>
-
 # RouterMod
 
-**Route smarter. Spend less. Ship faster.**
+**One gateway for your AI providers, models, and coding tools.**
 
-A full redesign of [9Router](https://github.com/decolua/9router) — Neobrutalism UI, persistent CF tunneling, per-key model restrictions, live health monitoring, and a lot of quality-of-life improvements that make daily use actually enjoyable.
+A self-hosted AI gateway built on [9Router](https://github.com/decolua/9router), with a redesigned dashboard for managing connections, routing requests, and tracking usage.
 
-<br/>
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520.9-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![npm](https://img.shields.io/npm/v/@techwiz37/routermod?color=cb3837&logo=npm)](https://www.npmjs.com/package/@techwiz37/routermod)
+[![Based on 9Router](https://img.shields.io/badge/Based_on-9Router-crimson)](https://github.com/decolua/9router)
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
-[![Based On](https://img.shields.io/badge/based%20on-9Router-crimson)](https://github.com/decolua/9router)
-[![Port](https://img.shields.io/badge/default%20port-1337-orange)](#quick-start)
-[![Stack](https://img.shields.io/badge/Next.js%20+%20React%2019-black?logo=nextdotjs)](#tech-stack)
+[Screenshots](#screenshots) · [Features](#features) · [Quick start](#quick-start) · [API usage](#api-usage) · [Configuration](#configuration)
 
-[Quick Start](#-quick-start) · [What's New](#-whats-different-from-9router) · [Features](#-features) · [Setup](#-setup) · [API](#-api)
+<sub><strong>English</strong> · <a href="#ringkasan-bahasa-indonesia">Bahasa Indonesia</a></sub>
+
+<a href="images/routermod-overview.webp"><img src="images/routermod-overview.webp" alt="RouterMod endpoint and keys dashboard showing provider health, account totals, and monthly token usage" width="1177" height="836" /></a>
+
+<sub>The Endpoint &amp; Keys overview: provider health, active accounts, and monthly token usage at a glance. Click any screenshot to view it at full size.</sub>
 
 </div>
 
----
+## Overview
+
+RouterMod brings multiple AI services behind a local API endpoint. Connect providers with OAuth or API keys, choose the models available to your clients, and build routing combinations with fallback or round-robin strategies.
+
+Use it with clients that support a custom OpenAI-compatible base URL, or configure supported coding tools through the dashboard. Requests are forwarded to your configured upstream providers; their availability, quotas, and pricing still apply.
+
+<a id="ringkasan-bahasa-indonesia"></a>
 
 <details>
-<summary><b>🇮🇩 Baca dalam Bahasa Indonesia</b></summary>
+<summary><strong>Ringkasan Bahasa Indonesia</strong></summary>
 
-## RouterMod — Panduan Bahasa Indonesia
+RouterMod adalah AI gateway yang bisa dijalankan di komputer atau server sendiri. Kelola akun provider, model, API key, routing, dan statistik pemakaian dari satu dashboard.
 
-RouterMod adalah fork dari 9Router yang di-redesign ulang dari nol. UI-nya pakai tema Neobrutalism 3D dengan aksen Cyber Crimson, tunneling ke domain publik otomatis, dan berbagai fitur tambahan yang bikin pengalaman sehari-hari jauh lebih enak.
+- Hubungkan provider melalui OAuth, API key, atau endpoint kompatibel.
+- Gunakan satu base URL untuk aplikasi dan coding tools yang mendukungnya.
+- Atur model yang boleh diakses tiap API key serta urutan fallback melalui combo.
+- Pantau request, token, dan estimasi biaya. Halaman Top Models & Keys merangkum seluruh riwayat pemakaian.
 
-### Mulai Cepat
+Untuk mulai, ikuti [Quick start](#quick-start), buka `http://localhost:1337`, lalu tambahkan provider dan buat API key. Password awal adalah `merdeka` jika belum diganti atau diatur melalui `INITIAL_PASSWORD`.
 
-**Opsi 1: Install global (direkomendasikan)**
+</details>
 
-```bash
-npm i -g @techwiz37/routermod
-routermod
-```
+## Screenshots
 
-Buka `http://localhost:1337` · Password default: `merdeka`
+Screenshots below show the current dark theme on a running RouterMod instance. Provider names, model availability, account counts, and usage reflect that instance, rather than a bundled service plan.
 
-**Opsi 2: Jalankan tanpa install**
+### Login and live activity
+
+Sign in while viewing recent gateway activity and the Top Models ranking, based on successful requests over the last 30 days.
+
+<a href="images/routermod-login.webp"><img src="images/routermod-login.webp" alt="RouterMod desktop login page with the login form on the left, live request activity on the right, and the monthly Top Models ranking below" width="1440" height="900" /></a>
+
+### Provider management
+
+Turn providers on or off, check connection health, and see which accounts are live. Custom OpenAI- and Anthropic-compatible endpoints appear alongside the built-in integrations.
+
+<a href="images/routermod-providers.webp"><img src="images/routermod-providers.webp" alt="Provider management page with provider cards, active account counts, health checks, and custom compatible endpoints" width="1177" height="836" /></a>
+
+### Model Control Center
+
+Browse provider catalogs, search model names, and control which models are exposed through the API.
+
+<a href="images/routermod-models.webp"><img src="images/routermod-models.webp" alt="Model Control Center with searchable provider catalogs and per-model enable switches" width="1177" height="836" /></a>
+
+### Combos and Vision Adapter
+
+Group models under one name and choose a routing strategy. The screenshot shows the initial combo state and the vision and audio adapter configuration.
+
+<a href="images/routermod-combos.webp"><img src="images/routermod-combos.webp" alt="Combo configuration page showing fallback, round robin, fusion, and vision and audio adapter controls" width="1177" height="836" /></a>
+
+### API key dashboard
+
+Every API key gets its own usage view: requests per day, token totals, recorded cost, models used, and recent requests. Switch the period for a shorter window or use the lifetime summary.
+
+<a href="images/routermod-dashboard-keys.webp"><img src="images/routermod-dashboard-keys.webp" alt="API key dashboard showing lifetime requests, tokens, recorded cost, requests per day, and recent activity" width="1177" height="836" /></a>
+
+### All-time leaderboard
+
+Top Models &amp; Keys ranks the most used models and keys by total requests across all recorded usage. Key names are masked unless you are signed in with the admin key.
+
+<a href="images/routermod-top-models-keys.webp"><img src="images/routermod-top-models-keys.webp" alt="All-time leaderboard with the top 10 models and top 10 keys ranked by total requests and token usage" width="1177" height="836" /></a>
+
+### System settings
+
+Manage dashboard language, password and login mode, routing and network preferences, and local database backups from one page.
+
+<a href="images/routermod-profile.webp"><img src="images/routermod-profile.webp" alt="System settings page with language, security, login mode, local database backup, and display theme controls" width="1177" height="836" /></a>
+
+## Features
+
+| Area | What you can do |
+| --- | --- |
+| **Provider management** | Connect OAuth and API-key providers, add compatible endpoints, and manage multiple accounts. |
+| **Model controls** | Edit model names and prefixes, fetch supported catalogs, and enable or disable individual models. |
+| **Routing and combos** | Configure priority or round-robin account routing and group models into fallback, round-robin, or fusion combos. |
+| **API access** | Create API keys and restrict their access to selected models or combos. |
+| **Protocol translation** | Route supported OpenAI, Anthropic, and Gemini request formats through provider-specific translators. |
+| **Usage and diagnostics** | Inspect request activity, token usage, estimated costs, quota information, and console logs. |
+| **Token optimization** | Configure tool-output compression and prompt options in Token Saver. Results depend on the workload. |
+| **Networking** | Manage proxy pools and configure public access through the available tunnel settings. |
+| **Dashboard** | Use light or dark themes, English or Indonesian labels, and server monitoring tools. |
+
+### Providers and clients
+
+The catalog includes services such as OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Groq, xAI, Mistral, and Ollama, alongside supported OAuth integrations such as Codex, Claude Code, GitHub Copilot, and Kiro.
+
+You can also add **OpenAI-compatible** or **Anthropic-compatible** upstream endpoints. The dashboard is the source of truth for the available integrations and authentication methods in your installed version.
+
+Clients such as OpenCode, Cline, Continue, Roo Code, and other tools with configurable API endpoints can use the gateway. Available features, including tools, images, reasoning, and streaming, depend on both the client and the selected provider/model.
+
+## Quick start
+
+Use **Node.js 20.9 or later** and npm. A current Node.js LTS release is recommended for source builds.
+
+### Run the published package
 
 ```bash
 npx @techwiz37/routermod
 ```
 
-**Opsi 3: Clone dari source**
+Or install the CLI globally:
+
+```bash
+npm install -g @techwiz37/routermod
+routermod
+```
+
+Open **[http://localhost:1337](http://localhost:1337)**. The initial dashboard password is `merdeka` unless `INITIAL_PASSWORD` is set or a password has already been saved. Change it in Settings before making the dashboard publicly accessible.
+
+### Run from source
 
 ```bash
 git clone https://github.com/techwiz37/routermod.git
 cd routermod
 npm install
-npm run dev          # dev mode, port 1337
-# atau production:
+npm run dev
+```
+
+For a production build:
+
+```bash
 npm run build
-npm start            # jalankan build standalone di port 1337
+npm start
 ```
 
-### Integrasi ke Claude Code / Cline / Cursor
+The build includes a postbuild step that prepares standalone assets. The production server currently listens on port **1337**, bound to `0.0.0.0`, as defined in [`custom-server.js`](custom-server.js).
 
+<details>
+<summary><strong>Keep the production server running with PM2</strong></summary>
+
+With PM2 installed, run these commands from the repository directory:
+
+```bash
+npm run build
+pm2 start custom-server.js --name routermod
+pm2 save
 ```
-Endpoint : http://localhost:1337/v1
-API Key  : ambil dari Dashboard → Endpoint
-Model    : kr/claude-sonnet-4.5
+
+Inspect the service:
+
+```bash
+pm2 status
+pm2 logs routermod
 ```
 
-### Perbedaan dari 9Router
+After updating the source, rebuild before restarting:
 
-| | 9Router | RouterMod |
-|---|---|---|
-| **Rename / re-prefix model** | Tidak bisa | Edit prefix, model ID, display name per model |
-| **Custom model CRUD** | Terbatas | Edit ID, nama, hapus; fetch live dari `/models` |
-| **Disable/enable model** | Tidak ada | Nonaktifkan model tertentu; Bulk Disable/Enable All |
-| **Strategi routing provider** | Fixed | Toggle Round Robin + Sticky limit yang bisa diatur |
-| **Thinking mode** | Tidak ada | Pilih level reasoning per provider |
-| **Proxy per connection** | Tidak ada | Assign proxy pool per connection; bulk assign |
-| **Deploy proxy relay** | Tidak ada | Deploy ke Vercel / CF / Netlify / Deno langsung dari dashboard |
-| **Custom headers** | Tidak ada | Override header per provider, diff-on-save |
-| **Whitelist model per API key** | Tidak ada | Batasi tiap API key hanya ke model/combo tertentu |
-| **Auto-ping quota reset** | Tidak ada | Ping otomatis saat reset 5 jam |
-| **Reorder priority connection** | Tidak ada | Drag atau panah atas/bawah untuk atur urutan fallback |
-| **Bulk import akun** | Tidak ada | Import massal Codex, Grok CLI, Antigravity |
-| **Test semua model** | Satu per satu | Jalankan semua sekaligus, progress bar, bisa distop |
-| **Suggested models** | Tidak ada | Chip model belum dikonfigurasi — klik langsung tambah |
-| **Tunneling publik** | Tidak ada | CF Tunnel + CF DNS + Caddy/Nginx, subdomain persisten |
-| **Dashboard access gate** | Tidak ada | Blokir dashboard di domain publik, API tetap jalan |
-| **Live server monitoring** | Tidak ada | CPU/RAM/disk/host, auto-refresh 3 detik |
-| **OAuth flow** | Copy-paste URL manual | Auto-buka tab baru |
-| **Status free provider** | Offline jika 0 akun | Selalu ONLINE + tampil `∞` |
-
-### Tunneling Publik
-
-1. Dashboard → Settings → Tunnel
-2. Isi Cloudflare API Token + Zone ID + subdomain
-3. Klik **Enable** — Caddy + CF DNS jalan otomatis
-4. Subdomain tidak berubah walau di-restart
-
-### Tips: Gratis Total
-
-```
-Combo free-combo:
-  1. kr/claude-sonnet-4.5   (Claude 4.5 via Kiro, ~50 kredit/bulan)
-  2. kr/glm-5               (GLM-5 via Kiro)
-  3. oc/<auto>              (OpenCode Free, no auth)
-Biaya: Rp 0
+```bash
+npm run build
+pm2 restart routermod --update-env
 ```
 
 </details>
 
----
+### Connect your first client
 
-## 🚀 Quick Start
+1. Open **Provider** and connect an account or add a compatible endpoint.
+2. Enable the models you want to use in **Model Control Center** or the provider settings.
+3. Open **Dashboard** and create an API key in the endpoint section.
+4. Set your client's base URL to `http://localhost:1337/v1`, supply that API key, and select an available model ID.
 
-**Option 1: Install globally (recommended)**
+| Client setting | Value |
+| --- | --- |
+| Base URL | `http://localhost:1337/v1` |
+| API key | The key you created in the dashboard |
+| Model | An enabled ID returned by `/v1/models`, or a configured combo name |
 
-```bash
-npm i -g @techwiz37/routermod
-routermod
-```
+## API usage
 
-Open `http://localhost:1337` — default password is `merdeka`.
+The examples use an OpenAI-compatible API. Replace `<api-key>` with a dashboard key and `<model-id>` with a model available to that key.
 
-**Option 2: Run without installing**
-
-```bash
-npx @techwiz37/routermod
-```
-
-**Option 3: Clone from source**
+### List available models
 
 ```bash
-git clone https://github.com/techwiz37/routermod.git
-cd routermod
-npm install
-npm run dev        # development, port 1337
-```
-
-**Production build:**
-
-```bash
-npm run build
-npm start          # serves the standalone build on port 1337
-```
-
-**Production with PM2:**
-
-```bash
-npm run build
-node custom-server.js --port 1337
-```
-
-Or run it as a detached PM2 process:
-
-```bash
-npm run build
-pm2 start custom-server.js --name routermod -- --port 1337
-pm2 restart routermod   # after each rebuild
-```
-
-**Wire up your AI tool:**
-
-```
-Endpoint : http://localhost:1337/v1
-API Key  : grab one from Dashboard → Endpoint tab
-Model    : kr/claude-sonnet-4.5
-```
-
----
-
-## ✨ What's Different from 9Router
-
-RouterMod keeps everything that makes 9Router good and fills in the gaps that make daily use frustrating.
-
-| | 9Router | RouterMod |
-|---|---|---|
-| **Model rename / re-prefix** | Not possible | Edit prefix, model ID, and display name per model |
-| **Custom model CRUD** | Basic add only | Full edit — change ID, name, delete; live fetch from `/models` |
-| **Model disable / enable** | Not available | Disable per-model; bulk Disable All / Enable All |
-| **Provider routing strategy** | Fixed | Round Robin toggle + configurable Sticky limit |
-| **Thinking mode per provider** | Not available | Auto / low / medium / high dropdown per provider |
-| **Proxy per connection** | Not available | Assign a proxy pool per connection; bulk rotate or single pool |
-| **Proxy relay deployment** | Not available | Deploy to Vercel / Cloudflare / Netlify / Deno from the dashboard |
-| **Custom headers per provider** | Not available | Override or add headers per provider; diff-on-save |
-| **API key model whitelist** | Not available | Restrict each API key to specific models or combos |
-| **Auto-ping on quota reset** | Not available | Per-connection toggle — fires on 5-hour reset automatically |
-| **Connection priority reorder** | Not available | Arrow up/down to reorder fallback priority |
-| **Bulk account import** | Not available | Bulk import for Codex, Grok CLI, Antigravity |
-| **Test all models at once** | One at a time | Run all models in sequence, live progress bar, stop anytime |
-| **Suggested models** | Not available | Chips for unconfigured models (≥200k ctx, free) — click to add |
-| **Public tunneling** | Not available | CF Tunnel + CF DNS + Caddy/Nginx; subdomain persists across restarts |
-| **Dashboard access gate** | No control | Block web UI on public domain, keep API open |
-| **Live server monitoring** | Not available | CPU, RAM, disk, host info — auto-refreshes every 3s |
-| **OAuth flow** | Copy & paste URL manually | Auto-opens in new tab |
-| **Free provider status** | Offline when 0 accounts | Always ONLINE + shows `∞` |
-
----
-
-## 💡 Features
-
-### Inherited from 9Router
-
-| Feature | Description |
-|---|---|
-| 🚀 **RTK Token Saver** | Compresses tool output (`git diff`, `grep`, `ls`) — saves 20–40% input tokens |
-| 🪨 **Caveman Mode** | Forces terse responses — saves up to 65% output tokens |
-| 🐴 **Ponytail** | Lazy senior dev prompt — YAGNI-first, minimal code |
-| 🎯 **3-Tier Fallback** | Auto-routes: Subscription → Cheap → Free, zero downtime |
-| 📊 **Quota Tracking** | Live token count + reset countdown per provider |
-| 🔄 **Format Translation** | OpenAI ↔ Claude ↔ Gemini ↔ Cursor ↔ Kiro ↔ Vertex |
-| 👥 **Multi-Account** | Round-robin or priority routing per provider |
-| 🔄 **Auto Token Refresh** | OAuth tokens refresh in the background |
-| 🎨 **Custom Combos** | Unlimited model combinations with fallback chains |
-| 📝 **Request Logging** | Full request/response debug logs |
-| 📊 **Usage Analytics** | Tokens, cost, trends per provider and model |
-
-### Added in RouterMod
-
-| Feature | Description |
-|---|---|
-| 🌐 **Auto CF Tunneling** | Persistent public subdomain via Cloudflare Tunnel + DNS |
-| 🔀 **Auto Reverse Proxy** | Caddy (Windows) / Nginx (Linux) — zero manual config |
-| 🔒 **Dashboard Access Gate** | Block web UI on public domain, keep API accessible |
-| ⚡ **Test All Models** | Run all models at once, live progress bar, 1 summary toast |
-| ♾️ **Free Provider Status** | noAuth providers always show ONLINE + `∞` account count |
-| 📡 **Live Server Tab** | CPU, RAM, disk I/O, host info — auto-refreshes every 3s |
-| 👥 **Antigravity Bulk Import** | Import accounts in bulk via `email|password` format |
-| 🎨 **Neobrutalism UI** | 3D offset-shadow theme, Cyber Crimson accent, dark mode |
-| 🔔 **Community Links** | Telegram + WhatsApp on every dashboard visit |
-| 🌍 **OAuth Auto Popup** | No manual URL step — OAuth opens automatically |
-
----
-
-## 🌐 Supported Providers
-
-### 🔐 OAuth (login once, auto-refresh forever)
-Claude Code · Antigravity · Codex · GitHub Copilot · Cursor · Kiro AI · Xiaomi Mimo · Zed
-
-### 🆓 Free Tier (no API key needed)
-
-| Provider | Models | Notes |
-|---|---|---|
-| **Kiro AI** | Claude 4.5, GLM-5, MiniMax | ~50 credits/month |
-| **OpenCode Free** | Auto-fetched from opencode.ai | No sign-up required |
-| **Vertex AI** | Gemini 3 Pro, DeepSeek, GLM | $300 free credits for new GCP accounts |
-
-### 🔑 API Key (40+ providers)
-OpenRouter · OpenAI · Anthropic · Gemini · DeepSeek · Groq · xAI · Mistral · GLM · MiniMax · Kimi · Perplexity · Together AI · Fireworks · Cerebras · Cohere · NVIDIA · SiliconFlow · Nebius · Hyperbolic · and more
-
----
-
-## 🛠️ Supported CLI Tools
-
-Claude Code · OpenClaw · Codex · OpenCode · Cursor · Antigravity · Cline · Continue · Roo · Copilot · Kilo Code · Droid · Grok Build · Devin CLI · DeepSeek TUI · Qwen Code · jcode · and more
-
----
-
-## 📖 Setup
-
-### Environment Variables
-
-Create `.env.local` in the project root (it is git-ignored):
-
-```env
-PORT=1337
-HOSTNAME=0.0.0.0
-NODE_ENV=production
-JWT_SECRET=change-this-to-something-long-and-random
-INITIAL_PASSWORD=merdeka
-DATA_DIR=%APPDATA%\routermod
-```
-
-Cloudflare tunnel credentials are built into the app, so no `CF_*` variables are needed.
-
-### PM2 Production
-
-```bash
-npm run build
-pm2 start .next/standalone/custom-server.js --name routermod -- --port 1337
-
-pm2 status           # check process
-pm2 logs routermod   # live logs
-pm2 restart routermod   # after each rebuild
-```
-
-The standalone server in `.next/standalone` is produced by `npm run build` plus its `postbuild` step, which copies static assets and rewrites package aliases.
-
-### Public Tunneling (Cloudflare)
-
-1. Dashboard → Settings → Tunnel
-2. Enter your Cloudflare API Token, Zone ID, and target subdomain
-3. Hit **Enable** — Caddy + CF DNS configure themselves
-4. The subdomain stays the same across restarts; it only regenerates when you disable and re-enable
-
-### CLI Integration
-
-**Claude Code / Cline / Cursor / Roo:**
-```json
-{
-  "baseUrl": "http://localhost:1337/v1",
-  "apiKey": "sk-from-dashboard"
-}
-```
-
-**Codex CLI:**
-```bash
-export OPENAI_BASE_URL="http://localhost:1337/v1"
-export OPENAI_API_KEY="sk-from-dashboard"
-```
-
----
-
-## 📊 Combo Examples
-
-**Zero cost:**
-```
-1. kr/claude-sonnet-4.5   → Kiro free (~50 credits/mo)
-2. kr/glm-5               → GLM-5 via Kiro
-3. oc/<auto>              → OpenCode Free, no auth
-Monthly cost: $0
-```
-
-**Maximize your subscription:**
-```
-1. cc/claude-opus-4-7     → Claude Code (subscription)
-2. glm/glm-5.1            → $0.6/1M tokens backup
-3. kr/claude-sonnet-4.5   → Kiro free fallback
-```
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Runtime | Node.js 20+ |
-| Framework | Next.js + React 19 |
-| Styling | Tailwind CSS 4 |
-| Database | SQLite via better-sqlite3 |
-| Streaming | Server-Sent Events (SSE) |
-| Auth | OAuth 2.0 (PKCE) + JWT + API Keys |
-| Process | PM2 standalone mode |
-| Tunnel | Cloudflare Tunnel + Caddy |
-
----
-
-## 📝 API
-
-```bash
-# Chat completions
-curl http://localhost:1337/v1/chat/completions \
-  -H "Authorization: Bearer <api-key>" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"kr/claude-sonnet-4.5","messages":[{"role":"user","content":"hi"}],"stream":true}'
-
-# List available models
 curl http://localhost:1337/v1/models \
   -H "Authorization: Bearer <api-key>"
 ```
 
-Compatible with any OpenAI-format client.
+### Stream a chat completion
 
----
+```bash
+curl --no-buffer http://localhost:1337/v1/chat/completions \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<model-id>",
+    "messages": [{"role": "user", "content": "Explain this project in one sentence."}],
+    "stream": true
+  }'
+```
 
-## 🙏 Credits
+For clients that read OpenAI environment variables:
 
-Built on top of great open-source work:
+```bash
+export OPENAI_BASE_URL="http://localhost:1337/v1"
+export OPENAI_API_KEY="<api-key>"
+```
 
-- **[9Router](https://github.com/decolua/9router)** — the upstream AI router this is forked from
-- **[RTK](https://github.com/rtk-ai/rtk)** — token compression pipeline
-- **[Caveman](https://github.com/JuliusBrussee/caveman)** — terse output prompt
-- **[Ponytail](https://github.com/DietrichGebert/ponytail)** — lazy senior dev prompt
+Client-specific configuration may still be required. Use **Tool CLI** in the dashboard for the integrations supported by your version.
 
----
+## Configuration
 
-## 📄 License
+Most settings are managed through the dashboard. For source deployments, optional environment variables can be set in `.env.local`; for a process manager, provide them in the process environment.
 
-MIT — see [LICENSE](LICENSE).
+| Variable | Purpose | Default behavior |
+| --- | --- | --- |
+| `INITIAL_PASSWORD` | Initial dashboard password before a password is saved. | Falls back to `merdeka`. |
+| `JWT_SECRET` | Secret used to sign dashboard sessions. | Generated and persisted in the data directory when unset. |
+| `DATA_DIR` | Custom directory for persistent application data. | `~/.routermod` on Linux/macOS; `%APPDATA%\routermod` on Windows. |
+| `AUTH_COOKIE_SECURE` | Set to `true` to require secure dashboard cookies. | HTTPS detection also uses the forwarded protocol. |
 
----
+Example for a source deployment:
 
-<div align="center">
-  <sub>Fork of 9Router · Neobrutalism UI · Auto CF Tunneling · Port 1337</sub>
-</div>
+```dotenv
+INITIAL_PASSWORD=replace-with-a-private-password
+JWT_SECRET=replace-with-a-long-random-secret
+```
+
+Back up the persistent data directory when moving or upgrading an instance. It contains configuration and sensitive credentials; keep it out of version control.
+
+### Public access
+
+Configure tunnels through the dashboard's tunnel settings and supply the credentials required by the selected method. For a named Cloudflare setup, this includes your own Cloudflare account and DNS configuration.
+
+When using a reverse proxy, forward to port `1337` and configure HTTPS. Dashboard access controls and API-key restrictions can be managed separately. Do not use the initial password on a public instance.
+
+## Development
+
+| Component | Technology |
+| --- | --- |
+| Application | Next.js 16 and React 19 |
+| Styling | Tailwind CSS 4 and custom CSS |
+| Persistence | SQLite through better-sqlite3 |
+| Streaming | Server-Sent Events (SSE) and provider-specific stream adapters |
+| Authentication | Provider OAuth flows, dashboard JWT sessions, and gateway API keys |
+
+Useful commands:
+
+```bash
+npm run dev       # Local development on port 1337
+npm run build     # Production build and standalone asset preparation
+npm start         # Production server
+```
+
+Report bugs or request features through [GitHub Issues](https://github.com/techwiz37/routermod/issues). Include the provider, model, relevant error, and reproduction steps, with credentials removed.
+
+## Credits
+
+- [9Router](https://github.com/decolua/9router), the upstream project RouterMod builds on.
+- [RTK](https://github.com/rtk-ai/rtk), tool-output compression inspiration.
+- [Caveman](https://github.com/JuliusBrussee/caveman) and [Ponytail](https://github.com/DietrichGebert/ponytail), prompt modes referenced by the project.
+
+## License
+
+Distributed under the [MIT License](LICENSE).

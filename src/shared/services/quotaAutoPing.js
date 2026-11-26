@@ -198,7 +198,7 @@ async function pingConnection(conn, provider, providerConfig, handler, deps, sta
 
   if (shouldSkipAfterFailure(state, key)) return;
 
-  const proxyCfg = await deps.resolveConnectionProxyConfig(conn.providerSpecificData);
+  const proxyCfg = await deps.resolveConnectionProxyConfig(conn.providerSpecificData, conn.provider);
   const proxyOptions = buildProxyOptions(proxyCfg);
 
   let connection = conn;

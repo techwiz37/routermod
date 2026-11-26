@@ -2,10 +2,20 @@ import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { keyAccessFromColumns, keyAccessToColumns } from "@/shared/utils/keyAccess.js";
 import { KEY_ACCESS_UNRESTRICTED } from "@/shared/constants/keyAccess.js";
-import { TOKEN_WINDOWS } from "@/shared/constants/keyQuota.js";
+import { TOKEN_WINDOWS, keyExpiryAt } from "@/shared/constants/keyQuota.js";
+
+function topupSnapshot(row, nowMs = Date.now()) {
+  const expiresAt = row.topupExpiresAt || null;
+  const expiresMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  const active = Number.isFinite(expiresMs) && expiresMs > nowMs;
+  const tokens = active ? Math.max(0, Number(row.topupTokens) || 0) : 0;
+  return { tokens, expiresAt: active ? expiresAt : null };
+}
 
 function rowToKey(row) {
   if (!row) return null;
+  const baseTokenLimit = Math.max(0, Number(row.tokenLimit) || 0);
+  const topup = topupSnapshot(row);
   return {
     id: row.id,
     key: row.key,
@@ -18,14 +28,24 @@ function rowToKey(row) {
     minuteLimit: Math.max(0, Number(row.minuteLimit) || 0),
     hourLimit: Math.max(0, Number(row.hourLimit) || 0),
     monthLimit: Math.max(0, Number(row.monthLimit) || 0),
-    tokenLimit: Math.max(0, Number(row.tokenLimit) || 0),
+    tokenLimit: baseTokenLimit,
+    // Purchased topup tokens are additive and valid for a limited time. When
+    // the base quota is unlimited (0) the topup has no effect.
+    topupTokens: topup.tokens,
+    topupExpiresAt: topup.expiresAt,
+    effectiveTokenLimit: baseTokenLimit > 0 ? baseTokenLimit + topup.tokens : baseTokenLimit,
     tokenLimitWindow: TOKEN_WINDOWS[row.tokenLimitWindow] ? row.tokenLimitWindow : "24h",
+    tokenResetEnabled: row.tokenResetEnabled === undefined || row.tokenResetEnabled === null
+      ? true
+      : row.tokenResetEnabled === 1 || row.tokenResetEnabled === true,
+    tokenCycleStart: row.tokenCycleStart || row.createdAt || null,
     spendLimit: Math.max(0, Number(row.spendLimit) || 0),
     tokensPerMinuteLimit: Math.max(0, Number(row.tokensPerMinuteLimit) || 0),
     maxConcurrentLimit: Math.max(0, Number(row.maxConcurrentLimit) || 0),
     maintenanceEnabled: row.maintenanceEnabled === 1 || row.maintenanceEnabled === true,
     maintenanceMessage: row.maintenanceMessage || "",
     expiresAt: row.expiresAt || null,
+    effectiveExpiresAt: keyExpiryAt(row),
     ipBlacklist: parseIpBlacklist(row.ipBlacklist),
   };
 }
@@ -45,7 +65,8 @@ export async function getApiKeys() {
   const rows = db.all(`SELECT * FROM apiKeys ORDER BY createdAt ASC`);
   const now = Date.now();
   for (const row of rows) {
-    if (row.isActive && row.expiresAt && new Date(row.expiresAt).getTime() <= now) {
+    const expiry = keyExpiryAt(row);
+    if (row.isActive && expiry && Date.parse(expiry) <= now) {
       db.run(`UPDATE apiKeys SET isActive = 0 WHERE id = ?`, [row.id]);
       row.isActive = 0;
     }
@@ -56,7 +77,8 @@ export async function getApiKeys() {
 export async function getApiKeyById(id) {
   const db = await getAdapter();
   const row = db.get(`SELECT * FROM apiKeys WHERE id = ?`, [id]);
-  if (row?.isActive && row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+  const expiry = keyExpiryAt(row);
+  if (row?.isActive && expiry && Date.parse(expiry) <= Date.now()) {
     db.run(`UPDATE apiKeys SET isActive = 0 WHERE id = ?`, [id]);
     row.isActive = 0;
   }
@@ -101,8 +123,8 @@ export async function updateApiKey(id, data) {
     const merged = { ...rowToKey(row), ...data };
     const cols = keyAccessToColumns(merged.access);
     db.run(
-      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, dailyLimit = ?, minuteLimit = ?, hourLimit = ?, monthLimit = ?, tokenLimit = ?, tokenLimitWindow = ?, spendLimit = ?, tokensPerMinuteLimit = ?, maxConcurrentLimit = ?, maintenanceEnabled = ?, maintenanceMessage = ?, expiresAt = ?, ipBlacklist = ? WHERE id = ?`,
-      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, Math.max(0, Number(merged.dailyLimit) || 0), Math.max(0, Number(merged.minuteLimit) || 0), Math.max(0, Number(merged.hourLimit) || 0), Math.max(0, Number(merged.monthLimit) || 0), Math.max(0, Number(merged.tokenLimit) || 0), TOKEN_WINDOWS[merged.tokenLimitWindow] ? merged.tokenLimitWindow : "24h", Math.max(0, Number(merged.spendLimit) || 0), Math.max(0, Number(merged.tokensPerMinuteLimit) || 0), Math.max(0, Number(merged.maxConcurrentLimit) || 0), merged.maintenanceEnabled ? 1 : 0, merged.maintenanceMessage || null, merged.expiresAt || null, JSON.stringify(Array.isArray(merged.ipBlacklist) ? merged.ipBlacklist : []), id]
+      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, dailyLimit = ?, minuteLimit = ?, hourLimit = ?, monthLimit = ?, tokenLimit = ?, tokenLimitWindow = ?, tokenResetEnabled = ?, tokenCycleStart = ?, spendLimit = ?, tokensPerMinuteLimit = ?, maxConcurrentLimit = ?, maintenanceEnabled = ?, maintenanceMessage = ?, expiresAt = ?, ipBlacklist = ? WHERE id = ?`,
+      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, Math.max(0, Number(merged.dailyLimit) || 0), Math.max(0, Number(merged.minuteLimit) || 0), Math.max(0, Number(merged.hourLimit) || 0), Math.max(0, Number(merged.monthLimit) || 0), Math.max(0, Number(merged.tokenLimit) || 0), TOKEN_WINDOWS[merged.tokenLimitWindow] ? merged.tokenLimitWindow : "24h", merged.tokenResetEnabled === false ? 0 : 1, merged.tokenCycleStart || new Date().toISOString(), Math.max(0, Number(merged.spendLimit) || 0), Math.max(0, Number(merged.tokensPerMinuteLimit) || 0), Math.max(0, Number(merged.maxConcurrentLimit) || 0), merged.maintenanceEnabled ? 1 : 0, merged.maintenanceMessage || null, merged.expiresAt || null, JSON.stringify(Array.isArray(merged.ipBlacklist) ? merged.ipBlacklist : []), id]
     );
     result = rowToKey(db.get(`SELECT * FROM apiKeys WHERE id = ?`, [id]));
   });
@@ -117,11 +139,15 @@ export async function deleteApiKey(id) {
 
 export async function validateApiKey(key) {
   const db = await getAdapter();
-  const row = db.get(`SELECT isActive, expiresAt FROM apiKeys WHERE key = ?`, [key]);
+  const row = db.get(
+    `SELECT isActive, expiresAt, tokenLimit, spendLimit, tokenResetEnabled, tokenLimitWindow, tokenCycleStart, createdAt FROM apiKeys WHERE key = ?`,
+    [key]
+  );
   if (!row) return false;
   // Let the request policy produce the explicit "expired" response before
   // it persists the automatic switch-off.
-  if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+  const expiry = keyExpiryAt(row);
+  if (expiry && Date.parse(expiry) <= Date.now()) {
     return true;
   }
   return row.isActive === 1 || row.isActive === true;

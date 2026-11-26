@@ -29,6 +29,14 @@ function resetHealthStateOnActivation(existing, patch) {
     if (key.startsWith(MODEL_LOCK_PREFIX)) normalized[key] = null;
   }
 
+  // Reactivating a Kiro connection must also clear the hidden refresh
+  // rejection, otherwise the dashboard shows it as active while every request
+  // still fails with "Kiro authorization was rejected".
+  if (existing?.provider === "kiro" && normalized.providerSpecificData?.kiroRefreshError) {
+    const { kiroRefreshError, ...providerSpecificData } = normalized.providerSpecificData;
+    normalized.providerSpecificData = providerSpecificData;
+  }
+
   return normalized;
 }
 
@@ -259,11 +267,40 @@ export async function deleteProviderConnection(id) {
   return ok;
 }
 
+export async function deleteProviderConnectionsByIds(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return 0;
+  const db = await getAdapter();
+  const unique = [...new Set(ids.map(String).filter(Boolean))];
+  if (unique.length === 0) return 0;
+
+  let deleted = 0;
+  const providers = new Set();
+  db.transaction(() => {
+    for (const id of unique) {
+      const row = db.get(`SELECT provider FROM providerConnections WHERE id = ?`, [id]);
+      if (!row) continue;
+      providers.add(row.provider);
+      db.run(`DELETE FROM providerConnections WHERE id = ?`, [id]);
+      deleted += 1;
+    }
+    for (const providerId of providers) reorderInTx(db, providerId);
+  });
+  return deleted;
+}
+
 export async function deleteProviderConnectionsByProvider(providerId) {
   const db = await getAdapter();
   const before = db.get(`SELECT COUNT(*) AS n FROM providerConnections WHERE provider = ?`, [providerId]);
   db.run(`DELETE FROM providerConnections WHERE provider = ?`, [providerId]);
   return before?.n || 0;
+}
+
+export async function deleteProviderConnectionById(connectionId) {
+  const db = await getAdapter();
+  const conn = db.get(`SELECT * FROM providerConnections WHERE id = ?`, [connectionId]);
+  if (!conn) return null;
+  db.run(`DELETE FROM providerConnections WHERE id = ?`, [connectionId]);
+  return rowToConn(conn);
 }
 
 export async function reorderProviderConnections(providerId) {

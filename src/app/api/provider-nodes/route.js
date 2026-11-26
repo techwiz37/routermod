@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createProviderNode, getProviderNodes } from "@/models";
+import { createProviderNode, getProviderNodes, getProviderNodeById } from "@/models";
 import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX } from "@/shared/constants/providers";
 import { generateId } from "@/shared/utils";
 import { getRequestLocale, localizedProviderMessage } from "@/lib/i18n/requestLocale";
@@ -20,7 +20,9 @@ const CUSTOM_EMBEDDING_DEFAULTS = {
 
 export async function GET(request) {
   try {
-    const nodes = await getProviderNodes();
+    const id = new URL(request.url).searchParams.get("id");
+    const node = id ? await getProviderNodeById(id) : null;
+    const nodes = id ? (node ? [node] : []) : await getProviderNodes();
     return NextResponse.json({ nodes });
   } catch (error) {
     console.log("Error fetching provider nodes:", error);

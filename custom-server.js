@@ -1,7 +1,9 @@
 const http = require("http");
 const path = require("path");
+const os = require("os");
 const fs = require("fs");
 const crypto = require("crypto");
+const { spawn } = require("child_process");
 const { pathToFileURL } = require("url");
 
 // Hardcoded listen address — no .env needed.
@@ -22,6 +24,15 @@ process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 let backgroundRefreshStarted = false;
 let backgroundHealthStarted = false;
 let backgroundCookieRefreshStarted = false;
+let backgroundBackupStarted = false;
+let solanaBridgeChild = null;
+let solanaBridgeRestartTimer = null;
+let solanaBridgeStopping = false;
+let freepiBridgeChild = null;
+let freepiBridgeRestartTimer = null;
+let freepiBridgePollTimer = null;
+let freepiBridgeStopping = false;
+let freepiBridgeLastLogAt = 0;
 
 function startBackgroundConnectionHealthFromCustomServer() {
   if (backgroundHealthStarted) return;
@@ -110,6 +121,217 @@ function startBackgroundCookieRefreshFromCustomServer() {
     });
 }
 
+function startBackupSchedulerFromCustomServer() {
+  if (backgroundBackupStarted) return;
+  backgroundBackupStarted = true;
+  const modPath = path.join(__dirname, "src", "lib", "db", "backupScheduler.js");
+  import(pathToFileURL(modPath).href)
+    .then((m) => {
+      try {
+        m.startBackupScheduler();
+      } catch (e) {
+        console.error("[BackupScheduler] start failed:", e && e.message ? e.message : e);
+      }
+      const stop = () => {
+        try {
+          m.stopBackupScheduler();
+        } catch {
+          /* ignore */
+        }
+      };
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    })
+    .catch((e) => {
+      if (process.env.DEBUG_BACKUP_SCHEDULER) {
+        console.error("[BackupScheduler] import failed:", e && e.message ? e.message : e);
+      }
+    });
+}
+
+// ── solana.ai bridge supervisor ──────────────────────────────────────────────
+// Running RouterMod is the single entrypoint: if the local solana2api bridge is
+// not answering, start it here and keep it alive. A bridge already started by
+// pm2/systemd is detected through /health and is left alone (no double spawn).
+function solanaBridgeConfig() {
+  const baseUrl = process.env.SOLANA2API_BASE_URL || "http://127.0.0.1:18620/v1/chat/completions";
+  let healthUrl = baseUrl;
+  try {
+    const u = new URL(baseUrl);
+    u.pathname = "/health";
+    u.search = "";
+    healthUrl = u.toString();
+  } catch { /* fall back to the default health URL */ }
+  const repoRoot = path.resolve(__dirname, "..", "..");
+  const script = [path.join(__dirname, "scripts", "solana2api.py"), path.join(repoRoot, "scripts", "solana2api.py")]
+    .find((p) => fs.existsSync(p)) || path.join(repoRoot, "scripts", "solana2api.py");
+  // venv lives outside the repo: a symlink inside the project makes Turbopack
+  // panic while scanning the source tree during `next build`.
+  const python = [process.env.SOLANA2API_PYTHON, "/root/.solana2api-venv/bin/python", "/usr/bin/python3"]
+    .find((p) => p && fs.existsSync(p));
+  return { healthUrl, script, python, cwd: path.dirname(script) };
+}
+
+function isSolanaBridgeHealthy(healthUrl) {
+  return new Promise((resolve) => {
+    const req = http.get(healthUrl, { timeout: 2500 }, (res) => {
+      res.resume();
+      resolve(res.statusCode >= 200 && res.statusCode < 300);
+    });
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+    req.on("error", () => resolve(false));
+  });
+}
+
+async function spawnSolanaBridge() {
+  const cfg = solanaBridgeConfig();
+  if (!cfg.python || !fs.existsSync(cfg.script)) {
+    console.error("[SolanaBridge] python or script missing — bridge not started");
+    return;
+  }
+  const hasXvfb = process.env.SOLANA2API_HEADLESS !== "1"
+    && (fs.existsSync("/usr/bin/xvfb-run") || fs.existsSync("/usr/local/bin/xvfb-run"));
+  const child = hasXvfb
+    ? spawn("xvfb-run", ["-a", cfg.python, cfg.script], { cwd: cfg.cwd, stdio: "ignore", detached: false })
+    : spawn(cfg.python, [cfg.script], { cwd: cfg.cwd, stdio: "ignore", detached: false, env: { ...process.env, SOLANA2API_HEADLESS: "1" } });
+  solanaBridgeChild = child;
+  console.log(`[SolanaBridge] starting ${cfg.script} (pid ${child.pid || "?"})`);
+  child.on("error", (err) => console.error("[SolanaBridge] spawn failed:", err.message));
+  child.on("exit", (code) => {
+    if (solanaBridgeChild !== child || solanaBridgeStopping) return;
+    solanaBridgeChild = null;
+    console.warn(`[SolanaBridge] exited (code ${code}) — restarting in 5s`);
+    clearTimeout(solanaBridgeRestartTimer);
+    solanaBridgeRestartTimer = setTimeout(() => {
+      solanaBridgeRestartTimer = null;
+      startSolanaBridgeSupervisor();
+    }, 5000);
+    if (solanaBridgeRestartTimer.unref) solanaBridgeRestartTimer.unref();
+  });
+}
+
+async function startSolanaBridgeSupervisor() {
+  if (solanaBridgeStopping || process.env.DISABLE_SOLANA_BRIDGE) return;
+  const cfg = solanaBridgeConfig();
+  if (await isSolanaBridgeHealthy(cfg.healthUrl)) {
+    console.log("[SolanaBridge] already healthy — reusing existing bridge");
+    return;
+  }
+  await spawnSolanaBridge();
+}
+
+function stopSolanaBridgeSupervisor() {
+  solanaBridgeStopping = true;
+  clearTimeout(solanaBridgeRestartTimer);
+  const child = solanaBridgeChild;
+  solanaBridgeChild = null;
+  if (child && child.pid) {
+    try { process.kill(-child.pid, "SIGTERM"); } catch { try { child.kill("SIGTERM"); } catch {} }
+  }
+}
+
+// ── freepi-bridge supervisor ─────────────────────────────────────────────────
+// The Rust bridge is installed by npm's postinstall hook. It only needs the
+// user's FreePi JWT (bridge-managed, never stored in RouterMod). Start it with
+// RouterMod, reuse an already-running one, and restart if it dies.
+function freepiBridgeConfig() {
+  const baseUrl = process.env.FREEPI_BRIDGE_BASE_URL || "http://127.0.0.1:8787/v1/chat/completions";
+  let healthUrl = baseUrl;
+  try {
+    const u = new URL(baseUrl);
+    u.pathname = "/health";
+    u.search = "";
+    healthUrl = u.toString();
+  } catch {}
+  const repoRoot = path.resolve(__dirname, "..", "..");
+  const binary = [process.env.FREEPI_BRIDGE_BIN, path.join(__dirname, ".bin", "freepi-bridge"), path.join(repoRoot, ".bin", "freepi-bridge")]
+    .find((p) => p && fs.existsSync(p));
+  return { healthUrl, binary };
+}
+
+function isBridgeHealthy(healthUrl) {
+  return new Promise((resolve) => {
+    const req = http.get(healthUrl, { timeout: 2500 }, (res) => {
+      res.resume();
+      resolve(res.statusCode >= 200 && res.statusCode < 300);
+    });
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+    req.on("error", () => resolve(false));
+  });
+}
+
+async function spawnFreepiBridge() {
+  const cfg = freepiBridgeConfig();
+  if (!cfg.binary) {
+    console.error("[FreePiBridge] binary missing — run `node scripts/install-freepi-bridge.mjs`");
+    return;
+  }
+  // Only start when a token exists; otherwise the bridge exits immediately.
+  const hasToken = process.env.FREEPI_TOKEN
+    || fs.existsSync(path.join(os.homedir(), ".free-pi", "agent", "credentials.json"));
+  if (!hasToken) {
+    console.log("[FreePiBridge] no FreePi token yet — connect FreePi from the Providers page first");
+    return;
+  }
+  const child = spawn(cfg.binary, ["start", "--port", process.env.FREEPI_BRIDGE_PORT || "8787"], {
+    cwd: path.dirname(cfg.binary),
+    stdio: "ignore",
+    detached: false,
+  });
+  freepiBridgeChild = child;
+  console.log(`[FreePiBridge] starting ${cfg.binary} (pid ${child.pid || "?"})`);
+  child.on("error", (err) => console.error("[FreePiBridge] spawn failed:", err.message));
+  child.on("exit", (code) => {
+    if (freepiBridgeChild !== child || freepiBridgeStopping) return;
+    freepiBridgeChild = null;
+    console.warn(`[FreePiBridge] exited (code ${code}) — restarting in 10s`);
+    clearTimeout(freepiBridgeRestartTimer);
+    freepiBridgeRestartTimer = setTimeout(() => {
+      freepiBridgeRestartTimer = null;
+      startFreepiBridgeSupervisor();
+    }, 10000);
+    if (freepiBridgeRestartTimer.unref) freepiBridgeRestartTimer.unref();
+  });
+}
+
+function freepiHasToken() {
+  return !!(process.env.FREEPI_TOKEN
+    || fs.existsSync(path.join(os.homedir(), ".free-pi", "agent", "credentials.json")));
+}
+
+async function startFreepiBridgeSupervisor() {
+  if (freepiBridgeStopping || process.env.DISABLE_FREEPI_BRIDGE) return;
+  const cfg = freepiBridgeConfig();
+  if (await isBridgeHealthy(cfg.healthUrl)) {
+    if (Date.now() - freepiBridgeLastLogAt > 60000) {
+      console.log("[FreePiBridge] healthy — bridge running");
+      freepiBridgeLastLogAt = Date.now();
+    }
+    return;
+  }
+  // The user may sign in AFTER RouterMod has started. Keep polling so the
+  // bridge comes up as soon as the token appears — no manual restart needed.
+  if (!freepiHasToken()) {
+    if (Date.now() - freepiBridgeLastLogAt > 60000) {
+      console.log("[FreePiBridge] waiting for FreePi sign-in from the Providers page");
+      freepiBridgeLastLogAt = Date.now();
+    }
+    return;
+  }
+  await spawnFreepiBridge();
+}
+
+function stopFreepiBridgeSupervisor() {
+  freepiBridgeStopping = true;
+  clearInterval(freepiBridgePollTimer);
+  clearTimeout(freepiBridgeRestartTimer);
+  const child = freepiBridgeChild;
+  freepiBridgeChild = null;
+  if (child && child.pid) {
+    try { process.kill(-child.pid, "SIGTERM"); } catch { try { child.kill("SIGTERM"); } catch {} }
+  }
+}
+
 function startInitializeAppFromCustomServer() {
   if (global.__appBootstrapped) return;
   global.__appBootstrapped = true;
@@ -170,7 +392,16 @@ http.createServer = (...args) => {
     startBackgroundTokenRefreshFromCustomServer();
     startBackgroundConnectionHealthFromCustomServer();
     startBackgroundCookieRefreshFromCustomServer();
+    startBackupSchedulerFromCustomServer();
     startInitializeAppFromCustomServer();
+    startSolanaBridgeSupervisor();
+    startFreepiBridgeSupervisor();
+    freepiBridgePollTimer = setInterval(() => { startFreepiBridgeSupervisor(); }, 10000);
+    if (freepiBridgePollTimer.unref) freepiBridgePollTimer.unref();
+    const stopBridges = () => { stopSolanaBridgeSupervisor(); stopFreepiBridgeSupervisor(); };
+    process.once("SIGINT", stopBridges);
+    process.once("SIGTERM", stopBridges);
+    process.once("exit", stopBridges);
   });
   const origEmit = server.emit;
   // JBR 25 sends h2c upgrades that the HTTP/1.1 server would otherwise close.

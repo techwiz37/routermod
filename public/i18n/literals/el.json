@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "Χρησιμοποιήστε 5–128 χαρακτήρες: γράμματα, αριθμούς, παύλες (-) ή κάτω παύλες (_). Το πρόθεμα rmod- είναι προαιρετικό. Αποφύγετε λέξεις που μαντεύονται εύκολα.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "Το κλειδί API πρέπει να έχει 5–128 χαρακτήρες και να περιέχει μόνο γράμματα, αριθμούς, παύλες (-) ή κάτω παύλες (_)."
 }

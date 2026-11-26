@@ -4,16 +4,18 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DEFAULT_LOCALE, LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
 import { onLocaleChange } from "@/i18n/runtime";
-import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
+import LocaleToggle from "@/shared/components/LocaleToggle";
 import AntaresFooter from "@/shared/components/AntaresFooter";
 import RecentRequestsMonitor from "./RecentRequestsMonitor";
+import TopModelsCard from "./TopModelsCard";
 import StarField from "@/shared/components/StarField";
 import Soft3DLogo from "@/shared/components/Soft3DLogo";
+import CheckModels from "./CheckModels";
 
 const I18N = {
   id: {
     systemTitle: "RouterMod",
-    systemSub: "AI Gateway",
+    systemSub: "Gateway AI",
     nodeActive: "Node aktif",
     heroBadge: "Gateway AI privat",
     heroLine1: "Satu endpoint untuk",
@@ -198,7 +200,7 @@ export default function LoginForm() {
     loadAuthStatus();
   }, [router, searchParams]);
 
-  const t = I18N[locale] || I18N.id;
+  const t = I18N[locale] || I18N.en;
   const pwdStrength = getPasswordStrength(newPassword);
 
   const handleSubmit = async (e) => {
@@ -313,12 +315,13 @@ export default function LoginForm() {
           </div>
           <div className="lf-header-right">
             <span className="lf-version-badge">{t.versionBadge}</span>
-            <LanguageSwitcher hideTrigger={true} />
+            <LocaleToggle />
           </div>
         </header>
 
         <main className="lf-main">
-          <div className="lf-top sk-anim" style={{ animationDelay: "0.15s" }}>
+          <div className="lf-row sk-anim" style={{ animationDelay: "0.15s" }}>
+            <div className="lf-top">
 
             {!showChangePassword && (
               <div className="lf-hero">
@@ -481,6 +484,10 @@ export default function LoginForm() {
                               </span>
                             </button>
                           </div>
+                          <p className="lf-default-pwd">
+                            <span className="material-symbols-outlined" aria-hidden>info</span>
+                            {t.defaultPwdText}: <code>{t.defaultPwdVal}</code>
+                          </p>
                           {errorMsg && (
                             <div className="lf-error-msg">
                               <span className="material-symbols-outlined" style={{ fontSize: 14 }}>error</span>
@@ -511,14 +518,20 @@ export default function LoginForm() {
                         )}
                       </form>
                     )}
+                  <CheckModels locale={locale} />
                 </div>
               </div>
             )}
 
+            </div>
+
+            <div className="lf-bottom sk-anim" style={{ animationDelay: "0.3s" }}>
+              <RecentRequestsMonitor locale={locale} />
+            </div>
           </div>
 
-          <div className="lf-bottom sk-anim" style={{ animationDelay: "0.3s" }}>
-            <RecentRequestsMonitor locale={locale} />
+          <div className="lf-top-models sk-anim" style={{ animationDelay: "0.4s" }}>
+            <TopModelsCard locale={locale} />
           </div>
         </main>
 

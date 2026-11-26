@@ -9,8 +9,10 @@ import {
   PROVIDER_ID_TO_ALIAS,
   getModelKind,
 } from "@/shared/constants/models";
-import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import ModelTestButton from "@/shared/components/ModelTestButton";
+import ModelCapabilities from "@/shared/components/ModelCapabilities";
 import { getCurrentLocale, onLocaleChange, translate } from "@/i18n/runtime";
 
 const LLM_KIND = "llm";
@@ -21,11 +23,11 @@ export default function ModelsPage() {
   const [loading, setLoading] = useState(true);
   usePageReady(loading);
   const [saving, setSaving] = useState(new Set());
-  const [testing, setTesting] = useState(new Set());
-  const [testResults, setTestResults] = useState({});
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("");
   const [modelNames, setModelNames] = useState({});
+  const [deleted, setDeleted] = useState({});
+  const [customModels, setCustomModels] = useState([]);
   const [, setLocaleVersion] = useState(0);
 
   useEffect(() => onLocaleChange(() => setLocaleVersion((value) => value + 1)), []);
@@ -39,10 +41,11 @@ export default function ModelsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [providersRes, disabledRes, namesRes] = await Promise.all([
+      const [providersRes, disabledRes, namesRes, customRes] = await Promise.all([
         fetch("/api/providers/client?pageSize=100", localizedOptions),
         fetch("/api/models/disabled", localizedOptions),
         fetch("/api/models/name", localizedOptions),
+        fetch("/api/models/custom", localizedOptions),
       ]);
 
       let providersData = [];
@@ -61,8 +64,13 @@ export default function ModelsPage() {
       setProviders(providersData);
       setDisabled(disabledData.disabled || disabledData || {});
       setModelNames(namesData.names || {});
+      if (customRes.ok) {
+        const custom = await customRes.json();
+        setDeleted(custom.deleted || {});
+        setCustomModels(custom.models || []);
+      }
     } catch (err) {
-      setError(err.message || "Gagal memuat data models");
+      setError(err.message || "Failed to load model data");
     } finally {
       setLoading(false);
     }
@@ -110,7 +118,7 @@ export default function ModelsPage() {
         });
       }
     } catch (err) {
-      setError(err.message || "Gagal mengubah status model");
+      setError(err.message || "Failed to change model status");
     } finally {
       setSaving((prev) => {
         const next = new Set(prev);
@@ -120,40 +128,14 @@ export default function ModelsPage() {
     }
   };
 
-  const testModel = async (modelId, providerAlias, kind) => {
-    const fullModel = providerAlias + "/" + modelId;
-    setTesting((prev) => new Set([...prev, fullModel]));
-    try {
-      const res = await fetch("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: fullModel, kind: kind || "llm" }),
-      });
-      const data = await res.json();
-      setTestResults((prev) => ({
-        ...prev,
-        [fullModel]: data.ok
-          ? { ok: true, latency: data.latencyMs || data.latency || 0 }
-          : { ok: false, error: data.error || "Gagal merespon" },
-      }));
-    } catch (err) {
-      setTestResults((prev) => ({
-        ...prev,
-        [fullModel]: { ok: false, error: err.message || "Network error" },
-      }));
-    } finally {
-      setTesting((prev) => {
-        const next = new Set(prev);
-        next.delete(fullModel);
-        return next;
-      });
-    }
-  };
-
   const getProviderModels = (providerId) => {
-    const alias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
-    const models = getModelsByProviderId(alias) || [];
-    return models.filter((m) => getModelKind(m) === LLM_KIND || !m.kind);
+    const alias = getProviderAlias(providerId);
+    const models = new Map((getModelsByProviderId(providerId) || []).map((model) => [model.id, model]));
+    for (const model of customModels) {
+      if (model.providerAlias !== alias && model.providerAlias !== providerId) continue;
+      models.set(model.id, { ...models.get(model.id), ...model });
+    }
+    return [...models.values()].filter((m) => getModelKind(m, LLM_KIND) === LLM_KIND && !deleted[alias]?.includes(m.id));
   };
 
   const providerDisplayName = (providerId) => {
@@ -176,6 +158,16 @@ export default function ModelsPage() {
       });
     }
     providerMap.get(pid).connections.push(conn);
+  }
+  for (const [pid, provider] of Object.entries(AI_PROVIDERS)) {
+    if (provider.noAuth && !providerMap.has(pid)) {
+      providerMap.set(pid, { id: pid, name: provider.name || pid, alias: getProviderAlias(pid), connections: [] });
+    }
+  }
+  for (const model of customModels) {
+    const alias = model.providerAlias;
+    if (!alias || [...providerMap.values()].some((provider) => provider.alias === alias || provider.id === alias)) continue;
+    providerMap.set(alias, { id: alias, name: providerDisplayName(alias), alias, connections: [] });
   }
 
   const filteredProviders = filter
@@ -241,7 +233,7 @@ export default function ModelsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filteredProviders.map(([providerId, info]) => {
           const models = getProviderModels(providerId);
-          const isProviderActive = info.connections.some((c) => c.isActive !== false);
+          const isProviderActive = AI_PROVIDERS[providerId]?.noAuth || info.connections.some((c) => c.isActive !== false);
 
           return (
             <section
@@ -279,7 +271,7 @@ export default function ModelsPage() {
                   <span className="material-symbols-outlined text-[40px] opacity-20 mb-2">
                     device_unknown
                   </span>
-                   <p className="text-sm">{translate("No static models")}</p>
+                   <p className="text-sm">{translate("No models")}</p>
                 </div>
               ) : (
                <div className="an-conn-list !gap-0 flex-1 min-h-[200px] max-h-[420px] overflow-y-auto">
@@ -289,8 +281,6 @@ export default function ModelsPage() {
                     const kind = getModelKind(model);
                     const isSaving = saving.has(info.alias + ":" + modelId);
                     const fullModel = info.alias + "/" + modelId;
-                    const isTesting = testing.has(fullModel);
-                    const testResult = testResults[fullModel];
 
                     return (
                       <div
@@ -308,16 +298,10 @@ export default function ModelsPage() {
                             <span className="text-[13px] font-medium text-[var(--t-ink)] truncate">
                                {displayModelName(info.alias, model)}
                             </span>
+                            <ModelCapabilities model={fullModel} caps={model.caps} />
                             {isDisabledModel && (
                               <span className="an-chip !h-auto !px-1.5 !py-0.5 !text-[9px] danger shrink-0">
                                  {translate("Disabled")}
-                              </span>
-                            )}
-                            {testResult && (
-                              <span
-                                className={"an-chip !h-auto !px-1.5 !py-0.5 !text-[9px] shrink-0 " + (testResult.ok ? "ok" : "danger")}
-                              >
-                                 {testResult.ok ? "OK " + testResult.latency + "ms" : translate("Failed")}
                               </span>
                             )}
                           </div>
@@ -328,18 +312,15 @@ export default function ModelsPage() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-2 shrink-0 ml-auto">
-                          <button
-                            type="button"
-                            onClick={() => testModel(modelId, info.alias, kind)}
-                            disabled={isTesting || isDisabledModel || !isProviderActive}
-                            title="Test model"
-                            aria-label={`${translate("Test")} ${displayModelName(info.alias, model)}`}
-                            className="an-conn-btn disabled:opacity-40"
-                          >
-                            <span className="material-symbols-outlined">
-                              {isTesting ? "progress_activity" : "bolt"}
-                            </span>
-                          </button>
+                          <ModelTestButton model={fullModel} kind={kind || "llm"}
+                            disabled={isDisabledModel || !isProviderActive}
+                            onRemove={async () => {
+                              const params = new URLSearchParams({ providerAlias: info.alias, id: modelId, type: kind || "llm" });
+                              const response = await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
+                              if (!response.ok) throw new Error("Failed to delete model");
+                              setDeleted((prev) => ({ ...prev, [info.alias]: [...(prev[info.alias] || []), modelId] }));
+                              window.dispatchEvent(new CustomEvent("customModelChanged"));
+                            }} />
                           <AntaresSwitch
                             on={!isDisabledModel}
                             onChange={() => toggleModel(info.alias, modelId, isDisabledModel)}

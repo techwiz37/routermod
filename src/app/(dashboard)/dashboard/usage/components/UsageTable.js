@@ -141,13 +141,18 @@ export default function UsageTable({
 
   return (
     <section className="an-panel overflow-hidden">
-      {title && (
-        <div className="p-3.5 border-b-2 border-border bg-surface-2">
-          <h3 className="font-bold text-sm tracking-wider uppercase">{title}</h3>
+      <header className="an-panel-head">
+        <span className="an-panel-ico" aria-hidden>
+          <span className="material-symbols-outlined">table_chart</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="an-panel-title">{title}</h2>
+          <p className="an-panel-sub">Klik baris untuk membuka rincian · {groupedData.length} entri</p>
         </div>
-      )}
+        <span className="us-count-chip">{viewMode === "costs" ? "BIAYA" : "TOKEN"}</span>
+      </header>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-left">
+        <table className="w-full text-xs text-left us-data-table">
           <thead className="bg-surface-2 text-text-muted uppercase text-[11px] font-bold border-b-2 border-border">
             <tr>
               {columns.map((col) => (
@@ -218,7 +223,7 @@ export default function UsageTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t-2 border-border bg-surface-2/50">
+        <div className="us-table-foot">
           <span className="font-mono text-[10px] text-text-muted">
             {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, groupedData.length)} dari {groupedData.length}
           </span>

@@ -3,21 +3,30 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { usePageReady } from "@/shared/components/PageReadyContext";
 import { useParams, useRouter } from "next/navigation";
+import AntaresSelect from "@/shared/components/AntaresSelect";
+import AntaresPanel from "@/shared/components/AntaresPanel";
+import AntaresSwitch from "@/shared/components/AntaresSwitch";
+import AntaresCheckbox from "@/shared/components/AntaresCheckbox";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 import Link from "next/link";
 import Image from "next/image";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
-import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, PageLoader } from "@/shared/components";
+import { fetchProviderFavicon } from "@/shared/utils/providerFavicon";
+import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, FreePiConnectCard, RouterModProxyCard, ConfirmModal, PageLoader } from "@/shared/components";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { testModel } from "@/shared/utils/testModel";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
+import { importedModelCaps } from "@/shared/utils/modelCapabilities";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { applyQoderModelNames, getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
+import ModelListPagination from "./ModelListPagination";
 import GlobalPrefixCard from "./GlobalPrefixCard";
 import SystemPromptCard from "./SystemPromptCard";
 import ConnectionRow from "./ConnectionRow";
@@ -28,6 +37,7 @@ import BulkImportCodexModal from "./BulkImportCodexModal";
 import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import CustomConfigCard from "./CustomConfigCard";
 import SessionRateLimitCard from "./SessionRateLimitCard";
+import RoundRobinControl from "./RoundRobinControl";
 import JailbreakCard from "./JailbreakCard";
 import ModelConfigCarousel from "./ModelConfigCarousel";
 import ProviderAlert from "../components/ProviderAlert";
@@ -56,10 +66,14 @@ function sleep(ms) {
 
 export default function ProviderDetailPage() {
   const params = useParams();
+  return <ProviderDetail key={params.id} providerId={params.id} />;
+}
+
+function ProviderDetail({ providerId }) {
   const router = useRouter();
-  const providerId = params.id;
   const { getCaps } = useModelCaps();
   const [connections, setConnections] = useState([]);
+  const [connectionsPage, setConnectionsPage] = useState(1);
   const [loading, setLoading] = useState(true);
   usePageReady(loading);
   const [providerNode, setProviderNode] = useState(null);
@@ -86,6 +100,9 @@ export default function ProviderDetailPage() {
   const systemPromptModelRef = useRef("");
   const providerModelNamesRef = useRef({});
   const addNotification = useNotificationStore((s) => s.addNotification);
+  const updateNotification = useNotificationStore((s) => s.updateNotification);
+  const providerStrategyRef = useRef({});
+  const [strategyReady, setStrategyReady] = useState(false);
 
   const [customModels, setCustomModels] = useState([]);
   const [headerImgError, setHeaderImgError] = useState(false);
@@ -98,8 +115,6 @@ export default function ProviderDetailPage() {
   const [selectedConnectionIds, setSelectedConnectionIds] = useState([]);
   const [bulkProxyPoolId, setBulkProxyPoolId] = useState("__none__");
   const [bulkUpdatingProxy, setBulkUpdatingProxy] = useState(false);
-  const [providerStrategy, setProviderStrategy] = useState(null);
-  const [providerStickyLimit, setProviderStickyLimit] = useState("");
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {}, schedules: {} });
   const [scheduleConnection, setScheduleConnection] = useState(null);
@@ -255,7 +270,12 @@ export default function ProviderDetailPage() {
         type: "llm",
       });
       for (const row of rows) {
-        if (row?.id && !disabledSet.has(row.id)) ids.add(row.id);
+        // A legacy alias is a separate public model, even when it routes to
+        // the same upstream id as a canonical/custom row.  The selectors
+        // store their option value, so collapsing to row.id makes assignments
+        // for the two public ids overwrite one another.
+        const publicId = row?.alias || row?.id;
+        if (publicId && !disabledSet.has(publicId)) ids.add(publicId);
       }
       return Array.from(ids);
     }
@@ -275,7 +295,8 @@ export default function ProviderDetailPage() {
       type: "llm",
     });
     for (const row of rows) {
-      if (row?.id && !disabledSet.has(row.id)) ids.add(row.id);
+      const publicId = row?.alias || row?.id;
+      if (publicId && !disabledSet.has(publicId)) ids.add(publicId);
     }
     return Array.from(ids);
   }, [
@@ -294,9 +315,9 @@ export default function ProviderDetailPage() {
       compatibleSystemPromptModelIds.map((id) => ({
         value: id,
         label:
-          modelNames?.[`${providerStorageAlias}/${id}`] ||
-          modelNames?.[`${providerId}/${id}`] ||
-          id,
+           modelNames?.[`${providerStorageAlias}/${id}`] ||
+           modelNames?.[`${providerId}/${id}`] ||
+           id,
       })),
     [compatibleSystemPromptModelIds, modelNames, providerStorageAlias, providerId]
   );
@@ -327,15 +348,17 @@ export default function ProviderDetailPage() {
     }
   }, [providerStorageAlias]);
 
-  const handleDeleteBuiltinModel = async (modelId) => {
+  const handleDeleteBuiltinModel = async (modelId, throwOnError = false) => {
     try {
       const params = new URLSearchParams({ providerAlias: providerStorageAlias, id: modelId, type: "llm", builtin: "true" });
       const res = await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete model");
       setDeletedModelIds((prev) => [...new Set([...prev, modelId])]);
+      window.dispatchEvent(new Event("customModelChanged"));
       addNotification({ type: "success", title: translate("OK"), message: translate("Model deleted"), duration: 2000 });
     } catch (error) {
       addNotification({ type: "error", title: translate("Error"), message: error.message, duration: 5000 });
+      if (throwOnError) throw error;
     }
   };
 
@@ -406,15 +429,16 @@ export default function ProviderDetailPage() {
 
   const fetchCustomModels = useCallback(async () => {
     try {
-      const res = await fetch("/api/models/custom", { cache: "no-store" });
+      const res = await fetch(`/api/models/custom?providerAlias=${encodeURIComponent(providerStorageAlias)}&scope=provider`, { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setCustomModels(data.models || []);
+        setDeletedModelIds(data.deleted || []);
       }
     } catch (error) {
       console.log("Error fetching custom models:", error);
     }
-  }, []);
+  }, [providerStorageAlias]);
 
   // Fetch free models from Kilo API for kilocode provider
   useEffect(() => {
@@ -427,14 +451,33 @@ export default function ProviderDetailPage() {
 
   const fetchConnections = useCallback(async () => {
     try {
-      const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes] = await Promise.all([
-        fetch("/api/providers", { cache: "no-store" }),
-        fetch("/api/provider-nodes", { cache: "no-store" }),
-        fetch("/api/proxy-pools?isActive=true", { cache: "no-store" }),
+      const connectionsTask = fetch(`/api/providers?provider=${encodeURIComponent(providerId)}`, { cache: "no-store" })
+        .then(async (res) => {
+          const data = await res.json();
+          if (res.ok) setConnections(data.connections || []);
+          return { ok: res.ok, data };
+        });
+      const nodesTask = isCompatible
+        ? fetch(`/api/provider-nodes?id=${encodeURIComponent(providerId)}`, { cache: "no-store" })
+          .then(async (res) => {
+            const data = await res.json();
+            if (res.ok) setProviderNode((data.nodes || []).find((entry) => entry.id === providerId) || null);
+            return { ok: res.ok, data };
+          })
+        : Promise.resolve({ ok: true, data: { nodes: [] } });
+      // Only accounts and the custom node gate the page. Optional settings and
+      // proxy labels load independently, so a slow request cannot hide it.
+      const criticalTask = Promise.all([connectionsTask, nodesTask]).then(([conn, nodes]) => {
+        if (!isCompatible || nodes.data.nodes?.some((node) => node.id === providerId)) setLoading(false);
+        return [conn, nodes];
+      });
+      const [[connectionsRes, nodesRes], proxyPoolsRes, settingsRes] = await Promise.all([
+        criticalTask,
+        fetch("/api/proxy-pools?isActive=true&view=options", { cache: "no-store" }),
         fetch("/api/settings", { cache: "no-store" }),
       ]);
-      const connectionsData = await connectionsRes.json();
-      const nodesData = await nodesRes.json();
+      const connectionsData = connectionsRes.data;
+      const nodesData = nodesRes.data;
       const proxyPoolsData = await proxyPoolsRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
       if (connectionsRes.ok) {
@@ -487,10 +530,8 @@ export default function ProviderDetailPage() {
         setSystemPromptModel("");
         setSystemPromptDraft("");
       }
-      // Load per-provider strategy override
-      const override = (settingsData.providerStrategies || {})[providerId] || {};
-      setProviderStrategy(override.fallbackStrategy || null);
-      setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
+      providerStrategyRef.current = (settingsData.providerStrategies || {})[providerId] || {};
+      setStrategyReady(true);
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
       setThinkingMode(thinkingCfg.mode || "auto");
@@ -505,7 +546,7 @@ export default function ProviderDetailPage() {
         if (!node && isCompatible) {
           for (let attempt = 0; attempt < 3; attempt += 1) {
             await new Promise((resolve) => setTimeout(resolve, 150));
-            const retryRes = await fetch("/api/provider-nodes", { cache: "no-store" });
+            const retryRes = await fetch(`/api/provider-nodes?id=${encodeURIComponent(providerId)}`, { cache: "no-store" });
             if (!retryRes.ok) continue;
             const retryData = await retryRes.json();
             node = (retryData.nodes || []).find((entry) => entry.id === providerId) || null;
@@ -538,49 +579,6 @@ export default function ProviderDetailPage() {
     } catch (error) {
       console.log("Error updating provider node:", error);
     }
-  };
-
-  const saveProviderStrategy = async (strategy, stickyLimit) => {
-    try {
-      const settingsRes = await fetch("/api/settings", { cache: "no-store" });
-      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
-      const current = settingsData.providerStrategies || {};
-
-      // Build override: null strategy means remove override, use global
-      const override = {};
-      if (strategy) override.fallbackStrategy = strategy;
-      if (strategy === "round-robin" && stickyLimit !== "") {
-        override.stickyRoundRobinLimit = Number(stickyLimit) || 3;
-      }
-
-      const updated = { ...current };
-      if (Object.keys(override).length === 0) {
-        delete updated[providerId];
-      } else {
-        updated[providerId] = override;
-      }
-
-      await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerStrategies: updated }),
-      });
-    } catch (error) {
-      console.log("Error saving provider strategy:", error);
-    }
-  };
-
-  const handleRoundRobinToggle = (enabled) => {
-    const strategy = enabled ? "round-robin" : null;
-    const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
-    if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
-    setProviderStrategy(strategy);
-    saveProviderStrategy(strategy, sticky);
-  };
-
-  const handleStickyLimitChange = (value) => {
-    setProviderStickyLimit(value);
-    saveProviderStrategy("round-robin", value);
   };
 
   const saveThinkingConfig = async (mode) => {
@@ -651,24 +649,24 @@ export default function ProviderDetailPage() {
     fetchAliases();
     fetchCustomModels();
     fetchDisabledModels();
-    fetchDeletedModels();
     fetchModelNames();
-  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels, fetchDeletedModels, fetchModelNames]);
+  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels, fetchModelNames]);
 
   useEffect(() => {
+    let cancelled = false;
     if ((isOpenAICompatible || isAnthropicCompatible) && providerNode?.baseUrl) {
       setLoadingFavicon(true);
       setDetectedFavicon(null);
-      fetch(`/api/providers/favicon?url=${encodeURIComponent(providerNode.baseUrl)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.faviconUrl) {
-            setDetectedFavicon(data.faviconUrl);
+      fetchProviderFavicon(providerNode.baseUrl)
+        .then(faviconUrl => {
+          if (!cancelled && faviconUrl) {
+            setDetectedFavicon(faviconUrl);
           }
         })
         .catch(() => {})
-        .finally(() => setLoadingFavicon(false));
+        .finally(() => { if (!cancelled) setLoadingFavicon(false); });
     }
+    return () => { cancelled = true; };
   }, [isOpenAICompatible, isAnthropicCompatible, providerNode?.baseUrl]);
 
   // Live per-connection catalogs (cursor, zed): the static registry carries
@@ -762,29 +760,33 @@ export default function ProviderDetailPage() {
 
   // `transport` pins a realtime STT dispatch marker (shared whitelist
   // STT_TRANSPORT_META); the API only honours it on type "stt" records.
-  const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps, transport) => {
+  const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps, transport, source) => {
     try {
       const res = await fetch("/api/models/custom", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) }),
+        body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, source: source || "manual", publicPrefix: prefixOverride || providerDisplayAlias, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) }),
       });
       if (res.ok) {
         addNotification({ type: "success", title: translate("OK"), message: translate("Model saved"), duration: 2000 });
-        await fetchCustomModels();
+        await Promise.all([fetchCustomModels(), fetchAliases()]);
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+        return true;
       } else {
         const resJson = await res.json().catch(() => ({}));
         addNotification({ type: "error", title: translate("Error"), message: resJson.error || translate("Failed to add custom model"), duration: 5000 });
+        return false;
       }
     } catch (error) {
       console.log("Error adding custom model:", error);
+      addNotification({ type: "error", title: translate("Error"), message: translate("Failed to add custom model"), duration: 5000 });
+      return false;
     }
   };
 
-  const handleDeleteCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias) => {
+  const handleDeleteCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, throwOnError = false) => {
     try {
-      const params = new URLSearchParams({ providerAlias: providerAliasOverride, id: modelId, type });
+      const params = new URLSearchParams({ providerAlias: providerAliasOverride, id: modelId, type, preserveAliases: "true" });
       const res = await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
       if (res.ok) {
         // Remove it locally immediately so a successful delete cannot leave a
@@ -794,24 +796,19 @@ export default function ProviderDetailPage() {
           model.id === modelId &&
           (model.type || model.kind || "llm") === type
         )));
-        setModelAliases((prev) => {
-          const target = `${providerAliasOverride}/${modelId}`;
-          const next = { ...prev };
-          for (const [alias, fullModel] of Object.entries(next)) {
-            if (fullModel === target) delete next[alias];
-          }
-          return next;
-        });
+        await fetchAliases();
         addNotification({ type: "success", title: translate("OK"), message: translate("Model deleted"), duration: 2000 });
         await fetchCustomModels();
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
       } else {
         const resJson = await res.json().catch(() => ({}));
         addNotification({ type: "error", title: translate("Error"), message: resJson.error || translate("Failed to delete model"), duration: 5000 });
+        throw new Error(resJson.error || "Failed to delete model");
       }
     } catch (error) {
       console.log("Error deleting custom model:", error);
       addNotification({ type: "error", title: translate("Error"), message: translate("Failed to delete model"), duration: 5000 });
+      if (throwOnError) throw error;
     }
   };
 
@@ -836,11 +833,12 @@ export default function ProviderDetailPage() {
     });
   };
 
-  const handleEditCustomModel = async ({ modelId, name, caps }) => {
+  const handleEditCustomModel = async ({ modelId, newId, name, caps }) => {
     const trimmed = (name || "").trim();
     const hasNameChange = trimmed && trimmed !== modelId;
     const hasCaps = caps !== undefined;
-    if (!hasNameChange && !hasCaps) return;
+    const hasIdChange = newId?.trim() && newId.trim() !== modelId;
+    if (!hasNameChange && !hasCaps && !hasIdChange) return;
     try {
       const res = await fetch("/api/models/custom", {
         method: "PATCH",
@@ -848,13 +846,14 @@ export default function ProviderDetailPage() {
         body: JSON.stringify({
           providerAlias: providerStorageAlias,
           id: modelId,
+          ...(hasIdChange ? { newId: newId.trim() } : {}),
           ...(hasNameChange ? { name: trimmed } : {}),
           ...(hasCaps ? { caps } : {}),
         }),
       });
       if (res.ok) {
         addNotification({ type: "success", title: translate("OK"), message: translate("Model saved"), duration: 2000 });
-        await fetchCustomModels();
+        await Promise.all([fetchCustomModels(), fetchAliases()]);
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
       } else {
         const resJson = await res.json().catch(() => ({}));
@@ -867,7 +866,32 @@ export default function ProviderDetailPage() {
   };
 
   // Edit a builtin model: update its alias (PUT /api/models/alias) and optionally its display name (PUT /api/models/name)
-  const handleEditBuiltinModel = async ({ modelId, name, aliasKey, prefix, providerAlias }) => {
+  const handleEditBuiltinModel = async ({ modelId, name, customId, caps, aliasKey, prefix, providerAlias }) => {
+    if (customId) {
+      try {
+        const response = await fetch("/api/models/alias", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ oldAlias: aliasKey, newAlias: customId, model: `${providerStorageAlias}/${modelId}` }),
+        });
+        if (!response.ok) throw new Error("Failed to save model");
+        if (caps !== undefined) {
+          const capsResponse = await fetch("/api/models/custom", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerAlias: providerStorageAlias, id: modelId, name: customId, caps }),
+          });
+          if (!capsResponse.ok) throw new Error("Failed to save model capabilities");
+          await fetchCustomModels();
+        }
+        await fetchAliases();
+        addNotification({ type: "success", title: translate("OK"), message: translate("Model saved"), duration: 2000 });
+        window.dispatchEvent(new CustomEvent("customModelChanged"));
+      } catch (error) {
+        addNotification({ type: "error", title: translate("Error"), message: error.message, duration: 5000 });
+      }
+      return;
+    }
     const newId = (modelId || "").trim();
     const newAlias = (aliasKey || (newId !== modelId ? `${prefix || providerAlias}/${newId}` : modelId)).trim();
     if (!newId || !newAlias) return;
@@ -933,7 +957,7 @@ export default function ProviderDetailPage() {
           const saved = await fetch("/api/models/custom", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ providerAlias: providerStorageAlias, id, type: "llm", name: model.name || id }),
+            body: JSON.stringify({ providerAlias: providerStorageAlias, id, type: "llm", name: model.name || id, caps: importedModelCaps(model), source: "import" }),
           });
           if (!saved.ok) {
             const error = await saved.json();
@@ -961,7 +985,7 @@ export default function ProviderDetailPage() {
           continue;
         }
 
-        await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias);
+        await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias, importedModelCaps(model), undefined, "import");
         importedCount += 1;
       }
       
@@ -1009,7 +1033,7 @@ export default function ProviderDetailPage() {
         if (alreadyExists) {
           continue;
         }
-        await handleAddCustomModel(modelId, "llm", providerStorageAlias);
+        await handleAddCustomModel(modelId, "llm", providerStorageAlias, importedModelCaps(model), undefined, "import");
         importedCount += 1;
       }
       if (importedCount === 0) {
@@ -1049,7 +1073,7 @@ export default function ProviderDetailPage() {
       for (const model of models) {
         const modelId = model.id || model.name || model.model;
         if (!modelId) continue;
-        await handleAddCustomModel(modelId, "llm", providerAlias);
+        await handleAddCustomModel(modelId, "llm", providerAlias, importedModelCaps(model), undefined, "import");
         importedCount += 1;
       }
       if (importedCount === 0) {
@@ -1163,13 +1187,30 @@ export default function ProviderDetailPage() {
       message: "Delete this connection?",
       onConfirm: async () => {
         setConfirmState(null);
+        const toastId = addNotification({
+          type: "info",
+          message: "Menghapus koneksi...",
+          duration: 0,
+          dismissible: false,
+        });
         try {
           const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
-          if (res.ok) {
-            setConnections(prev => prev.filter(c => c.id !== id));
-          }
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          setConnections(prev => prev.filter(c => c.id !== id));
+          updateNotification(toastId, {
+            type: "success",
+            message: "Koneksi berhasil dihapus.",
+            duration: 4000,
+            dismissible: true,
+          });
         } catch (error) {
           console.log("Error deleting connection:", error);
+          updateNotification(toastId, {
+            type: "error",
+            message: error?.message || "Gagal menghapus koneksi.",
+            duration: 8000,
+            dismissible: true,
+          });
         }
       }
     });
@@ -1183,21 +1224,44 @@ export default function ProviderDetailPage() {
       message: `Delete ${count} connection${count > 1 ? "s" : ""}? This cannot be undone.`,
       onConfirm: async () => {
         setConfirmState(null);
-        let failed = 0;
         const idsToDelete = [...selectedConnectionIds];
-        for (const id of idsToDelete) {
-          try {
-            const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
-            if (!res.ok) failed += 1;
-          } catch (error) {
-            console.log("Error deleting connection:", error);
-            failed += 1;
-          }
+        const toastId = addNotification({
+          type: "info",
+          title: "Menghapus koneksi",
+          message: `Menghapus ${idsToDelete.length} koneksi...`,
+          duration: 0,
+          dismissible: false,
+        });
+        try {
+          const res = await fetch("/api/providers/bulk-delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: idsToDelete }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+          const removed = new Set(idsToDelete);
+          setConnections((prev) => prev.filter((c) => !removed.has(String(c.id))));
+          setSelectedConnectionIds([]);
+          updateNotification(toastId, {
+            type: "success",
+            title: "Hapus selesai",
+            message: `${data.deleted ?? removed.size} koneksi berhasil dihapus.${data.missing ? ` ${data.missing} tidak ditemukan.` : ""}`,
+            duration: 4000,
+            dismissible: true,
+          });
+        } catch (error) {
+          console.log("Error bulk deleting connections:", error);
+          updateNotification(toastId, {
+            type: "error",
+            title: "Hapus gagal",
+            message: error?.message || "Gagal menghapus koneksi.",
+            duration: 8000,
+            dismissible: true,
+          });
         }
-        setConnections(prev => prev.filter(c => !idsToDelete.includes(c.id)));
-        setSelectedConnectionIds([]);
-        if (failed > 0) alert(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
-      }
+      },
     });
   };
 
@@ -1296,7 +1360,11 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const selectedConnections = connections.filter((conn) => selectedConnectionIds.includes(conn.id));
+  const selectedConnections = useMemo(() => {
+    if (!Array.isArray(connections)) return [];
+    return connections.filter((conn) => selectedConnectionIds.includes(String(conn.id)));
+  }, [connections, selectedConnectionIds]);
+  
   const allSelected = connections.length > 0 && selectedConnectionIds.length === connections.length;
 
   const toggleSelectConnection = (connectionId) => {
@@ -1312,7 +1380,8 @@ export default function ProviderDetailPage() {
       setSelectedConnectionIds([]);
       return;
     }
-    setSelectedConnectionIds(connections.map((conn) => conn.id));
+    if (!Array.isArray(connections)) return;
+    setSelectedConnectionIds(connections.map((conn) => String(conn.id)));
   };
 
   const clearSelection = () => {
@@ -1393,18 +1462,24 @@ export default function ProviderDetailPage() {
 
 
   const isSelected = (connectionId) => selectedConnectionIds.includes(connectionId);
+  const connectionPageCount = Math.max(1, Math.ceil(connections.length / 25));
+  const currentConnectionPage = Math.min(connectionsPage, connectionPageCount);
+  const connectionOffset = (currentConnectionPage - 1) * 25;
 
   const connectionsList = (
-    <div className="flex min-w-0 flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03] max-h-[500px] overflow-y-auto pr-1">
+    <>
+    <div className="flex min-w-0 flex-col gap-2">
       {connections
-        .map((conn, index) => (
+        .slice(connectionOffset, connectionOffset + 25).map((conn, pageIndex) => {
+          const index = connectionOffset + pageIndex;
+          return (
           <div key={conn.id} className="flex min-w-0 items-stretch">
-            <div className="flex shrink-0 items-center pl-1 sm:pl-2">
-              <input
-                type="checkbox"
+            <div className="flex shrink-0 items-center pl-0.5 sm:pl-1">
+              <AntaresCheckbox
+                compact
                 checked={isSelected(conn.id)}
                 onChange={() => toggleSelectConnection(conn.id)}
-                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                ariaLabel={translate("Select connection")}
               />
             </div>
             <div className="flex-1 min-w-0">
@@ -1452,13 +1527,15 @@ export default function ProviderDetailPage() {
               />
             </div>
           </div>
-        ))}
+        ); })}
     </div>
+    <ModelListPagination page={currentConnectionPage} totalPages={connectionPageCount} onPageChange={setConnectionsPage} />
+    </>
   );
 
   const activePools = proxyPools.filter((p) => p.isActive === true);
 
-  const bulkActionModal = (
+  const bulkActionModal = showBulkProxyModal ? (
     <Modal
       isOpen={showBulkProxyModal}
       onClose={closeBulkProxyModal}
@@ -1505,18 +1582,13 @@ export default function ProviderDetailPage() {
         </Button>
       </div>
     </Modal>
-  );
+  ) : null;
 
   const handleTestModel = async (modelId) => {
     if (testingModelIds.has(modelId)) return;
     setTestingModelIds((prev) => new Set(prev).add(modelId));
     try {
-      const res = await fetch("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
-      });
-      const data = await res.json();
+      const data = await testModel(`${providerStorageAlias}/${modelId}`);
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
       setModelsTestError(data.ok ? "" : (data.error || "Model not reachable"));
       if (data.ok) {
@@ -1572,7 +1644,10 @@ export default function ProviderDetailPage() {
   // Save per-model system prompt (PATCH /api/settings -> providerModelSystemPrompts)
   const handleSaveSystemPrompt = async (modelId, prompt) => {
     const trimmedId = (modelId || "").trim();
-    if (!trimmedId) return;
+    if (!trimmedId) {
+      addNotification({ type: "error", title: translate("Error"), message: translate("Please select a model first"), duration: 3000 });
+      return;
+    }
     setSavingSystemPrompt(true);
     try {
       const updatedPrompts = { ...allSystemPrompts };
@@ -1580,6 +1655,7 @@ export default function ProviderDetailPage() {
       const value = (prompt || "").trim();
       if (value) updatedPrompts[key] = value;
       else delete updatedPrompts[key];
+      console.log("[SystemPrompt] Saving:", { key, valueLength: value.length, allKeys: Object.keys(updatedPrompts) });
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1587,19 +1663,21 @@ export default function ProviderDetailPage() {
       });
       if (res.ok) {
         const patched = await res.json();
+        console.log("[SystemPrompt] Server response:", { hasPrompts: !!patched.providerModelSystemPrompts, keys: Object.keys(patched.providerModelSystemPrompts || {}) });
         setAllSystemPrompts(patched.providerModelSystemPrompts || updatedPrompts);
         const scoped = {};
-        for (const [k, v] of Object.entries(updatedPrompts)) {
+        for (const [k, v] of Object.entries(patched.providerModelSystemPrompts || updatedPrompts)) {
           if (k.startsWith(`${providerId}/`)) scoped[k.slice(providerId.length + 1)] = v;
         }
         setSystemPrompts(scoped);
         addNotification({ type: "success", title: translate("OK"), message: translate("System prompt saved"), duration: 2000 });
       } else {
         const resJson = await res.json().catch(() => ({}));
+        console.log("[SystemPrompt] Save failed:", resJson);
         addNotification({ type: "error", title: translate("Error"), message: resJson.error || translate("Failed to save system prompt"), duration: 5000 });
       }
     } catch (error) {
-      console.log("Error saving system prompt:", error);
+      console.log("[SystemPrompt] Exception:", error);
       addNotification({ type: "error", title: translate("Error"), message: translate("Failed to save system prompt"), duration: 5000 });
     } finally {
       setSavingSystemPrompt(false);
@@ -1652,6 +1730,7 @@ export default function ProviderDetailPage() {
               />
             )}
             <JailbreakCard
+              key={providerStorageAlias}
               providerId={providerStorageAlias}
               providerDisplayAlias={providerDisplayAlias}
               modelOptions={systemPromptModelOptions}
@@ -1669,7 +1748,9 @@ export default function ProviderDetailPage() {
             onDeleteAlias={handleDeleteAlias}
             onAddCustomModel={(modelId, caps) => handleAddCustomModel(modelId, "llm", providerStorageAlias, caps)}
             onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
+            onRemoveTestedModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias, true)}
             onDeleteAllModels={() => handleDeleteAllModels(providerStorageAlias)}
+            onModelsDeleted={() => Promise.all([fetchCustomModels(), fetchDeletedModels(), fetchAliases(), fetchModelNames()])}
             onEditCustomModel={handleEditCustomModel}
             onEditBuiltinModel={handleEditBuiltinModel}
             connections={connections}
@@ -1721,10 +1802,15 @@ export default function ProviderDetailPage() {
               onSystemPromptSave={(id, prompt) => handleSaveSystemPrompt(id, prompt)}
             />
             <JailbreakCard
+              key={providerStorageAlias}
               providerId={providerStorageAlias}
               providerDisplayAlias={providerDisplayAlias}
               modelOptions={systemPromptModelOptions}
             />
+            {/* Third card for built-in providers: they have no provider node,
+                so the per-session rate-limit card does not apply. Custom
+                headers is the remaining per-provider override. */}
+            <CustomConfigCard providerId={providerId} showWhenEmpty />
           </ModelConfigCarousel>
           <CompatibleModelsSection
             providerStorageAlias={providerStorageAlias}
@@ -1735,10 +1821,12 @@ export default function ProviderDetailPage() {
             copied={copied}
             onCopy={copy}
             onSetAlias={() => {}}
-            onDeleteAlias={() => {}}
+            onDeleteAlias={handleDeleteAlias}
             onAddCustomModel={(modelId, caps) => handleAddCustomModel(modelId, "llm", providerStorageAlias, caps)}
             onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
+            onRemoveTestedModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias, true)}
             onDeleteAllModels={() => handleDeleteAllModels(providerStorageAlias)}
+            onModelsDeleted={() => Promise.all([fetchCustomModels(), fetchDeletedModels(), fetchAliases(), fetchModelNames()])}
             onEditCustomModel={handleEditCustomModel}
             onEditBuiltinModel={handleEditBuiltinModel}
             connections={connections}
@@ -1747,6 +1835,7 @@ export default function ProviderDetailPage() {
             onAdd={(modelId, caps) => handleAddCustomModel(modelId, "llm", providerStorageAlias, caps)}
             onImport={() => handleImportModels(providerStorageAlias)}
             onImporting={importingModels}
+            testModels={[...displayModels, ...customModelRows].filter((model) => !deletedModelIds.includes(model.id))}
           />
         </div>
         {/* Custom models first */}
@@ -1757,6 +1846,7 @@ export default function ProviderDetailPage() {
               key={`${model.source}-${model.fullModel}`}
               model={{ id: model.id, name: model.name }}
               fullModel={`${providerDisplayAlias}/${model.id}`}
+              canonicalModel={`${providerStorageAlias}/${model.id}`}
               alias={model.alias}
               copied={copied}
               onCopy={copy}
@@ -1768,7 +1858,10 @@ export default function ProviderDetailPage() {
                   handleDeleteAlias(model.alias);
                 }
               }}
-              onEdit={handleEditCustomModel}
+              onRemoveTestedModel={() => model.source === "legacyAlias" ? handleDeleteAlias(model.alias) : handleDeleteCustomModel(model.id, "llm", providerStorageAlias, true)}
+              onEdit={model.source === "legacyAlias"
+                ? (info) => handleEditBuiltinModel({ modelId: info.newId || model.id, customId: info.customId || info.name, aliasKey: model.alias })
+                : handleEditCustomModel}
               providerAlias={providerDisplayAlias}
               prefix={prefixOverride || providerDisplayAlias}
               testStatus={modelTestResults[model.id]}
@@ -1776,7 +1869,7 @@ export default function ProviderDetailPage() {
               isTesting={testingModelIds.has(model.id)}
               isCustom
               isFree={false}
-              caps={model.caps || getCaps(`${providerId}/${model.id}`)}
+              caps={{ ...getCaps(`${providerStorageAlias}/${model.id}`), ...model.caps }}
               capsEditable={model.source === "custom"}
               thinkingSuffix={resolveThinkingSuffix(model.id)}
               isDisabled={isDisabled}
@@ -1803,12 +1896,14 @@ export default function ProviderDetailPage() {
               key={model.id}
               model={{ ...model, name: customName || model.name }}
               fullModel={`${providerDisplayAlias}/${model.id}`}
+              canonicalModel={`${providerStorageAlias}/${model.id}`}
               alias={existingAlias}
               copied={copied}
               onCopy={copy}
               onSetAlias={(alias) => handleSetAlias(model.id, alias, providerStorageAlias)}
               onDeleteAlias={() => handleDeleteBuiltinModel(model.id)}
-              onEdit={(info) => handleEditBuiltinModel({ ...info, modelId: model.id, aliasKey: existingAlias, prefix: providerDisplayAlias, providerAlias: providerDisplayAlias })}
+              onRemoveTestedModel={() => handleDeleteBuiltinModel(model.id, true)}
+              onEdit={(info) => handleEditBuiltinModel({ ...info, modelId: info.newId || model.id, aliasKey: existingAlias, prefix: providerDisplayAlias, providerAlias: providerDisplayAlias })}
               providerAlias={providerDisplayAlias}
               prefix={prefixOverride || providerDisplayAlias}
               testStatus={modelTestResults[model.id]}
@@ -1816,8 +1911,8 @@ export default function ProviderDetailPage() {
               isTesting={testingModelIds.has(model.id)}
               isCustom={true}
               isFree={model.isFree}
-              caps={getCaps(`${providerId}/${model.id}`)}
-              capsEditable={false}
+              caps={{ ...getCaps(`${providerStorageAlias}/${model.id}`), ...customModels.find((entry) => entry.providerAlias === providerStorageAlias && entry.id === model.id)?.caps }}
+              capsEditable={true}
               thinkingSuffix={resolveThinkingSuffix(model.id)}
               isDisabled={isDisabled}
               onDisable={() => handleDisableModel(model.id)}
@@ -1873,7 +1968,7 @@ export default function ProviderDetailPage() {
                   <button
                     key={m.id}
                     onClick={async () => {
-                      await handleAddCustomModel(m.id, "llm", providerStorageAlias);
+                      await handleAddCustomModel(m.id, "llm", providerStorageAlias, importedModelCaps(m), undefined, "import");
                     }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
                     title={`${m.name} · ${(m.contextLength / 1000).toFixed(0)}k ctx`}
@@ -1890,11 +1985,18 @@ export default function ProviderDetailPage() {
     );
   };
 
-  if (loading) {
-    return <PageLoader message={translate("Loading provider...")} />;
-}
-
   if (!providerInfo) {
+    // Compatible nodes resolve from an API. Show a compact shell skeleton only
+    // for that case; built-in providers render their real content immediately.
+    if (loading) {
+      return (
+        <div className="an-scope an-providerscope flex min-w-0 flex-col gap-5 px-1 sm:gap-6 sm:px-0" aria-busy="true">
+          <div className="an-panel h-14 animate-pulse" />
+          <div className="an-panel h-40 animate-pulse" />
+          <div className="an-panel h-72 animate-pulse" />
+        </div>
+      );
+    }
     return (
       <div className="text-center py-20">
         <p className="text-text-muted">{translate("Provider not found")}</p>
@@ -1922,7 +2024,8 @@ export default function ProviderDetailPage() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-0">
+    <div className="an-scope an-providerscope flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-0">
+      <SurfaceSkinContext.Provider value="antares">
       {/* Header */}
       <div className="min-w-0">
         <Link
@@ -1961,7 +2064,7 @@ export default function ProviderDetailPage() {
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{providerInfo.name}</h1>
             <p className="text-text-muted">
-              {connections.length} {connections.length === 1 ? translate("connection") : translate("connections")}
+              {loading ? "…" : connections.length} {connections.length === 1 ? translate("connection") : translate("connections")}
             </p>
           </div>
         </div>
@@ -2056,92 +2159,99 @@ export default function ProviderDetailPage() {
         </Card>
       )}
 
+      <RouterModProxyCard providerId={providerId} />
+
       {/* Connections */}
-      {isFreeNoAuth ? (
+      {providerId === "freepi" ? (
+        <FreePiConnectCard providerId={providerId} />
+      ) : isFreeNoAuth ? (
         <NoAuthProxyCard providerId={providerId} />
       ) : (
-        <Card>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold">{translate("Connections")}</h2>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-              {connections.length > 0 && proxyPools.length > 0 && (
+        <AntaresPanel
+          icon="hub"
+          title={translate("Connections")}
+          subtitle={translate("Manage accounts, proxies and routing for this provider")}
+          headClassName="an-panel-head-stack an-provider-connections-head"
+          action={
+            <span className="an-chip">{loading ? "…" : connections.length} {translate("connections")}</span>
+          }
+          bodyClassName="!p-0"
+        >
+          {/* Toolbar */}
+          <div className="an-provider-conn-toolbar flex flex-wrap items-center gap-2 border-b border-[var(--t-line-soft)] px-4 py-3 sm:px-5">
+            {connections.length > 0 && proxyPools.length > 0 && (
+              <Button
+                skin="antares"
+                size="sm"
+                variant="secondary"
+                icon="lan"
+                onClick={() => setShowBulkProxyModal(true)}
+              >
+                {translate("Apply Proxy")}
+              </Button>
+            )}
+            {connections.length > 0 && (
+              <>
+                {selectedConnectionIds.length > 0 && (
+                  <Button
+                    skin="antares"
+                    size="sm"
+                    variant="danger"
+                    icon="delete"
+                    onClick={handleBulkDelete}
+                  >
+                    {translate("Delete Selected")} ({selectedConnectionIds.length})
+                  </Button>
+                )}
                 <Button
+                  skin="antares"
                   size="sm"
                   variant="secondary"
-                  icon="lan"
-                  onClick={() => setShowBulkProxyModal(true)}
+                  icon="sync"
+                  onClick={handleRunOneByOneTest}
+                  disabled={oneByOneRunning}
                 >
-                  {translate("Apply Proxy")}
+                  {oneByOneRunning ? translate("Testing...") : translate("Test Connections")}
                 </Button>
-              )}
-              {connections.length > 0 && (
-                <>
-                  {selectedConnectionIds.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      icon="delete"
-                      onClick={handleBulkDelete}
-                    >
-                      {translate("Delete Selected")} ({selectedConnectionIds.length})
-                    </Button>
-                  )}
+                {oneByOneRunning && (
                   <Button
+                    skin="antares"
                     size="sm"
-                    variant="secondary"
-                    icon="sync"
-                    onClick={handleRunOneByOneTest}
-                    disabled={oneByOneRunning}
+                    variant="ghost"
+                    icon="stop"
+                    onClick={handleStopOneByOneTest}
+                    disabled={oneByOneStopping}
                   >
-                    {oneByOneRunning ? translate("Testing Connection One-by-One...") : translate("Test Connection One-by-One")}
+                    {oneByOneStopping ? translate("Stopping...") : translate("Stop")}
                   </Button>
-                  {oneByOneRunning && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon="stop"
-                      onClick={handleStopOneByOneTest}
-                      disabled={oneByOneStopping}
-                    >
-                      {oneByOneStopping ? translate("Stopping...") : translate("Stop")}
-                    </Button>
-                  )}
-                </>
-              )}
-              {/* Round Robin toggle */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-text-muted font-medium">{translate("Round Robin")}</span>
-                <Toggle
-                  checked={providerStrategy === "round-robin"}
-                  onChange={handleRoundRobinToggle}
-                />
-                {providerStrategy === "round-robin" && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={providerStickyLimit}
-                      onChange={(e) => handleStickyLimitChange(e.target.value)}
-                      placeholder="1"
-                      className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary"
-                    />
-                  </div>
                 )}
-              </div>
-            </div>
+              </>
+            )}
+            {strategyReady && (
+              <RoundRobinControl
+                providerId={providerId}
+                initialStrategy={providerStrategyRef.current.fallbackStrategy}
+                initialSticky={providerStrategyRef.current.stickyRoundRobinLimit}
+              />
+            )}
           </div>
 
-          {connections.length === 0 ? (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">{isOAuth ? "lock" : "key"}</span>
+          {loading ? (
+            <div className="flex flex-col gap-2 px-4 py-5 sm:px-5" aria-busy="true">
+              {[0, 1, 2].map((n) => (
+                <div key={n} className="h-12 animate-pulse rounded-[10px] border border-[var(--t-line-soft)] bg-[var(--t-raised)]" />
+              ))}
+            </div>
+          ) : connections.length === 0 ? (
+            <div className="flex flex-col gap-4 px-4 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="an-conn-ico shrink-0">
+                  <span className="material-symbols-outlined">{isOAuth ? "lock" : "key"}</span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm text-text-muted">{translate("No connections yet")}</p>
+                  <p className="text-[13px] text-[var(--t-ink)]">{translate("No connections yet")}</p>
                   {hasDualAuthModes && (
-                    <p className="text-xs text-text-muted">
+                    <p className="mt-0.5 text-xs text-[var(--t-muted)]">
                       {translate("Choose {oauth} or {apiKey}.")
                         .replace("{oauth}", oauthConnectionLabel)
                         .replace("{apiKey}", apiKeyConnectionLabel)}
@@ -2149,13 +2259,13 @@ export default function ProviderDetailPage() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {hasDualAuthModes ? (
                   <>
-                    <Button size="sm" icon="lock" variant="secondary" onClick={triggerOAuthConnection}>
+                    <Button skin="antares" size="sm" variant="secondary" icon="lock" onClick={triggerOAuthConnection}>
                       {oauthConnectionLabel}
                     </Button>
-                    <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
+                    <Button skin="antares" size="sm" icon="key" onClick={triggerApiKeyConnection}>
                       {apiKeyConnectionLabel}
                     </Button>
                   </>
@@ -2168,25 +2278,21 @@ export default function ProviderDetailPage() {
                       <MinimaxLeaseButton providerId={providerId} onConnected={fetchConnections} />
                     )}
                     {!isCompatible && providerId === "iflow" && (
-                      <Button size="sm" icon="cookie" variant="secondary" onClick={() => setShowIFlowCookieModal(true)}>
+                      <Button skin="antares" size="sm" variant="secondary" icon="cookie" onClick={() => setShowIFlowCookieModal(true)}>
                         Cookie
                       </Button>
                     )}
                     {providerId === "codex" && (
-                      <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportCodex(true)}>
+                      <Button skin="antares" size="sm" variant="secondary" icon="playlist_add" onClick={() => setShowBulkImportCodex(true)}>
                         {translate("Bulk Add")}
                       </Button>
                     )}
                     {providerId === "grok-cli" && (
-                      <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportGrokCli(true)}>
+                      <Button skin="antares" size="sm" variant="secondary" icon="playlist_add" onClick={() => setShowBulkImportGrokCli(true)}>
                         {translate("Bulk Add")}
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      icon="add"
-                      onClick={triggerAddConnection}
-                    >
+                    <Button skin="antares" size="sm" icon="add" onClick={triggerAddConnection}>
                       {isCompatible ? "Add API Key" : (providerId === "iflow" ? "OAuth" : "Add Connection")}
                     </Button>
                   </>
@@ -2194,39 +2300,39 @@ export default function ProviderDetailPage() {
               </div>
             </div>
           ) : (
-            <>
+            <div className="px-3 py-3 sm:px-4">
               {oneByOneSummary && (
-                <div className="mb-4 rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-text-muted dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span>{translate("Total")}: {oneByOneSummary.total}</span>
-                    <span>{translate("Completed")}: {oneByOneSummary.completed}</span>
-                    <span>{translate("Passed")}: {oneByOneSummary.passed}</span>
-                    <span>{translate("Failed")}: {oneByOneSummary.failed}</span>
-                    {oneByOneSummary.stopped && (
-                      <span className="text-amber-600 dark:text-amber-400">{translate("Stopped")}</span>
-                    )}
-                    {oneByOneRunning && oneByOneCurrentConnectionId && (
-                      <span>{translate("Running")}: {connections.find((conn) => conn.id === oneByOneCurrentConnectionId)?.name || oneByOneCurrentConnectionId}</span>
-                    )}
-                  </div>
+                <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[9px] border border-[var(--t-line)] bg-[var(--t-field)] px-3 py-2 text-[11px] text-[var(--t-muted)]">
+                  <span>{translate("Total")}: <span className="font-mono text-[var(--t-ink)]">{oneByOneSummary.total}</span></span>
+                  <span>{translate("Completed")}: <span className="font-mono text-[var(--t-ink)]">{oneByOneSummary.completed}</span></span>
+                  <span>{translate("Passed")}: <span className="font-mono text-[var(--t-ok)]">{oneByOneSummary.passed}</span></span>
+                  <span>{translate("Failed")}: <span className="font-mono text-[var(--t-danger)]">{oneByOneSummary.failed}</span></span>
+                  {oneByOneSummary.stopped && (
+                    <span className="text-[var(--t-star-ink)]">{translate("Stopped")}</span>
+                  )}
+                  {oneByOneRunning && oneByOneCurrentConnectionId && (
+                    <span>{translate("Running")}: <span className="font-mono text-[var(--t-ink)]">{connections.find((conn) => conn.id === oneByOneCurrentConnectionId)?.name || oneByOneCurrentConnectionId}</span></span>
+                  )}
                 </div>
               )}
-              {connections.length > 0 && (
-                <div className="mb-3 flex items-center gap-2 border-b border-black/[0.03] pb-2 dark:border-white/[0.03]">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted hover:text-primary">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleSelectAllConnections}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    {translate("Select All")}
-                  </label>
-                </div>
-              )}
-              {connectionsList}
+              <div className="an-bulkbar px-1">
+                <AntaresCheckbox
+                  checked={allSelected}
+                  onChange={toggleSelectAllConnections}
+                  label={translate("Select All")}
+                />
+                <span className="ml-auto font-mono text-[10.5px] text-[var(--t-dim)]">
+                  {selectedConnectionIds.length
+                    ? `${selectedConnectionIds.length} / ${connections.length}`
+                    : `${connections.length}`}
+                </span>
+              </div>
+              <div className="an-conn-list scrollbar-none mt-2 max-h-[520px] overflow-y-auto pr-0.5">
+                {connectionsList}
+              </div>
+              <ModelListPagination page={currentConnectionPage} totalPages={connectionPageCount} onPageChange={setConnectionsPage} />
               {!isCompatible && (
-                <div className="mt-4 grid grid-cols-1 gap-2 sm:flex">
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                   {WEB_LOGIN_PROVIDERS.has(providerId) && (
                     <WebLoginButton providerId={providerId} onConnected={fetchConnections} />
                   )}
@@ -2234,142 +2340,127 @@ export default function ProviderDetailPage() {
                     <MinimaxLeaseButton providerId={providerId} onConnected={fetchConnections} />
                   )}
                   {providerId === "iflow" && (
-                    <Button
-                      size="sm"
-                      icon="cookie"
-                      variant="secondary"
-                      onClick={() => setShowIFlowCookieModal(true)}
-                      title={translate("Add connection using browser cookie")}
-                      className="w-full sm:w-auto"
-                    >
+                    <Button skin="antares" size="sm" variant="secondary" icon="cookie" onClick={() => setShowIFlowCookieModal(true)} title={translate("Add connection using browser cookie")} className="w-full sm:w-auto">
                       Cookie
                     </Button>
                   )}
                   {providerId === "codex" && (
-                    <Button
-                      size="sm"
-                      icon="playlist_add"
-                      variant="secondary"
-                      onClick={() => setShowBulkImportCodex(true)}
-                      title={translate("Bulk import codex accounts from JSON")}
-                      className="w-full sm:w-auto"
-                    >
+                    <Button skin="antares" size="sm" variant="secondary" icon="playlist_add" onClick={() => setShowBulkImportCodex(true)} title={translate("Bulk import codex accounts from JSON")} className="w-full sm:w-auto">
                       {translate("Bulk Add")}
                     </Button>
                   )}
                   {providerId === "grok-cli" && (
-                    <Button
-                      size="sm"
-                      icon="playlist_add"
-                      variant="secondary"
-                      onClick={() => setShowBulkImportGrokCli(true)}
-                      title={translate("Bulk import Grok CLI accounts from JSON")}
-                      className="w-full sm:w-auto"
-                    >
+                    <Button skin="antares" size="sm" variant="secondary" icon="playlist_add" onClick={() => setShowBulkImportGrokCli(true)} title={translate("Bulk import Grok CLI accounts from JSON")} className="w-full sm:w-auto">
                       {translate("Bulk Add")}
                     </Button>
                   )}
                   {hasDualAuthModes ? (
                     <>
-                      <Button
-                        size="sm"
-                        icon="lock"
-                        variant="secondary"
-                        onClick={triggerOAuthConnection}
-                        className="w-full sm:w-auto"
-                      >
+                      <Button skin="antares" size="sm" variant="secondary" icon="lock" onClick={triggerOAuthConnection} className="w-full sm:w-auto">
                         {oauthConnectionLabel}
                       </Button>
-                      <Button
-                        size="sm"
-                        icon="key"
-                        onClick={triggerApiKeyConnection}
-                        className="w-full sm:w-auto"
-                      >
+                      <Button skin="antares" size="sm" icon="key" onClick={triggerApiKeyConnection} className="w-full sm:w-auto">
                         {apiKeyConnectionLabel}
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      size="sm"
-                      icon="add"
-                      onClick={triggerAddConnection}
-                      className="w-full sm:w-auto"
-                    >
+                    <Button skin="antares" size="sm" icon="add" onClick={triggerAddConnection} className="w-full sm:w-auto">
                       Add
                     </Button>
                   )}
                 </div>
               )}
-            </>
+            </div>
           )}
-        </Card>
+        </AntaresPanel>
       )}
-
-      {/* Per-provider user overrides (custom headers / connect timeout) */}
-      <CustomConfigCard providerId={providerId} />
+      {/* Per-provider user overrides (custom headers / connect timeout).
+          Built-in providers render the same card inside the model config
+          carousel so every provider shows three config cards. */}
+      {isCompatible && <CustomConfigCard providerId={providerId} />}
 
       {/* Models */}
-      <Card>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold shrink-0">
-            {translate("Available Models")}
-          </h2>
-          {providerThinkingLevels && (
-            <select
-              value={thinkingMode}
-              onChange={(e) => handleThinkingModeChange(e.target.value)}
-              title={translate("Appends (level) suffix to copied model names")}
-              className="an-select an-select--compact h-9 text-xs shrink-0"
-            >
-              {providerThinkingLevels.map((opt) => (
-                <option key={opt} value={opt}>{`${translate("Thinking")}: ${translate(opt.charAt(0).toUpperCase() + opt.slice(1))}`}</option>
-              ))}
-            </select>
-          )}
-          {(() => {
-            const hardcodedIds = [
-              ...models,
-              ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-            ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
-            
-            const customModelRows = getProviderCustomModelRows({
-              customModels,
-              modelAliases,
-              providerAlias: providerStorageAlias,
-              builtInModels: models,
-              type: "llm",
-            });
-            const customIds = customModelRows.map((m) => m.id);
-            
-            const allIds = [...new Set([...hardcodedIds, ...customIds])];
-            const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
-            
-            if (allIds.length === 0) return null;
-            
-            return (
-              <div className="flex gap-2">
-                {disabledModelIds.length > 0 && (
-                  <button
-                    onClick={handleEnableAll}
-                    title={translate("Enable All")}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-                  </button>
-                )}
-                {activeIds.length > 0 && (
-                  <button
-                    onClick={() => handleDisableAll(activeIds)}
-                    title={translate("Disable All")}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition-colors hover:border-red-500 hover:bg-red-500/10 hover:text-red-500"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">block</span>
-                  </button>
-                )}
-              </div>
-            );
-          })()}
+      <section className="flex min-w-0 flex-col gap-4">
+        <div className="an-panel an-models-head overflow-hidden">
+          <header className="an-panel-head an-panel-head-stack">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">view_list</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">{translate("Available Models")}</h2>
+              <p className="an-panel-sub">
+                {translate("Review the models exposed by this provider and switch them on or off in bulk.")}
+              </p>
+            </div>
+          </header>
+          <div className="an-models-toolbar flex flex-col gap-2.5 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:px-5">
+            {providerThinkingLevels && (
+              <AntaresSelect
+                value={thinkingMode}
+                onChange={(e) => handleThinkingModeChange(e.target.value)}
+                ariaLabel={translate("Thinking")}
+                className="an-models-select w-full sm:w-auto"
+                buttonClassName="h-9 w-full sm:w-auto sm:min-w-[170px]"
+                portal
+                maxVisible={5}
+                options={providerThinkingLevels.map((opt) => ({
+                  value: opt,
+                  label: `${translate("Thinking")}: ${translate(opt.charAt(0).toUpperCase() + opt.slice(1))}`,
+                }))}
+              />
+            )}
+            {(() => {
+              const hardcodedIds = [
+                ...models,
+                ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+              ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
+
+              const customModelRows = getProviderCustomModelRows({
+                customModels,
+                modelAliases,
+                providerAlias: providerStorageAlias,
+                builtInModels: models,
+                type: "llm",
+              });
+              const customIds = customModelRows.map((m) => m.id);
+
+              const allIds = [...new Set([...hardcodedIds, ...customIds])];
+              const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
+
+              if (allIds.length === 0) return null;
+
+              return (
+                <div className="an-models-actions flex w-full min-w-0 flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center">
+                  {disabledModelIds.length > 0 && (
+                    <Button
+                      skin="antares"
+                      size="sm"
+                      variant="secondary"
+                      icon="restart_alt"
+                      onClick={handleEnableAll}
+                      title={translate("Enable All")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("Enable All")}
+                    </Button>
+                  )}
+                  {activeIds.length > 0 && (
+                    <Button
+                      skin="antares"
+                      size="sm"
+                      variant="ghost"
+                      icon="block"
+                      onClick={() => handleDisableAll(activeIds)}
+                      title={translate("Disable All")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("Disable All")}
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
         </div>
         {!!modelsTestError && (
           <ProviderAlert variant="danger" className="mb-3">
@@ -2404,7 +2495,7 @@ export default function ProviderDetailPage() {
           </ProviderAlert>
         )}
         {renderModelsSection()}
-      </Card>
+      </section>
 
       {bulkActionModal}
 
@@ -2555,6 +2646,7 @@ export default function ProviderDetailPage() {
         message={confirmState?.message}
         variant="danger"
       />
+      </SurfaceSkinContext.Provider>
     </div>
   );
 }

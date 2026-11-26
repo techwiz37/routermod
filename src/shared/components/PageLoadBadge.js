@@ -6,6 +6,7 @@ import { Skeleton } from "./Loading";
 import Soft3DLogo from "./Soft3DLogo";
 import StarField from "./StarField";
 import { usePageReadyState } from "./PageReadyContext";
+import { translate } from "@/i18n/runtime";
 
 export default function PageLoadBadge({ variant = "default" }) {
   const antares = variant === "antares";
@@ -139,23 +140,45 @@ export default function PageLoadBadge({ variant = "default" }) {
 export function PagePreloader({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasHydrated, setHasHydrated] = useState(false);
+  // The route tree is mounted only after hydration of the shell, then kept
+  // under the (opaque) overlay while its first payload loads. Mounting it later
+  // than the shell also keeps pre-hydration DOM untouched, so the runtime i18n
+  // pass can never rewrite server text before React hydrates it.
+  const [childrenReady, setChildrenReady] = useState(false);
   const pathname = usePathname();
   const ready = usePageReadyState();
   const pendingCount = ready?.pendingCount ?? 0;
+  // A page that fetches on mount renders PagePendingMarker while `loading`, so
+  // this overlay can see that fetch even when the page hydrates after the shell.
+  const [markerPending, setMarkerPending] = useState(false);
 
   useEffect(() => {
+    if (pathname === "/landing") return;
     setHasHydrated(true);
-  }, []);
+    setChildrenReady(true);
+  }, [pathname]);
 
-  // Close once the page is actually usable: hydrated, no page still fetching,
-  // and the first paint of the real content has landed. Two rAFs give the
-  // browser a frame to paint the children before the overlay is removed, so
-  // there is no flash of an empty shell. The overlay is intentionally only
-  // used for the first load; blocking every client-side navigation makes the
-  // dev server feel slow and hides already-rendered page content.
   useEffect(() => {
-    if (!isLoading || !hasHydrated) return;
+    if (!isLoading) return undefined;
+    const check = () => setMarkerPending(Boolean(document.querySelector("[data-page-pending]")));
+    check();
+    const timer = window.setInterval(check, 80);
+    return () => window.clearInterval(timer);
+  }, [isLoading]);
+
+  // Close once the page is actually usable: hydrated, mounted, no page still
+  // fetching, and the first paint of the real content has landed. Two rAFs give
+  // the browser a frame to paint the children before the overlay is removed, so
+  // there is no flash of an empty shell. The overlay is intentionally only used
+  // for the first load; blocking every client-side navigation makes the app feel
+  // slow and hides already-rendered page content.
+  useEffect(() => {
+    if (!isLoading || !hasHydrated || !childrenReady) return;
+    if (pathname === "/landing") return;
     if (pendingCount > 0) return;
+    // Read the DOM directly: children render the marker in the same commit that
+    // mounts them, which is before this effect runs.
+    if (markerPending || document.querySelector("[data-page-pending]")) return;
     let cancelled = false;
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
@@ -168,10 +191,24 @@ export function PagePreloader({ children }) {
       cancelAnimationFrame(raf1);
       if (raf2) cancelAnimationFrame(raf2);
     };
-  }, [isLoading, hasHydrated, pathname, pendingCount]);
+  }, [isLoading, hasHydrated, childrenReady, pathname, pendingCount, markerPending]);
+
+  // The landing page is already server-rendered and has public content. Do not
+  // hide it behind the app-wide hydration preloader; doing so also postpones
+  // its public model-catalogue request until after the overlay disappears.
+  if (pathname === "/landing") {
+    return <div style={{ minHeight: "100%" }}>{children}</div>;
+  }
 
   return (
     <div style={{ minHeight: "100%" }}>
+      {/* Children sit under the opaque overlay while their first payload
+          loads, so the overlay only leaves once the real content exists. */}
+      {childrenReady ? (
+        <div inert={isLoading || undefined} aria-hidden={isLoading ? "true" : undefined}>
+          {children}
+        </div>
+      ) : null}
       {isLoading ? (
         <div
           className="an-scope an-shell"
@@ -196,11 +233,10 @@ export function PagePreloader({ children }) {
             <div className="lf-loading-dots">
               <span /><span /><span />
             </div>
-            <p className="lf-loading-text">Memuat...</p>
+            <p className="lf-loading-text">{translate("Loading")}…</p>
           </div>
         </div>
       ) : null}
-      {isLoading ? null : children}
     </div>
   );
 }

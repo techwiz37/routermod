@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "5–128자로 입력하세요. 문자, 숫자, 하이픈(-), 밑줄(_)만 사용할 수 있습니다. rmod- 접두사는 선택사항입니다. 쉽게 추측할 수 있는 단어는 피하세요.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "API 키는 5–128자여야 하며 문자, 숫자, 하이픈(-), 밑줄(_)만 포함할 수 있습니다."
 }

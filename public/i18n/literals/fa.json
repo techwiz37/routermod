@@ -1418,5 +1418,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "از ۵ تا ۱۲۸ کاراکتر استفاده کنید: حروف، اعداد، خط تیره (-) یا زیرخط (_). پیشوند rmod- اختیاری است. از کلمات به‌راحتی قابل حدس بپرهیزید.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "کلید API باید ۵ تا ۱۲۸ کاراکتر باشد و فقط شامل حروف، اعداد، خط تیره (-) یا زیرخط (_) باشد."
 }

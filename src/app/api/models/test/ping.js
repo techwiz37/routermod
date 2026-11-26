@@ -7,8 +7,8 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
 // A model test must fail fast so users can try another model without waiting.
-// If there is no response within 30 seconds the model is declared unavailable.
-const PROBE_TIMEOUT_MS = 30000;
+// Require an actual response within one minute, including reading its body.
+const PROBE_TIMEOUT_MS = 60000;
 
 function createSilentWavFile() {
   const sampleRate = 16000;
@@ -43,7 +43,7 @@ function createSilentWavFile() {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
-async function getInternalHeaders() {
+async function getInternalHeaders(options = {}) {
   let apiKey = null;
   try {
     const keys = await getApiKeys();
@@ -52,24 +52,32 @@ async function getInternalHeaders() {
   } catch {}
 
   const headers = { "Content-Type": "application/json" };
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-  headers["x-9r-cli-token"] = await getConsistentMachineId(CLI_TOKEN_SALT);
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  if (options.internalProbe === true) {
+    headers["x-9r-cli-token"] = await getConsistentMachineId(CLI_TOKEN_SALT);
+    headers["x-routermod-model-test"] = "1";
+    if (options.bypassAccessPolicy === true) headers["x-routermod-health-probe"] = "1";
+  }
   return headers;
 }
 
-export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`, requestedModel = model) {
-  const headers = await getInternalHeaders();
+export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`, requestedModel = model, signal, options = {}) {
+  const headers = { ...await getInternalHeaders(options), ...(options?.headers || {}) };
   // Send the public ID in the probe body so the normal request logger records
   // the same custom ID shown in the model-test dialog.
   const probeModel = requestedModel || model;
+  const benchmark = options?.benchmark === true;
   const start = Date.now();
+  const probeSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(PROBE_TIMEOUT_MS)])
+    : AbortSignal.timeout(PROBE_TIMEOUT_MS);
 
   if (kind === "embedding") {
     const res = await fetch(`${baseUrl}/api/v1/embeddings`, {
       method: "POST",
       headers,
       body: JSON.stringify({ model: probeModel, input: "test" }),
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      signal: probeSignal,
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -92,7 +100,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers,
       body: JSON.stringify({ model: probeModel, prompt: "test" }),
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      signal: probeSignal,
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -121,7 +129,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers: Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type")),
       body: form,
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      signal: probeSignal,
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -151,7 +159,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
           probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" },
         },
       }),
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      signal: probeSignal,
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -170,28 +178,58 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     return { ok: true, latencyMs, error: null, status: res.status };
   }
 
+  // When withTools is set, mirror a real coding-agent request: some models
+  // answer fine to a plain chat but fail as soon as a tool schema is present.
+  // Realistic by default: every model-test surface in RouterMod (UI buttons,
+  // bulk test, provider health check, WhatsApp .models) must verify the model
+  // answers when a tool schema is present, like a real coding agent does.
+  // Pass { withTools: false } explicitly only for a plain-chat-only probe.
+  const withTools = options.withTools !== false;
+  const probeBody = {
+    model: probeModel,
+    max_tokens: benchmark ? 160 : (withTools ? 64 : 16),
+    stream: false,
+    messages: [{
+      role: "user",
+      content: benchmark
+        ? "Count from 1 to 80, separated by spaces. Output only the numbers."
+        : withTools
+          ? "Use the get_time tool with timezone UTC, then reply briefly."
+          : "Reply briefly with OK.",
+    }],
+  };
+  if (withTools) {
+    probeBody.tools = [{
+      type: "function",
+      function: {
+        name: "get_time",
+        description: "Get the current time for a timezone",
+        parameters: {
+          type: "object",
+          properties: { timezone: { type: "string" } },
+          required: ["timezone"],
+        },
+      },
+    }];
+    probeBody.tool_choice = "auto";
+  }
+
   const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      model: probeModel,
-      max_tokens: 1024,
-      stream: false,
-      messages: [{ role: "user", content: "hi" }],
-    }),
-    signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    body: JSON.stringify(probeBody),
+    signal: probeSignal,
   });
-  const latencyMs = Date.now() - start;
-
   let rawText = "";
   try {
     rawText = await res.text();
   } catch (e) {
     if (e?.name === "TimeoutError" || e?.name === "AbortError") {
-      return { ok: false, latencyMs, status: 0, error: `No response within ${Math.round(PROBE_TIMEOUT_MS / 1000)} seconds` };
+      return { ok: false, latencyMs: Date.now() - start, status: 0, error: `No response within ${Math.round(PROBE_TIMEOUT_MS / 1000)} seconds` };
     }
-    return { ok: false, latencyMs, status: 0, error: `Probe aborted: ${e?.message || String(e)}` };
+    return { ok: false, latencyMs: Date.now() - start, status: 0, error: `Probe aborted: ${e?.message || String(e)}` };
   }
+  const latencyMs = Date.now() - start;
   let parsed = null;
   try { parsed = rawText ? JSON.parse(rawText) : null; } catch {}
 
@@ -228,27 +266,31 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     };
   }
 
-  const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
-
-  const firstChoice = parsed?.choices?.[0] || {};
-  const hasReasoning =
-    firstChoice.message?.reasoning ||
-    firstChoice.message?.reasoning_content ||
-    firstChoice.message?.thinking ||
-    firstChoice.message?.thinking_content;
-  const contentEmpty = !String(firstChoice.message?.content || "").trim();
-  if (hasChoices && firstChoice.finish_reason === "length" && contentEmpty && hasReasoning) {
-    return { ok: true, latencyMs, error: null, status: res.status, note: "reasoning-only response (length-limited)" };
-  }
-
-  if (!hasChoices) {
+  const message = parsed?.choices?.[0]?.message;
+  const content = message?.content;
+  const text = typeof content === "string" ? content : Array.isArray(content)
+    ? content.map((part) => typeof part === "string" ? part : part?.text || "").join("") : "";
+  const toolCalls = message?.tool_calls;
+  const hasToolCall = withTools && Array.isArray(toolCalls) && toolCalls.length > 0;
+  if (!text.trim() && !hasToolCall) {
     return {
       ok: false,
       latencyMs,
       status: res.status,
-      error: "Provider returned no completion choices for this model",
+      error: "Provider returned no answer for this model",
     };
   }
 
-  return { ok: true, latencyMs, error: null, status: res.status };
+  const outputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens) || 0;
+  const tps = benchmark && outputTokens > 0 && latencyMs > 0
+    ? outputTokens / (latencyMs / 1000)
+    : null;
+
+  return {
+    ok: true,
+    latencyMs,
+    error: null,
+    status: res.status,
+    ...(benchmark ? { outputTokens, ...(tps != null ? { tps } : {}) } : {}),
+  };
 }

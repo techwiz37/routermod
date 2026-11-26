@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import AntaresSelect from "@/shared/components/AntaresSelect";
 import PropTypes from "prop-types";
 import { translate } from "@/i18n/runtime";
 import { useNotificationStore } from "@/store/notificationStore";
@@ -147,22 +148,22 @@ export default function SessionRateLimitCard({
   return (
     <div className="an-panel an-scope mb-3">
       <div className="an-panel-pad">
-        {/* Header — matches SystemPromptCard */}
-        <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="an-panel-ico" aria-hidden>
-              <span className="material-symbols-outlined text-base">speed</span>
-            </span>
-            <div className="min-w-0">
-              <span className="an-panel-title block">{translate("Session Rate Limit")}</span>
-              <span className="mt-0.5 block text-[11px] leading-4 text-text-muted">
-                {translate("Cap requests per session for a specific model before hitting upstream")}
-              </span>
-            </div>
-          </div>
-          <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
-            {translate("PER-SESSION")}
+        {/* Header — icon sits above so the title lines up flush-left with the form */}
+        <div className="an-rate-head mb-4 flex min-w-0 flex-col gap-2">
+          <span className="an-panel-ico an-rate-ico" aria-hidden>
+            <span className="material-symbols-outlined">speed</span>
           </span>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <span className="an-panel-title block">{translate("Session Rate Limit")}</span>
+              <p className="an-panel-sub mt-1">
+                {translate("Cap requests per session for a specific model before hitting upstream")}
+              </p>
+            </div>
+            <span className="an-rate-badge shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
+              {translate("PER-SESSION")}
+            </span>
+          </div>
         </div>
 
         {/* Target model selector — matches SystemPromptCard */}
@@ -176,23 +177,19 @@ export default function SessionRateLimitCard({
           <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-primary">
             <span className="material-symbols-outlined text-[18px]">smart_toy</span>
           </span>
-          <select
+          <AntaresSelect
             id="session-rate-limit-model"
             value={selectedModel}
             onChange={(e) => handleSelectModel(e.target.value)}
             disabled={saving}
-            className="an-select system-prompt-select h-11 w-full font-mono text-xs"
-          >
-            <option value="">{translate("Choose a model to configure")}</option>
-            <option value="*">
-              {prefixLabel}* — {translate("All models in this provider")}
-            </option>
-            {modelOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {prefixLabel}{opt.value}{opt.label && opt.label !== opt.value ? ` — ${opt.label}` : ""}
-              </option>
-            ))}
-          </select>
+            ariaLabel={translate("Target model")}
+            buttonClassName="an-rate-input h-11 w-full pl-10 font-mono"
+            options={[
+              { value: "", label: translate("Choose a model to configure") },
+              { value: "*", label: `${prefixLabel}* — ${translate("All models in this provider")}` },
+              ...modelOptions.map((opt) => ({ value: opt.value, label: `${prefixLabel}${opt.value}${opt.label && opt.label !== opt.value ? ` — ${opt.label}` : ""}` })),
+            ]}
+          />
         </div>
 
         {/* Quota & Window controls */}
@@ -212,7 +209,7 @@ export default function SessionRateLimitCard({
               onChange={(e) => setMaxRequests(e.target.value)}
               disabled={saving}
               placeholder="10"
-              className="an-input h-9 w-full font-mono text-xs"
+              className="an-input an-rate-input w-full font-mono text-xs"
             />
           </div>
 
@@ -231,7 +228,7 @@ export default function SessionRateLimitCard({
               onChange={(e) => setWindowValue(e.target.value)}
               disabled={saving}
               placeholder="1"
-              className="an-input h-9 w-full font-mono text-xs"
+              className="an-input an-rate-input w-full font-mono text-xs"
             />
           </div>
 
@@ -242,26 +239,28 @@ export default function SessionRateLimitCard({
             >
               {translate("Unit")}
             </label>
-            <select
+            <AntaresSelect
               id="session-rate-limit-unit"
               value={windowUnit}
               onChange={(e) => setWindowUnit(e.target.value)}
               disabled={saving}
-              className="an-select h-9 w-full text-xs"
-            >
-              <option value="minutes">{translate("Minutes")}</option>
-              <option value="hours">{translate("Hours")}</option>
-            </select>
+              ariaLabel={translate("Unit")}
+              buttonClassName="an-rate-input h-11 w-full sm:h-9"
+              options={[
+                { value: "minutes", label: translate("Minutes") },
+                { value: "hours", label: translate("Hours") },
+              ]}
+            />
           </div>
         </div>
 
         {/* Action bar */}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="an-rate-actions mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={handleSaveRule}
             disabled={!selectedModel || saving}
-            className="an-btn an-primary h-9 rounded-[10px] px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55"
+            className="an-btn an-primary h-10 w-full justify-center rounded-[10px] px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55 sm:h-9 sm:w-auto sm:justify-start"
           >
             <span
               className="material-symbols-outlined text-[16px]"

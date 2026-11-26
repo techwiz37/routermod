@@ -4,7 +4,10 @@ import { applyQoderModelNames } from "@/shared/utils/providerCustomModels";
 
 import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
-import Modal from "./Modal";
+import AntaresModal from "./AntaresModal";
+import Button from "./Button";
+import { cn } from "@/shared/utils/cn";
+import { translate } from "@/i18n/runtime";
 import ProviderIcon from "./ProviderIcon";
 import CapacityBadges from "./CapacityBadges";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
@@ -330,7 +333,7 @@ export default function ModelSelectModal({
           .map(([aliasName, fullModel]) => ({
             id: fullModel.replace(`${providerId}/`, ""),
             name: aliasName,
-            value: `${nodePrefix}/${fullModel.replace(`${providerId}/`, "")}`,
+            value: aliasName,
           }));
 
         const registeredCustom = customModels
@@ -536,112 +539,142 @@ export default function ModelSelectModal({
     }
   };
 
+  const totalModelCount = Object.values(groupedModels)
+    .reduce((sum, group) => sum + (group.models?.length || 0), 0);
+
+  const closeModal = () => {
+    onClose();
+    setSearchQuery("");
+  };
+
   return (
-    <Modal
+    <AntaresModal
       isOpen={isOpen}
-      onClose={() => {
-        onClose();
-        setSearchQuery("");
-      }}
+      onClose={closeModal}
       title={title}
-      size={size}
-      className="p-4!"
-      footer={null}
+      size={size === "full" ? "full" : "lg"}
+      className="!max-h-[82dvh] sm:!max-h-[86dvh]"
+      subtitle={
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[var(--t-raised)] border border-[var(--t-line)] text-xs font-mono text-[var(--t-ink)]">
+            <span className="material-symbols-outlined text-[13px] text-[var(--t-muted)]">layers</span>
+            {addedModelValues.length} {translate("selected")}
+          </span>
+          <span className="text-[11px] font-mono text-[var(--t-muted)]">
+            {totalModelCount} {translate("models")}
+          </span>
+        </div>
+      }
+      footer={
+        <div className="flex w-full items-center gap-2">
+          <Button skin="antares" variant="ghost" onClick={closeModal} fullWidth>
+            {translate("Cancel")}
+          </Button>
+          <Button skin="antares" onClick={closeModal} fullWidth>
+            {translate("Done")}
+          </Button>
+        </div>
+      }
     >
-      {/* Info bar */}
-      <div className="flex items-center gap-2 mb-3 px-2.5 py-2 bg-primary/8 border border-primary/20 rounded-lg text-xs text-text-muted">
-        <span className="material-symbols-outlined text-primary shrink-0" style={{ fontSize: "14px" }}>info</span>
-        <span>
+      {/* Info bar — same surface as the API key config popup */}
+      <div className="flex items-start gap-2.5 p-3 rounded-lg bg-[var(--t-raised)]/60 border border-[var(--t-line-soft)] text-xs text-[var(--t-muted)]">
+        <span className="material-symbols-outlined text-[18px] text-[var(--t-star-ink)] shrink-0 mt-0.5">info</span>
+        <p className="leading-relaxed">
           {allowProviderWildcard
             ? "Click to add/remove a model, or click a provider name for wildcard (e.g. provider/*). Search supports exclusions (e.g. claude -haiku) and RegEx (/pattern/)."
             : "Click to add, click again to remove. Search supports exclusions (e.g. claude -haiku) and RegEx (/pattern/)."}
-        </span>
+        </p>
       </div>
 
-      {/* Search & batch actions */}
-      <div className="mb-3 space-y-2">
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-[16px]">
-            search
+      {/* Search */}
+      <div className="relative mt-3">
+        <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[var(--t-muted)]">
+          search
+        </span>
+        <input
+          type="text"
+          placeholder={
+            allowProviderWildcard
+              ? "Search models (e.g. claude -haiku, oc/*, /regex/)..."
+              : "Search models (e.g. claude -haiku, !embed, /regex/)..."
+          }
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="h-10 w-full rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] pl-10 pr-24 text-[13px] font-mono text-[var(--t-ink)] placeholder:text-[var(--t-dim)] focus:border-[var(--t-accent)] focus:outline-none focus:shadow-[var(--t-focus)] transition-colors"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {parsedQuery.isRegex && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] font-mono font-medium">
+              regex
+            </span>
+          )}
+          {parsedQuery.negativeTerms.length > 0 && !parsedQuery.isRegex && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-mono font-medium">
+              !exclude
+            </span>
+          )}
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="text-[var(--t-muted)] hover:text-[var(--t-ink)] cursor-pointer p-1 rounded"
+              title={translate("Clear")}
+            >
+              <span className="material-symbols-outlined text-[15px] leading-none">close</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Batch actions */}
+      {!closeOnSelect && visibleModels.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-0.5 text-[11px] text-[var(--t-muted)]">
+          <span className="flex items-center gap-1.5">
+            <span className="px-1.5 py-0.5 rounded bg-[var(--t-field)] border border-[var(--t-line-soft)] font-mono text-[var(--t-ink)]">
+              {visibleModels.length} {translate("models")}
+            </span>
+            {addedModelValues.length > 0 && (
+              <span className="text-[var(--t-star-ink)] font-medium">
+                {addedModelValues.length} {translate("selected")}
+              </span>
+            )}
           </span>
-          <input
-            type="text"
-            placeholder={
-              allowProviderWildcard
-                ? "Search models (e.g. claude -haiku, oc/*, /regex/)..."
-                : "Search models (e.g. claude -haiku, !embed, /regex/)..."
-            }
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-20 py-1.5 bg-surface border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            {parsedQuery.isRegex && (
-              <span className="text-[10px] px-1 py-0.2 rounded bg-primary/10 text-primary font-mono font-medium">
-                regex
-              </span>
-            )}
-            {parsedQuery.negativeTerms.length > 0 && !parsedQuery.isRegex && (
-              <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-500 font-mono font-medium">
-                !exclude
-              </span>
-            )}
-            {searchQuery && (
+          <div className="flex items-center gap-1.5">
+            {visibleUnadded.length > 0 && (
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
-                className="text-text-muted hover:text-text-main cursor-pointer p-0.5 rounded"
-                title="Clear search"
+                onClick={handleSelectAllVisible}
+                className="px-2 py-1 rounded-md text-[11px] font-medium bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] border border-[var(--t-line)] hover:border-[var(--t-accent)] transition-colors cursor-pointer"
+                title={translate("Select all filtered models")}
               >
-                <span className="material-symbols-outlined text-[14px] leading-none">close</span>
+                {translate("Select All")} ({visibleUnadded.length})
+              </button>
+            )}
+            {visibleAdded.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDeselectAllVisible}
+                className="px-2 py-1 rounded-md text-[11px] font-medium bg-[var(--t-raised)] text-[var(--t-muted)] border border-[var(--t-line)] hover:text-[var(--t-ink)] transition-colors cursor-pointer"
+                title={translate("Deselect all filtered models")}
+              >
+                {translate("Deselect All")} ({visibleAdded.length})
               </button>
             )}
           </div>
         </div>
+      )}
 
-        {!closeOnSelect && visibleModels.length > 0 && (
-          <div className="flex items-center justify-between px-1 text-[11px] text-text-muted">
-            <span className="flex items-center gap-1.5">
-              <span>{visibleModels.length} models</span>
-              {addedModelValues.length > 0 && (
-                <span className="text-primary font-medium">({addedModelValues.length} selected)</span>
-              )}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {visibleUnadded.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleSelectAllVisible}
-                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
-                  title="Select all filtered models"
-                >
-                  Select All ({visibleUnadded.length})
-                </button>
-              )}
-              {visibleAdded.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleDeselectAllVisible}
-                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-border/40 text-text-muted hover:text-text-main hover:bg-border/60 transition-colors cursor-pointer"
-                  title="Deselect all filtered models"
-                >
-                  Deselect All ({visibleAdded.length})
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Models grouped by provider - compact */}
-      <div className="max-h-[400px] overflow-y-auto space-y-3">
+      {/* Models grouped by provider */}
+      <div className="mt-3 flex flex-col gap-4">
         {/* Combos section - always first */}
         {filteredCombos.length > 0 && (
           <div>
-            <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
-              <span className="material-symbols-outlined text-primary text-[14px]">layers</span>
-              <span className="text-xs font-medium text-primary">Combos</span>
-              <span className="text-[10px] text-text-muted">({filteredCombos.length})</span>
+            <div className="flex items-center gap-1.5 mb-2 sticky top-0 z-10 bg-[var(--t-card)] py-1 border-b border-[var(--t-line-soft)]">
+              <span className="material-symbols-outlined text-[var(--t-star-ink)] text-[15px]">layers</span>
+              <span className="text-xs font-medium text-[var(--t-ink)]">{translate("Combos")}</span>
+              <span className="text-[10px] font-mono text-[var(--t-muted)] px-1.5 py-0.5 rounded bg-[var(--t-field)] border border-[var(--t-line-soft)]">
+                {filteredCombos.length}
+              </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {filteredCombos.map((combo) => {
@@ -650,18 +683,17 @@ export default function ModelSelectModal({
                   <button
                     key={combo.id}
                     onClick={() => handleSelect({ id: combo.name, name: combo.name, value: combo.name })}
-                    className={`
-                      px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer flex items-center gap-1
-                      ${isSelected
-                        ? "bg-primary text-white border-primary"
+                    className={cn(
+                      "inline-flex min-h-9 items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 font-mono text-xs transition-colors cursor-pointer",
+                      isSelected
+                        ? "bg-[var(--t-accent)] text-white border-[var(--t-accent)]"
                         : addedModelValues.includes(combo.name)
-                          ? "bg-primary border-primary text-white hover:bg-primary-hover"
-                          : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
-                      }
-                    `}
+                          ? "bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] border-[var(--t-accent)] hover:brightness-110"
+                          : "bg-[var(--t-field)] text-[var(--t-ink)] border-[var(--t-line)] hover:border-[var(--t-hover-line)] hover:bg-[var(--t-raised)]"
+                    )}
                   >
                     {addedModelValues.includes(combo.name) && (
-                      <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>
+                      <span className="material-symbols-outlined leading-none text-[12px]">check</span>
                     )}
                     {combo.name}
                   </button>
@@ -679,11 +711,11 @@ export default function ModelSelectModal({
           return (
             <div key={providerId}>
               {/* Provider header */}
-              <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5 z-10">
+              <div className="flex min-w-0 items-center gap-2 mb-2 sticky top-0 z-10 bg-[var(--t-card)] py-1 border-b border-[var(--t-line-soft)]">
                 <ProviderIcon
                   src={`/providers/${providerId}.png`}
                   alt={group.name}
-                  size={14}
+                  size={15}
                   fallbackText={(group.name || providerId).slice(0, 2).toUpperCase()}
                   fallbackColor={group.color}
                 />
@@ -692,27 +724,33 @@ export default function ModelSelectModal({
                     type="button"
                     onClick={() => handleSelect({ value: wildcardValue, name: wildcardValue })}
                     title={isWildcardAdded ? `Click to remove wildcard ${wildcardValue}` : `Click to allow all models from ${group.name} (${wildcardValue})`}
-                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer border ${
+                    className={cn(
+                      "inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
                       isWildcardAdded
-                        ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-[1.5px_1.5px_0px_var(--color-border)]"
-                        : "text-primary border-transparent hover:bg-primary/10 hover:border-primary/20"
-                    }`}
+                        ? "bg-[var(--t-accent)] text-white border-[var(--t-accent)]"
+                        : "text-[var(--t-star-ink)] border-transparent hover:bg-[var(--t-accent-soft)]"
+                    )}
                   >
                     {isWildcardAdded && (
                       <span className="material-symbols-outlined leading-none text-[12px]">check</span>
                     )}
-                    <span>{group.name}</span>
-                    <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${isWildcardAdded ? "bg-white/20 text-white" : "text-text-muted bg-surface-2 border border-border"}`}>
+                    <span className="truncate">{group.name}</span>
+                    <span className={cn(
+                      "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                      isWildcardAdded
+                        ? "bg-white/20 text-white"
+                        : "text-[var(--t-muted)] bg-[var(--t-field)] border border-[var(--t-line-soft)]"
+                    )}>
                       {wildcardValue}
                     </span>
                   </button>
                 ) : (
-                  <span className="text-xs font-medium text-primary">
+                  <span className="truncate text-xs font-medium text-[var(--t-ink)]">
                     {group.name}
                   </span>
                 )}
-                <span className="text-[10px] text-text-muted">
-                  ({group.models.length})
+                <span className="text-[10px] font-mono text-[var(--t-muted)] px-1.5 py-0.5 rounded bg-[var(--t-field)] border border-[var(--t-line-soft)]">
+                  {group.models.length}
                 </span>
               </div>
 
@@ -730,23 +768,22 @@ export default function ModelSelectModal({
                       : isDeprecated ? `Retiring ${model.deprecationDate || "soon"} — migrate to a newer model`
                       : undefined
                     }
-                    className={`
-                      px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer
-                      ${isPlaceholder
-                        ? "border-dashed border-border text-text-muted hover:border-primary/50 hover:text-primary bg-surface italic"
+                    className={cn(
+                      "inline-flex min-h-9 max-w-full items-center rounded-[9px] border px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                      isPlaceholder
+                        ? "border-dashed border-[var(--t-line)] bg-[var(--t-field)] text-[var(--t-muted)] italic hover:border-[var(--t-accent)] hover:text-[var(--t-star-ink)]"
                         : isSelected
-                          ? "bg-primary text-white border-primary"
+                          ? "bg-[var(--t-accent)] text-white border-[var(--t-accent)]"
                           : addedModelValues.includes(model.value)
-                            ? "bg-primary border-primary text-white hover:bg-primary-hover"
+                            ? "bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] border-[var(--t-accent)] hover:brightness-110"
                             : isDeprecated
-                              ? "bg-surface border-amber-400/60 text-text-muted hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                              : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
-                      }
-                    `}
+                              ? "bg-[var(--t-field)] border-amber-500/40 text-[var(--t-muted)] hover:border-amber-500"
+                              : "bg-[var(--t-field)] text-[var(--t-ink)] border-[var(--t-line)] hover:border-[var(--t-hover-line)] hover:bg-[var(--t-raised)]"
+                    )}
                   >
                     <span className="flex items-center gap-1">
                       {addedModelValues.includes(model.value) && !isPlaceholder && (
-                        <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>
+                        <span className="material-symbols-outlined leading-none text-[12px]">check</span>
                       )}
                       {isPlaceholder ? (
                         <>
@@ -756,7 +793,7 @@ export default function ModelSelectModal({
                       ) : model.isCustom ? (
                         <>
                           <span className="font-mono">{model.name}</span>
-                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30">
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold border border-amber-500/30">
                             custom
                           </span>
                           <CapacityBadges caps={getCaps(model.value)} />
@@ -764,7 +801,7 @@ export default function ModelSelectModal({
                       ) : isDeprecated ? (
                         <>
                           <span className="font-mono">{model.name}</span>
-                          <span className="text-[9px] px-1 rounded bg-amber-400/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-400/40">
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold border border-amber-500/30">
                             retiring
                           </span>
                         </>
@@ -784,15 +821,15 @@ export default function ModelSelectModal({
         })}
 
         {Object.keys(filteredGroups).length === 0 && filteredCombos.length === 0 && (
-          <div className="text-center py-4 text-text-muted">
-            <span className="material-symbols-outlined text-2xl mb-1 block">
+          <div className="py-8 text-center text-[var(--t-muted)]">
+            <span className="material-symbols-outlined mb-2 block text-2xl text-[var(--t-dim)]">
               search_off
             </span>
-            <p className="text-xs">No models found</p>
+            <p className="text-xs">{translate("No models found")}</p>
           </div>
         )}
       </div>
-    </Modal>
+    </AntaresModal>
   );
 }
 

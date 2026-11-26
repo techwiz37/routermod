@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
-import { Badge, Button, Input, Select } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
 import AntaresModal from "@/shared/components/AntaresModal";
+import AntaresSelect from "@/shared/components/AntaresSelect";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 import { useNotificationStore } from "@/store/notificationStore";
-import { onLocaleChange, getCurrentLocale, translate } from "@/i18n/runtime";
+import { getCurrentLocale, translate } from "@/i18n/runtime";
 
 const VARIANT_CONFIG = {
   openai: {
@@ -47,21 +49,6 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
 
   const [formData, setFormData] = useState(initialFormData);
   const [submitting, setSubmitting] = useState(false);
-  const [checkKey, setCheckKey] = useState("");
-  const [validating, setValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState(null);
-  const [, bumpLocale] = useState(0);
-
-  useEffect(() => onLocaleChange(() => bumpLocale((value) => value + 1)), []);
-
-  useEffect(() => {
-    if (config.hasApiType) {
-      setFormData((prev) => ({ ...prev, baseUrl: config.defaultBaseUrl }));
-    } else if (isOpen) {
-      setValidationResult(null);
-      setCheckKey("");
-    }
-  }, [config.hasApiType ? formData.apiType : isOpen]);
 
   const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim()) return;
@@ -86,8 +73,6 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           localStorage.setItem("routermod:providers-changed", String(Date.now()));
         } catch {}
         setFormData(initialFormData());
-        setCheckKey("");
-        setValidationResult(null);
         notify.success(
           translate("{name} was created successfully.").replace("{name}", formData.name),
           translate("Provider created")
@@ -109,122 +94,66 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     }
   };
 
-  const handleValidate = async () => {
-    setValidating(true);
-    try {
-      const res = await fetch("/api/provider-nodes/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-locale": getCurrentLocale() },
-        body: JSON.stringify({
-          baseUrl: formData.baseUrl,
-          apiKey: checkKey,
-          type: config.type,
-        }),
-      });
-      const data = await res.json();
-      setValidationResult(data);
-    } catch {
-      setValidationResult({ valid: false, error: translate("Network error") });
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  const renderValidationResult = () => {
-    if (!validationResult) return null;
-    const { valid, error, method } = validationResult;
-    if (valid) {
-      return (
-        <>
-          <Badge variant="success">{translate("Valid")}</Badge>
-          {method === "chat" && (
-            <span className="text-sm text-text-muted">(via inference test)</span>
-          )}
-        </>
-      );
-    }
-    return (
-      <div className="flex flex-col gap-1">
-          <Badge variant="error">{translate("Invalid")}</Badge>
-        {error && <span className="text-sm text-red-500">{error}</span>}
-      </div>
-    );
-  };
+  const disabled = !formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || submitting;
 
   return (
     <AntaresModal
       isOpen={isOpen}
-       title={translate(config.title)}
-       subtitle={translate("Configure endpoint, model prefix, and connection validation.")}
+      title={translate(config.title)}
+      subtitle={translate("Configure endpoint details and model prefix for this provider.")}
       onClose={onClose}
       size="lg"
+      hideScrollbar
+      footer={
+        <SurfaceSkinContext.Provider value="antares">
+          <div className="flex w-full gap-2">
+            <Button skin="antares" onClick={handleSubmit} fullWidth disabled={disabled}>
+              {submitting ? translate("Creating...") : translate("Create")}
+            </Button>
+            <Button skin="antares" variant="ghost" onClick={onClose} fullWidth>
+              {translate("Cancel")}
+            </Button>
+          </div>
+        </SurfaceSkinContext.Provider>
+      }
     >
-      <div className="flex flex-col gap-4">
-        <Input
-           label={translate("Name")}
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder={config.namePlaceholder}
-           hint={translate("Required. A friendly label for this node.")}
-        />
-        <Input
-           label={translate("Prefix")}
-          value={formData.prefix}
-          onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
-          placeholder={config.prefixPlaceholder}
-           hint={translate("Required. Used as the provider prefix for model IDs.")}
-        />
-        {config.hasApiType && (
-          <Select
-             label={translate("API Type")}
-            options={API_TYPE_OPTIONS.map((o) => ({ ...o, label: translate(o.label) }))}
-            value={formData.apiType}
-            onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
-            placeholder={translate("Select an option")}
+      <SurfaceSkinContext.Provider value="antares">
+        <div className="flex flex-col gap-4">
+          <Input
+            label={translate("Name")}
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder={config.namePlaceholder}
+            hint={translate("Required. A friendly label for this node.")}
           />
-        )}
-        <Input
-           label={translate("Base URL")}
-          value={formData.baseUrl}
-          onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-          placeholder={config.defaultBaseUrl}
-           hint={translate(config.baseUrlHint)}
-        />
-        <Input
-           label={translate("API Key (for Check)")}
-          type="password"
-          value={checkKey}
-          onChange={(e) => setCheckKey(e.target.value)}
-        />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Button
-            onClick={handleValidate}
-            disabled={!checkKey || validating || !formData.baseUrl.trim()}
-            variant="secondary"
-            className="w-full sm:w-auto"
-          >
-             {validating ? translate("Checking...") : translate("Check")}
-          </Button>
-          {renderValidationResult()}
+          <Input
+            label={translate("Prefix")}
+            value={formData.prefix}
+            onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
+            placeholder={config.prefixPlaceholder}
+            hint={translate("Required. Used as the provider prefix for model IDs.")}
+          />
+          {config.hasApiType && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[var(--t-ink)]">{translate("API Type")}</label>
+              <AntaresSelect
+                value={formData.apiType}
+                onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
+                ariaLabel={translate("API Type")}
+                buttonClassName="h-[42px]"
+                options={API_TYPE_OPTIONS.map((o) => ({ ...o, label: translate(o.label) }))}
+              />
+            </div>
+          )}
+          <Input
+            label={translate("Base URL")}
+            value={formData.baseUrl}
+            onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+            placeholder={config.defaultBaseUrl}
+            hint={translate(config.baseUrlHint)}
+          />
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button
-            onClick={handleSubmit}
-            fullWidth
-            disabled={
-              !formData.name.trim() ||
-              !formData.prefix.trim() ||
-              !formData.baseUrl.trim() ||
-              submitting
-            }
-          >
-             {submitting ? translate("Creating...") : translate("Create")}
-          </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>
-             {translate("Cancel")}
-          </Button>
-        </div>
-      </div>
+      </SurfaceSkinContext.Provider>
     </AntaresModal>
   );
 }

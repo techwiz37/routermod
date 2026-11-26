@@ -46,7 +46,7 @@ export async function GET(request, { params }) {
        return Response.json({ message: msg("Usage not available for this connection", "Penggunaan tidak tersedia untuk koneksi ini") });
     }
 
-    const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData);
+    const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData, connection.provider);
     const proxyOptions = {
       connectionProxyEnabled: proxyConfig.connectionProxyEnabled === true,
       connectionProxyUrl: proxyConfig.connectionProxyUrl || "",

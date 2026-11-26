@@ -1,5 +1,6 @@
 import { ensureDirs, DATA_FILE } from "./paths.js";
 import { stripNullBytes } from "./helpers/nullBytes.js";
+import { startBackupScheduler } from "./backupScheduler.js";
 
 if (!global._dbAdapter) global._dbAdapter = { instance: null, initPromise: null, logged: false };
 const state = global._dbAdapter;
@@ -92,6 +93,9 @@ async function initAdapter() {
 
   const { runMigrationOnce } = await import("./migrate.js");
   await runMigrationOnce(adapter);
+
+  startBackupScheduler();
+
   return adapter;
 }
 

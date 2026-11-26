@@ -5,6 +5,7 @@ import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE, selec
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 import { OAUTH_ENDPOINTS, buildKimiHeaders, NOUS_ATTRIBUTION } from "../config/appConstants.js";
 import { buildClineHeaders } from "../shared/clineAuth.js";
+import { buildKiroIdentityHeaders } from "../shared/kiroIdentity.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
@@ -270,6 +271,15 @@ export class DefaultExecutor extends BaseExecutor {
   buildHeaders(credentials, stream = true, url, model, body = null) {
     const rt = credentials?.runtimeTransport;
     const headers = { "Content-Type": "application/json", ...(rt ? rt.headers : this.config.headers) };
+    // Compatible gateways may apply client policies. Preserve the actual
+    // caller's identity rather than replacing every client with Node's fetch UA.
+    // Registry/runtime headers and explicit provider overrides still win.
+    if (this.provider?.startsWith?.("openai-compatible-") || this.provider?.startsWith?.("anthropic-compatible-")) {
+      const clientUserAgent = credentials?.rawHeaders?.["user-agent"];
+      if (typeof clientUserAgent === "string" && clientUserAgent && !Object.keys(headers).some((key) => key.toLowerCase() === "user-agent")) {
+        headers["User-Agent"] = clientUserAgent;
+      }
+    }
     const desc = rt?.auth || AUTH_DESCRIPTORS[this.provider] || this.resolveAuthDescriptor();
     // Hooks run BEFORE auth so dynamic overlays can't clobber the token.
     for (const hook of desc.hooks || []) HEADER_HOOKS[hook]?.(headers, credentials);
@@ -415,7 +425,7 @@ export class DefaultExecutor extends BaseExecutor {
   async refreshKiro(refreshToken, proxyOptions = null) {
     const response = await proxyAwareFetch(PROVIDERS.kiro.tokenUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json", "User-Agent": "kiro-cli/1.0.0" },
+      headers: { "Content-Type": "application/json", "Accept": "application/json", ...buildKiroIdentityHeaders({ refreshToken }, "runtime") },
       body: JSON.stringify({ refreshToken })
     }, proxyOptions);
     if (!response.ok) return null;

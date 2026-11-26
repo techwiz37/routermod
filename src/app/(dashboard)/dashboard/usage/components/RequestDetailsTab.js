@@ -8,6 +8,14 @@ import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
 import { getInputTokens, getOutputTokens, getCachedTokens, getCacheCreationTokens } from "./tokenDisplay";
 
+function formatTokens(n) {
+  const num = n || 0;
+  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
+  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
+  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
+  return new Intl.NumberFormat().format(num);
+}
+
 let providerNameCache = null;
 let providerNodesCache = null;
 
@@ -163,8 +171,28 @@ export default function RequestDetailsTab() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-5 us-details">
+      <div className="us-subhead">
+        <span className="an-panel-ico" aria-hidden>
+          <span className="material-symbols-outlined">receipt_long</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="us-section-title">Request Details</h2>
+          <p className="us-section-sub">Riwayat lengkap setiap permintaan, token, dan latensi.</p>
+        </div>
+        <span className="us-count-chip">{pagination.totalItems.toLocaleString()} RECORDS</span>
+      </div>
+
       <section className="an-panel">
+        <header className="an-panel-head">
+          <span className="an-panel-ico" aria-hidden>
+            <span className="material-symbols-outlined">filter_alt</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="an-panel-title">Filters</h2>
+            <p className="an-panel-sub">Saring riwayat berdasarkan provider dan rentang waktu</p>
+          </div>
+        </header>
         <div className="an-panel-pad">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex min-w-0 flex-col gap-2">
@@ -174,7 +202,7 @@ export default function RequestDetailsTab() {
               value={filters.provider}
               onChange={(e) => setFilters({ ...filters, provider: e.target.value })}
               className={cn(
-                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
+                "us-field h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
                 "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20",
                 "w-full min-w-0 cursor-pointer"
               )}
@@ -197,7 +225,7 @@ export default function RequestDetailsTab() {
               value={filters.startDate}
               onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
               className={cn(
-                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
+                "us-field h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
                 "w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
               )}
             />
@@ -211,7 +239,7 @@ export default function RequestDetailsTab() {
               value={filters.endDate}
               onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
               className={cn(
-                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
+                "us-field h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
                 "w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
               )}
             />
@@ -219,11 +247,12 @@ export default function RequestDetailsTab() {
           
           <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
             <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Clear</span>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
+              icon="filter_alt_off"
               onClick={handleClearFilters}
               disabled={!filters.provider && !filters.startDate && !filters.endDate}
-              className="w-full"
+              className="w-full us-clear-btn"
             >
               Clear Filters
             </Button>
@@ -233,9 +262,19 @@ export default function RequestDetailsTab() {
       </section>
 
       <section className="an-panel">
+        <header className="an-panel-head">
+          <span className="an-panel-ico" aria-hidden>
+            <span className="material-symbols-outlined">history</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="an-panel-title">Request History</h2>
+            <p className="an-panel-sub">Catatan permintaan yang tersimpan pada sistem</p>
+          </div>
+          <span className="us-count-chip">{details.length} DITAMPILKAN</span>
+        </header>
         <div className="an-panel-pad">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] text-xs">
+          <table className="w-full min-w-[880px] text-xs us-detail-table">
             <thead>
               <tr className="border-b-2 border-border bg-surface-2">
                 <th className="text-left p-3.5 text-xs font-bold uppercase tracking-wider text-text-muted">Timestamp</th>
@@ -261,8 +300,12 @@ export default function RequestDetailsTab() {
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="p-8 text-center text-text-muted font-medium">
-                    Tidak ada riwayat permintaan ditemukan
+                  <td colSpan="9" className="p-10 text-center">
+                    <div className="us-empty">
+                      <span className="material-symbols-outlined" aria-hidden>search_off</span>
+                      <strong>Tidak ada riwayat ditemukan</strong>
+                      <span>Coba ubah filter atau rentang waktu untuk melihat data lain.</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -283,16 +326,16 @@ export default function RequestDetailsTab() {
                        </span>
                      </td>
                     <td className="p-3 text-text-main text-right font-mono font-bold text-primary">
-                      {getInputTokens(detail.tokens).toLocaleString()}
+                      {formatTokens(getInputTokens(detail.tokens))}
                     </td>
                     <td className="p-3 text-text-main text-right font-mono">
-                      {getCachedTokens(detail.tokens) > 0 ? getCachedTokens(detail.tokens).toLocaleString() : "—"}
+                      {getCachedTokens(detail.tokens) > 0 ? formatTokens(getCachedTokens(detail.tokens)) : "—"}
                     </td>
                     <td className="p-3 text-text-main text-right font-mono">
-                      {getCacheCreationTokens(detail.tokens) > 0 ? getCacheCreationTokens(detail.tokens).toLocaleString() : "—"}
+                      {getCacheCreationTokens(detail.tokens) > 0 ? formatTokens(getCacheCreationTokens(detail.tokens)) : "—"}
                     </td>
                     <td className="p-3 text-emerald-500 text-right font-mono font-bold">
-                      {getOutputTokens(detail.tokens).toLocaleString()}
+                      {formatTokens(getOutputTokens(detail.tokens))}
                     </td>
                     <td className="p-3 text-text-muted">
                       <div className="flex flex-col gap-0.5 text-[11px]">
@@ -374,14 +417,14 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Input Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {getInputTokens(selectedDetail.tokens).toLocaleString()}
+                  {formatTokens(getInputTokens(selectedDetail.tokens))}
                 </span>
               </div>
               {getCachedTokens(selectedDetail.tokens) > 0 && (
                 <div>
                   <span className="text-text-muted">Cached Tokens:</span>{" "}
                   <span className="text-text-main font-mono">
-                    {getCachedTokens(selectedDetail.tokens).toLocaleString()}
+                    {formatTokens(getCachedTokens(selectedDetail.tokens))}
                   </span>
                 </div>
               )}
@@ -389,14 +432,14 @@ export default function RequestDetailsTab() {
                 <div>
                   <span className="text-text-muted">Cache Creation:</span>{" "}
                   <span className="text-text-main font-mono">
-                    {getCacheCreationTokens(selectedDetail.tokens).toLocaleString()}
+                    {formatTokens(getCacheCreationTokens(selectedDetail.tokens))}
                   </span>
                 </div>
               )}
               <div>
                 <span className="text-text-muted">Output Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {getOutputTokens(selectedDetail.tokens).toLocaleString()}
+                  {formatTokens(getOutputTokens(selectedDetail.tokens))}
                 </span>
               </div>
             </div>
@@ -419,11 +462,11 @@ export default function RequestDetailsTab() {
                   <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                     <div>
                       <span className="text-text-muted block text-xs">Original (est.)</span>
-                      <span className="font-mono">{(selectedDetail.pxpipe.tokensBeforeEst || 0).toLocaleString()} tokens</span>
+                      <span className="font-mono">{formatTokens(selectedDetail.pxpipe.tokensBeforeEst || 0)} tokens</span>
                     </div>
                     <div>
                       <span className="text-text-muted block text-xs">Compressed (est.)</span>
-                      <span className="font-mono">{(selectedDetail.pxpipe.tokensAfterEst || 0).toLocaleString()} tokens</span>
+                      <span className="font-mono">{formatTokens(selectedDetail.pxpipe.tokensAfterEst || 0)} tokens</span>
                     </div>
                     <div>
                       <span className="text-text-muted block text-xs">Saved</span>

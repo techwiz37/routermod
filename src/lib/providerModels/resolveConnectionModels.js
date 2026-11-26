@@ -1,9 +1,12 @@
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { GEMINI_CONFIG, ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
-import { refreshGoogleToken, refreshCodexToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
+import { refreshGoogleToken, refreshCodexToken, updateProviderCredentials, recordKiroRefreshRejection } from "@/sse/services/tokenRefresh";
 import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
+import { isKiroSuspension } from "open-sse/shared/kiroSuspension.js";
+import { runKiroSuspensionHook } from "@/lib/kiroSuspensionHook";
+import { deleteProviderConnectionById } from "@/lib/localDb";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
@@ -215,13 +218,9 @@ const PROVIDER_MODELS_CONFIG = {
     })
   },
   antigravity: {
-    url: "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:models",
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    authHeader: "Authorization",
-    authPrefix: "Bearer ",
-    body: {},
-    parseResponse: (data) => data.models || []
+    customResolver: async () => ({
+      models: getStaticProviderModels("antigravity").filter((model) => (model.kind || "llm") === "llm"),
+    }),
   },
   github: {
     url: "https://api.githubcopilot.com/models",
@@ -432,14 +431,17 @@ const PROVIDER_MODELS_CONFIG = {
       try {
         const result = await resolveKiroModels(credentials, {
           log: console,
+          onRefreshRejected: (failure) => recordKiroRefreshRejection(connection.id, connection, failure),
           onCredentialsRefreshed: async (refreshed) => {
             if (refreshed?.accessToken) {
               await updateProviderCredentials(connection.id, {
                 accessToken: refreshed.accessToken,
                 refreshToken: refreshed.refreshToken || connection.refreshToken,
                 expiresIn: refreshed.expiresIn,
+                providerSpecificData: refreshed.providerSpecificData,
               });
               connection.accessToken = refreshed.accessToken;
+              connection.providerSpecificData = refreshed.providerSpecificData;
               if (refreshed.refreshToken) connection.refreshToken = refreshed.refreshToken;
             }
           }
@@ -460,6 +462,11 @@ const PROVIDER_MODELS_CONFIG = {
         warning = "Kiro returned no models; falling back to static catalog.";
       } catch (error) {
         warning = `Failed to fetch Kiro models: ${error.message}`;
+        if (isKiroSuspension(error)) {
+          await deleteProviderConnectionById(connection.id);
+          runKiroSuspensionHook(connection.id);
+          return { error: `Kiro User ID is suspended: ${error.message}`, status: 403 };
+        }
         console.log("Failed to fetch Kiro models dynamically, falling back to static:", error.message);
       }
       return { models: [], warning };
@@ -490,7 +497,7 @@ const PROVIDER_MODELS_CONFIG = {
   },
   "grok-cli": {
     customResolver: async (connection) => {
-      const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+      const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {}, connection.provider);
       const result = await resolveGrokCliModels({
         ...connection,
         connectionId: connection.id,

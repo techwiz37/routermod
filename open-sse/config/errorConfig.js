@@ -30,16 +30,18 @@ export const DEFAULT_ERROR_MESSAGES = {
 
 // Exponential backoff config for rate limits
 export const BACKOFF_CONFIG = {
-  base: 2000,
-  max: 5 * 60 * 1000,
+  // Base backoff starts at 5s, max 15 minutes for 429
+  base: 5000,
+  max: 15 * 60 * 1000,
   maxLevel: 15
 };
 
 // Default cooldown for transient/unknown errors
 export const TRANSIENT_COOLDOWN_MS = 30 * 1000;
 
-// Hard cap for provider-reported rate limit cooldown (e.g. codex resets_at can be 5-6h)
-export const MAX_RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000;
+// Hard cap for provider-reported rate limit cooldown (e.g. codex resets_at can be 5-6h, or full reset time)
+// Allow up to 2 hours for genuine rate limit hold windows instead of cutting off early
+export const MAX_RATE_LIMIT_COOLDOWN_MS = 2 * 60 * 60 * 1000;
 
 // Synthetic HTTP status for credential-level failures that are not transient
 // capacity/rate limits (invalid key, exhausted wallet, revoked account). A
@@ -66,6 +68,12 @@ export const DEACTIVATE_KEYWORDS = [
 // `rateLimitedUntil` stamped on a deactivated account: effectively permanent,
 // kept so the UI can show when/why the account left rotation.
 export const PERMANENT_COOLDOWN_MS = 100 * 365 * 24 * 60 * 60 * 1000;
+
+// Kiro quota/rate-limit accounts leave rotation for a day, then the background
+// connection health tick re-enables them automatically. Field name is shared by
+// the writer (auth/failureTracker) and the scheduler so they cannot drift.
+export const KIRO_LIMIT_REACTIVATION_MS = 24 * 60 * 60 * 1000;
+export const KIRO_LIMIT_REACTIVATION_FIELD = "reactivateAt";
 
 // Cooldown durations (ms)
 const COOLDOWN = {
@@ -100,10 +108,16 @@ export const ERROR_RULES = [
   { provider: "nvidia", text: "degraded", cooldownMs: 15 * 60 * 1000, modelScoped: true },
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
-  { text: "improperly formed request", cooldownMs: COOLDOWN.long },
-  { text: "rate limit",               backoff: true },
-  { text: "too many requests",        backoff: true },
-  { text: "quota exceeded",           backoff: true },
+  // "improperly formed request" / REQUEST_BODY_INVALID (e.g. Kiro, OpenAI) is a
+  // client-payload validation error, not a broken credential. Cooling down the
+  // account parks healthy sessions and causes all later requests to fail with
+  // locked accounts. Treat it as requestScoped so it doesn't trigger account cooldown.
+  { text: "improperly formed request", cooldownMs: 0 },
+  { text: "request_body_invalid",     cooldownMs: 0 },
+  // If the provider specifically indicates it resets after some time, honor it
+  { text: "rate limit",               cooldownMs: 2 * 60 * 1000 },
+  { text: "too many requests",        cooldownMs: 2 * 60 * 1000 },
+  { text: "quota exceeded",           cooldownMs: 5 * 60 * 1000 },
   // Concurrency shedding (e.g. Dahl `model_concurrency`) is *capacity*, not a
   // quota lock. The message literally says "or switch model" — parking the
   // account would starve the pool while every account is equally refused on the
@@ -117,7 +131,7 @@ export const ERROR_RULES = [
   { status: 402, cooldownMs: COOLDOWN.long },
   { status: 403, cooldownMs: COOLDOWN.long },
   { status: 404, cooldownMs: COOLDOWN.long },
-  { status: 429, backoff: true },
+  { status: 429, cooldownMs: 2 * 60 * 1000 },
 ];
 
 // Backward compat: COOLDOWN_MS object (used by index.js re-export)

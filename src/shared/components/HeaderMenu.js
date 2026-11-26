@@ -32,7 +32,7 @@ MenuItem.propTypes = {
   danger: PropTypes.bool,
 };
 
-export default function HeaderMenu({ onLogout }) {
+export default function HeaderMenu({ onLogout, sessionType = "admin" }) {
   const [isOpen, setIsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
@@ -61,6 +61,18 @@ export default function HeaderMenu({ onLogout }) {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        menuRef.current?.querySelector("button")?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
   const close = () => setIsOpen(false);
 
   return (
@@ -69,24 +81,26 @@ export default function HeaderMenu({ onLogout }) {
         <button
           onClick={() => setIsOpen((v) => !v)}
           className="flex items-center justify-center size-8 rounded-md border-2 border-border bg-surface-2 text-text-muted hover:text-text-main shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_var(--color-border)] active:translate-y-0 transition-all cursor-pointer"
-          title="Menu"
+           title="Menu"
+           aria-label="Menu"
+           aria-expanded={isOpen}
         >
           <span className="material-symbols-outlined text-[19px]">grid_view</span>
         </button>
 
         {isOpen && (
           <div className="absolute right-0 top-full mt-2 w-60 bg-surface border-2 border-border rounded-xl shadow-[4px_5px_0px_var(--color-border)] z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
-            <MenuItem
+            {sessionType === "admin" && <MenuItem
               icon="history"
               label="Change Log"
               onClick={() => { close(); setChangelogOpen(true); }}
-            />
-            <MenuItem
+            />}
+            {sessionType === "admin" && <MenuItem
               icon="power_settings_new"
               label="Shutdown"
               danger
               onClick={() => { close(); setShutdownOpen(true); }}
-            />
+            />}
             <MenuItem
               icon="logout"
               label="Logout"
@@ -97,7 +111,7 @@ export default function HeaderMenu({ onLogout }) {
         )}
       </div>
 
-      <ChangelogModal isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
+      {sessionType === "admin" && <ChangelogModal isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />}
       <ConfirmModal
         isOpen={shutdownOpen}
         onClose={() => setShutdownOpen(false)}
@@ -115,4 +129,5 @@ export default function HeaderMenu({ onLogout }) {
 
 HeaderMenu.propTypes = {
   onLogout: PropTypes.func.isRequired,
+  sessionType: PropTypes.oneOf(["admin", "apiKey"]),
 };

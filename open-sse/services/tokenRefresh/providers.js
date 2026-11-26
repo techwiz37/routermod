@@ -3,6 +3,9 @@ import { OAUTH_ENDPOINTS, GITHUB_COPILOT, buildKimiHeaders } from "../../config/
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
 import { buildExternalIdpRefreshParams } from "../../../src/lib/oauth/kiroExternalIdp.js";
+import { isKiroSuspension, kiroSuspensionError } from "../../shared/kiroSuspension.js";
+import { getKiroRefreshRejection, kiroRefreshFingerprint } from "../../shared/kiroRefreshState.js";
+import { buildKiroIdentityHeaders } from "../../shared/kiroIdentity.js";
 
 let _xaiServiceSingleton = null;
 export async function refreshXaiToken(refreshToken, log) {
@@ -320,6 +323,13 @@ export async function refreshCodexToken(refreshToken, log) {
   }, log);
 }
 
+function kiroExpiresIn(tokens, config) {
+  const seconds = tokens?.expiresIn ?? tokens?.expires_in;
+  return Number.isFinite(Number(seconds)) && Number(seconds) > 0
+    ? Number(seconds)
+    : config.defaultExpiresIn;
+}
+
 async function resolveKiroProfileArnPatch(providerSpecificData, accessToken, refreshedArn) {
   if (providerSpecificData?.profileArn) return {};
   let profileArn = refreshedArn?.trim?.() || null;
@@ -332,7 +342,29 @@ async function resolveKiroProfileArnPatch(providerSpecificData, accessToken, ref
 
 export async function refreshKiroToken(refreshToken, providerSpecificData, log, proxyOptions = null) {
   if (!refreshToken) return null;
-  return dedupRefresh("kiro", refreshToken, async () => {
+  const config = PROVIDER_OAUTH.kiro;
+  const fingerprint = kiroRefreshFingerprint(refreshToken, providerSpecificData);
+  const rejected = getKiroRefreshRejection({ refreshToken, providerSpecificData });
+  if (rejected) return { error: "unrecoverable_refresh_error", ...rejected };
+  const failure = async (response, method) => {
+    const errorText = await response.text();
+    if (isKiroSuspension(errorText)) throw kiroSuspensionError(errorText);
+    const classified = classifyOAuthRefreshError(errorText, response.status);
+    const permanent = response.status < 500 && response.status !== 429
+      && (classified.permanent || config.permanentRefreshErrors.includes(classified.code));
+    // Log the structured code, never the raw upstream response (which may
+    // include grant/client secrets). A denied grant needs reauthorization.
+    log?.warn?.("TOKEN_REFRESH", `Kiro ${method} refresh ${permanent ? "rejected; sign in again" : "temporarily failed"}`, {
+      status: response.status, code: classified.code || "upstream_error",
+    });
+    return permanent ? {
+      error: "unrecoverable_refresh_error", code: classified.code,
+      description: "Kiro authorization was rejected. Please sign in to Kiro again.",
+      fingerprint, rejectedAt: new Date().toISOString(),
+    } : null;
+  };
+  return dedupRefresh("kiro", fingerprint, async () => {
+  try {
   const authMethod = providerSpecificData?.authMethod;
   const clientId = providerSpecificData?.clientId;
   const clientSecret = providerSpecificData?.clientSecret;
@@ -354,18 +386,15 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log, 
         Accept: "application/json",
       },
       body: refreshRequest.body,
+      signal: AbortSignal.timeout(config.refreshTimeoutMs),
     }, proxyOptions);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      log?.error?.("TOKEN_REFRESH", "Failed to refresh Kiro external_idp token", {
-        status: response.status,
-        error: errorText,
-      });
-      return null;
+      return failure(response, "external_idp");
     }
 
     const tokens = await response.json();
+    if (!tokens.access_token) return null;
 
     log?.info?.("TOKEN_REFRESH", "Successfully refreshed Kiro external_idp token", {
       hasNewAccessToken: !!tokens.access_token,
@@ -376,16 +405,15 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log, 
     return {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || refreshToken,
-      expiresIn: tokens.expires_in,
+      expiresIn: kiroExpiresIn(tokens, config),
       providerSpecificData: refreshRequest.providerSpecificData,
     };
   }
 
   if (clientId && clientSecret) {
-    const isIDC = authMethod === "idc";
-    const endpoint = isIDC && region
-      ? `https://oidc.${region}.amazonaws.com/token`
-      : "https://oidc.us-east-1.amazonaws.com/token";
+    const safeRegion = region || config.defaultRegion;
+    if (!/^[a-z]{2}-[a-z]+-\d{1,2}$/.test(safeRegion)) throw new Error("Invalid Kiro AWS region");
+    const endpoint = `https://oidc.${safeRegion}.amazonaws.com/token`;
 
     const response = await proxyAwareFetch(endpoint, {
       method: "POST",
@@ -399,18 +427,15 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log, 
         refreshToken: refreshToken,
         grantType: "refresh_token",
       }),
+      signal: AbortSignal.timeout(config.refreshTimeoutMs),
     }, proxyOptions);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      log?.error?.("TOKEN_REFRESH", "Failed to refresh Kiro AWS token", {
-        status: response.status,
-        error: errorText,
-      });
-      return null;
+      return failure(response, "AWS");
     }
 
     const tokens = await response.json();
+    if (!tokens.accessToken) return null;
 
     log?.info?.("TOKEN_REFRESH", "Successfully refreshed Kiro AWS token", {
       hasNewAccessToken: !!tokens.accessToken,
@@ -420,7 +445,7 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log, 
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken || refreshToken,
-      expiresIn: tokens.expiresIn,
+      expiresIn: kiroExpiresIn(tokens, config),
       ...(await resolveKiroProfileArnPatch(providerSpecificData, tokens.accessToken, tokens.profileArn)),
     };
   }
@@ -430,23 +455,20 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log, 
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "User-Agent": "kiro-cli/1.0.0",
+      ...buildKiroIdentityHeaders({ refreshToken, providerSpecificData }, "runtime"),
     },
     body: JSON.stringify({
       refreshToken: refreshToken,
     }),
+    signal: AbortSignal.timeout(config.refreshTimeoutMs),
   }, proxyOptions);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    log?.error?.("TOKEN_REFRESH", "Failed to refresh Kiro social token", {
-      status: response.status,
-      error: errorText,
-    });
-    return null;
+    return failure(response, "social");
   }
 
   const tokens = await response.json();
+  if (!tokens.accessToken) return null;
 
   log?.info?.("TOKEN_REFRESH", "Successfully refreshed Kiro social token", {
     hasNewAccessToken: !!tokens.accessToken,
@@ -456,10 +478,16 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log, 
   return {
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken || refreshToken,
-    expiresIn: tokens.expiresIn,
+    expiresIn: kiroExpiresIn(tokens, config),
     ...(await resolveKiroProfileArnPatch(providerSpecificData, tokens.accessToken, tokens.profileArn)),
   };
-  }, log);
+  } catch (error) {
+    if (isKiroSuspension(error)) throw error;
+    log?.warn?.("TOKEN_REFRESH", "Kiro refresh temporarily failed", { code: error?.name || "NetworkError" });
+    return null;
+  }
+  }, log, { resultTtlMs: (result) => result?.error === "unrecoverable_refresh_error"
+    ? config.refreshRejectedCacheMs : result ? undefined : config.refreshFailureCooldownMs });
 }
 
 // iFlow: Basic Auth + client_id+client_secret in body. Delegate to refreshAccessToken("iflow", ...).

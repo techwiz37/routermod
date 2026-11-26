@@ -25,7 +25,33 @@ export const KIRO_TOOL_DESCRIPTION_MAX_LENGTH = 10237;
 export const KIRO_TOOL_ID_MAX_LENGTH = 64;
 export const KIRO_CODEWHISPERER_TARGET =
   "AmazonCodeWhispererStreamingService.GenerateAssistantResponse";
-export const KIRO_ENDPOINT_FALLBACK_STATUSES = new Set([401, 403, 404]);
+// 400 is included: a malformed body on one surface (e.g. a missing/absent
+// profileArn on runtime legacy) is often accepted on the CodeWhisperer/Q
+// surface, which adds the AWS JSON target header. Without this, a single 400
+// was terminal and surfaced as "Improperly formed request" to the client.
+export const KIRO_ENDPOINT_FALLBACK_STATUSES = new Set([400, 401, 403, 404]);
+// Kiro's runtime occasionally reports an over-limit / deeply nested transcript
+// as a generic REQUEST_BODY_INVALID instead of CONTENT_LENGTH_EXCEEDS_THRESHOLD.
+// Only retry-with-compaction when there is a real history to shrink: a short,
+// genuinely malformed request must not spend two more upstream calls.
+// parseUpstreamError() keeps only `message`, so match both the reason code and
+// the human-readable text Kiro sends.
+export const KIRO_BODY_INVALID_RETRY_PATTERNS = Object.freeze([
+  /REQUEST_BODY_INVALID/i,
+  /improperly formed request/i,
+]);
+export const KIRO_BODY_INVALID_MIN_TURNS = 8;
+export const KIRO_MACHINE_ID = "kiro-desktop";
+// Regions the Kiro runtime data plane serves. Only one of these may be spliced
+// into the hostname that receives the bearer token.
+export const KIRO_RUNTIME_REGIONS = new Set(["us-east-1", "eu-central-1"]);
+
+// Generic reasoning fields are not members of GenerateAssistantResponse.
+// Kiro thinking intent is carried in content or additionalModelRequestFields.
+export const KIRO_UNSUPPORTED_THINKING_FIELDS = Object.freeze([
+  "thinking", "reasoning", "reasoning_effort", "thinkingConfig",
+  "enable_thinking", "thinking_budget", "output_config", "think",
+]);
 
 // Public default CodeWhisperer profile ARNs (us-east-1), keyed by auth method.
 // Used when an account cannot resolve its own profileArn. Builder ID and social
@@ -46,7 +72,7 @@ export function resolveDefaultProfileArn(authMethod) {
 
 // Client fingerprint of the Kiro IDE build this proxy mirrors. AWS rejects
 // older client versions with "This version of Kiro is no longer supported".
-export const KIRO_IDE_VERSION = process.env.KIRO_IDE_VERSION || "1.4.86";
+export const KIRO_IDE_VERSION = process.env.KIRO_IDE_VERSION || "1.5.11";
 export const KIRO_STREAMING_SDK_VERSION = "1.0.39";
 export const KIRO_UA_OS = "win32#10.0.26200";
 export const KIRO_UA_NODE = "22.21.1";
@@ -90,6 +116,10 @@ const ANTHROPIC_SNAPSHOT_SUFFIX = /-\d{8}$/;
  */
 export function normalizeKiroUpstreamModelId(model) {
   if (typeof model !== "string" || model === "") return model;
+
+  // Live catalog IDs are already wire IDs. Do not fold new model versions
+  // onto older defaults just because they belong to a known family.
+  if (/^(?:(?:deepseek|glm|kimi|gpt|grok|minimax)[-/]?[a-z-]*\d|qwen\d)/i.test(model)) return model;
 
   const id = model.toLowerCase().replace(ANTHROPIC_SNAPSHOT_SUFFIX, "");
 
@@ -161,6 +191,21 @@ export function applyKiroThinkingOverride(body, override) {
     effort: override.mode === "level" ? override.level : override.mode,
   };
   return next;
+}
+
+// Optional prompt decoration. Off by default: a request with no configured
+// system prompt must reach Kiro with only the client's own turns. The Kiro
+// client-version gate needs no synthetic context/persona block, and the old
+// always-on `[Context: Current time is …]` / chunked-write protocol made plain
+// models behave as if a system prompt had been configured.
+function kiroEnvFlag(name) {
+  return /^(1|on|true|yes)$/i.test(String(process.env[name] || ""));
+}
+export function kiroTimeContextEnabled() {
+  return kiroEnvFlag("KIRO_TIME_CONTEXT");
+}
+export function kiroAgenticPromptEnabled() {
+  return kiroEnvFlag("KIRO_AGENTIC_PROMPT");
 }
 
 export const KIRO_AGENTIC_SYSTEM_PROMPT = `

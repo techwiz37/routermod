@@ -1,6 +1,7 @@
 
 import * as log from "../utils/logger.js";
 import { createRequire } from "module";
+import { claimScheduler, releaseScheduler } from "@/lib/singletonScheduler";
 
 const requireCjs = createRequire(import.meta.url);
 function sessionStoreCjs() {
@@ -110,6 +111,7 @@ export function startBackgroundCookieRefresh({ intervalMs } = {}) {
   if (started) return false;
   if (isTruthyEnv(process.env.DISABLE_BG_COOKIE_REFRESH)) return false;
   if (isNonServerRuntime()) return false;
+  if (!claimScheduler("cookie-refresh")) return false;
 
   started = true;
   const envInterval = Number(process.env.BG_COOKIE_REFRESH_INTERVAL_MS);
@@ -144,5 +146,8 @@ export function stopBackgroundCookieRefresh() {
     clearInterval(intervalHandle);
     intervalHandle = null;
   }
-  if (started) started = false;
+  if (started) {
+    started = false;
+    releaseScheduler("cookie-refresh");
+  }
 }

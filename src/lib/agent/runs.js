@@ -13,6 +13,7 @@ const MAX_RUNS = 60;
 const RUN_TTL_MS = 6 * 60 * 60 * 1000;
 
 const runs = new Map();
+let eventSeq = 0;
 
 function prune() {
   const now = Date.now();
@@ -76,13 +77,16 @@ export function listRuns(project) {
 /** Record an event and push it to every live subscriber. */
 export function appendRunEvent(run, event) {
   if (!run) return;
-  run.events.push(event);
+  // Monotonic seq lets a re-attached client replay only what it missed after a
+  // dropped connection, instead of duplicating already-rendered text.
+  const stored = { ...event, _seq: ++eventSeq };
+  run.events.push(stored);
   if (run.events.length > MAX_EVENTS) {
     run.events.splice(0, run.events.length - MAX_EVENTS);
   }
   for (const fn of [...run.subscribers]) {
     try {
-      fn(event);
+      fn(stored);
     } catch {
       /* a dead subscriber must not break the run */
     }
@@ -134,16 +138,20 @@ export function cancelRun(id) {
  * Subscribe to a run. A finished run replays its buffer and ends right away.
  * Returns an unsubscribe function.
  */
-export function subscribeRun(run, fn) {
+export function subscribeRun(run, fn, afterSeq = 0) {
   if (!run) return () => {};
-  if (run.status !== "running") {
-    for (const event of run.events) {
-      try {
-        fn(event);
-      } catch {
-        /* ignore */
-      }
+  // Replay buffered events the client has not seen yet. This is required for
+  // both finished runs and running runs: after a dropped SSE connection the
+  // browser re-attaches mid-turn and must catch up before live events resume.
+  for (const event of run.events) {
+    if ((event._seq || 0) <= afterSeq) continue;
+    try {
+      fn(event);
+    } catch {
+      /* ignore */
     }
+  }
+  if (run.status !== "running") {
     try {
       fn({ type: "__end__", status: run.status });
     } catch {

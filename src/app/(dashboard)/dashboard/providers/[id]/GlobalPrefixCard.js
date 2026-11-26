@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { translate } from "@/i18n/runtime";
+import AntaresPanel from "@/shared/components/AntaresPanel";
+import Button from "@/shared/components/Button";
 
 export default function GlobalPrefixCard({ prefixOverride, providerDisplayAlias, onBulkPrefixChange }) {
   const [prefixDraft, setPrefixDraft] = useState(prefixOverride || "");
@@ -24,41 +26,59 @@ export default function GlobalPrefixCard({ prefixOverride, providerDisplayAlias,
     }
   };
 
+  const preview = `${prefixDraft ? prefixDraft + "/" : ""}<model-id>`;
+  const dirty = !!prefixOverride && prefixDraft !== prefixOverride;
+
   return (
-    <div className="rounded-lg border-2 border-border bg-surface p-4 shadow-[3px_3px_0px_var(--color-border)]">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="material-symbols-outlined text-base text-primary">tag</span>
-        <span className="text-xs font-bold uppercase tracking-wide text-text-muted">{translate("Global Model Prefix")}</span>
+    <AntaresPanel
+      icon="tag"
+      title={translate("Global Model Prefix")}
+      subtitle={translate("Sets the display prefix for all models in this provider.")}
+      className="an-prefix-card"
+    >
+      <div className="an-prefix-body flex flex-col gap-3">
+        <div className="an-prefix-preview flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[10px] border border-[var(--t-line-soft)] bg-[var(--t-field)] px-3 py-2.5">
+          <span className="an-meta shrink-0">{translate("Models will appear as")}</span>
+          <code className="an-prefix-code min-w-0 truncate font-mono text-[12px] text-[var(--t-accent)]" title={preview}>
+            {preview}
+          </code>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label htmlFor="an-global-prefix" className="an-field-label">
+            {translate("Prefix")}
+          </label>
+          <div className="an-prefix-controls flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              id="an-global-prefix"
+              type="text"
+              value={prefixDraft}
+              onChange={(e) => setPrefixDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
+              placeholder={providerDisplayAlias}
+              className="an-input an-prefix-input w-full min-w-0 sm:flex-1"
+              title={translate("Set prefix for all models in this provider")}
+            />
+            <Button
+              skin="antares"
+              size="sm"
+              icon="check"
+              onClick={apply}
+              disabled={!prefixDraft.trim() || prefixDraft.trim() === (prefixOverride || "") || savingPrefix}
+              className="w-full shrink-0 sm:w-auto"
+            >
+              {savingPrefix ? translate("Saving...") : translate("Apply")}
+            </Button>
+          </div>
+        </div>
+
+        {dirty && (
+          <p className="an-prefix-dirty text-[10px] text-[var(--t-star-ink)]">
+            {translate("Unsaved change — current prefix is")} <code className="font-mono">{prefixOverride}</code>
+          </p>
+        )}
       </div>
-      <p className="mb-3 text-[11px] text-text-muted">
-        {translate("Sets the display prefix for all models in this provider. Models will appear as")}{" "}
-        <code className="font-mono text-primary">{prefixDraft ? prefixDraft + "/" : ""}&lt;model-id&gt;</code>.
-      </p>
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={prefixDraft}
-          onChange={(e) => setPrefixDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
-          placeholder={providerDisplayAlias}
-          className="flex-1 rounded border border-border bg-bg px-2.5 py-1.5 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-          title={translate("Set prefix for all models in this provider")}
-        />
-        <button
-          type="button"
-          onClick={apply}
-          disabled={!prefixDraft.trim() || prefixDraft.trim() === (prefixOverride || "") || savingPrefix}
-          className="shrink-0 rounded border-2 border-primary bg-primary px-3 py-1.5 text-[11px] font-bold text-white shadow-[1.5px_1.5px_0px_var(--color-border)] transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-        >
-          {savingPrefix ? translate("Saving...") : translate("Apply")}
-        </button>
-      </div>
-      {prefixOverride && prefixDraft !== prefixOverride && (
-        <p className="mt-2 text-[10px] text-warning">
-          {translate("Unsaved change — current prefix is")} <code className="font-mono">{prefixOverride}</code>
-        </p>
-      )}
-    </div>
+    </AntaresPanel>
   );
 }
 

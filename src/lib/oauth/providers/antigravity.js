@@ -18,13 +18,22 @@ const antigravity = {
   exchangeToken: async (config, rawCode, redirectUri) => {
     let code = rawCode;
     let effectiveRedirectUri = redirectUri;
-    if (typeof code === "string" && (code.includes("code=") || code.startsWith("http"))) {
+    if (typeof code === "string") {
+      if (code.includes("code=") || code.startsWith("http")) {
+        try {
+          const parsed = new URL(code, "http://localhost");
+          const extractedCode = parsed.searchParams.get("code");
+          if (extractedCode) code = extractedCode;
+          if (rawCode.startsWith("http") && parsed.origin && parsed.pathname) {
+            effectiveRedirectUri = `${parsed.origin}${parsed.pathname}`;
+          } else if (!effectiveRedirectUri && parsed.origin && parsed.pathname) {
+            effectiveRedirectUri = `${parsed.origin}${parsed.pathname}`;
+          }
+        } catch {}
+      }
       try {
-        const parsed = new URL(code, "http://localhost");
-        const extractedCode = parsed.searchParams.get("code");
-        if (extractedCode) code = extractedCode;
-        if (!effectiveRedirectUri && parsed.origin && parsed.pathname) {
-          effectiveRedirectUri = `${parsed.origin}${parsed.pathname}`;
+        if (code.includes("%")) {
+          code = decodeURIComponent(code);
         }
       } catch {}
     }

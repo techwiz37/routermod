@@ -13,7 +13,9 @@ function readCookieLocale() {
     .find((c) => c.trim().startsWith(`${LOCALE_COOKIE}=`));
   const value = raw ? decodeURIComponent(raw.split("=")[1]) : "id";
   const normalized = normalizeLocale(value);
-  return LANDING_LOCALES.includes(normalized) ? normalized : "id";
+  // The landing only ships id + en copy: fall back to English for any other
+  // locale so a visitor who picked e.g. German never sees Indonesian text.
+  return LANDING_LOCALES.includes(normalized) ? normalized : "en";
 }
 
 export function LandingLocaleProvider({ children }) {
@@ -43,11 +45,11 @@ export function LandingLocaleProvider({ children }) {
   }, []);
 
   const value = useMemo(() => {
-    const dict = LANDING_COPY[locale] || LANDING_COPY.id;
+    const dict = LANDING_COPY[locale] || LANDING_COPY.en || LANDING_COPY.id;
     return {
       locale,
       setLocale,
-      t: (key) => dict[key] ?? LANDING_COPY.id[key] ?? key,
+      t: (key) => dict[key] ?? LANDING_COPY.en?.[key] ?? LANDING_COPY.id[key] ?? key,
     };
   }, [locale, setLocale]);
 

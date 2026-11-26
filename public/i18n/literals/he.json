@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "השתמש ב-5–128 תווים: אותיות, מספרים, מקפים (-) או קווים תחתונים (_). הקידומת rmod- היא אופציונלית. הימנע ממילים שקל לנחש.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "מפתח ה-API חייב להיות באורך 5–128 תווים ולהכיל רק אותיות, מספרים, מקפים (-) או קווים תחתונים (_)."
 }

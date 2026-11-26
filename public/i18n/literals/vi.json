@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "Sử dụng 5–128 ký tự: chữ cái, số, dấu gạch ngang (-) hoặc dấu gạch dưới (_). Tiền tố rmod- là tùy chọn. Tránh những từ dễ đoán.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "Khóa API phải có 5–128 ký tự và chỉ chứa chữ cái, số, dấu gạch ngang (-) hoặc dấu gạch dưới (_)."
 }

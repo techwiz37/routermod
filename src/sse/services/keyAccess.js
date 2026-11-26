@@ -1,61 +1,7 @@
 ﻿import { getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
 import { getCombos } from "@/lib/db/repos/combosRepo.js";
-import { getKeyInFlight } from "@/lib/db/repos/keyUsageRepo.js";
-import { tokenWindowMs } from "@/shared/constants/keyQuota.js";
-
-/**
- * Calculate the start of the current quota cycle.
- * Must match the cycle calculation in keyUsageRepo.js
- */
-function getQuotaCycleStart(window) {
-  const now = Date.now();
-  const windowMs = tokenWindowMs(window);
-  
-  if (window === "1m") {
-    // Reset every minute (for testing) - e.g., 14:23:00, 14:24:00, 14:25:00
-    const nowDate = new Date(now);
-    return new Date(Date.UTC(
-      nowDate.getUTCFullYear(),
-      nowDate.getUTCMonth(),
-      nowDate.getUTCDate(),
-      nowDate.getUTCHours(),
-      nowDate.getUTCMinutes(),
-      0, 0
-    )).toISOString();
-  } else if (window === "24h") {
-    // Reset at midnight UTC
-    const nowDate = new Date(now);
-    return new Date(Date.UTC(
-      nowDate.getUTCFullYear(),
-      nowDate.getUTCMonth(),
-      nowDate.getUTCDate(),
-      0, 0, 0, 0
-    )).toISOString();
-  } else if (window === "7d") {
-    // Reset at midnight UTC every Monday
-    const nowDate = new Date(now);
-    const dayOfWeek = nowDate.getUTCDay(); // 0=Sunday, 1=Monday, ...
-    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days since last Monday
-    return new Date(Date.UTC(
-      nowDate.getUTCFullYear(),
-      nowDate.getUTCMonth(),
-      nowDate.getUTCDate() - daysToMonday,
-      0, 0, 0, 0
-    )).toISOString();
-  } else if (window === "30d") {
-    // Reset at midnight UTC on the 1st of each month
-    const nowDate = new Date(now);
-    return new Date(Date.UTC(
-      nowDate.getUTCFullYear(),
-      nowDate.getUTCMonth(),
-      1,
-      0, 0, 0, 0
-    )).toISOString();
-  } else {
-    // 1h or any other: simple modulo-based cycle
-    return new Date(Math.floor(now / windowMs) * windowMs).toISOString();
-  }
-}
+import { getKeyInFlight, getQuotaCycle } from "@/lib/db/repos/keyUsageRepo.js";
+import { formatTokens, tokenPeriodLabel } from "@/shared/utils/formatTokens.js";
 import { getModelInfo, getComboModels } from "./model.js";
 import { resolveProviderId } from "@/shared/constants/providers.js";
 import {
@@ -196,10 +142,17 @@ export async function enforceKeyPolicy(request) {
   if (!apiKey) return null;
   const messages = keyPolicyMessages(getRequestLocale(request));
   const record = await getApiKeyByKey(apiKey);
-  if (!record) return null;
+  if (!record) {
+    // A key that was deleted from the dashboard must fail fast with a clear
+    // message instead of being forwarded upstream and surfacing a confusing
+    // transport error ("socket disconnected", "rejected credentials", …).
+    log.warn("AUTH", `Rejected request with unknown/deleted API key (${apiKey.slice(0, 12)}…)`);
+    return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid or deleted API key. Please create a new key in the dashboard.");
+  }
   const ipBlocked = await ipBlacklistResponse(request, record);
   if (ipBlocked) return ipBlocked;
-  if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) {
+  const expiry = record.effectiveExpiresAt || record.expiresAt;
+  if (expiry && new Date(expiry).getTime() <= Date.now()) {
     // Persist the automatic switch-off so the dashboard reflects the expired
     // state even before the next request is made.
     try {
@@ -246,13 +199,20 @@ export async function enforceKeyPolicy(request) {
     }
   }
 
-  const tokenLimit = Math.max(0, Number(record.tokenLimit) || 0);
+  const tokenLimit = Math.max(0, Number(record.effectiveTokenLimit ?? record.tokenLimit) || 0);
   const tokensPerMinuteLimit = Math.max(0, Number(record.tokensPerMinuteLimit) || 0);
   const spendLimit = Math.max(0, Number(record.spendLimit) || 0);
 
   if (tokenLimit > 0 || tokensPerMinuteLimit > 0 || spendLimit > 0) {
     const tokenWindow = record.tokenLimitWindow || "24h";
-    const since = getQuotaCycleStart(tokenWindow);
+    // Honour the key's reset toggle: when reset is disabled the quota cycle is
+    // anchored at the baseline and never rolls over, so used tokens keep
+    // counting even after the nominal window boundary passes.
+    const cycle = getQuotaCycle(tokenWindow, {
+      cycleStart: record.tokenCycleStart || record.createdAt,
+      resetEnabled: record.tokenResetEnabled !== false,
+    });
+    const since = cycle.start;
     const totals = db.get(
       `SELECT COALESCE(SUM(promptTokens), 0) AS promptTokens,
               COALESCE(SUM(completionTokens), 0) AS completionTokens,
@@ -267,7 +227,7 @@ export async function enforceKeyPolicy(request) {
     if (tokenLimit > 0 && usedTokens >= tokenLimit) {
       return errorResponse(
         HTTP_STATUS.RATE_LIMITED,
-        messages.tokenQuota(usedTokens.toLocaleString("en-US"), tokenLimit.toLocaleString("en-US"), tokenWindow)
+        messages.tokenQuota(formatTokens(usedTokens), formatTokens(tokenLimit), tokenPeriodLabel(tokenWindow))
       );
     }
     if (spendLimit > 0 && usedCost >= spendLimit) {

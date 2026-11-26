@@ -231,7 +231,7 @@ export function buildModelGroups({
         .map(([aliasName, fullModel]) => ({
           id: fullModel.replace(`${providerId}/`, ""),
           name: aliasName,
-          value: `${nodePrefix}/${fullModel.replace(`${providerId}/`, "")}`,
+          value: aliasName,
         }));
 
       // Merge custom models registered via /api/models/custom for this provider

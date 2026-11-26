@@ -1,14 +1,14 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePageReady } from "@/shared/components/PageReadyContext";
 import PropTypes from "prop-types";
-import {
-  Card,
-  Button,
-} from "@/shared/components";
+import AntaresSelect from "@/shared/components/AntaresSelect";
+import AntaresModal from "@/shared/components/AntaresModal";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
+import { Button } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { getProviderIconSrc, getCompatibleIconSrc } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
   FREE_PROVIDERS,
@@ -20,14 +20,16 @@ import {
 import Link from "next/link";
 import { getErrorCode, getRelativeTime } from "@/shared/utils";
 import { useNotificationStore } from "@/store/notificationStore";
-import { onLocaleChange, translate } from "@/i18n/runtime";
-import ModelAvailabilityBadge from "./components/ModelAvailabilityBadge";
+import { getCurrentLocale, onLocaleChange, translate } from "@/i18n/runtime";
 import AddCompatibleModal from "./components/AddCompatibleModal";
 import { STATUS_FILTER_OPTIONS, matchesStatusFilter } from "./utils";
 import Soft3DLogo from "@/shared/components/Soft3DLogo";
+import { fetchProviderFavicon } from "@/shared/utils/providerFavicon";
+import { providerTestRelativeTime } from "@/shared/utils/providerTestTime";
 
 // Items rendered per page for every provider list on this page.
 const PAGE_SIZE = 5;
+let providerListSnapshot = null;
 
 /** Slice `items` into the requested page and describe the pagination state. */
 function paginate(items, page, size = PAGE_SIZE) {
@@ -166,6 +168,18 @@ function getStatusDisplay(connected, error, errorCode) {
   return parts;
 }
 
+// Batch-test modes are internal ids; show a localized label everywhere they
+// reach the UI so switching locale never leaves English behind.
+function batchModeLabel(mode) {
+  return {
+    oauth: translate("OAuth"),
+    free: translate("Free"),
+    apikey: translate("API Key"),
+    provider: translate("Provider"),
+    all: translate("All"),
+  }[mode] || translate("All");
+}
+
 function getConnectionErrorTag(connection) {
   if (!connection) return null;
 
@@ -210,10 +224,18 @@ function getConnectionErrorTag(connection) {
 
 
 export default function ProvidersPage() {
-  const [connections, setConnections] = useState([]);
-  const [providerNodes, setProviderNodes] = useState([]);
+  const [connections, setConnections] = useState(() => providerListSnapshot?.connections || []);
+  const [providerNodes, setProviderNodes] = useState(() => providerListSnapshot?.nodes || []);
+  const [providerModelTests, setProviderModelTests] = useState(() => providerListSnapshot?.modelTests || {});
+  const [testClock, setTestClock] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => { if (document.visibilityState === "visible") setTestClock(Date.now()); }, 30000);
+    return () => clearInterval(timer);
+  }, []);
   const [providerFavicons, setProviderFavicons] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !providerListSnapshot);
+  const refreshInFlight = useRef(null);
+  const faviconRequests = useRef(new Set());
   usePageReady(loading);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
@@ -280,28 +302,39 @@ export default function ProvidersPage() {
     });
 
   const fetchData = useCallback(async (silent = false) => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const refresh = async () => {
     try {
       const [connectionsRes, nodesRes] = await Promise.all([
-        fetch("/api/providers", { cache: "no-store" }),
+        fetch("/api/providers?view=summary", { cache: "no-store" }),
         fetch("/api/provider-nodes", { cache: "no-store" }),
       ]);
       const connectionsData = await connectionsRes.json();
       const nodesData = await nodesRes.json();
-      if (connectionsRes.ok)
+      if (connectionsRes.ok) {
         setConnections(connectionsData.connections || []);
+        setProviderModelTests(connectionsData.modelTests || {});
+        setTestClock(Date.now());
+      }
       if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
+      if (connectionsRes.ok && nodesRes.ok) {
+        providerListSnapshot = { connections: connectionsData.connections || [], nodes: nodesData.nodes || [], modelTests: connectionsData.modelTests || {} };
+      }
     } catch (error) {
       if (!silent) console.log("Error fetching data:", error);
     } finally {
       if (!silent) setLoading(false);
     }
+    };
+    refreshInFlight.current = refresh().finally(() => { refreshInFlight.current = null; });
+    return refreshInFlight.current;
   }, []);
 
   useEffect(() => {
     fetchData(false);
 
     const onRefresh = () => {
-      fetchData(true);
+      if (document.visibilityState === "visible") fetchData(true);
     };
 
     const handleStorage = (e) => {
@@ -319,7 +352,7 @@ export default function ProvidersPage() {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
         fetchData(true);
       }
-    }, 3000);
+    }, 30000);
 
     return () => {
       clearInterval(interval);
@@ -331,8 +364,9 @@ export default function ProvidersPage() {
   }, [fetchData]);
 
   useEffect(() => {
-    const customNodes = providerNodes.filter(node => 
-      node.type === "openai-compatible" || node.type === "anthropic-compatible"
+    const customNodes = providerNodes.filter(node =>
+      (node.type === "openai-compatible" || node.type === "anthropic-compatible")
+      && node.baseUrl && !faviconRequests.current.has(`${node.id}:${node.baseUrl}`)
     );
     
     if (customNodes.length === 0) return;
@@ -342,26 +376,38 @@ export default function ProvidersPage() {
       await Promise.allSettled(
         customNodes.map(async (node) => {
           if (node.baseUrl) {
+            faviconRequests.current.add(`${node.id}:${node.baseUrl}`);
             try {
-              const res = await fetch(`/api/providers/favicon?url=${encodeURIComponent(node.baseUrl)}`);
-              const data = await res.json();
-              if (data.faviconUrl) {
-                results[node.id] = data.faviconUrl;
+              const faviconUrl = await fetchProviderFavicon(node.baseUrl);
+              if (faviconUrl) {
+                results[node.id] = faviconUrl;
               }
             } catch (e) {}
           }
         })
       );
-      setProviderFavicons(results);
+      setProviderFavicons((prev) => ({ ...prev, ...results }));
     };
 
     fetchFavicons();
   }, [providerNodes]);
 
+  const connectionsByProvider = useMemo(() => {
+    const grouped = new Map();
+    for (const connection of connections) {
+      const group = grouped.get(connection.provider) || [];
+      group.push(connection);
+      grouped.set(connection.provider, group);
+    }
+    return grouped;
+  }, [connections]);
+  const statsCache = new Map();
   const getProviderStats = (providerId, authType) => {
     const authTypes = Array.isArray(authType) ? authType : [authType];
-    const providerConnections = connections.filter(
-      (c) => c.provider === providerId && authTypes.includes(c.authType),
+    const cacheKey = JSON.stringify([providerId, authTypes]);
+    if (statsCache.has(cacheKey)) return statsCache.get(cacheKey);
+    const providerConnections = (connectionsByProvider.get(providerId) || []).filter(
+      (c) => authTypes.includes(c.authType),
     );
 
     const getEffectiveStatus = (conn) => {
@@ -401,7 +447,9 @@ export default function ProvidersPage() {
       ? getRelativeTime(latestError.lastErrorAt)
       : null;
 
-    return { connected, error, total, errorCode, errorTime, allDisabled, enabled };
+    const stats = { connected, error, total, errorCode, errorTime, allDisabled, enabled };
+    statsCache.set(cacheKey, stats);
+    return stats;
   };
 
   const matchStatus = (stats, isNoAuth) =>
@@ -412,18 +460,31 @@ export default function ProvidersPage() {
     const matches = (c) =>
       c.provider === providerId && authTypes.includes(c.authType);
     const providerConns = connections.filter(matches);
+    if (!providerConns.length) return;
     setConnections((prev) =>
       prev.map((c) => (matches(c) ? { ...c, isActive: newActive } : c)),
     );
-    await Promise.allSettled(
+    // A provider can hold hundreds of accounts. Each one is a separate PUT;
+    // keepalive lets the browser finish them even if the page is reloaded
+    // right after the switch is clicked.
+    const results = await Promise.allSettled(
       providerConns.map((c) =>
         fetch(`/api/providers/${c.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ isActive: newActive }),
-        }),
+          keepalive: true,
+        }).then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); }),
       ),
     );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed) {
+      notify.error(`Failed to save ${failed}/${results.length} accounts. Please try again.`);
+    }
+    // Bypass the in-flight guard: a stale refresh started before these PUTs
+    // would otherwise put the old state back on screen.
+    refreshInFlight.current = null;
+    await fetchData(true);
   };
 
   const handleBatchTest = async (mode, providerId = null) => {
@@ -467,14 +528,14 @@ export default function ProvidersPage() {
       if (!seenDynamic.has(pid)) {
         seenDynamic.add(pid);
         const displayName = c.providerSpecificData?.nodeName || c.name || pid;
-        const compatSrc = getCompatibleIconSrc(pid);
         dynamicCustomProviders.push({
           id: pid,
           name: displayName,
           color: "#10A37F",
-          textIcon: compatSrc ? "" : (pid.slice(0, 2) || "CP").toUpperCase(),
           apiType: c.providerSpecificData?.apiType || "chat",
-          iconSrc: providerFavicons[pid] || compatSrc,
+          // No generic upstream icon: when a real favicon is missing the
+          // ProviderIcon fallback shows the RouterMod mark.
+          iconSrc: providerFavicons[pid] || null,
         });
       }
     }
@@ -487,9 +548,8 @@ export default function ProvidersPage() {
         id: node.id,
         name: node.name || "OpenAI Compatible",
         color: "#10A37F",
-        textIcon: getCompatibleIconSrc(node.id) ? "" : "OC",
         apiType: node.apiType,
-        iconSrc: providerFavicons[node.id] || getCompatibleIconSrc(node.id),
+        iconSrc: providerFavicons[node.id] || null,
       })),
     ...dynamicCustomProviders,
   ].filter(
@@ -502,8 +562,7 @@ export default function ProvidersPage() {
       id: node.id,
       name: node.name || "Anthropic Compatible",
       color: "#D97757",
-      textIcon: getCompatibleIconSrc(node.id) ? "" : "AC",
-      iconSrc: providerFavicons[node.id] || getCompatibleIconSrc(node.id),
+      iconSrc: providerFavicons[node.id] || null,
     }))
     .filter(
       (p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")),
@@ -600,7 +659,7 @@ export default function ProvidersPage() {
         name: info?.name || providerId,
         color: info?.color,
         textIcon: info?.textIcon,
-        iconSrc: info?.iconSrc || getCompatibleIconSrc(providerId) || getProviderIconSrc(providerId),
+        iconSrc: info?.iconSrc || getProviderIconSrc(providerId),
         authTypes,
         total: stats.total,
         connected: stats.connected,
@@ -628,11 +687,10 @@ export default function ProvidersPage() {
     }
     for (const node of providerNodes) {
       const isAnthropic = node.type === "anthropic-compatible";
-      const customIconSrc = providerFavicons[node.id] || getCompatibleIconSrc(node.id);
+      const customIconSrc = providerFavicons[node.id] || null;
       const info = {
         name: node.name || node.id,
         color: isAnthropic ? "#D97757" : "#10A37F",
-        textIcon: isAnthropic ? "AC" : "OC",
         iconSrc: customIconSrc,
       };
       const item = byProvider.get(node.id);
@@ -640,6 +698,10 @@ export default function ProvidersPage() {
         item.iconSrc = customIconSrc;
       } else {
         register(node.id, info, "apikey");
+        // register() falls back to a generic icon for compatible ids; clear
+        // it so the RouterMod mark is used until a real favicon arrives.
+        const registered = byProvider.get(node.id);
+        if (registered) registered.iconSrc = customIconSrc;
       }
     }
 
@@ -688,9 +750,10 @@ export default function ProvidersPage() {
     apikeyEntries.length;
 
   return (
-    <div className="an-scope flex min-w-0 flex-col gap-5">
+    <SurfaceSkinContext.Provider value="antares">
+    <div className="an-scope an-providerscope an-providers-page flex min-w-0 flex-col gap-5">
       {/* Hero */}
-      <section className="an-panel an-hero">
+      <section className="an-panel an-hero an-providers-hero">
         <div className="an-hero-main">
           <span className="an-hero-eyebrow">{translate("Provider")}</span>
           <h1 className="an-hero-title">{translate("Manage All AI Providers")}</h1>
@@ -741,6 +804,8 @@ export default function ProvidersPage() {
       {/* Quick-access strip: providers that already have an account */}
       <ActiveProvidersPanel
         items={activePag.items}
+        modelTests={providerModelTests}
+        testClock={testClock}
         totalCount={activeProviderItems.length}
         enabledCount={accountsEnabled}
         totalAccounts={accountsTotal}
@@ -751,7 +816,7 @@ export default function ProvidersPage() {
       />
 
       {/* Search + filter */}
-      <div className="an-toolbar">
+      <div className="an-toolbar an-providers-toolbar">
         <div className="an-search">
           <span className="material-symbols-outlined">search</span>
           <input
@@ -763,18 +828,13 @@ export default function ProvidersPage() {
             aria-label={translate("Search providers")}
           />
         </div>
-        <select
+        <AntaresSelect
+          className="an-providers-filter"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="an-select"
-          aria-label={translate("Filter providers by connection status")}
-        >
-          {STATUS_FILTER_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {translate(option.label)}
-            </option>
-          ))}
-        </select>
+          ariaLabel={translate("Filter providers by connection status")}
+          options={STATUS_FILTER_OPTIONS.map((option) => ({ value: option.value, label: translate(option.label) }))}
+        />
         <span className="an-toolbar-count">
           <span>{visibleProviderCount}</span>{" "}
           <span>{translate("providers")}</span>
@@ -840,14 +900,11 @@ export default function ProvidersPage() {
           title={translate("OAuth Providers")}
           count={oauthEntries.length}
           topActions={
-            <div className="flex items-center gap-2">
-              <ModelAvailabilityBadge />
-              <TestAllButton
-                mode="oauth"
-                testingMode={testingMode}
-                onTest={() => handleBatchTest("oauth")}
-              />
-            </div>
+            <TestAllButton
+              mode="oauth"
+              testingMode={testingMode}
+              onTest={() => handleBatchTest("oauth")}
+            />
           }
         >
           <ProviderGrid>
@@ -999,38 +1056,30 @@ export default function ProvidersPage() {
       />
 
       {/* Test Results Modal */}
-      {testResults && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-[6vh] sm:pt-[10vh]"
-          onClick={() => setTestResults(null)}
-        >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div
-            className="relative bg-surface border border-border rounded-xl w-full max-w-[600px] max-h-[86vh] sm:max-h-[80vh] overflow-y-auto shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-border bg-surface/95 backdrop-blur-sm rounded-t-xl">
-              <h3 className="font-semibold">{translate("Test Results")}</h3>
-              <button
-                onClick={() => setTestResults(null)}
-                className="p-1 rounded-lg hover:bg-bg text-text-muted hover:text-text-main transition-colors"
-                aria-label={translate("Close test results")}
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
-            </div>
-            <div className="p-5">
-              <ProviderTestResultsView results={testResults} />
-            </div>
-          </div>
-        </div>
-      )}
+      <AntaresModal
+        isOpen={!!testResults}
+        onClose={() => setTestResults(null)}
+        title={translate("Test Results")}
+        subtitle={testResults ? translate("{mode} test summary").replace("{mode}", batchModeLabel(testResults.mode)) : ""}
+        size="lg"
+        hideScrollbar
+        footer={
+          <Button skin="antares" onClick={() => setTestResults(null)} fullWidth>
+            {translate("Done")}
+          </Button>
+        }
+      >
+        {testResults && <ProviderTestResultsView results={testResults} />}
+      </AntaresModal>
     </div>
+    </SurfaceSkinContext.Provider>
   );
 }
 
 function ActiveProvidersPanel({
   items,
+  modelTests,
+  testClock,
   totalCount,
   enabledCount,
   totalAccounts,
@@ -1042,8 +1091,8 @@ function ActiveProvidersPanel({
   if (!items.length && !totalCount) return null;
 
   return (
-    <section className="an-panel overflow-hidden">
-      <header className="an-panel-head">
+    <section className="an-panel an-providers-active overflow-hidden">
+      <header className="an-panel-head an-panel-head-stack">
         <span className="an-panel-ico" aria-hidden>
           <span className="material-symbols-outlined">bolt</span>
         </span>
@@ -1070,8 +1119,9 @@ function ActiveProvidersPanel({
         {items.map((item) => (
           <div
             key={item.id}
-            className={`an-pcard an-pcard-compact ${item.allDisabled ? "is-off" : ""}`}
+            className={`an-pcard an-pcard-compact relative ${item.allDisabled ? "is-off" : ""}`}
           >
+            <Link href={`/dashboard/providers/${item.id}`} className="absolute inset-0 z-10 rounded-[inherit] focus-visible:outline-2 focus-visible:outline-primary" aria-label={`${translate("Open")} ${item.name}`} />
             <div className="an-pcard-top">
               <span
                 className="an-pcard-ico an-pcard-ico-sm"
@@ -1093,18 +1143,12 @@ function ActiveProvidersPanel({
               </span>
 
               <div className="an-pcard-head">
-                <Link
-                  href={`/dashboard/providers/${item.id}`}
-                  className="block group"
-                  title={`${translate("Open")} ${item.name}`}
-                >
                   <p className="an-pcard-title truncate group-hover:text-[var(--t-star-ink)] transition-colors">
                     {item.name}
                   </p>
-                </Link>
                 <p className="an-pcard-sub truncate">
                   <span>{item.enabled}/{item.total}</span>{" "}
-                  <span>accounts on</span>
+                  <span>{translate("accounts on")}</span>
                 </p>
               </div>
 
@@ -1124,10 +1168,10 @@ function ActiveProvidersPanel({
                   // newActive: true bila provider sedang mati, false bila menyala.
                   onToggle(item.id, item.authTypes, item.allDisabled);
                 }}
-                className={`an-switch ${item.allDisabled ? "off" : "on"}`}
+                className={`an-switch relative z-20 ${item.allDisabled ? "off" : "on"}`}
               >
                 <span className="an-switch-knob" />
-                {item.allDisabled ? "Off" : "On"}
+                {item.allDisabled ? translate("Off") : translate("On")}
               </button>
             </div>
 
@@ -1150,6 +1194,7 @@ function ActiveProvidersPanel({
                 <span className="an-chip">{translate("Not tested")}</span>
               )}
             </div>
+            {modelTests[`${item.id}|llm`] && <ProviderTestStamp result={modelTests[`${item.id}|llm`]} now={testClock} />}
           </div>
         ))}
       </div>
@@ -1171,6 +1216,8 @@ function ActiveProvidersPanel({
 
 ActiveProvidersPanel.propTypes = {
   items: PropTypes.array,
+  modelTests: PropTypes.object,
+  testClock: PropTypes.number,
   totalCount: PropTypes.number,
   enabledCount: PropTypes.number,
   totalAccounts: PropTypes.number,
@@ -1179,6 +1226,21 @@ ActiveProvidersPanel.propTypes = {
   onPageChange: PropTypes.func,
   onToggle: PropTypes.func.isRequired,
 };
+
+function ProviderTestStamp({ result, now }) {
+  const locale = getCurrentLocale();
+  const label = translate("All models tested");
+  const relative = providerTestRelativeTime(result.testedAt, locale, now);
+  if (!relative) return null;
+  const summary = translate("{success}/{total} passed, {failed} failed")
+    .replace("{success}", result.success).replace("{total}", result.total).replace("{failed}", result.failed);
+  return (
+    <div className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-text-muted" title={`${label}: ${new Date(result.testedAt).toLocaleString(locale)}. ${summary}`}>
+      <span aria-hidden="true" className={`material-symbols-outlined shrink-0 text-[16px] ${result.failed ? "text-amber-400" : "text-emerald-400"}`}>{result.failed ? "rule" : "fact_check"}</span>
+      <span className="min-w-0 break-words">{label} · <time dateTime={result.testedAt}>{relative}</time></span>
+    </div>
+  );
+}
 
 function ProviderSection({
   title,
@@ -1189,8 +1251,8 @@ function ProviderSection({
   children,
 }) {
   return (
-    <section className="flex min-w-0 flex-col gap-3">
-      <header className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+    <section className="flex min-w-0 flex-col gap-3 an-providers-section">
+      <header className="an-providers-section-head flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-baseline gap-2.5">
           <h2 className="an-sec-title">{title}</h2>
           {count !== undefined && count !== null && (
@@ -1199,10 +1261,10 @@ function ProviderSection({
           {subtitle && <span className="an-sec-sub">{subtitle}</span>}
         </div>
         {topActions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">{topActions}</div>
+          <div className="an-providers-actions flex min-w-0 flex-wrap items-center gap-2">{topActions}</div>
         )}
       </header>
-      {bottomActions && <div className="flex flex-wrap gap-2">{bottomActions}</div>}
+      {bottomActions && <div className="an-providers-actions an-providers-actions-bottom flex min-w-0 flex-wrap gap-2">{bottomActions}</div>}
       {children}
     </section>
   );
@@ -1226,7 +1288,7 @@ function TestAllButton({ mode, testingMode, onTest }) {
           ? "an-primary"
           : "an-ghost"
       }`}
-      title={translate("Test all {mode} connections").replace("{mode}", mode)}
+      title={translate("Test all {mode} connections").replace("{mode}", batchModeLabel(mode))}
     >
       <span className={`material-symbols-outlined text-[14px]${active ? " animate-spin" : ""}`}>
         play_arrow
@@ -1287,7 +1349,7 @@ function ProviderCardShell({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                // newActive: aktifkan bila sedang mati, nonaktifkan bila menyala.
+                // newActive: activekan bila sedang mati, nonactivekan bila menyala.
                 onToggle(isOff);
               }}
               className={`an-switch ${isOff ? "off" : "on"}`}
@@ -1304,8 +1366,9 @@ function ProviderCardShell({
           <span className="an-pcard-meta">
             {total > 0 ? (
               <>
+                <span className="material-symbols-outlined text-[13px]">group</span>
                 <span>{total}</span>{" "}
-                <span>{translate("accounts registered")}</span>
+                <span>{translate("accounts")}</span>
               </>
             ) : (
               <span>{translate("No accounts yet")}</span>
@@ -1378,8 +1441,10 @@ function ApiKeyProviderCard({
   const isAnthropicCompatible = providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
 
   const getIconPath = () => {
-    if (isCompatible || isAnthropicCompatible)
-      return getCompatibleIconSrc(provider.id);
+    // Compatible/custom nodes have no trustworthy upstream icon. Leave them
+    // empty so ProviderIcon falls back to the RouterMod mark instead of a
+    // generic OpenAI/OpenCode image flashing on first paint.
+    if (isCompatible || isAnthropicCompatible) return provider.iconSrc || null;
     return getProviderIconSrc(provider.id);
   };
 
@@ -1442,56 +1507,63 @@ ApiKeyProviderCard.propTypes = {
 };
 
 function ProviderTestResultsView({ results }) {
+  const notify = useNotificationStore();
+
+  const showFailure = (r) => {
+    const detail =
+      r.error ||
+      r.diagnosis?.message ||
+      (r.statusCode ? `HTTP ${r.statusCode}` : "") ||
+      translate("Test failed");
+    notify.error(`${r.connectionName || translate("Provider")}: ${detail}`);
+  };
+
   if (results.error && !results.results) {
     return (
-      <div className="text-center py-6">
-        <span className="material-symbols-outlined text-red-500 text-[32px] mb-2 block">
-          error
-        </span>
-        <p className="text-sm text-red-400">{results.error}</p>
+      <div className="flex flex-col items-center gap-2 py-6 text-center">
+        <span className="material-symbols-outlined text-[var(--t-danger)] text-[28px]">error</span>
+        <p className="an-chip danger">{results.error}</p>
       </div>
     );
   }
 
   const { summary, mode } = results;
   const items = results.results || [];
-  const modeLabel =
-    {
-      oauth: "OAuth",
-      free: "Free",
-      apikey: "API Key",
-      provider: "Provider",
-      all: "All",
-    }[mode] || mode;
+  const modeLabel = batchModeLabel(mode);
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {summary && (
-        <div className="flex flex-wrap items-center gap-2 text-xs mb-1 sm:gap-3">
-          <span className="text-text-muted">{modeLabel} Test</span>
-          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">
-            {summary.passed} passed
-          </span>
+        <div className="an-test-summary flex min-w-0 flex-wrap items-center gap-2 text-xs sm:gap-3">
+          <span className="an-test-mode">{modeLabel} · {translate("Test")}</span>
+          <span className="an-chip ok">{summary.passed} {translate("passed")}</span>
           {summary.failed > 0 && (
-            <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 font-medium">
-              {summary.failed} failed
-            </span>
+            <span className="an-chip danger">{summary.failed} {translate("failed")}</span>
           )}
-          <span className="text-text-muted sm:ml-auto">
-            {summary.total} tested
-          </span>
+          <span className="an-test-total">{summary.total} {translate("tested")}</span>
         </div>
       )}
+      <div className="scrollbar-none an-test-list max-h-[46dvh] overflow-y-auto overscroll-contain rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)]">
       {items.map((r, i) => (
         <div
           key={r.connectionId || i}
-          className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-black/[0.03] px-3 py-2 text-xs dark:bg-white/[0.03] sm:flex-nowrap"
+          className="flex min-w-0 flex-wrap items-center gap-2 border-b border-[var(--t-line-soft)] px-3 py-2 text-xs last:border-0 sm:flex-nowrap"
         >
-          <span
-            className={`material-symbols-outlined text-[16px] ${r.valid ? "text-emerald-500" : "text-red-500"}`}
-          >
-            {r.valid ? "check_circle" : "error"}
-          </span>
+          {r.valid ? (
+            <span className="material-symbols-outlined text-[16px] text-emerald-500">
+              check_circle
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => showFailure(r)}
+              title={translate("Tap to see the error")}
+              aria-label={translate("Tap to see the error")}
+              className="material-symbols-outlined shrink-0 text-[16px] text-red-500 transition-opacity hover:opacity-70"
+            >
+              error
+            </button>
+          )}
           <div className="min-w-0 flex-[1_1_160px]">
             <span className="block truncate font-medium sm:inline">
               {r.connectionName}
@@ -1517,10 +1589,11 @@ function ProviderTestResultsView({ results }) {
         </div>
       ))}
       {items.length === 0 && (
-        <div className="text-center py-4 text-text-muted text-sm">
-          No active connections found for this group.
+        <div className="an-meta px-3 py-6 text-center">
+          {translate("No active connections found for this group.")}
         </div>
       )}
+      </div>
     </div>
   );
 }

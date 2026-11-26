@@ -98,7 +98,7 @@ export function buildRequestDetail(base, overrides = {}) {
 }
 
 // Build the "done" summary: duration, ttft, in/out tokens with cache breakdown
-export function formatDoneLine({ usage, latency }) {
+export function formatDoneLine({ usage, latency, provider, model }) {
   const u = usage || {};
   const inTok = u.prompt_tokens ?? u.input_tokens ?? 0;
   const outTok = u.completion_tokens ?? u.output_tokens ?? 0;
@@ -112,10 +112,11 @@ export function formatDoneLine({ usage, latency }) {
     inStr += ` (CACHE ${parts.join(" ")})`;
   }
   const ttftStr = latency?.ttft ? ` · TTFT ${latency.ttft}ms` : "";
-  return `DONE ${latency?.total ?? 0}ms${ttftStr} · ${inStr} · OUT ${outTok}`;
+  const target = provider && model ? ` · ${provider}/${model}` : "";
+  return `DONE ${latency?.total ?? 0}ms${target}${ttftStr} · ${inStr} · OUT ${outTok}`;
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, clientIp, endpoint, label = "USAGE", silent = false }) {
+export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, clientIp, endpoint, duration, label = "USAGE", silent = false }) {
   if (!tokens || typeof tokens !== "object") return;
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
@@ -144,6 +145,7 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     connectionId: connectionId || undefined,
     apiKey: apiKey || undefined,
     clientIp: clientIp || null,
-    endpoint: endpoint || null
+    endpoint: endpoint || null,
+    duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 0,
   }).catch(() => {});
 }

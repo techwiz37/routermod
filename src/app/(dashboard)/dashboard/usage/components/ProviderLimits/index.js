@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { usePageReady } from "@/shared/components/PageReadyContext";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import AntaresSelect from "@/shared/components/AntaresSelect";
 import QuotaTable from "./QuotaTable";
 import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import Tooltip from "@/shared/components/Tooltip";
@@ -854,28 +855,10 @@ export default function ProviderLimits() {
     );
   }
 
-  if (!connectionsLoading && !hasVisibleConnections) {
-    return (
-      <Card padding="lg">
-        <div className="text-center py-12">
-          <span className="material-symbols-outlined text-[64px] text-text-muted opacity-20">
-            {emptyState.icon}
-          </span>
-          <h3 className="mt-4 text-lg font-semibold text-text-primary">
-            {emptyState.title}
-          </h3>
-          <p className="mt-2 text-sm text-text-muted max-w-md mx-auto">
-            {emptyState.description}
-          </p>
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <div className="an-scope flex min-w-0 flex-col gap-5">
       {/* Header Controls */}
-        <section className="an-panel overflow-visible border border-[var(--t-line)] bg-[radial-gradient(circle_at_top_right,rgba(232,0,31,0.12),transparent_38%),var(--t-panel)] shadow-[0_18px_50px_rgba(0,0,0,0.14)]">
+        <section className="an-panel !overflow-visible border border-[var(--t-line)] bg-[radial-gradient(circle_at_top_right,rgba(232,0,31,0.12),transparent_38%),var(--t-panel)] shadow-[0_18px_50px_rgba(0,0,0,0.14)]">
         <header className="an-panel-head">
             <span className="an-panel-ico !bg-[var(--t-accent-soft)] !text-[var(--t-star-ink)]" aria-hidden>
             <span className="material-symbols-outlined">speed</span>
@@ -915,9 +898,10 @@ export default function ProviderLimits() {
             <button
               type="button"
               onClick={() => setProviderMenuOpen((prev) => !prev)}
-              className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 max-w-[200px]"
-              aria-haspopup="menu"
+              className="an-btn an-ghost min-h-11 px-3 text-[11px] gap-1.5 max-w-[200px]"
+              aria-label={`${translate("Filter quota providers")}: ${selectedProviderLabel}`}
               aria-expanded={providerMenuOpen}
+              onKeyDown={(event) => { if (event.key === "Escape") setProviderMenuOpen(false); }}
               title="Filter quota providers"
             >
               <span className="flex min-w-0 items-center gap-1.5">
@@ -951,7 +935,7 @@ export default function ProviderLimits() {
                   aria-label="Close provider filter"
                   onClick={() => setProviderMenuOpen(false)}
                 />
-                <div className="an-panel absolute left-0 z-40 mt-2 w-64 overflow-hidden p-1.5 sm:w-72">
+                <div onKeyDown={(event) => { if (event.key === "Escape") setProviderMenuOpen(false); }} className="an-panel absolute left-0 z-40 mt-2 w-64 max-w-[calc(100vw-4rem)] overflow-hidden p-1.5 sm:w-72">
                   <button
                     type="button"
                     onClick={() => {
@@ -1010,38 +994,28 @@ export default function ProviderLimits() {
               </>
             )}
           </div>
-          <select
+          <AntaresSelect
             value={accountFilter}
             onChange={(event) => {
               const nextValue = event.target.value;
-              if (shouldResetPage(accountFilter, nextValue)) {
-                setPage(1);
-              }
+              if (shouldResetPage(accountFilter, nextValue)) setPage(1);
               setAccountFilter(nextValue);
             }}
-            className="an-select h-8 w-auto"
-            aria-label="Filter accounts by status"
-          >
-            {ACCOUNT_FILTER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {translate(option.label)}
-              </option>
-            ))}
-          </select>
+            ariaLabel="Filter accounts by status"
+            className="w-auto"
+            buttonClassName="h-8 w-auto min-w-[130px]"
+            options={ACCOUNT_FILTER_OPTIONS.map((option) => ({ value: option.value, label: translate(option.label) }))}
+          />
 
           {providerFilter === "codex" && (
-            <select
+            <AntaresSelect
               value={quotaSortMode}
               onChange={(event) => setQuotaSortMode(event.target.value)}
-              className="an-select h-8 w-auto"
-              aria-label="Sort Codex quotas by remaining"
-            >
-              {QUOTA_SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {translate(option.label)}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Sort Codex quotas by remaining"
+              className="w-auto"
+              buttonClassName="h-8 w-auto min-w-[150px]"
+              options={QUOTA_SORT_OPTIONS.map((option) => ({ value: option.value, label: translate(option.label) }))}
+            />
           )}
 
           <button
@@ -1127,6 +1101,15 @@ export default function ProviderLimits() {
        </section>
 
       {/* Provider cards: 2 columns, compact */}
+      {!connectionsLoading && !hasVisibleConnections && (
+        <Card padding="lg">
+          <div className="py-12 text-center">
+            <span className="material-symbols-outlined text-[64px] text-text-muted opacity-20">{emptyState.icon}</span>
+            <h3 className="mt-4 text-lg font-semibold text-text-primary">{emptyState.title}</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">{emptyState.description}</p>
+          </div>
+        </Card>
+      )}
       {expiringFirst && (
         <div className="an-notice warn">
           <p>
@@ -1392,6 +1375,10 @@ export default function ProviderLimits() {
                   <div className="text-center py-5">
                     <p className="text-xs text-[var(--t-muted)]">{quota.message}</p>
                   </div>
+                ) : rawQuotas.length === 0 ? (
+                  <div role="status" className="py-5 text-center">
+                    <p className="text-xs text-[var(--t-muted)]">{translate("No quota data available. Refresh quota to retry. This does not mean the account has zero quota.")}</p>
+                  </div>
                 ) : (
                   <QuotaTable
                     quotas={visibleQuotas}
@@ -1440,7 +1427,7 @@ export default function ProviderLimits() {
           <div className="an-toolbar">
             <span className="text-xs text-[var(--t-muted)]">{connectionsPageSummary}</span>
             <div className="flex flex-wrap items-center gap-2 ml-auto">
-              <select
+              <AntaresSelect
                 value={isCustomPageSize ? "custom" : String(pageSize)}
                 onChange={(event) => {
                   const nextValue = event.target.value;
@@ -1452,16 +1439,14 @@ export default function ProviderLimits() {
                     setCustomPageSizeInput(String(nextPageSize));
                   }
                 }}
-                className="an-select h-8 w-auto"
-                aria-label="Accounts per page"
-              >
-                {ACCOUNT_PAGE_SIZE_OPTIONS.map((option) => (
-                  <option key={option} value={String(option)}>
-                    {option} / page
-                  </option>
-                ))}
-                <option value="custom">Custom</option>
-              </select>
+                ariaLabel="Accounts per page"
+                className="w-auto"
+                buttonClassName="h-8 w-auto min-w-[90px]"
+                options={[
+                  ...ACCOUNT_PAGE_SIZE_OPTIONS.map((option) => ({ value: String(option), label: `${option} / page` })),
+                  { value: "custom", label: "Custom" },
+                ]}
+              />
               <input
                 type="number"
                 min="1"

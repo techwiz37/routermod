@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "Utilizați 5–128 de caractere: litere, cifre, cratime (-) sau bare de subliniere (_). Prefixul rmod- este opțional. Evitați cuvintele ușor de ghicit.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "Cheia API trebuie să aibă 5–128 de caractere și să conțină doar litere, cifre, cratime (-) sau bare de subliniere (_)."
 }

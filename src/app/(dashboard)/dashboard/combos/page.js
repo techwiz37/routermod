@@ -7,6 +7,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle, Badge, SmartPolicyModal } from "@/shared/components";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
@@ -382,67 +383,72 @@ export default function CombosPage() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 px-1 pb-8 sm:px-0">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-surface to-surface p-5 shadow-sm sm:p-7">
-        <div className="pointer-events-none absolute -right-12 -top-16 size-48 rounded-full bg-primary/10 blur-3xl" />
-        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary"><span className="material-symbols-outlined text-[17px]">hub</span>{translate("Model orchestration")}</div>
-          <h1 className="text-2xl font-semibold tracking-tight text-text-main sm:text-3xl">{translate("Combos")}</h1>
-          <p className="text-sm text-text-muted mt-1">
-            {translate("Group models under one name, then pick a strategy per combo:")}
-          </p>
-          <ul className="text-sm text-text-muted mt-2 flex flex-col gap-1">
-            <li><span className="font-medium text-text-main">{translate("Fallback")}</span> — {translate("tries models in order")}</li>
-            <li><span className="font-medium text-text-main">{translate("Round Robin")}</span> — {translate("rotates models across requests")}</li>
-            <li><span className="font-medium text-text-main">{translate("Fusion")}</span> — {translate("queries models in parallel and uses a judge")}</li>
-          </ul>
-          <p className="hidden text-xs text-text-muted mt-3 max-w-2xl">
-            <span className="font-medium text-text-main">Cursor / Claude Default</span> create combos named exactly like those clients&apos; model IDs (e.g. <code className="font-mono">composer-2.5</code>, <code className="font-mono">opus</code>), seeded with the matching <code className="font-mono">cu/…</code> or <code className="font-mono">cc/…</code> route so traffic can hit 9router without the prefix.
-            {" "}Note: Cursor IDE itself often blocks built-in Composer / Grok from Override OpenAI Base URL (&quot;model does not support custom API&quot;); add them via Cursor&apos;s <span className="font-medium text-text-main">Add Custom Model</span> using the combo name, or pick a model Cursor allows through the custom endpoint.
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-stretch">
-          <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full shadow-sm sm:w-auto whitespace-nowrap">
-            {translate("Create Combo")}
-          </Button>
-          <div className="hidden">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon="edit_note"
-              loading={presetLoading === "cursor"}
-              disabled={!!presetLoading}
-              onClick={() => handleGeneratePresets("cursor")}
-              className="w-full whitespace-nowrap"
-            >
-              Cursor Default
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon="smart_toy"
-              loading={presetLoading === "claude"}
-              disabled={!!presetLoading}
-              onClick={() => handleGeneratePresets("claude")}
-              className="w-full whitespace-nowrap"
-            >
-              Claude Default
-            </Button>
+    <SurfaceSkinContext.Provider value="antares">
+    <div className="an-scope combos-page flex min-w-0 flex-col gap-4 px-1 pb-6 sm:gap-6 sm:px-0 sm:pb-8">
+      {/* Header — Antares panel, stacks on mobile and spreads on desktop */}
+      <div className="an-panel relative overflow-hidden">
+        <div className="pointer-events-none absolute -right-12 -top-16 size-40 rounded-full bg-[var(--t-accent-soft)] blur-3xl sm:size-56" />
+        <div className="an-panel-pad relative flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <div className="an-eyebrow mb-2 !text-[var(--t-star-ink)]">
+              <span className="material-symbols-outlined text-[16px]">hub</span>
+              <span>{translate("Model orchestration")}</span>
+            </div>
+            <h1 className="text-xl font-semibold tracking-tight text-[var(--t-ink)] sm:text-2xl lg:text-3xl">{translate("Combos")}</h1>
+            <p className="mt-1.5 text-xs text-[var(--t-muted)] sm:text-sm">
+              {translate("Group models under one name, then pick a strategy per combo:")}
+            </p>
+            <ul className="mt-3 grid grid-cols-1 gap-1.5 text-xs text-[var(--t-muted)] sm:text-sm lg:grid-cols-3 lg:gap-4">
+              <li><span className="font-medium text-[var(--t-ink)]">{translate("Fallback")}</span> — {translate("tries models in order")}</li>
+              <li><span className="font-medium text-[var(--t-ink)]">{translate("Round Robin")}</span> — {translate("rotates models across requests")}</li>
+              <li><span className="font-medium text-[var(--t-ink)]">{translate("Fusion")}</span> — {translate("queries models in parallel and uses a judge")}</li>
+            </ul>
+            <p className="hidden text-xs text-[var(--t-muted)] mt-3 max-w-2xl">
+              <span className="font-medium text-[var(--t-ink)]">Cursor / Claude Default</span> create combos named exactly like those clients&apos; model IDs (e.g. <code className="font-mono">composer-2.5</code>, <code className="font-mono">opus</code>), seeded with the matching <code className="font-mono">cu/…</code> or <code className="font-mono">cc/…</code> route so traffic can hit 9router without the prefix.
+              {" "}Note: Cursor IDE itself often blocks built-in Composer / Grok from Override OpenAI Base URL (&quot;model does not support custom API&quot;); add them via Cursor&apos;s <span className="font-medium text-[var(--t-ink)]">Add Custom Model</span> using the combo name, or pick a model Cursor allows through the custom endpoint.
+            </p>
           </div>
-        </div></div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full whitespace-nowrap sm:w-auto">
+              {translate("Create Combo")}
+            </Button>
+            <div className="hidden">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="edit_note"
+                loading={presetLoading === "cursor"}
+                disabled={!!presetLoading}
+                onClick={() => handleGeneratePresets("cursor")}
+                className="w-full whitespace-nowrap"
+              >
+                Cursor Default
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="smart_toy"
+                loading={presetLoading === "claude"}
+                disabled={!!presetLoading}
+                onClick={() => handleGeneratePresets("claude")}
+                className="w-full whitespace-nowrap"
+              >
+                Claude Default
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Combos List */}
       {combos.length === 0 ? (
-        <Card>
-          <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
-              <span className="material-symbols-outlined text-[32px]">layers</span>
+        <Card className="combos-empty">
+          <div className="py-8 text-center sm:py-12">
+            <div className="mx-auto mb-4 inline-flex size-12 items-center justify-center rounded-full bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] sm:size-16">
+              <span className="material-symbols-outlined text-[26px] sm:text-[32px]">layers</span>
             </div>
-             <p className="text-text-main font-medium mb-1">{translate("No combos yet")}</p>
-             <p className="text-sm text-text-muted mb-4">{translate("Create model combos with fallback support")}</p>
+            <p className="mb-1 font-medium text-[var(--t-ink)]">{translate("No combos yet")}</p>
+            <p className="mb-4 text-xs text-[var(--t-muted)] sm:text-sm">{translate("Create model combos with fallback support")}</p>
             <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
               {translate("Create Combo")}
             </Button>
@@ -450,12 +456,12 @@ export default function CombosPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="relative w-full sm:w-64">
-            <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-text-muted">search</span>
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={translate("Search combos…")} aria-label={translate("Search combos")} className="w-full rounded-xl border border-border/60 bg-surface px-3 py-2.5 pl-10 pr-9 text-sm text-text-main placeholder-text-muted/70 shadow-sm focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          <div className="relative w-full lg:w-72">
+            <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[var(--t-muted)]">search</span>
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={translate("Search combos…")} aria-label={translate("Search combos")} className="h-10 w-full rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] px-3 pl-10 pr-3 text-sm text-[var(--t-ink)] placeholder:text-[var(--t-dim)] focus:border-[var(--t-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--t-accent-soft)]" />
           </div>
           {/* Selection toolbar */}
-          <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-black/5 bg-black/[0.015] px-3 py-2 dark:border-white/5 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-col gap-2 rounded-[10px] border border-[var(--t-line-soft)] bg-[var(--t-raised)] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
             <label className="flex cursor-pointer items-center gap-2 text-xs text-text-muted hover:text-primary select-none">
               <input
                 type="checkbox"
@@ -476,7 +482,7 @@ export default function CombosPage() {
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {someSelected && (
                 <>
-                  <div className="w-full min-w-[160px] sm:w-[200px]">
+                  <div className="w-full min-w-0 sm:w-[200px]">
                     <Select
                        options={localizedStrategyOptions()}
                       value=""
@@ -580,6 +586,7 @@ export default function CombosPage() {
         loading={!!confirmState?.loading}
       />
     </div>
+    </SurfaceSkinContext.Provider>
   );
 }
 
@@ -602,7 +609,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
   const comboCaps = aggregateComboCapabilities(combo.models, comboByName, getCaps);
 
   return (
-    <Card padding="sm" className={`group ${selected ? "ring-1 ring-primary/40 bg-primary/[0.03]" : ""}`}>
+    <Card padding="sm" className={`group ${selected ? "ring-1 ring-[var(--t-accent)] bg-[var(--t-accent-soft)]" : ""}`}>
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
            <label className="flex shrink-0 items-center pt-1 sm:pt-0 cursor-pointer" title={translate("Select combo")}>
@@ -625,8 +632,8 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                 <span className="text-xs text-text-muted italic">{translate("No models")}</span>
               ) : (
                 combo.models.slice(0, 3).map((model, index) => (
-                  <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
-                    <span>{model}</span>
+                  <code key={index} className="inline-flex max-w-full items-center gap-1 rounded bg-[var(--t-raised)] px-1.5 py-0.5 font-mono text-xs text-[var(--t-muted)]">
+                    <span className="truncate">{model}</span>
                     <CapacityBadges caps={
                       comboByName[model]
                         ? aggregateComboCapabilities(comboByName[model], comboByName, getCaps)
@@ -673,9 +680,9 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
         </div>
 
         {/* Actions */}
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
           {/* Strategy selector — always visible */}
-           <div className="w-full sm:w-[200px]">
+           <div className="w-full min-w-0 sm:w-[180px] lg:w-[200px]">
             <Select
                options={localizedStrategyOptions()}
               value={current}
@@ -694,7 +701,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
           <div className="grid grid-cols-3 gap-1 sm:flex">
             <button
               onClick={(e) => { e.stopPropagation(); onCopy(combo.name, `combo-${combo.id}`); }}
-              className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              className="flex min-h-11 flex-col items-center justify-center rounded px-2 py-2 text-[var(--t-muted)] transition-colors hover:bg-[var(--t-raised)] hover:text-[var(--t-ink)] sm:min-h-0 sm:py-1"
                title={translate("Copy combo name")}
             >
               <span className="material-symbols-outlined text-[18px]">
@@ -704,7 +711,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
             </button>
             <button
               onClick={onEdit}
-              className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              className="flex min-h-11 flex-col items-center justify-center rounded px-2 py-2 text-[var(--t-muted)] transition-colors hover:bg-[var(--t-raised)] hover:text-[var(--t-ink)] sm:min-h-0 sm:py-1"
                title={translate("Edit")}
             >
               <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -712,7 +719,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
             </button>
             <button
               onClick={onDelete}
-              className="flex flex-col items-center rounded px-2 py-1 text-red-500 transition-colors hover:bg-red-500/10"
+              className="flex min-h-11 flex-col items-center justify-center rounded px-2 py-2 text-[var(--t-danger)] transition-colors hover:bg-[var(--t-danger-soft)] sm:min-h-0 sm:py-1"
                title={translate("Delete")}
             >
               <span className="material-symbols-outlined text-[18px]">delete</span>
@@ -751,16 +758,19 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
 
 function CapacityAdapterSection({ capacityAdapter, onChange, activeProviders, getCaps }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-            <p className="text-sm font-medium">{translate("Vision Adapter")}</p>
-          <p className="text-xs text-text-muted mt-0.5">
-             {translate("Your model can't read image/audio? Auto-switches to a model in the pool below.")}
+    <div className="an-panel">
+      <div className="an-panel-head an-panel-head-stack">
+        <span className="an-panel-ico" aria-hidden>
+          <span className="material-symbols-outlined">visibility</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="an-panel-title">{translate("Vision Adapter")}</h2>
+          <p className="an-panel-sub">
+            {translate("Your model can't read image/audio? Auto-switches to a model in the pool below.")}
           </p>
         </div>
       </div>
-      <div className="flex flex-col gap-4">
+      <div className="an-panel-pad flex flex-col gap-3 sm:gap-4">
         {CAPACITY_ADAPTER_CAPS.map((cap) => (
           <CapacityAdapterCap
             key={cap.key}
@@ -817,19 +827,19 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
             onChange={(v) => patch({ enabled: v })}
                aria-label={`${translate("Enable")} ${cap.label} ${translate("adapter")}`}
           />
-          <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-primary text-[18px]">{cap.icon}</span>
+          <div className="size-8 shrink-0 rounded-lg bg-[var(--t-accent-soft)] flex items-center justify-center">
+            <span className="material-symbols-outlined text-[var(--t-star-ink)] text-[18px]">{cap.icon}</span>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <code className="font-mono text-sm font-medium">{cap.label}</code>
-              <span className="text-[10px] text-text-muted">— {cap.desc}</span>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <code className="font-mono text-sm font-medium text-[var(--t-ink)]">{cap.label}</code>
+              <span className="hidden truncate text-[10px] text-[var(--t-muted)] sm:inline">— {cap.desc}</span>
             </div>
           </div>
         </div>
 
         {/* Actions: Round-robin toggle + Add Model */}
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
           <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none">
             <Toggle
               checked={roundRobin}
@@ -858,19 +868,19 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
            {translate("No models in pool (will fallback to")} {DEFAULT_FALLBACK_MODEL})
         </div>
       ) : (
-        <div className="mt-3 overflow-hidden rounded-lg border border-border/50">
-          <table className="w-full text-left text-xs">
+        <div className="mt-3 overflow-x-auto rounded-[10px] border border-[var(--t-line)]">
+          <table className="w-full min-w-[420px] text-left text-xs">
             <thead>
-              <tr className="border-b border-border/40 bg-black/[0.02] text-text-muted dark:bg-white/[0.02]">
+              <tr className="border-b border-[var(--t-line-soft)] bg-[var(--t-field)] text-[var(--t-muted)]">
                 <th className="w-12 px-3 py-1.5 font-medium text-center">#</th>
                 <th className="px-3 py-1.5 font-medium">{translate("Model")}</th>
                 <th className="w-24 px-3 py-1.5 font-medium text-center">{translate("Order")}</th>
                 <th className="w-12 px-3 py-1.5 font-medium text-right"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/30 font-mono">
+            <tbody className="divide-y divide-[var(--t-line-soft)] font-mono">
               {models.map((model, index) => (
-                <tr key={`${model}-${index}`} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                <tr key={`${model}-${index}`} className="transition-colors hover:bg-[var(--t-raised)]">
                   <td className="px-3 py-2 text-center text-text-muted text-[11px] font-sans">
                     #{index + 1}
                   </td>
@@ -891,7 +901,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                         type="button"
                         onClick={() => handleMove(index, -1)}
                         disabled={!enabled || index === 0}
-                        className={`p-1 rounded transition-colors ${
+                        className={`p-2 rounded transition-colors sm:p-1 ${
                           !enabled || index === 0
                             ? "text-text-muted/20 cursor-not-allowed"
                             : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"
@@ -904,7 +914,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                         type="button"
                         onClick={() => handleMove(index, 1)}
                         disabled={!enabled || index === models.length - 1}
-                        className={`p-1 rounded transition-colors ${
+                        className={`p-2 rounded transition-colors sm:p-1 ${
                           !enabled || index === models.length - 1
                             ? "text-text-muted/20 cursor-not-allowed"
                             : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"
@@ -920,7 +930,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                       type="button"
                       onClick={() => handleRemove(index)}
                       disabled={!enabled}
-                      className={`p-1 rounded transition-colors ${
+                      className={`p-2 rounded transition-colors sm:p-1 ${
                         !enabled
                           ? "text-text-muted/20 cursor-not-allowed"
                           : "text-text-muted hover:text-red-500 hover:bg-red-500/10"

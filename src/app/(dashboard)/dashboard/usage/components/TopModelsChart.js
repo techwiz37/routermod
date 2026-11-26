@@ -44,12 +44,14 @@ export default function TopModelsChart({ byModel }) {
 
   return (
     <section className="an-panel">
-      <div className="an-chart">
-      <div className="an-chart-head">
-        <span className="an-chart-title">
-          <span className="material-symbols-outlined" aria-hidden>model_training</span>
-          <span className="truncate">Top Models</span>
+      <header className="an-panel-head us-chart-head">
+        <span className="an-panel-ico" aria-hidden>
+          <span className="material-symbols-outlined">model_training</span>
         </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="an-panel-title">Top Models</h2>
+          <p className="an-panel-sub">Model yang paling banyak digunakan</p>
+        </div>
         <AntaresSegmented
           options={[
             { value: "tokens", label: "Token" },
@@ -59,12 +61,15 @@ export default function TopModelsChart({ byModel }) {
           onChange={handleViewMode}
           size="sm"
         />
-      </div>
+      </header>
+      <div className="an-chart"
+        style={{ paddingTop: "14px", paddingBottom: "14px" }}
+      >
 
       {!allRows.length ? (
         <div className="h-44 flex flex-col items-center justify-center gap-2 text-[var(--t-muted)]">
           <span className="material-symbols-outlined text-[28px] opacity-30">model_training</span>
-          <span className="text-xs font-medium">Belum ada penggunaan model</span>
+          <span className="text-xs font-medium">Pending ada penggunaan model</span>
         </div>
       ) : (
         <>

@@ -244,7 +244,7 @@ export default function ProviderTopology({
               <span className="an-chip ok">
                 <span className="size-1.5 rounded-full bg-[var(--t-ok)] animate-pulse shrink-0" />
                 <span>{activeCount}</span>{" "}
-                <span>aktif</span>
+                <span>active</span>
               </span>
             )}
           </div>
@@ -253,7 +253,7 @@ export default function ProviderTopology({
         {providers.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-[var(--t-muted)]">
             <span className="material-symbols-outlined text-[32px] opacity-20">device_hub</span>
-            <span className="text-xs font-mono">Belum ada provider terhubung</span>
+            <span className="text-xs font-mono">No provider connected</span>
           </div>
         ) : (
           <div className="relative w-full flex-1 flex items-center justify-center overflow-hidden border-t border-[var(--t-line-soft)] bg-[radial-gradient(ellipse_at_center,rgba(31,100,180,0.11),transparent_52%),linear-gradient(145deg,#0b111a,#080a10_58%,#100d17)] p-0">

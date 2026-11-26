@@ -23,7 +23,7 @@ export default function NoAuthProxyCard({ providerId }) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch("/api/proxy-pools?isActive=true", { cache: "no-store" }).then((r) => r.ok ? r.json() : { proxyPools: [] }),
+      fetch("/api/proxy-pools?isActive=true&view=options", { cache: "no-store" }).then((r) => r.ok ? r.json() : { proxyPools: [] }),
       fetch("/api/settings", { cache: "no-store" }).then((r) => r.ok ? r.json() : {}),
     ]).then(([poolData, settingsData]) => {
       if (cancelled) return;
@@ -38,22 +38,16 @@ export default function NoAuthProxyCard({ providerId }) {
   const save = useCallback(async (poolId, strategy) => {
     setSaving(true);
     try {
-      const res = await fetch("/api/settings", { cache: "no-store" });
-      const data = res.ok ? await res.json() : {};
-      const current = data.providerStrategies || {};
-      const override = { ...(current[providerId] || {}) };
-      if (poolId === NONE_PROXY_POOL_VALUE) delete override.proxyPoolId;
-      else override.proxyPoolId = poolId;
-      if (strategy === "none") delete override.rotateStrategy;
-      else override.rotateStrategy = strategy;
-      const updated = { ...current };
-      if (Object.keys(override).length === 0) delete updated[providerId];
-      else updated[providerId] = override;
-      await fetch("/api/settings", {
+      const res = await fetch("/api/providers/strategy", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerStrategies: updated }),
+        body: JSON.stringify({
+          providerId,
+          proxyPoolId: poolId,
+          rotateStrategy: strategy,
+        }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);
     } catch (e) {

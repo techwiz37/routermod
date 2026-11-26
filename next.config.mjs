@@ -54,6 +54,10 @@ const nextConfig = {
   },
   env: {},
   experimental: {
+    ...(process.env.NEXT_LOW_MEMORY_BUILD === "1" ? {
+      webpackBuildWorker: true,
+      webpackMemoryOptimizations: true,
+    } : {}),
     // Security upgrade agent flag
     agentUpgrade: "security",
     // #1529/#1572: LLM clients can send long context or base64 image payloads through /v1 rewrites.
@@ -82,6 +86,14 @@ const nextConfig = {
   },
   async headers() {
     return [
+      // Fonts are versioned by filename, so they are safe to cache hard. This
+      // avoids revalidating a 3.9 MB icon font on every page load.
+      {
+        source: "/fonts/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
       // Dashboard HTML must never be retained across standalone deploys. The
       // HTML contains build-specific chunk names; serving an older copy after
       // a build makes the browser request chunks that no longer exist and

@@ -5,12 +5,17 @@ import PropTypes from "prop-types";
 import { Button, Modal, Select, Toggle } from "@/shared/components";
 import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/constants/models";
 import { translate, translateServerMessage } from "@/i18n/runtime";
+import { testModel } from "@/shared/utils/testModel";
+import { notifyModelTestSuccess } from "@/shared/utils/modelTestNotification";
+import { getCapabilitiesForModel } from "open-sse/providers/capabilities";
+import { resolveProviderId } from "@/shared/constants/providers";
 
 const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key) => [key, false]));
 
 export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, onSave, onClose }) {
   const [modelId, setModelId] = useState("");
   const [caps, setCaps] = useState(defaultCaps);
+  const [editedCaps, setEditedCaps] = useState({});
   const [modelType, setModelType] = useState("llm");
   const [testStatus, setTestStatus] = useState(null);
   const [testError, setTestError] = useState("");
@@ -18,8 +23,15 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
   const [transport, setTransport] = useState("");
 
   useEffect(() => {
-    if (isOpen) { setModelId(""); setCaps(defaultCaps()); setModelType("llm"); setTransport(""); setTestStatus(null); setTestError(""); }
+    if (isOpen) { setModelId(""); setCaps(defaultCaps()); setEditedCaps({}); setModelType("llm"); setTransport(""); setTestStatus(null); setTestError(""); }
   }, [isOpen]);
+
+  useEffect(() => {
+    const prefix = `${providerAlias}/`;
+    const id = modelId.trim().startsWith(prefix) ? modelId.trim().slice(prefix.length) : modelId.trim();
+    const inferred = getCapabilitiesForModel(resolveProviderId(providerAlias) || providerAlias, id);
+    setCaps({ vision: inferred.vision === true, reasoning: inferred.reasoning === true, ...editedCaps });
+  }, [modelId, providerAlias, editedCaps]);
 
   const stripAlias = (id) => {
     const prefix = `${providerAlias}/`;
@@ -28,28 +40,14 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
 
   const handleTest = async () => {
     const cleanId = stripAlias(modelId.trim());
-    if (!cleanId) return;
+    if (!cleanId || testStatus === "testing") return;
     setTestStatus("testing");
     setTestError("");
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    try {
-      const res = await fetch("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: `${providerAlias}/${cleanId}`, kind: modelType }),
-        signal: controller.signal,
-      });
-      const data = await res.json();
-      setTestStatus(data.ok ? "ok" : "error");
-      setTestError(translateServerMessage(data.error) || "");
-    } catch (err) {
-      const timedOut = err?.name === "AbortError" || err?.name === "TimeoutError";
-      setTestStatus("error");
-      setTestError(timedOut ? translate("No response within 30 seconds") : (err?.message || translate("Failed to test model")));
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const model = `${providerAlias}/${cleanId}`;
+    const data = await testModel(model, modelType);
+    setTestStatus(data.ok ? "ok" : "error");
+    setTestError(translateServerMessage(data.error) || "");
+    if (data.ok) notifyModelTestSuccess(model, data.latencyMs);
   };
 
   const handleSave = async () => {
@@ -57,7 +55,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
     if (!cleanId || saving) return;
     setSaving(true);
     try {
-      await onSave(cleanId, modelType, modelType === "llm" ? caps : undefined, modelType === "stt" ? transport : null);
+      await onSave(cleanId, modelType, modelType === "llm" && Object.keys(editedCaps).length ? editedCaps : undefined, modelType === "stt" ? transport : null);
     } finally {
       setSaving(false);
     }
@@ -80,6 +78,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
           onChange={(e) => {
             setModelType(e.target.value);
             setCaps(defaultCaps());
+            setEditedCaps({});
             setTransport("");
             setTestStatus(null);
             setTestError("");
@@ -95,21 +94,26 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
             <input
               type="text"
               value={modelId}
+              disabled={testStatus === "testing"}
               onChange={(e) => { setModelId(e.target.value); setTestStatus(null); setTestError(""); }}
               onKeyDown={handleKeyDown}
               placeholder={translate("e.g. claude-opus-4-5")}
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
+              className="min-w-0 flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
               autoFocus
             />
-            <Button
-              variant="secondary"
-              icon="science"
-              loading={testStatus === "testing"}
+            <button
+              type="button"
+              aria-label={`${translate(testStatus === "testing" ? "Testing..." : "Test model")} ${modelId.trim()}`}
+              aria-busy={testStatus === "testing"}
+              title={translate("Send a short prompt and wait up to 60 seconds for an answer.")}
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-text-muted hover:bg-surface-3 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={handleTest}
               disabled={!modelId.trim() || testStatus === "testing"}
             >
-              {testStatus === "testing" ? translate("Testing...") : translate("Test")}
-            </Button>
+              <span aria-hidden="true" className={`material-symbols-outlined text-[18px]${testStatus === "testing" ? " animate-spin motion-reduce:animate-none" : ""}`}>
+                {testStatus === "testing" ? "progress_activity" : "science"}
+              </span>
+            </button>
           </div>
           <p className="text-xs text-text-muted mt-1">
             {translate("Sent to provider as:")} <code className="font-mono bg-sidebar px-1 rounded">{stripAlias(modelId.trim()) || "model-id"}</code>
@@ -124,7 +128,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
               <Toggle
                 key={key}
                 checked={!!caps[key]}
-                onChange={(v) => setCaps((prev) => ({ ...prev, [key]: v }))}
+                onChange={(v) => setEditedCaps((prev) => ({ ...prev, [key]: v }))}
                 label={meta.label}
                 description={meta.desc}
                 size="sm"
@@ -145,12 +149,6 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
           />
         )}
 
-        {testStatus === "ok" && (
-          <div className="flex items-center gap-2 text-sm text-green-600">
-            <span className="material-symbols-outlined text-base">check_circle</span>
-            {translate("Model is reachable")}
-          </div>
-        )}
         {testStatus === "error" && (
           <div className="flex items-start gap-2 text-sm text-red-500">
             <span className="material-symbols-outlined text-base shrink-0">cancel</span>

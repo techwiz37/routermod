@@ -16,7 +16,7 @@ export async function POST(request, { params }) {
       return Response.json({ error: "Limit reset is only available for Claude OAuth connections." }, { status: 400 });
     }
 
-    const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData);
+    const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData, connection.provider);
     const proxyOptions = {
       connectionProxyEnabled: proxyConfig.connectionProxyEnabled === true,
       connectionProxyUrl: proxyConfig.connectionProxyUrl || "",

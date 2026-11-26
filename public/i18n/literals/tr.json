@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "5–128 karakter kullanın: harfler, sayılar, tireler (-) veya alt çizgiler (_). rmod- öneki isteğe bağlıdır. Kolay tahmin edilebilecek kelimelerden kaçının.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "API anahtarı 5–128 karakter olmalı ve yalnızca harfler, sayılar, tireler (-) veya alt çizgiler (_) içermelidir."
 }

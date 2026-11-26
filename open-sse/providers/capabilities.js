@@ -223,6 +223,17 @@ export const MODEL_CAPABILITIES = {
   "longcat-2.0":             { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
   "longcat-2.0-free":        { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
   "longcat-2.5-preview-free":{ vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
+  // Live OpenCode CLI free tier (zen catalog, v2.2.7).
+  "longcat-2.5-free":        { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 262144 },
+  "mimo-v2.6-flash-free":    { vision: true, videoInput: true, audioInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
+  "deepseek-v4.1-flash-free":{ vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 200000, maxOutput: 32000 },
+  "iceman-free":             { reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 131072 },
+  "beam-free":               { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
+  "flint-40b-free":          { reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 65536 },
+  "nemotron-3.5-super-vl-free":{ vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
+  "nemotron-3.5-lightning-free":{ reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 262144 },
+  "hy4-flash-free":          { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
+  "tidepool-alpha-free":     { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
   "north-mini-code-free":    { reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 64000 },
   "ring-2.6-1t-free":        { reasoning: true, thinkingFormat: "openai", contextWindow: 262000, maxOutput: 66000 },
   "x-preview-f-free":        { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
@@ -490,7 +501,7 @@ PROVIDER_CAPABILITIES["qoder-cn"] = PROVIDER_CAPABILITIES["qoder"];
 // MiniMax M2.1: vision+reasoning, cannot disable thinking, smaller context.
 // GLM-5: reasoning only (no vision on base GLM-5).
 // Qwen3 Coder Next: NO vision/audio (strip:["image","audio"] in registry), reasoning.
-// auto/auto-thinking: Kiro picks model server-side; expose as vision+reasoning (Claude-equivalent).
+// auto: Kiro picks model server-side; expose as vision+reasoning (Claude-equivalent).
 const KIRO_CLAUDE_SONNET_45  = { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 128000 };
 const KIRO_CLAUDE_HAIKU_45   = { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 128000 };
 const KIRO_DEEPSEEK_32       = { vision: false, reasoning: true, thinkingFormat: "deepseek", contextWindow: 164000, maxOutput: 64000 };
@@ -502,43 +513,21 @@ const KIRO_AUTO              = { vision: true, pdf: true, reasoning: true, searc
 
 PROVIDER_CAPABILITIES["kiro"] = {
   // Auto (server-side model selection)
-  "auto":                                  KIRO_AUTO,
-  "auto-thinking":                         KIRO_AUTO,
+  "auto":                           KIRO_AUTO,
   // Claude Sonnet 4.5
-  "claude-sonnet-4.5":                     KIRO_CLAUDE_SONNET_45,
-  "claude-sonnet-4.5-thinking":            KIRO_CLAUDE_SONNET_45,
-  "claude-sonnet-4.5-agentic":             KIRO_CLAUDE_SONNET_45,
-  "claude-sonnet-4.5-thinking-agentic":    KIRO_CLAUDE_SONNET_45,
+  "claude-sonnet-4.5":              KIRO_CLAUDE_SONNET_45,
   // Claude Haiku 4.5
-  "claude-haiku-4.5":                      KIRO_CLAUDE_HAIKU_45,
-  "claude-haiku-4.5-thinking":             KIRO_CLAUDE_HAIKU_45,
-  "claude-haiku-4.5-agentic":              KIRO_CLAUDE_HAIKU_45,
-  "claude-haiku-4.5-thinking-agentic":     KIRO_CLAUDE_HAIKU_45,
+  "claude-haiku-4.5":               KIRO_CLAUDE_HAIKU_45,
   // DeepSeek 3.2 (no image/audio — strip in registry)
-  "deepseek-3.2":                          KIRO_DEEPSEEK_32,
-  "deepseek-3.2-thinking":                 KIRO_DEEPSEEK_32,
-  "deepseek-3.2-agentic":                  KIRO_DEEPSEEK_32,
-  "deepseek-3.2-thinking-agentic":         KIRO_DEEPSEEK_32,
+  "deepseek-3.2":                   KIRO_DEEPSEEK_32,
   // MiniMax M2.5
-  "minimax-m2.5":                          KIRO_MINIMAX_M25,
-  "minimax-m2.5-thinking":                 KIRO_MINIMAX_M25,
-  "minimax-m2.5-agentic":                  KIRO_MINIMAX_M25,
-  "minimax-m2.5-thinking-agentic":         KIRO_MINIMAX_M25,
+  "minimax-m2.5":                   KIRO_MINIMAX_M25,
   // MiniMax M2.1
-  "minimax-m2.1":                          KIRO_MINIMAX_M21,
-  "minimax-m2.1-thinking":                 KIRO_MINIMAX_M21,
-  "minimax-m2.1-agentic":                  KIRO_MINIMAX_M21,
-  "minimax-m2.1-thinking-agentic":         KIRO_MINIMAX_M21,
+  "minimax-m2.1":                   KIRO_MINIMAX_M21,
   // GLM-5 (no vision on base GLM-5)
-  "glm-5":                                 KIRO_GLM5,
-  "glm-5-thinking":                        KIRO_GLM5,
-  "glm-5-agentic":                         KIRO_GLM5,
-  "glm-5-thinking-agentic":               KIRO_GLM5,
+  "glm-5":                          KIRO_GLM5,
   // Qwen3 Coder Next (no image/audio — strip in registry)
-  "qwen3-coder-next":                      KIRO_QWEN3_CODER_NEXT,
-  "qwen3-coder-next-thinking":             KIRO_QWEN3_CODER_NEXT,
-  "qwen3-coder-next-agentic":              KIRO_QWEN3_CODER_NEXT,
-  "qwen3-coder-next-thinking-agentic":     KIRO_QWEN3_CODER_NEXT,
+  "qwen3-coder-next":               KIRO_QWEN3_CODER_NEXT,
 };
 // kr is the public alias for kiro
 PROVIDER_CAPABILITIES["kr"] = PROVIDER_CAPABILITIES["kiro"];
@@ -905,8 +894,32 @@ function isCommandCodeTextOnly(model) {
   }
   return false;
 }
+// Gateways that refuse a prompt above a fixed token count no matter what the
+// model's own window is. Publishing the ceiling keeps clients (OpenCode, Claude
+// Code, …) auto-compacting before the gateway answers 413 context_too_long,
+// and lets the server-side context guard trim on the wire as a backstop.
+// FreePi rejects any request over 250k tokens; its own client compacts at
+// ~183.6k, so 250k / 64k mirrors that envelope without over-trimming.
+const PROVIDER_CONTEXT_CEILINGS = {
+  freepi: { contextWindow: 250000, maxOutput: 65536 },
+  fr: { contextWindow: 250000, maxOutput: 65536 },
+};
+
+function applyProviderCeiling(caps, provider) {
+  const ceiling = PROVIDER_CONTEXT_CEILINGS[String(provider || "").toLowerCase()];
+  if (!ceiling) return caps;
+  return {
+    ...caps,
+    contextWindow: Math.min(caps.contextWindow, ceiling.contextWindow),
+    maxOutput: Math.min(caps.maxOutput, ceiling.maxOutput),
+  };
+}
+
 export function getCapabilitiesForModel(provider, model) {
-  return applyLearnedLimits(resolveCapabilities(provider, model), provider, model);
+  return applyProviderCeiling(
+    applyLearnedLimits(resolveCapabilities(provider, model), provider, model),
+    provider,
+  );
 }
 
 // Windows the upstream itself reported in a context-overflow rejection. The

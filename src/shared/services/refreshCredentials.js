@@ -8,10 +8,16 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
 import { getExecutor } from "open-sse/executors/index.js";
+import { getKiroRefreshRejection, kiroRefreshRejectedError } from "open-sse/shared/kiroRefreshState.js";
+import { recordKiroRefreshRejection } from "@/sse/services/tokenRefresh.js";
 
 export async function refreshAndUpdateCredentials(connection, force = false, proxyOptions = null) {
   const latest = connection.id ? await getProviderConnectionById(connection.id) : null;
   if (latest) connection = latest;
+  if (connection.provider === "kiro") {
+    const rejection = getKiroRefreshRejection(connection);
+    if (rejection) throw kiroRefreshRejectedError(rejection);
+  }
 
   const executor = getExecutor(connection.provider);
 
@@ -36,6 +42,10 @@ export async function refreshAndUpdateCredentials(connection, force = false, pro
   const refreshResult = await executor.refreshCredentials(credentials, console, proxyOptions);
 
   if (refreshResult && isUnrecoverableRefreshError(refreshResult)) {
+    if (connection.provider === "kiro") {
+      await recordKiroRefreshRejection(connection.id, connection, refreshResult);
+      throw kiroRefreshRejectedError(refreshResult);
+    }
     throw new Error("Refresh token invalid or reused. Please re-authorize the connection.");
   }
 

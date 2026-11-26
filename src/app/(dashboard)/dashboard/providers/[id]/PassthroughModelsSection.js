@@ -5,8 +5,10 @@ import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import { translate } from "@/i18n/runtime";
+import ModelCapabilities from "@/shared/components/ModelCapabilities";
+import ModelTestButton from "@/shared/components/ModelTestButton";
 
-function PassthroughModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
+function PassthroughModelRow({ modelId, fullModel, caps, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -31,13 +33,14 @@ function PassthroughModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{modelId}</p>
+        <ModelCapabilities model={fullModel} caps={caps} />
 
         <code className="mt-1 block break-all text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
       </div>
 
       </div>
-      <div className="mt-2 flex min-h-7 items-center justify-end gap-1 border-t border-border/60 pt-1.5">
-         {onTest && <button onClick={onTest} disabled={isTesting} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={isTesting ? translate("Testing...") : translate("Test")}><span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>{isTesting ? "progress_activity" : "science"}</span></button>}
+      <div className="mt-2 flex min-h-7 flex-wrap items-center justify-end gap-1 border-t border-border/60 pt-1.5">
+         <ModelTestButton model={fullModel} onRemove={onDeleteAlias} />
          <button onClick={() => onCopy(fullModel, `model-${modelId}`)} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={copied === `model-${modelId}` ? translate("Copied!") : translate("Copy")}><span className="material-symbols-outlined text-sm">{copied === `model-${modelId}` ? "check" : "content_copy"}</span></button>
          <button onClick={onDeleteAlias} className="rounded p-1 text-red-500 hover:bg-red-500/10" title={translate("Delete model")}><span className="material-symbols-outlined text-sm">delete</span></button>
       </div>
@@ -115,11 +118,12 @@ export default function PassthroughModelsSection({ providerAlias, modelAliases, 
 
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
-          {allModels.map(({ id, fullModel, alias, source }) => (
+          {allModels.map(({ id, fullModel, alias, source, caps }) => (
             <PassthroughModelRow
               key={`${source}-${fullModel}`}
               modelId={id}
               fullModel={fullModel}
+              caps={caps}
               copied={copied}
               onCopy={onCopy}
               onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}

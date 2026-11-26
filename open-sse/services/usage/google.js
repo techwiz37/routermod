@@ -121,7 +121,8 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
   try {
     // Fetch subscription info once — reuse for both projectId and plan
     const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken, proxyOptions);
-    const projectId = subscriptionInfo?.cloudaicompanionProject || null;
+    const projectId = normalizeCloudCodeProjectId(subscriptionInfo?.cloudaicompanionProject)
+      || normalizeCloudCodeProjectId(providerSpecificData?.projectId);
 
     const response = await fetchWithTimeout(ANTIGRAVITY_CONFIG.quotaApiUrl, {
       method: "POST",
@@ -167,44 +168,6 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
     // Parse model quotas only for paid-tier accounts.
     // Free-tier accounts skip this — their only meaningful quota is the weekly limit.
     if (!isFreeTier && data.models) {
-      // Filter only recommended/important models (must match PROVIDER_MODELS ag ids)
-      const importantModels = [
-        // Upstream real model keys
-        'gemini-3.8-flash-tiered',
-        'gemini-3-flash-agent',
-        'gemini-4-carbon-high',
-        'gemini-4-carbon-medium',
-        'gemini-4-carbon-low',
-        'gemini-4-argon-high',
-        'gemini-4-argon-medium',
-        'gemini-4-argon-low',
-        'gemini-3.8-flash-high',
-        'gemini-3.8-flash-medium',
-        'gemini-3.8-flash-low',
-        'gemini-3.7-flash-high',
-        'gemini-3.7-flash-medium',
-        'gemini-3.7-flash-low',
-        'gemini-3.6-flash-high',
-        'gemini-3.6-flash-medium',
-        'gemini-3.6-flash-low',
-        'gemini-3.1-pro-high',
-        'gemini-pro-agent',
-        'gemini-3.1-pro-low',
-        'claude-sonnet-5-5-high',
-        'claude-sonnet-5-5-medium',
-        'claude-sonnet-5-5-low',
-        'claude-sonnet-5-5',
-        'claude-opus-5-5-high',
-        'claude-opus-5-5-medium',
-        'claude-opus-5-5-low',
-        'claude-opus-5-5',
-        'claude-sonnet-4-6',
-        'claude-opus-4-6-thinking',
-        'gpt-oss-120b-medium',
-        // Image generation models
-        'gemini-3.1-flash-image',
-      ];
-
       for (const [modelKey, info] of Object.entries(data.models)) {
         // Skip models without quota info
         if (!info.quotaInfo) {
@@ -212,11 +175,14 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
         }
 
         // Skip internal models and non-important models
-        if (info.isInternal || !importantModels.includes(modelKey)) {
+        if (info.isInternal) {
           continue;
         }
 
-        const remainingFraction = info.quotaInfo.remainingFraction || 0;
+        const rawRemainingFraction = info.quotaInfo.remainingFraction;
+        if (rawRemainingFraction == null || rawRemainingFraction === "" || typeof rawRemainingFraction === "boolean") continue;
+        const remainingFraction = Number(rawRemainingFraction);
+        if (!Number.isFinite(remainingFraction) || remainingFraction < 0 || remainingFraction > 1) continue;
         const remainingPercentage = remainingFraction * 100;
 
         // Convert percentage to used/total for UI compatibility
@@ -329,10 +295,31 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
       // Silently ignore — weekly is best-effort
     }
 
+    // If tier detection or the summary endpoint is unavailable, keep real
+    // model quota values instead of silently returning an empty free-tier card.
+    // Do not invent a zero balance for models without a numeric fraction.
+    if (Object.keys(quotas).length === 0 && data.models) {
+      for (const [modelKey, info] of Object.entries(data.models)) {
+        const fraction = info?.quotaInfo?.remainingFraction;
+        if (info?.isInternal || fraction == null || fraction === "" || typeof fraction === "boolean") continue;
+        const remainingFraction = Number(fraction);
+        if (!Number.isFinite(remainingFraction) || remainingFraction < 0 || remainingFraction > 1) continue;
+        quotas[modelKey] = {
+          used: 1000 - Math.round(1000 * remainingFraction), total: 1000,
+          resetAt: parseResetTime(info.quotaInfo.resetTime),
+          remainingPercentage: remainingFraction * 100, unlimited: false,
+          displayName: info.displayName || modelKey,
+        };
+      }
+    }
+
     return {
       plan: subscriptionInfo?.currentTier?.name || "Unknown",
       quotas,
       subscriptionInfo,
+      ...(Object.keys(quotas).length === 0 ? {
+        message: "Antigravity returned no usable quota data. Refresh quota to retry. This does not mean the account has zero quota.",
+      } : {}),
     };
   } catch (error) {
     console.error("[Antigravity Usage] Error:", error.message, error.cause);

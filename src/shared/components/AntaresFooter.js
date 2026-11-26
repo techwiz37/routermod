@@ -28,7 +28,7 @@ export default function AntaresFooter({ className = "" }) {
               </div>
               <div>
                 <p className="font-bold text-sm text-[var(--color-text-main)] font-mono">RouterMod</p>
-                <p className="text-[10px] text-[var(--color-text-muted)] font-mono">AI GATEWAY</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] font-mono">{translate("AI Gateway")}</p>
               </div>
             </div>
             <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">

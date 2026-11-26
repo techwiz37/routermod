@@ -15,7 +15,6 @@
 
 const path = require("path");
 const crypto = require("crypto");
-const puppeteer = require("puppeteer-core");
 const store = require("./session_store.js");
 const { findChrome } = require("./find_chrome.js");
 
@@ -56,6 +55,7 @@ async function refreshCookieForConnection(connection, { timeoutMs = 45000 } = {}
   let page = null;
   const deadline = Date.now() + timeoutMs;
   try {
+    const { default: puppeteer } = await import("puppeteer-core");
     browser = await puppeteer.launch({
       executablePath: chromePath,
       headless: true,
@@ -142,6 +142,7 @@ async function seedCookieFromOAuth(connection, { timeoutMs = 60000 } = {}) {
   let page = null;
   const deadline = Date.now() + timeoutMs;
   try {
+    const { default: puppeteer } = await import("puppeteer-core");
     browser = await puppeteer.launch({
       executablePath: chromePath,
       headless: true,

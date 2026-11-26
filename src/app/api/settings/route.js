@@ -41,6 +41,10 @@ export async function PATCH(request) {
     const locale = getRequestLocale(request);
     const body = await request.json();
 
+    if (body.providerModelSystemPrompts) {
+      console.log("[Settings] Updating providerModelSystemPrompts with keys:", Object.keys(body.providerModelSystemPrompts));
+    }
+
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
 
     if (body.newPassword) {

@@ -31,7 +31,7 @@ function readGateSync() {
       dataDir = path.join(process.env.HOME || "/root", ".routermod");
     }
     const gateFile = path.join(dataDir, "tunnel", "gate.json");
-    if (!fs.existsSync(gateFile)) return { tunnelActive: false, dashboardAccess: true };
+    if (!fs.existsSync(gateFile)) return { tunnelActive: true, dashboardAccess: true };
     return JSON.parse(fs.readFileSync(gateFile, "utf8"));
   } catch {
     return null; // fail open
@@ -65,6 +65,27 @@ export default async function proxy(request) {
         }
       }
     }
+  }
+
+  // A browser visiting the bare API base URL should get a useful destination;
+  // API clients and all versioned endpoints keep their normal auth behavior.
+  if (
+    request.method === "GET" &&
+    pathname === "/v1" &&
+    request.headers.get("accept")?.includes("text/html") &&
+    !request.headers.has("authorization") &&
+    !request.headers.has("x-api-key") &&
+    !request.headers.has("x-goog-api-key")
+  ) {
+    const loginPath = "/login";
+    const html = `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="3;url=${loginPath}"><title>Mengalihkan ke login</title></head><body><p>Alamat API ini bukan halaman web. Mengalihkan ke halaman login dalam 3 detik...</p><p><a href="${loginPath}">Buka halaman login sekarang</a></p><script>setTimeout(()=>location.replace(${JSON.stringify(loginPath)}),3000)</script></body></html>`;
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
   const cookies = request.headers.get("cookie") || "";

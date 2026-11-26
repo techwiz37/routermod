@@ -1,7 +1,7 @@
 const REFRESH_RESULT_TTL_MS = 10_000;
 const refreshDedupCache = new Map();
 
-export async function dedupRefresh(provider, oldToken, fn, log) {
+export async function dedupRefresh(provider, oldToken, fn, log, options = {}) {
   if (!oldToken) return fn();
   const key = `${provider}:${oldToken}`;
   const hit = refreshDedupCache.get(key);
@@ -19,7 +19,12 @@ export async function dedupRefresh(provider, oldToken, fn, log) {
   const promise = (async () => {
     try {
       const result = await fn();
-      refreshDedupCache.set(key, { result, expiresAt: Date.now() + REFRESH_RESULT_TTL_MS });
+      const ttl = options.resultTtlMs?.(result) ?? REFRESH_RESULT_TTL_MS;
+      const now = Date.now();
+      for (const [cachedKey, entry] of refreshDedupCache) {
+        if (!entry.promise && entry.expiresAt <= now) refreshDedupCache.delete(cachedKey);
+      }
+      refreshDedupCache.set(key, { result, expiresAt: now + ttl });
       return result;
     } catch (err) {
       refreshDedupCache.delete(key);

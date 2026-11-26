@@ -134,11 +134,25 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
       ? connection.displayName.trim()
       : null;
 
+  // Prefer the freshest failure from a just-finished one-by-one test, then
+  // fall back to the persisted error on the connection record.
+  const problemMessage = (oneByOneStatus?.state === "failed" && oneByOneStatus.error)
+    || connection.lastError
+    || translate("Connection test failed. Run Test Connections for details.");
+
+  const hasProblem = Boolean(
+    connection.isActive !== false && (
+      oneByOneStatus?.state === "failed"
+      || connection.lastError
+      || ["error", "unavailable", "expired"].includes(connection.testStatus)
+    )
+  );
+
   const showConnectionError = () => {
     addNotification({
-      type: "error",
-      title: translate("Connection error"),
-      message: connection.lastError,
+      type: "warning",
+      title: translate("Connection problem"),
+      message: problemMessage,
       duration: 8000,
     });
   };
@@ -266,17 +280,6 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               </span>
             )}
             {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}
-            {connection.lastError && connection.isActive !== false && (
-              <button
-                type="button"
-                onClick={showConnectionError}
-                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-500/15 hover:text-amber-400"
-                title={translate("Show connection error")}
-                aria-label={translate("Show connection error")}
-              >
-                <span className="text-sm leading-none">⚠️</span>
-              </button>
-            )}
             <span className="an-conn-meta">#{connection.priority}</span>
             {connection.globalPriority && (
               <span className="an-conn-meta">Auto: {connection.globalPriority}</span>
@@ -365,6 +368,16 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
         <button onClick={onDelete} className="an-conn-btn danger" title={translate("Delete")} aria-label={translate("Delete")}>
           <span className="material-symbols-outlined">delete</span>
         </button>
+        {hasProblem && (
+          <button
+            onClick={showConnectionError}
+            className="an-conn-btn warn"
+            title={translate("Show connection problem")}
+            aria-label={translate("Show connection problem")}
+          >
+            <span className="material-symbols-outlined">warning</span>
+          </button>
+        )}
         <AntaresSwitch
           on={connection.isActive ?? true}
           onChange={onToggleActive}

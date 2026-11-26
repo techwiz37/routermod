@@ -193,7 +193,7 @@ export default function DashboardLayout({ children }) {
   }, []);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg">
+    <div className="flex h-screen w-full overflow-clip bg-bg">
       {!isWorkspace && <PageLoadBadge />}
       {showCommunity && <CommunityPopup onClose={dismissCommunity} />}
       <div className="fixed top-4 right-4 z-[300] flex w-[min(92vw,380px)] flex-col gap-2">
@@ -231,7 +231,7 @@ export default function DashboardLayout({ children }) {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/20 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -239,15 +239,15 @@ export default function DashboardLayout({ children }) {
       {/* Sidebar - Desktop (collapsible) */}
       <div
         className={`hidden lg:flex lg:h-full shrink-0 transition-[width] duration-200 ease-out overflow-hidden ${
-          sidebarCollapsed ? "w-0" : "w-72"
+          sidebarCollapsed ? "w-[68px]" : "w-[264px]"
         }`}
       >
-        <Sidebar />
+        <Sidebar collapsed={sidebarCollapsed} />
       </div>
 
       {/* Sidebar - Mobile */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 transform lg:hidden transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 w-[280px] max-w-[calc(100vw-24px)] transform shadow-[12px_0_40px_rgba(0,0,0,0.45)] lg:hidden transition-transform duration-300 ease-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

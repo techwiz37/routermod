@@ -2,7 +2,7 @@ import { translateResponse, initState } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
-import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
+import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE, buildStreamErrorBytes } from "./streamHelpers.js";
 import { isCustomProvider, getMaskedProviderErrorMessage } from "./error.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
@@ -322,6 +322,11 @@ export function createSSEStream(options = {}) {
 
         const parsed = parseSSELine(trimmed, targetFormat);
         if (!parsed) continue;
+        if (provider === "kiro" && parsed.error?.code === "kiro_user_suspended") {
+          controller.enqueue(buildStreamErrorBytes(parsed.error.status || 403, parsed.error.message, sourceFormat));
+          streamDoneSent = true;
+          continue;
+        }
         if (parsed.error && isCustomProvider(provider)) {
           const maskedMsg = getMaskedProviderErrorMessage(null, body);
           if (typeof parsed.error === "object") {

@@ -39,6 +39,69 @@ function envMs(name, def) {
   return Number.isFinite(n) && n > 0 ? n : def;
 }
 
+// OpenCode Free WARP rotation defaults — hardcoded on purpose: no .env needed.
+// Every free model must be able to walk through at least TARGET distinct WARP
+// exit IPs before the executor declares the quota exhausted. 0 hops = unlimited
+// (the budget still bounds the loop).
+export const OPENCODE_FREE_IP_TARGET = 100;
+export const OPENCODE_MAX_HOPS = OPENCODE_FREE_IP_TARGET;
+
+// A single hop is disconnect → reconnect → IP echo, so give the loop enough
+// wall-clock time for TARGET hops (TARGET × (cooldown + hop estimate) below).
+export const OPENCODE_HOP_BUDGET_MS = 60 * 60 * 1000;
+
+// Minimum gap between two IP rotations. Without it a burst of 429s disconnects
+// and reconnects the shared tunnel over and over. Capped so that TARGET hops
+// remain reachable inside one budget; 0 = no cooldown.
+export const WARP_HOP_COOLDOWN_MS = 5_000;
+
+// Conservative estimate for one WARP hop, used to size the budget when an
+// operator raises the hop count above the default target.
+export const WARP_HOP_ESTIMATE_MS = 15_000;
+
+/**
+ * Resolve the free-lane rotation knobs from saved dashboard settings.
+ *
+ * Operator values are honoured when they are MORE generous than the target,
+ * but the 100-IP target is enforced: a stale setting like `maxHops: 7` or a
+ * 45 s cooldown would otherwise stop the rotation long before the target and
+ * surface the misleading "quota exhausted" 429 too early.
+ */
+export function resolveOpencodeRotationSettings(saved = {}) {
+  // `null * 1000` is 0, which would silently disable the cooldown. Only real
+  // numeric input (including an explicit 0) is accepted.
+  const parse = (value) => {
+    if (value == null || value === "") return NaN;
+    return Number(value);
+  };
+  const number = (value, fallback) => {
+    const n = parse(value);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  const nonNegative = (value, fallback) => {
+    const n = parse(value);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  };
+
+  let maxHops = nonNegative(saved.opencodeMaxHops, OPENCODE_MAX_HOPS);
+  if (maxHops !== 0) maxHops = Math.max(OPENCODE_FREE_IP_TARGET, maxHops);
+
+  const cooldownMs = Math.min(
+    nonNegative(saved.warpHopCooldownSec, WARP_HOP_COOLDOWN_MS / 1000) * 1000,
+    WARP_HOP_COOLDOWN_MS,
+  );
+
+  const requiredMs = maxHops === 0
+    ? OPENCODE_HOP_BUDGET_MS
+    : Math.max(OPENCODE_HOP_BUDGET_MS, maxHops * (cooldownMs + WARP_HOP_ESTIMATE_MS));
+  const budgetMs = Math.max(
+    number(saved.opencodeHopBudgetSec, OPENCODE_HOP_BUDGET_MS / 1000) * 1000,
+    requiredMs,
+  );
+
+  return { maxHops, cooldownMs, budgetMs };
+}
+
 function envUrl(name, def) {
   const raw = process.env[name]?.trim();
   return raw || def;
@@ -126,11 +189,18 @@ export const RETRY_CONFIG = {
 // Default retry config by status code: { attempts, delayMs }
 // Backward compat: if value is a number, treated as attempts with RETRY_CONFIG.delayMs
 export const DEFAULT_RETRY_CONFIG = {
-  429: { attempts: 0, delayMs: 0 },
+  // 429 is often a short upstream window (FreePi `upstream_rate_limited`,
+  // provider busy lanes). Honour Retry-After via BaseExecutor.computeRetryDelay
+  // and retry a few times instead of surfacing a hard failure to the client.
+  429: { attempts: 3, delayMs: 2000 },
   502: { attempts: 3, delayMs: 3000 },
   503: { attempts: 3, delayMs: 2000 },
   504: { attempts: 2, delayMs: 3000 }
 };
+
+// Cap a server-issued Retry-After so a misbehaving upstream cannot park a
+// request forever. Env overrides for operators on slower lanes.
+export const RETRY_AFTER_CAP_MS = Number(process.env.RETRY_AFTER_CAP_MS) || 30_000;
 
 // Normalize a retry entry to { attempts, delayMs }
 export function resolveRetryEntry(entry) {

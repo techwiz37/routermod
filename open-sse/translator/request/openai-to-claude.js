@@ -13,7 +13,7 @@ import { getCapabilitiesForModel } from "../../providers/capabilities.js";
 const CLAUDE_OAUTH_TOOL_PREFIX = "";
 
 // Convert OpenAI request to Claude format
-export function openaiToClaudeRequest(model, body, stream) {
+export function openaiToClaudeRequest(model, body, stream, credentials = null) {
   // Tool name mapping for Claude OAuth (capitalizedName → originalName)
   const toolNameMap = new Map();
   // Cap max_tokens at the model's real output ceiling (e.g. Opus 4.8 = 128000),
@@ -129,17 +129,22 @@ Respond ONLY with the JSON object, no other text.`);
     }
   }
 
-  // System with Claude Code prompt and cache_control
-  const claudeCodePrompt = { type: CLAUDE_BLOCK.TEXT, text: CLAUDE_SYSTEM_PROMPT };
+  // The Claude Code identity is only needed by Anthropic OAuth (Claude Code
+  // tokens). Official API keys, GitHub Copilot and other Anthropic-compatible
+  // gateways must see exactly the system prompt the client sent — never an
+  // invented persona. ROUTERMOD_CLAUDE_CODE_PROMPT=on forces the old behaviour.
+  const authToken = String(credentials?.accessToken || credentials?.apiKey || "");
+  const wantsClaudeCodePrompt = authToken.startsWith("sk-ant-oat")
+    || /^(1|on|true|yes)$/i.test(String(process.env.ROUTERMOD_CLAUDE_CODE_PROMPT || ""));
 
   if (systemParts.length > 0) {
     const systemText = systemParts.join("\n");
-    result.system = [
-      claudeCodePrompt,
-      { type: CLAUDE_BLOCK.TEXT, text: systemText, cache_control: { type: "ephemeral", ttl: "1h" } }
-    ];
-  } else {
-    result.system = [claudeCodePrompt];
+    const userSystem = { type: CLAUDE_BLOCK.TEXT, text: systemText, cache_control: { type: "ephemeral", ttl: "1h" } };
+    result.system = wantsClaudeCodePrompt
+      ? [{ type: CLAUDE_BLOCK.TEXT, text: CLAUDE_SYSTEM_PROMPT }, userSystem]
+      : [userSystem];
+  } else if (wantsClaudeCodePrompt) {
+    result.system = [{ type: CLAUDE_BLOCK.TEXT, text: CLAUDE_SYSTEM_PROMPT }];
   }
 
   // Tools - convert from OpenAI format to Claude format with prefix for OAuth

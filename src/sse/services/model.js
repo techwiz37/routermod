@@ -1,6 +1,8 @@
 import { getModelAliases, getCustomModels, getModelNames, getComboByName, getProviderNodes, getProviderConnections, getSettings } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
+import { publicModelId } from "@/shared/utils/publicModelId.js";
+import { upstreamModelId } from "@/shared/utils/upstreamModelId.js";
 
 const LOCAL_PROVIDER_ALIASES = {
   xmtp: "xiaomi-tokenplan",
@@ -8,10 +10,22 @@ const LOCAL_PROVIDER_ALIASES = {
 };
 
 const RESERVED_PROVIDER_PREFIXES = new Set(Object.keys(LOCAL_PROVIDER_ALIASES));
+const PROVIDER_ID_BY_ALIAS = new Map();
 for (const entry of REGISTRY) {
   RESERVED_PROVIDER_PREFIXES.add(entry.id);
+  PROVIDER_ID_BY_ALIAS.set(entry.id, entry.id);
   if (entry.alias) RESERVED_PROVIDER_PREFIXES.add(entry.alias);
+  if (entry.alias) PROVIDER_ID_BY_ALIAS.set(entry.alias, entry.id);
+  if (entry.uiAlias) {
+    RESERVED_PROVIDER_PREFIXES.add(entry.uiAlias);
+    PROVIDER_ID_BY_ALIAS.set(entry.uiAlias, entry.id);
+  }
   for (const alias of entry.aliases || []) RESERVED_PROVIDER_PREFIXES.add(alias);
+  for (const alias of entry.aliases || []) PROVIDER_ID_BY_ALIAS.set(alias, entry.id);
+}
+
+function canonicalProviderId(provider) {
+  return LOCAL_PROVIDER_ALIASES[provider] || PROVIDER_ID_BY_ALIAS.get(provider) || provider;
 }
 
 export function parseModel(modelStr) {
@@ -28,10 +42,29 @@ export async function resolveModelAlias(alias) {
 }
 
 export async function getModelInfo(modelStr) {
+  const info = await resolveModelInfo(modelStr);
+  if (!info?.provider) return info;
+  const [nodes, settings, connections] = await Promise.all([
+    getProviderNodes(), getSettings(), getProviderConnections(),
+  ]);
+  const prefixes = settings?.providerPrefixes || {};
+  const node = nodes.find((entry) => entry.id === info.provider || entry.prefix === info.provider);
+  const provider = canonicalProviderId(node?.id || Object.keys(prefixes).find((key) => prefixes[key] === info.provider) || info.provider);
+  const ownedPrefixes = [node?.prefix, prefixes[provider], ...connections
+    .filter((entry) => entry.provider === provider)
+    .flatMap((entry) => [entry.providerSpecificData?.customAlias, entry.providerSpecificData?.prefix])];
+  return { ...info, provider, model: upstreamModelId(info.model, ownedPrefixes) };
+}
+
+async function resolveModelInfo(modelStr) {
   const parsed = parseModel(modelStr);
 
   try {
     const aliases = await getModelAliases();
+    if (aliases[modelStr]) {
+      const target = parseModelCore(aliases[modelStr]);
+      return { provider: target.provider, model: target.model };
+    }
     const customModels = await getCustomModels();
     const modelNames = await getModelNames();
     const requestedProvider = parsed.providerAlias || "";
@@ -63,6 +96,17 @@ export async function getModelInfo(modelStr) {
     for (const node of providerNodes) {
       if (node?.id && node?.prefix) publicPrefixToProvider.set(String(node.prefix), node.id);
     }
+    // Compare the entire public ID before splitting by provider: its custom
+    // prefix can differ from the prefix of the provider that owns the model.
+    const publicCustom = customModels.find((entry) => {
+      if (!entry?.providerAlias || !entry?.id) return false;
+      const node = providerNodes.find((candidate) => candidate.id === entry.providerAlias);
+      const prefix = node?.prefix || prefixes[entry.providerAlias] || entry.providerAlias;
+      const name = modelNames[`${prefix}/${entry.id}`]
+        || modelNames[`${entry.providerAlias}/${entry.id}`] || entry.name;
+      return publicModelId(prefix, entry.id, name) === modelStr;
+    });
+    if (publicCustom) return { provider: canonicalProviderId(publicCustom.providerAlias), model: publicCustom.id };
     const custom = customModels.find((entry) => {
       if (!entry?.providerAlias || !entry?.id) return false;
       const node = providerNodes.find((candidate) => candidate.id === entry.providerAlias);
@@ -76,7 +120,7 @@ export async function getModelInfo(modelStr) {
       // lookup as a backwards-compatible convenience for older clients.
       return entry.id === requestedModel || entry.name === requestedModel;
     });
-    if (custom) return { provider: custom.providerAlias, model: custom.id };
+    if (custom) return { provider: canonicalProviderId(custom.providerAlias), model: custom.id };
     // Custom display names are accepted as identifiers too (for example
     // `xro/claude-sonnet-5.5` where `agnes/agnes-2.5-flash` is the real model).
     // Match the name against the provider that owns the requested public prefix.
@@ -92,7 +136,7 @@ export async function getModelInfo(modelStr) {
       const slash = namedModel[0].indexOf("/");
       const keyProvider = namedModel[0].slice(0, slash);
       return {
-        provider: publicPrefixToProvider.get(keyProvider) || keyProvider,
+        provider: canonicalProviderId(publicPrefixToProvider.get(keyProvider) || keyProvider),
         model: namedModel[0].slice(slash + 1),
       };
     }

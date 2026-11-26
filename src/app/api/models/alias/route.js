@@ -37,6 +37,10 @@ export async function PATCH(request) {
     if (!newAlias?.trim() || !model) {
       return NextResponse.json({ error: "newAlias and model required" }, { status: 400 });
     }
+    const aliases = await getModelAliases();
+    if (newAlias.trim() !== oldAlias && Object.hasOwn(aliases, newAlias.trim())) {
+      return NextResponse.json({ error: "Custom ID already exists" }, { status: 409 });
+    }
     if (oldAlias && oldAlias !== newAlias.trim()) {
       await deleteModelAlias(oldAlias);
     }

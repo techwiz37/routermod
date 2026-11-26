@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "Käytä 5–128 merkkiä: kirjaimia, numeroita, yhdysmerkkejä (-) tai alaviivoja (_). Etuliite rmod- on valinnainen. Vältä helposti arvattavia sanoja.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "API-avaimen on oltava 5–128 merkkiä ja sisällettävä vain kirjaimia, numeroita, yhdysmerkkejä (-) tai alaviivoja (_)."
 }

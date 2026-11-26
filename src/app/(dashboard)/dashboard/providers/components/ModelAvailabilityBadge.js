@@ -1,15 +1,15 @@
 "use client";
 
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
+import { translate } from "@/i18n/runtime";
 
 const STATUS_CONFIG = {
-  available: { icon: "check_circle", color: "#22c55e", label: "Available" },
-  cooldown: { icon: "schedule", color: "#f59e0b", label: "Cooldown" },
-  unavailable: { icon: "error", color: "#ef4444", label: "Unavailable" },
-  unknown: { icon: "help", color: "#6b7280", label: "Unknown" },
+  available: { icon: "check_circle", color: "ok", label: "Available" },
+  cooldown: { icon: "schedule", color: "warn", label: "Cooldown" },
+  unavailable: { icon: "error", color: "danger", label: "Unavailable" },
+  unknown: { icon: "help", color: "", label: "Unknown" },
 };
 
 export default function ModelAvailabilityBadge() {
@@ -17,17 +17,18 @@ export default function ModelAvailabilityBadge() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [clearing, setClearing] = useState(null);
+  const [dropUp, setDropUp] = useState(false);
+  const [maxListH, setMaxListH] = useState(300);
   const ref = useRef(null);
+  const triggerRef = useRef(null);
   const notify = useNotificationStore();
 
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/models/availability");
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
+      if (res.ok) setData(await res.json());
     } catch {
+      /* keep the last known status */
     } finally {
       setLoading(false);
     }
@@ -40,10 +41,11 @@ export default function ModelAvailabilityBadge() {
   }, [fetchStatus]);
 
   useEffect(() => {
+    if (!expanded) return;
     const handleClick = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setExpanded(false);
     };
-    if (expanded) document.addEventListener("mousedown", handleClick);
+    document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [expanded]);
 
@@ -56,13 +58,13 @@ export default function ModelAvailabilityBadge() {
         body: JSON.stringify({ action: "clearCooldown", provider, model }),
       });
       if (res.ok) {
-        notify.success(`Cooldown cleared for ${model}`);
+        notify.success(translate("Cooldown cleared for {model}").replace("{model}", model));
         await fetchStatus();
       } else {
-        notify.error("Failed to clear cooldown");
+        notify.error(translate("Failed to clear cooldown"));
       }
     } catch {
-      notify.error("Failed to clear cooldown");
+      notify.error(translate("Failed to clear cooldown"));
     } finally {
       setClearing(null);
     }
@@ -71,7 +73,8 @@ export default function ModelAvailabilityBadge() {
   if (loading) return null;
 
   const models = data?.models || [];
-  const unavailableCount = data?.unavailableCount || models.filter((m) => m.status !== "available").length;
+  const unavailableCount =
+    data?.unavailableCount || models.filter((m) => m.status !== "available").length;
   const isHealthy = unavailableCount === 0;
 
   const byProvider = {};
@@ -83,54 +86,81 @@ export default function ModelAvailabilityBadge() {
   });
 
   return (
-    <div className="relative" ref={ref}>
-      {/* <button
-        onClick={() => setExpanded(!expanded)}
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-          isHealthy
-            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/15"
-            : "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/15"
-        }`}
+    <div className="an-model-status relative" ref={ref}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          const next = !expanded;
+          if (next && triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            const gap = 12;
+            const headerH = 74; // header + card padding
+            const roomAbove = rect.top - gap;
+            const roomBelow = window.innerHeight - rect.bottom - gap;
+            // Open upward when there is not enough room below but more room
+            // above, so the panel never spills past the screen edge.
+            const up = roomBelow < headerH + 180 && roomAbove > roomBelow;
+            setDropUp(up);
+            setMaxListH(Math.max(120, Math.min(300, (up ? roomAbove : roomBelow) - headerH)));
+          }
+          setExpanded(next);
+        }}
+        aria-expanded={expanded}
+        className={`an-chip ${isHealthy ? "ok" : ""} h-8 cursor-pointer`}
+        title={translate("Model availability")}
       >
         <span className="material-symbols-outlined text-[14px]">
           {isHealthy ? "verified" : "warning"}
         </span>
         {isHealthy
-          ? "All models operational"
-          : `${unavailableCount} model${unavailableCount !== 1 ? "s" : ""} with issues`}
-      </button> */}
+          ? translate("Models OK")
+          : translate("{n} models with issues").replace("{n}", unavailableCount)}
+        <span className="material-symbols-outlined text-[13px] opacity-70">
+          {expanded ? "expand_less" : "expand_more"}
+        </span>
+      </button>
 
       {expanded && (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-surface border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg">
-            <div className="flex items-center gap-2">
-              <span
-                className="material-symbols-outlined text-[16px]"
-                style={{ color: isHealthy ? "#22c55e" : "#f59e0b" }}
-              >
+        <div
+          className={`an-model-status-pop an-panel absolute z-50 left-0 right-0 w-auto sm:left-auto sm:right-0 sm:w-[min(88vw,340px)] ${
+            dropUp ? "bottom-full mb-2" : "top-full mt-2"
+          }`}
+        >
+          <div className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">
                 {isHealthy ? "verified" : "warning"}
               </span>
-              <span className="text-sm font-semibold text-text-main">Model Status</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h4 className="an-panel-title">{translate("Model Status")}</h4>
+              <p className="an-panel-sub">{translate("Live availability per model")}</p>
             </div>
             <button
+              type="button"
               onClick={fetchStatus}
-              className="p-1 rounded-lg hover:bg-surface text-text-muted hover:text-text-main transition-colors"
-              title="Refresh"
+              title={translate("Refresh")}
+              aria-label={translate("Refresh")}
+              className="grid size-8 place-items-center rounded-lg border border-[var(--t-line)] text-[var(--t-dim)] transition-colors hover:border-[var(--t-dim)] hover:text-[var(--t-ink)]"
             >
               <span className="material-symbols-outlined text-[14px]">refresh</span>
             </button>
           </div>
 
-          <div className="px-4 py-3 max-h-60 overflow-y-auto">
+          <div
+            className="scrollbar-none overflow-y-auto p-2.5"
+            style={{ maxHeight: maxListH }}
+          >
             {isHealthy ? (
-              <p className="text-sm text-text-muted text-center py-2">
-                All models are responding normally.
+              <p className="an-meta px-2 py-5 text-center">
+                {translate("All models are responding normally.")}
               </p>
             ) : (
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-3">
                 {Object.entries(byProvider).map(([provider, provModels]) => (
-                  <div key={provider}>
-                    <p className="text-xs font-semibold text-text-main mb-1.5 capitalize">{provider}</p>
+                  <div key={provider} className="min-w-0">
+                    <p className="an-meta mb-1.5 truncate px-1 capitalize" title={provider}>{provider}</p>
                     <div className="flex flex-col gap-1">
                       {provModels.map((m) => {
                         const status = STATUS_CONFIG[m.status] || STATUS_CONFIG.unknown;
@@ -138,26 +168,42 @@ export default function ModelAvailabilityBadge() {
                         return (
                           <div
                             key={`${m.provider}-${m.model}`}
-                            className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface/30"
+                            className="flex min-w-0 items-center gap-2 rounded-[9px] border border-[var(--t-line-soft)] bg-[var(--t-card)] px-2.5 py-2"
                           >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span
-                                className="material-symbols-outlined text-[14px] shrink-0"
-                                style={{ color: status.color }}
-                              >
-                                {status.icon}
+                            <span
+                              className={`material-symbols-outlined shrink-0 text-[15px] ${
+                                status.color === "ok"
+                                  ? "text-[var(--t-ok)]"
+                                  : status.color === "warn"
+                                    ? "text-amber-400"
+                                    : status.color === "danger"
+                                      ? "text-[var(--t-danger)]"
+                                      : "text-[var(--t-dim)]"
+                              }`}
+                            >
+                              {status.icon}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-mono text-[11px] text-[var(--t-ink)]" title={m.model}>
+                                {m.model === "__all" ? translate("All models") : m.model}
                               </span>
-                              <span className="font-mono text-xs text-text-main truncate">{m.model}</span>
-                            </div>
+                              {m.connectionName && (
+                                <span className="block truncate text-[10px] text-[var(--t-dim)]" title={m.connectionName}>
+                                  {m.connectionName}
+                                </span>
+                              )}
+                            </span>
+                            <span className="an-meta shrink-0">{translate(status.label)}</span>
                             {m.status === "cooldown" && (
                               <Button
-                                size="sm"
+                                skin="antares"
+                                size="xs"
                                 variant="ghost"
                                 onClick={() => handleClearCooldown(m.provider, m.model)}
                                 disabled={isClearing}
-                                className="text-[10px] px-1.5! py-0.5! ml-2"
+                                className="!min-h-0 !px-1.5 !py-0.5 !text-[10px]"
                               >
-                                {isClearing ? "..." : "Clear"}
+                                {isClearing ? "…" : translate("Clear")}
                               </Button>
                             )}
                           </div>

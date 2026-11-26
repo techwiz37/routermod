@@ -4,49 +4,48 @@ import { applyQoderModelNames } from "@/shared/utils/providerCustomModels";
 
 import { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Card, Button, Modal } from "@/shared/components";
+import { Button, Modal } from "@/shared/components";
+import AntaresPanel from "@/shared/components/AntaresPanel";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { translate, translateServerMessage } from "@/i18n/runtime";
+import ModelTestButton from "@/shared/components/ModelTestButton";
+import ModelCapabilities from "@/shared/components/ModelCapabilities";
 
-export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
-  const borderColor = testStatus === "ok" ? "border-green-500/40" : testStatus === "error" ? "border-red-500/40" : "border-border";
+export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onRemoveModel, kind }) {
   const iconColor = testStatus === "ok" ? "#22c55e" : testStatus === "error" ? "#ef4444" : undefined;
 
   return (
-    <div className={`group px-3 py-2 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
-      <div className="flex items-center gap-2">
-        <span className="material-symbols-outlined text-base" style={iconColor ? { color: iconColor } : undefined}>
+    <div className={`an-model ${testStatus === "ok" ? "is-ok" : testStatus === "error" ? "is-err" : ""}`}>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="an-model-ico material-symbols-outlined" style={iconColor ? { color: iconColor } : undefined}>
           {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
         </span>
-        <div className="flex flex-col gap-1">
-          <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-          {model.name && <span className="text-[9px] text-text-muted/70 italic pl-1">{model.name}</span>}
+        <div className="flex min-w-0 flex-col gap-1">
+          <code className="an-model-id">{fullModel}</code>
+          {model.name && <span className="text-[9px] italic pl-1 text-[var(--t-muted)]">{model.name}</span>}
+          <ModelCapabilities model={fullModel} caps={model.caps} />
         </div>
         {onTest && (
           <div className="relative group/btn">
-            <button onClick={onTest} disabled={isTesting} className={`p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-opacity ${isTesting ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-              <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-                {isTesting ? "progress_activity" : "science"}
-              </span>
-            </button>
+            <ModelTestButton model={fullModel} kind={kind} onRemove={onRemoveModel} />
             <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
                {isTesting ? translate("Testing...") : translate("Test")}
             </span>
           </div>
         )}
         <div className="relative group/btn">
-          <button onClick={() => onCopy(fullModel, `model-${model.id}`)} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary">
+          <button onClick={() => onCopy(fullModel, `model-${model.id}`)} className="an-conn-btn !size-6 text-[var(--t-muted)] hover:text-[var(--t-star-ink)]">
             <span className="material-symbols-outlined text-sm">{copied === `model-${model.id}` ? "check" : "content_copy"}</span>
           </button>
           <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
              {copied === `model-${model.id}` ? translate("Copied!") : translate("Copy")}
           </span>
         </div>
-        {isFree && <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">FREE</span>}
+        {isFree && <span className="an-chip ok">FREE</span>}
         {isCustom && (
-           <button onClick={onDeleteAlias} className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" title={translate("Remove custom model")}>
+           <button onClick={onDeleteAlias} className="an-conn-btn danger ml-auto !size-6 opacity-60 hover:opacity-100 transition-opacity" title={translate("Remove custom model")}>
             <span className="material-symbols-outlined text-sm">close</span>
           </button>
         )}
@@ -114,6 +113,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
   const [testingModelId, setTestingModelId] = useState(null);
   const [testError, setTestError] = useState("");
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
+  const [deletedIds, setDeletedIds] = useState([]);
 
   const providerAlias = providerAliasOverride || getProviderAlias(providerId);
   const effectiveType = kindFilter || "llm";
@@ -122,14 +122,14 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
     try {
       const [aliasRes, customRes] = await Promise.all([
         fetch("/api/models/alias"),
-        fetch("/api/models/custom", { cache: "no-store" }),
+        fetch(`/api/models/custom?providerAlias=${encodeURIComponent(providerAlias)}`, { cache: "no-store" }),
       ]);
       const aliasData = await aliasRes.json();
       const customData = await customRes.json();
       if (aliasRes.ok) setModelAliases(aliasData.aliases || {});
-      if (customRes.ok) setCustomModels(customData.models || []);
+      if (customRes.ok) { setCustomModels(customData.models || []); setDeletedIds(customData.deleted || []); }
     } catch (e) { console.log("ModelsCard fetch error:", e); }
-  }, []);
+  }, [providerAlias]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -174,7 +174,8 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
         await fetchData();
         window.dispatchEvent(new CustomEvent("customModelChanged"));
       }
-    } catch (e) { console.log("delete custom model error:", e); }
+      else throw new Error("Failed to delete model");
+    } catch (e) { console.log("delete custom model error:", e); throw e; }
   };
 
   const handleTestModel = async (modelId) => {
@@ -182,7 +183,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
     setTestingModelId(modelId);
     setTestError("");
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
     try {
       const res = await fetch("/api/models/test", {
         method: "POST",
@@ -196,7 +197,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
     } catch (err) {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
       const timedOut = err?.name === "AbortError" || err?.name === "TimeoutError";
-      setTestError(timedOut ? translate("No response within 30 seconds") : translate("Network error"));
+      setTestError(timedOut ? translateServerMessage("No response within 60 seconds") : translate("Network error"));
     } finally {
       clearTimeout(timeoutId);
       setTestingModelId(null);
@@ -217,17 +218,38 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
       && !builtInModels.some((b) => b.id === m.id)
   );
 
-  const displayModels = applyQoderModelNames(builtInModels, customModels, providerAlias);
+  const displayModels = applyQoderModelNames(builtInModels, customModels, providerAlias).filter((model) => !deletedIds.includes(model.id));
+
+  const removeTestedModel = async (modelId) => {
+    const params = new URLSearchParams({ providerAlias, id: modelId, type: effectiveType });
+    const response = await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
+    if (!response.ok) throw new Error("Failed to delete model");
+    await fetchData();
+    window.dispatchEvent(new CustomEvent("customModelChanged"));
+  };
 
   return (
     <>
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Models{kindFilter ? ` — ${kindFilter.toUpperCase()}` : ""}</h2>
-        </div>
-        {testError && <p className="text-xs text-red-500 mb-3 break-words">{testError}</p>}
+      <AntaresPanel
+        icon="deployed_code"
+        title={`${translate("Models")}${kindFilter ? ` · ${kindFilter.toUpperCase()}` : ""}`}
+        subtitle={`${displayModels.length + myCustomModels.length} ${translate("models available")}`}
+        action={
+          <button
+            type="button"
+            onClick={() => setShowAddCustomModel(true)}
+            className="an-btn an-ghost h-8 gap-1 px-2.5 text-[11px]"
+          >
+            <span className="material-symbols-outlined">add</span>
+            {translate("Add Model")}
+          </button>
+        }
+      >
+        {testError && (
+          <p className="mb-3 break-words font-mono text-[11.5px] text-[var(--t-danger)]">{testError}</p>
+        )}
 
-        <div className="flex flex-wrap gap-3">
+        <div className="an-grid-models">
           {displayModels.map((model) => {
             const fullModel = `${providerAlias}/${model.id}`;
             const existingAlias = Object.entries(modelAliases).find(([, m]) => m === fullModel)?.[0];
@@ -243,6 +265,8 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
                 onDeleteAlias={() => handleDeleteAlias(existingAlias)}
                 testStatus={modelTestResults[model.id]}
                 onTest={() => handleTestModel(model.id)}
+                kind={effectiveType}
+                onRemoveModel={() => removeTestedModel(model.id)}
                 isTesting={testingModelId === model.id}
                 isFree={model.isFree}
               />
@@ -252,7 +276,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
           {myCustomModels.map((model) => (
             <ModelRow
               key={`${model.id}-${model.type}`}
-              model={{ id: model.id, name: model.name }}
+              model={model}
               fullModel={`${providerAlias}/${model.id}`}
               copied={copied}
               onCopy={copy}
@@ -260,20 +284,21 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
               onDeleteAlias={() => handleDeleteCustomModel(model.id)}
               testStatus={modelTestResults[model.id]}
               onTest={() => handleTestModel(model.id)}
+              kind={effectiveType}
+              onRemoveModel={() => removeTestedModel(model.id)}
               isTesting={testingModelId === model.id}
               isCustom
             />
           ))}
 
-          <button
-            onClick={() => setShowAddCustomModel(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-black/15 dark:border-white/15 text-xs text-text-muted hover:text-primary hover:border-primary/40 transition-colors"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
-            Add Model
-          </button>
+          {displayModels.length + myCustomModels.length === 0 && (
+            <div className="an-empty an-empty-row">
+              <span className="material-symbols-outlined">deployed_code</span>
+              <p>{translate("No models available for this kind yet.")}</p>
+            </div>
+          )}
         </div>
-      </Card>
+      </AntaresPanel>
 
       <AddCustomModelModal
         isOpen={showAddCustomModel}

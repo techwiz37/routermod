@@ -33,6 +33,22 @@ export const CONTEXT_GUARD = {
 // estimator, so only the non-CJK share uses this divisor.
 export const CHARS_PER_TOKEN = 3.6;
 
+// OpenCode Free models advertise a 1M-token window, so the context guard never
+// trims an ordinary long chat — the whole transcript is re-sent every turn and
+// prefill makes even a "halo" reply crawl. Keep only the most recent complete
+// turns for this provider. 0 disables the cap.
+// Env: ROUTERMOD_OPENCODE_MAX_HISTORY_TURNS.
+export const OPENCODE_MAX_HISTORY_TURNS = (() => {
+  const raw = process.env.ROUTERMOD_OPENCODE_MAX_HISTORY_TURNS;
+  if (raw == null || raw === "") return 6;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 6;
+})();
+
+// Tool arguments and schemas can nest beyond the message envelope. Keep the
+// traversal bounded without stopping inside ordinary nested tool payloads.
+export const CONTEXT_SHRINK_MAX_DEPTH = 64;
+
 // Fixed costs for inline media, which would otherwise be counted as millions of
 // characters of base64 and skew the estimate for the whole conversation.
 export const MEDIA_TOKEN_COST = {
@@ -41,6 +57,32 @@ export const MEDIA_TOKEN_COST = {
   "data:video/": 8000,
   "data:application/pdf": 6000,
 };
+
+// Some upstreams (e.g. xingchiapi /responses) cap the number of conversation
+// turns regardless of token count. Retrying with only the newest complete turns
+// avoids forcing the client to start a new conversation manually.
+export const SESSION_TURN_LIMIT = Object.freeze({
+  codes: Object.freeze(["session_turn_limit_exceeded", "conversation_turn_limit_exceeded"]),
+  patterns: Object.freeze([
+    "session turn limit",
+    "reached 20 turns",
+    "会话已满",
+    "please start a new session",
+  ]),
+  // Keep this many newest turns on the first retry, then step down.
+  initialKeepTurns: 16,
+  minKeepTurns: 4,
+  stepTurns: 4,
+});
+
+export function isSessionTurnLimitError(statusCode, code, message) {
+  const status = Number(statusCode);
+  if (Number.isFinite(status) && status > 0 && status !== 400 && status !== 422) return false;
+  const normalizedCode = String(code || "").toLowerCase();
+  if (SESSION_TURN_LIMIT.codes.includes(normalizedCode)) return true;
+  const text = String(message || "").toLowerCase();
+  return SESSION_TURN_LIMIT.patterns.some((pattern) => text.includes(pattern));
+}
 
 export const TRIM_NOTICE =
   "[Earlier messages were trimmed so the conversation fits this model's context window.]";

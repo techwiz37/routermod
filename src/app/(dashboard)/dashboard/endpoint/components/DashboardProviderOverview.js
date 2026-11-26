@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import AntaresStat from "@/shared/components/AntaresStat";
+import AntaresSelect from "@/shared/components/AntaresSelect";
 import { getProviderIconSrc, getCompatibleIconSrc } from "@/shared/utils/providerIcon";
 import { LOCALE_COOKIE } from "@/i18n/config";
 import { onLocaleChange } from "@/i18n/runtime";
@@ -15,17 +16,17 @@ const PAGE_SIZE = 5;
 const TEXT = {
   id: {
     activeProviders: "Provider Aktif",
-    connsReady: "AI siap dipecut",
+    connsReady: "AI siap digunakan",
     activeAccounts: "Akun Aktif",
-    readyExec: "Siap melayani request",
+    readyExec: "Siap melayani permintaan",
     limitedAccounts: "Akun Limit",
     limitSub: "Limit token / kuota / 429",
     failedAccounts: "Akun Mati",
     needCheck: "Perlu dicek / mati",
     tokensUsed: "Token Bulan Ini",
-    totalReqs: "request bulan ini",
+    totalReqs: "permintaan bulan ini",
     sectionTitle: "Status Provider & Token Bulan Ini",
-    sectionSub: "Monitor akun aktif, limit, mati, dan pemakaian token periode berjalan",
+    sectionSub: "Pantau akun aktif, limit, dan mati, serta penggunaan token bulan berjalan",
     btnManage: "Atur Provider",
     btnUsage: "Detail Kuota",
     thProvider: "Provider AI",
@@ -42,12 +43,12 @@ const TEXT = {
     emptyTitle: "Belum Ada Provider Terpasang",
     emptySub: "Pasang API key (OpenAI, Anthropic, Gemini, DeepSeek, dsb.) buat mulai routing AI lu.",
     btnAdd: "Tambah Provider Baru",
-    loading: "Lagi narik data provider...",
-    liveCheck: "Live Cek",
+    loading: "Mengambil data provider...",
+    liveCheck: "Cek Langsung",
     checking: "Mengecek...",
     btnCheckNow: "Cek Sekarang",
     limitedSectionTitle: "List Akun Limit",
-    limitedSectionSub: "Daftar akun yang sedang terkena limit token, rate limit (429), saldo habis (402), atau model lock",
+    limitedSectionSub: "Akun yang saat ini kena limit token, limit laju (429), saldo habis (402), atau kunci model",
     thLimitProvider: "Provider AI",
     thLimitAccount: "Akun / Node",
     thLimitType: "Jenis Limit",
@@ -55,7 +56,7 @@ const TEXT = {
     thLimitReason: "Alasan / Pesan Error",
     thLimitAction: "Aksi",
     emptyLimitedTitle: "Semua Akun Normal",
-    emptyLimitedSub: "Tidak ada akun yang terkena limit kuota, rate limit, atau token habis saat ini.",
+    emptyLimitedSub: "Tidak ada akun yang sedang kena limit kuota, limit laju, atau token habis.",
     allProviders: "Semua Provider",
     searchAccount: "Cari akun / email...",
     btnRecheck: "Cek Ulang",
@@ -64,22 +65,22 @@ const TEXT = {
     noResetTime: "Tidak ada info reset",
     unitDay: "hari",
     unitHour: "jam",
-    unitMin: "m",
-    unitSec: "d",
-    reasonAuth: "API key tidak valid / tidak berwenang",
-    reasonBalance: "Saldo atau kuota akun ini habis — perlu isi ulang",
-    reasonRate: "Terlalu banyak request (rate limit) — tunggu sebentar lalu coba lagi",
-    reasonQuota: "Kuota periode ini sudah habis",
-    reasonLimit: "Akun sedang terkena limit",
+    unitMin: "mnt",
+    unitSec: "dtk",
+    reasonAuth: "API key tidak valid / tidak diizinkan",
+    reasonBalance: "Saldo atau kuota akun habis — perlu top up",
+    reasonRate: "Terlalu banyak permintaan (limit laju) — tunggu sebentar dan coba lagi",
+    reasonQuota: "Kuota habis untuk periode ini",
+    reasonLimit: "Akun terkena limit laju",
     reasonModalTitle: "Detail Alasan Limit",
-    reasonModalSub: "Pesan asli dari provider yang membuat akun ini dikeluarkan dari rotasi",
+    reasonModalSub: "Pesan asli dari provider yang mengeluarkan akun ini dari rotasi",
     reasonStatus: "Status HTTP",
     reasonAt: "Waktu Kejadian",
     reasonResetAt: "Reset Diperkirakan",
     reasonLimitType: "Jenis Limit",
     reasonRaw: "Teks mentah (raw)",
-    reasonParsed: "Pesan terurai",
-    reasonEmpty: "Tidak ada detail alasan tersimpan untuk akun ini.",
+    reasonParsed: "Pesan biasa",
+    reasonEmpty: "Tidak ada detail alasan yang tersimpan untuk akun ini.",
     reasonCopy: "Salin",
     reasonCopied: "Tersalin!",
     reasonClose: "Tutup",
@@ -474,6 +475,10 @@ export default function DashboardProviderOverview() {
   }, []);
 
   const t = TEXT[locale] || TEXT.en;
+  const compactNum = new Intl.NumberFormat(locale === "id" ? "id-ID" : "en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
 
   const fetchStats = async (isLiveCheck = false) => {
     if (isLiveCheck) setLiveChecking(true);
@@ -683,6 +688,16 @@ export default function DashboardProviderOverview() {
           unit="Acc"
           foot={t.needCheck}
         />
+
+        {/* Tokens This Month — fills the fifth grid slot on desktop */}
+        <AntaresStat
+          label={t.tokensUsed}
+          icon="data_usage"
+          tone="violet"
+          value={loading ? "..." : compactNum.format(summary.totalTokens || 0)}
+          foot={`${compactNum.format(summary.totalRequests || 0)} ${t.totalReqs}`}
+          className="col-span-2 sm:col-span-1"
+        />
       </div>
 
       {/* Provider Details Table & Status Grid */}
@@ -711,7 +726,7 @@ export default function DashboardProviderOverview() {
               <button
                 onClick={handleManualCheck}
                 disabled={liveChecking}
-                title="Cek live status akun mati sekarang"
+                title="Check live status of dead accounts now"
                 aria-label={t.btnCheckNow}
                 className="an-btn an-ghost h-8 w-8 px-0"
               >
@@ -721,8 +736,8 @@ export default function DashboardProviderOverview() {
               </button>
             </div>
 
-            {/* Navigation — side by side on every breakpoint */}
-            <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
+            {/* Navigation — full-width rows on phones, side by side from sm up */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
               <Link
                 href="/dashboard/providers"
                 className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 justify-center"
@@ -954,21 +969,17 @@ export default function DashboardProviderOverview() {
           {/* Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
             {/* Provider Filter */}
-            <select
+            <AntaresSelect
               value={providerFilter}
               onChange={(e) => setProviderFilter(e.target.value)}
-              aria-label={t.allProviders}
-              className="an-select h-8 w-full text-xs"
-            >
-              <option value="all">{t.allProviders}</option>
-              {providers
-                .filter((p) => p.limitedAccounts > 0)
-                .map((p) => (
-                  <option key={p.provider} value={p.provider}>
-                    {p.name} ({p.limitedAccounts})
-                  </option>
-                ))}
-            </select>
+              ariaLabel={t.allProviders}
+              options={[
+                { value: "all", label: t.allProviders },
+                ...providers
+                  .filter((p) => p.limitedAccounts > 0)
+                  .map((p) => ({ value: p.provider, label: `${p.name} (${p.limitedAccounts})` })),
+              ]}
+            />
 
             {/* Search Input */}
             <div className="relative">
@@ -1097,7 +1108,7 @@ export default function DashboardProviderOverview() {
                         <button
                           onClick={() => handleRecheckSingle(acc.id, acc.provider)}
                           disabled={isRechecking}
-                          title="Cek ulang akun ini"
+                          title="Recheck this account"
                           className="an-btn an-ghost h-7 px-2 text-[10px] font-medium gap-1 disabled:opacity-50"
                         >
                           <span className={`material-symbols-outlined text-[12px] ${isRechecking ? "animate-spin text-[var(--color-primary)]" : ""}`}>

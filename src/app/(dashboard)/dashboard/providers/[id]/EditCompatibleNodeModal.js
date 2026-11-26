@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Button, Badge, Input, Select } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
 import AntaresModal from "@/shared/components/AntaresModal";
+import AntaresSelect from "@/shared/components/AntaresSelect";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 import { translate } from "@/i18n/runtime";
 
 export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose, isAnthropic }) {
@@ -14,10 +16,6 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     baseUrl: "https://api.openai.com/v1",
   });
   const [saving, setSaving] = useState(false);
-  const [checkKey, setCheckKey] = useState("");
-  const [checkModelId, setCheckModelId] = useState("");
-  const [validating, setValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState(null);
 
   useEffect(() => {
     if (node) {
@@ -31,8 +29,8 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
   }, [node, isAnthropic]);
 
   const apiTypeOptions = [
-    { value: "chat", label: "Chat Completions" },
-    { value: "responses", label: "Responses API" },
+    { value: "chat", label: translate("Chat Completions") },
+    { value: "responses", label: translate("Responses API") },
   ];
 
   const handleSubmit = async () => {
@@ -53,103 +51,68 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     }
   };
 
-  const handleValidate = async () => {
-    setValidating(true);
-    try {
-      const res = await fetch("/api/provider-nodes/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseUrl: formData.baseUrl,
-          apiKey: checkKey,
-          type: isAnthropic ? "anthropic-compatible" : "openai-compatible",
-          modelId: checkModelId.trim() || undefined
-        }),
-      });
-      const data = await res.json();
-      setValidationResult(data.valid ? "success" : "failed");
-    } catch {
-      setValidationResult("failed");
-    } finally {
-      setValidating(false);
-    }
-  };
-
   if (!node) return null;
+
+  const disabled = !formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || saving;
 
   return (
     <AntaresModal
       isOpen={isOpen}
       title={`Edit ${node?.name || (isAnthropic ? "Anthropic" : "OpenAI")}${node?.name ? `: ${node.name}` : " Compatible"}`}
-       subtitle={translate("Update endpoint details and validate the provider connection.")}
+      subtitle={translate("Update endpoint details for this provider connection.")}
       onClose={onClose}
       size="lg"
-    >
-      <div className="flex flex-col gap-4">
-        <Input
-           label={translate("Name")}
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder={`${isAnthropic ? "Anthropic" : "OpenAI"} Compatible (Prod)`}
-           hint={translate("Required. A friendly label for this node.")}
-        />
-        <Input
-           label={translate("Prefix")}
-          value={formData.prefix}
-          onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
-          placeholder={isAnthropic ? "ac-prod" : "oc-prod"}
-           hint={translate("Required. Used as the provider prefix for model IDs.")}
-        />
-        {!isAnthropic && (
-          <Select
-             label={translate("API Type")}
-            options={apiTypeOptions}
-            value={formData.apiType}
-            onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
-          />
-        )}
-        <Input
-           label={translate("Base URL")}
-          value={formData.baseUrl}
-          onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-          placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
-           hint={translate("Use the base URL (ending in /v1) for your compatible API.")}
-        />
-        <div className="flex gap-2">
-          <Input
-             label={translate("API Key (for Check)")}
-            type="password"
-            value={checkKey}
-            onChange={(e) => setCheckKey(e.target.value)}
-            className="flex-1"
-          />
-          <div className="pt-6">
-            <Button onClick={handleValidate} disabled={!checkKey || validating || !formData.baseUrl.trim()} variant="secondary">
-               {validating ? translate("Checking...") : translate("Check")}
+      hideScrollbar
+      footer={
+        <SurfaceSkinContext.Provider value="antares">
+          <div className="flex w-full gap-2">
+            <Button skin="antares" onClick={handleSubmit} fullWidth disabled={disabled}>
+              {saving ? translate("Saving...") : translate("Save")}
+            </Button>
+            <Button skin="antares" variant="ghost" onClick={onClose} fullWidth>
+              {translate("Cancel")}
             </Button>
           </div>
+        </SurfaceSkinContext.Provider>
+      }
+    >
+      <SurfaceSkinContext.Provider value="antares">
+        <div className="flex flex-col gap-4">
+          <Input
+            label={translate("Name")}
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder={`${isAnthropic ? "Anthropic" : "OpenAI"} Compatible (Prod)`}
+            hint={translate("Required. A friendly label for this node.")}
+          />
+          <Input
+            label={translate("Prefix")}
+            value={formData.prefix}
+            onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
+            placeholder={isAnthropic ? "ac-prod" : "oc-prod"}
+            hint={translate("Required. Used as the provider prefix for model IDs.")}
+          />
+          {!isAnthropic && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[var(--t-ink)]">{translate("API Type")}</label>
+              <AntaresSelect
+                value={formData.apiType}
+                onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
+                ariaLabel={translate("API Type")}
+                buttonClassName="h-[42px]"
+                options={apiTypeOptions}
+              />
+            </div>
+          )}
+          <Input
+            label={translate("Base URL")}
+            value={formData.baseUrl}
+            onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+            placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
+            hint={translate("Use the base URL (ending in /v1) for your compatible API.")}
+          />
         </div>
-         <Input
-           label={translate("Model ID (optional)")}
-          value={checkModelId}
-          onChange={(e) => setCheckModelId(e.target.value)}
-          placeholder="e.g. my-model-id"
-           hint={translate("If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead.")}
-        />
-        {validationResult && (
-          <Badge variant={validationResult === "success" ? "success" : "error"}>
-             {validationResult === "success" ? translate("Valid") : translate("Invalid")}
-          </Badge>
-        )}
-        <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || saving}>
-             {saving ? translate("Saving...") : translate("Save")}
-          </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>
-             {translate("Cancel")}
-          </Button>
-        </div>
-      </div>
+      </SurfaceSkinContext.Provider>
     </AntaresModal>
   );
 }

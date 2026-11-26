@@ -1407,5 +1407,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "ប្រើ 5–128 តួអក្សរ៖ អក្សរ លេខ សញ្ញាដក (-) ឬសញ្ញាគូសក្រោម (_)។ បុព្វបទ rmod- មិនចាំបាច់ទេ។ ជៀសវាងពាក្យដែលអាចទាយបានយ៉ាងងាយ។",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "API Key ត្រូវមានប្រវែង 5–128 តួអក្សរ ហើយអាចមានតែអក្សរ លេខ សញ្ញាដក (-) ឬសញ្ញាគូសក្រោម (_) ប៉ុណ្ណោះ។"
 }

@@ -463,8 +463,18 @@ export class CodexExecutor extends BaseExecutor {
     // Ensure streaming is enabled (Codex API requires it)
     body.stream = true;
 
-    // If no instructions provided, inject default Codex instructions
-    if (!responsesLite && !convertedLitePrefix && (!body.instructions || body.instructions.trim() === "")) {
+    // Never add a persona the caller did not send. The Codex CLI instructions
+    // are only used when the operator opts in with
+    // ROUTERMOD_CODEX_DEFAULT_INSTRUCTIONS=on.
+    const wantsDefaultInstructions = /^(1|on|true|yes)$/i.test(
+      String(process.env.ROUTERMOD_CODEX_DEFAULT_INSTRUCTIONS || ""),
+    );
+    if (
+      wantsDefaultInstructions
+      && !responsesLite
+      && !convertedLitePrefix
+      && (!body.instructions || body.instructions.trim() === "")
+    ) {
       body.instructions = CODEX_DEFAULT_INSTRUCTIONS;
     }
 
@@ -485,7 +495,8 @@ export class CodexExecutor extends BaseExecutor {
       const hasLitePrefix = input.some((item) => item?.type === "additional_tools");
       if (!hasLitePrefix) {
         const instructions = typeof body.instructions === "string" && body.instructions.trim()
-          ? body.instructions : CODEX_DEFAULT_INSTRUCTIONS;
+          ? body.instructions
+          : (wantsDefaultInstructions ? CODEX_DEFAULT_INSTRUCTIONS : "");
         const prefix = [{ type: "additional_tools", role: "developer", tools: Array.isArray(body.tools) ? body.tools : [] }];
         if (instructions) {
           prefix.push({ type: "message", role: "developer", content: [{ type: "input_text", text: instructions }] });

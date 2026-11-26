@@ -1,24 +1,27 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState, useRef } from "react";
 import { usePageReady } from "@/shared/components/PageReadyContext";
-import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
+import { Button, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
+import AntaresStat from "@/shared/components/AntaresStat";
 import AntaresSwitch from "@/shared/components/AntaresSwitch";
 import AntaresSegmented from "@/shared/components/AntaresSegmented";
+import StarField from "@/shared/components/StarField";
 import { useNotificationStore } from "@/store/notificationStore";
 import { filterProxyPools, getVisibleProxyPoolSelection, updateProxyPoolSelection } from "@/shared/utils/proxyPoolSelection";
 
-function getStatusVariant(status) {
-  if (status === "active") return "success";
-  if (status === "error") return "error";
-  return "default";
+function formatDateTime(value) {
+  if (!value) return "belum pernah";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "belum pernah";
+  return date.toLocaleString("id-ID");
 }
 
-function formatDateTime(value) {
-  if (!value) return "Never";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Never";
-  return date.toLocaleString();
+/** Map a stored test status to a short chip label + tone. */
+function healthChip(status) {
+  if (status === "active" || status === "success") return { label: "sehat", tone: "ok" };
+  if (status === "error" || status === "failed") return { label: "gagal", tone: "danger" };
+  return { label: "belum tes", tone: "" };
 }
 
 function normalizeFormData(data = {}) {
@@ -29,6 +32,114 @@ function normalizeFormData(data = {}) {
     isActive: data.isActive !== false,
     strictProxy: data.strictProxy === true,
   };
+}
+
+// Rows rendered per page. Keeping this small keeps the DOM cheap even when
+// the pool contains thousands of proxies.
+const PAGE_SIZE = 20;
+
+/** Slice `items` into the requested page and describe the pagination state. */
+function paginate(items, page, size = PAGE_SIZE) {
+  const list = items || [];
+  const pageCount = Math.max(1, Math.ceil(list.length / size));
+  const current = Math.min(Math.max(1, page || 1), pageCount);
+  const start = (current - 1) * size;
+  return {
+    page: current,
+    pageCount,
+    total: list.length,
+    start,
+    items: list.slice(start, start + size),
+  };
+}
+
+/** Compact page-number list with ellipsis for long ranges. */
+function pageNumbers(page, pageCount) {
+  if (pageCount <= 7) {
+    return Array.from({ length: pageCount }, (_, i) => i + 1);
+  }
+  const pages = new Set([1, pageCount, page]);
+  if (page <= 3) [2, 3, 4].forEach((n) => pages.add(n));
+  if (page >= pageCount - 2) [pageCount - 3, pageCount - 2, pageCount - 1].forEach((n) => pages.add(n));
+  const sorted = [...pages].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+  const out = [];
+  let prev = 0;
+  for (const n of sorted) {
+    if (prev && n - prev > 1) out.push("gap");
+    out.push(n);
+    prev = n;
+  }
+  return out;
+}
+
+function ProxyPager({ page, pageCount, total, onChange }) {
+  if (!total || pageCount <= 1) return null;
+
+  return (
+    <nav className="an-pagination" aria-label="Paginasi proxy pool">
+      <button
+        type="button"
+        className="an-page-btn"
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+        aria-label="Halaman sebelumnya"
+        title="Halaman sebelumnya"
+      >
+        <span className="material-symbols-outlined">chevron_left</span>
+      </button>
+
+      {pageNumbers(page, pageCount).map((n, i) =>
+        n === "gap" ? (
+          <span key={`gap-${i}`} className="an-page-gap">
+            …
+          </span>
+        ) : (
+          <button
+            key={n}
+            type="button"
+            className={`an-page-btn ${n === page ? "active" : ""}`}
+            aria-current={n === page ? "page" : undefined}
+            onClick={() => onChange(n)}
+          >
+            {n}
+          </button>
+        )
+      )}
+
+      <button
+        type="button"
+        className="an-page-btn"
+        disabled={page >= pageCount}
+        onClick={() => onChange(page + 1)}
+        aria-label="Halaman berikutnya"
+        title="Halaman berikutnya"
+      >
+        <span className="material-symbols-outlined">chevron_right</span>
+      </button>
+
+      <span className="an-page-info">
+        <span>{page}</span>
+        <span>/</span>
+        <span>{pageCount}</span>
+        <span>·</span>
+        <span>{total}</span>
+        <span>proxy</span>
+      </span>
+    </nav>
+  );
+}
+
+/** Run `worker` over `items` with a bounded number of parallel requests. */
+async function runWithConcurrency(items, limit, worker) {
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const item = items[cursor];
+      cursor += 1;
+      await worker(item);
+    }
+  });
+  await Promise.all(runners);
 }
 
 export default function ProxyPoolsPage() {
@@ -60,6 +171,8 @@ export default function ProxyPoolsPage() {
   const [testingId, setTestingId] = useState(null);
   const [selectedPoolIds, setSelectedIds] = useState([]);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthProgress, setHealthProgress] = useState({ current: 0, total: 0 });
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -67,10 +180,34 @@ export default function ProxyPoolsPage() {
   const relayMenuRef = useRef(null);
   const selectionAnchorRef = useRef(null);
   const notify = useNotificationStore();
-  const visiblePools = useMemo(() => filterProxyPools(proxyPools, statusFilter), [proxyPools, statusFilter]);
-  const selectedIds = getVisibleProxyPoolSelection(visiblePools, selectedPoolIds);
+  // Keep typing responsive: filtering thousands of rows waits for the
+  // deferred value instead of blocking every keystroke.
+  const deferredSearch = useDeferredValue(searchQuery);
+  const visiblePools = useMemo(() => {
+    const filtered = filterProxyPools(proxyPools, statusFilter);
+    const query = deferredSearch.trim().toLowerCase();
+    if (!query) return filtered;
+    return filtered.filter((pool) =>
+      [pool.name, pool.proxyUrl, pool.noProxy, pool.exitIp]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  }, [proxyPools, statusFilter, deferredSearch]);
+  const selectedIds = useMemo(
+    () => getVisibleProxyPoolSelection(visiblePools, selectedPoolIds),
+    [visiblePools, selectedPoolIds]
+  );
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const paged = useMemo(() => paginate(visiblePools, page), [visiblePools, page]);
   const visiblePoolsRef = useRef([]);
   useEffect(() => { visiblePoolsRef.current = visiblePools; }, [visiblePools]);
+
+  // Reset to the first page whenever the filter changes and clamp the page
+  // when rows disappear (delete, filter, search).
+  useEffect(() => { setPage(1); }, [statusFilter, deferredSearch]);
+  useEffect(() => {
+    setPage((current) => Math.min(current, Math.max(1, Math.ceil(visiblePools.length / PAGE_SIZE))));
+  }, [visiblePools.length]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -131,7 +268,7 @@ export default function ProxyPoolsPage() {
       body: JSON.stringify({ entries }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Gagal menguji proxy");
+    if (!res.ok) throw new Error(data.error || "Failed to test proxy");
 
     const jobId = data.jobId;
     const total = data.total || entries.length;
@@ -180,7 +317,7 @@ export default function ProxyPoolsPage() {
           notify.success("Proxy pool diperbarui");
         } else {
           const data = await res.json();
-          notify.error(data.error || "Gagal menyimpan proxy pool");
+          notify.error(data.error || "Failed to save proxy pool");
         }
         return;
       }
@@ -199,7 +336,7 @@ export default function ProxyPoolsPage() {
       );
 
       if (!data) {
-        notify.error("Gagal menyimpan proxy pool");
+        notify.error("Failed to save proxy pool");
         return;
       }
 
@@ -208,19 +345,19 @@ export default function ProxyPoolsPage() {
         closeFormModal();
         const created = data.created?.[0];
         const exit = created?.exitIp ? ` · exit ${created.exitIp}${created.exitCountry ? ` (${created.exitCountry})` : ""}` : "";
-        notify.success(`Proxy tersimpan & aktif${exit}`);
+        notify.success(`Proxy tersimpan & active${exit}`);
       } else {
         const skippedReason = data.skipped?.[0]?.reason || "";
         if (skippedReason) {
           notify.warning(`Proxy tidak disimpan: ${skippedReason}`);
         } else {
-          const reason = data.failed?.[0]?.error || "Proxy tidak merespons";
+          const reason = data.failed?.[0]?.error || "Proxy did not respond";
           notify.error(`Proxy gagal, tidak disimpan: ${reason}`);
         }
       }
     } catch (error) {
       console.log("Error saving proxy pool:", error);
-      notify.error("Gagal menyimpan proxy pool");
+      notify.error("Failed to save proxy pool");
     } finally {
       setSaving(false);
       setSaveProgress(null);
@@ -269,7 +406,7 @@ export default function ProxyPoolsPage() {
       await fetchProxyPools();
       if (data.ok) {
         const exit = data.exitIp ? ` · exit ${data.exitIp}${data.exitCountry ? ` (${data.exitCountry})` : ""}` : "";
-        notify.success(`Proxy aktif${exit}`);
+        notify.success(`Proxy active${exit}`);
       } else {
         notify.error(data.error || "Proxy test failed");
       }
@@ -321,7 +458,7 @@ export default function ProxyPoolsPage() {
     setBulkBusy(true);
     try {
       let ok = 0; let failed = 0;
-      for (const id of targets) {
+      await runWithConcurrency(targets, 8, async (id) => {
         try {
           const res = await fetch(`/api/proxy-pools/${id}`, {
             method: "PUT",
@@ -330,7 +467,7 @@ export default function ProxyPoolsPage() {
           });
           if (res.ok) ok += 1; else failed += 1;
         } catch { failed += 1; }
-      }
+      });
       await fetchProxyPools();
       notify.success(`${isActive ? "Activated" : "Deactivated"} ${ok}${failed ? `, failed ${failed}` : ""}`);
     } finally {
@@ -350,14 +487,14 @@ export default function ProxyPoolsPage() {
         setBulkBusy(true);
         try {
           let ok = 0; let blocked = 0; let failed = 0;
-          for (const id of targets) {
+          await runWithConcurrency(targets, 8, async (id) => {
             try {
               const res = await fetch(`/api/proxy-pools/${id}`, { method: "DELETE" });
               if (res.ok) ok += 1;
               else if (res.status === 409) blocked += 1;
               else failed += 1;
             } catch { failed += 1; }
-          }
+          });
           await fetchProxyPools();
           clearSelection();
           notify.success(`Deleted ${ok}${blocked ? `, ${blocked} bound` : ""}${failed ? `, ${failed} failed` : ""}`);
@@ -371,14 +508,14 @@ export default function ProxyPoolsPage() {
   const deleteFailedPools = async () => {
     if (failedPools.length === 0) return;
     setConfirmState({
-      title: "Hapus Proxy Gagal",
+      title: "Failed to Delete Proxy",
       message: `Hapus ${failedPools.length} proxy yang gagal health check? Proxy yang masih terikat ke koneksi akan dilewati.`,
       onConfirm: async () => {
         setConfirmState(null);
         setBulkBusy(true);
         try {
           let ok = 0; let blocked = 0; let failed = 0;
-          for (const pool of failedPools) {
+          await runWithConcurrency(failedPools, 8, async (pool) => {
             try {
               const res = await fetch(`/api/proxy-pools/${pool.id}`, { method: "DELETE" });
               if (res.ok) ok += 1;
@@ -387,11 +524,11 @@ export default function ProxyPoolsPage() {
             } catch {
               failed += 1;
             }
-          }
+          });
           await fetchProxyPools();
           clearSelection();
           notify.success(
-            `Dihapus ${ok}${blocked ? `, ${blocked} masih terpakai` : ""}${failed ? `, ${failed} gagal` : ""}`
+            `Deleted ${ok}${blocked ? `, ${blocked} still in use` : ""}${failed ? `, ${failed} failed` : ""}`
           );
         } finally {
           setBulkBusy(false);
@@ -402,7 +539,7 @@ export default function ProxyPoolsPage() {
 
   const handleHealthCheck = async () => {
     const targets = selectedIds.length > 0
-      ? visiblePools.filter((p) => selectedIds.includes(p.id))
+      ? visiblePools.filter((p) => selectedIdSet.has(p.id))
       : visiblePools;
     if (targets.length === 0) return;
     setHealthChecking(true);
@@ -410,12 +547,12 @@ export default function ProxyPoolsPage() {
     let alive = 0; const deadIds = [];
     let done = 0;
     const CONCURRENCY = 10;
-    const queue = [...targets];
+    let cursor = 0;
 
     const worker = async () => {
-      while (queue.length > 0) {
-        const pool = queue.shift();
-        if (!pool) break;
+      while (cursor < targets.length) {
+        const pool = targets[cursor];
+        cursor += 1;
         try {
           const res = await fetch(`/api/proxy-pools/${pool.id}/test`, { method: "POST" });
           const data = await res.json();
@@ -442,7 +579,7 @@ export default function ProxyPoolsPage() {
           setConfirmState(null);
           setBulkBusy(true);
           try {
-            for (const id of deadIds) {
+            await runWithConcurrency(deadIds, 8, async (id) => {
               try {
                 await fetch(`/api/proxy-pools/${id}`, {
                   method: "PUT",
@@ -450,7 +587,7 @@ export default function ProxyPoolsPage() {
                   body: JSON.stringify({ isActive: false }),
                 });
               } catch {}
-            }
+            });
             await fetchProxyPools();
             notify.success(`Disabled ${deadIds.length} dead proxies`);
           } finally {
@@ -464,7 +601,8 @@ export default function ProxyPoolsPage() {
   };
 
   useEffect(() => {
-    setSelectedIds((prev) => prev.filter((id) => proxyPools.some((p) => p.id === id)));
+    const ids = new Set(proxyPools.map((p) => p.id));
+    setSelectedIds((prev) => prev.filter((id) => ids.has(id)));
   }, [proxyPools]);
 
   const openBatchImportModal = () => {
@@ -704,7 +842,7 @@ export default function ProxyPoolsPage() {
       );
 
       if (!data) {
-        notify.error("Import gagal");
+        notify.error("Import failed");
         return;
       }
 
@@ -715,7 +853,7 @@ export default function ProxyPoolsPage() {
       await fetchProxyPools();
       if (created === 0 && failed === 0) setShowBatchImportModal(false);
       notify.success(
-        `Import selesai: ${created} tersimpan, ${failed} gagal, ${skipped} dilewati`
+        `Import selesai: ${created} tersimpan, ${failed} failed, ${skipped} dilewati`
       );
     } catch (error) {
       console.log("Error batch importing proxies:", error);
@@ -727,6 +865,16 @@ export default function ProxyPoolsPage() {
 
   const activeCount = useMemo(
     () => proxyPools.filter((pool) => pool.isActive === true).length,
+    [proxyPools]
+  );
+
+  const boundTotal = useMemo(
+    () => proxyPools.reduce((sum, pool) => sum + (pool.boundConnectionCount || 0), 0),
+    [proxyPools]
+  );
+
+  const healthyCount = useMemo(
+    () => proxyPools.filter((p) => p.testStatus === "active" || p.testStatus === "success").length,
     [proxyPools]
   );
 
@@ -753,7 +901,11 @@ export default function ProxyPoolsPage() {
   }, [proxyPools]);
 
   return (
-    <div className="an-scope flex min-w-0 flex-col gap-5">
+    <div className="an-scope an-shell proxy-pools-page flex min-w-0 flex-col gap-4 sm:gap-6">
+      <div className="an-shell-bg" aria-hidden>
+        <StarField />
+      </div>
+
       {sharedExitIp ? (
         <section className="an-notice warn">
           <span className="an-notice-ico" aria-hidden>
@@ -761,170 +913,190 @@ export default function ProxyPoolsPage() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[12.5px] leading-relaxed">
-              <span className="font-medium">{sharedExitIp.count} proxy aktif memakai IP keluar yang sama</span>
+              <span className="font-medium">{sharedExitIp.count} proxy active memakai IP keluar yang sama</span>
               {` (${sharedExitIp.ip}). Rotasi hanya ganti port, bukan IP, jadi tidak membantu `}
               <span className="font-medium">limit berbasis IP</span>
-              {`. Tambahkan proxy dengan IP keluar berbeda agar rotasi benar-benar berganti.`}
+              {". Add a proxy with a different exit IP so rotation actually changes the address."}
             </p>
           </div>
         </section>
       ) : null}
 
       {/* Hero */}
-      <section className="an-panel an-hero">
-        <div className="an-hero-main">
-          <span className="an-hero-eyebrow">Proxy Pool</span>
-          <h1 className="an-hero-title">Kumpulan Proxy</h1>
-          <p className="an-hero-sub">
-            Simpan sekumpulan proxy lalu pakai untuk koneksi provider. Cek kesehatan,
-            aktifkan, dan pantau exit IP dari satu tempat.
-          </p>
-        </div>
-        <div className="an-hero-stats">
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">lan</span>
-              Total
-            </span>
-            <span className="an-stat-value">{proxyPools.length}</span>
-            <span className="an-stat-foot">pool terdaftar</span>
-          </div>
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">toggle_on</span>
-              Aktif
-            </span>
-            <span className="an-stat-value">{activeCount}</span>
-            <span className="an-stat-foot">pool menyala</span>
-          </div>
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">link</span>
-              Terpakai
-            </span>
-            <span className="an-stat-value">
-              {proxyPools.reduce((sum, p) => sum + (p.boundConnectionCount || 0), 0)}
-            </span>
-            <span className="an-stat-foot">koneksi terikat</span>
-          </div>
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">health_and_safety</span>
-              Health
-            </span>
-            <span className="an-stat-value">
-              {proxyPools.filter((p) => p.testStatus === "active" || p.testStatus === "success").length}
-            </span>
-            <span className="an-stat-foot">pool sehat</span>
-          </div>
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">error</span>
-              Gagal
-            </span>
-            <span className="an-stat-value">{failedPools.length}</span>
-            <span className="an-stat-foot">proxy mati</span>
-          </div>
-        </div>
-      </section>
+      <header className="flex min-w-0 flex-col gap-2">
+        <p className="an-eyebrow">
+          <span className="an-num">04</span>
+          <span className="an-rule" />
+          <span>RouterMod · AI Gateway</span>
+        </p>
+        <h1 className="an-h1 text-[clamp(1.6rem,4.6vw,2.3rem)]">Kumpulan Proxy</h1>
+        <p className="an-hint max-w-[70ch]">
+          Simpan sekumpulan proxy lalu pakai untuk koneksi provider. Cek kesehatan,
+          aktifkan, dan pantau exit IP dari satu tempat.
+        </p>
+      </header>
+
+      {/* Summary tiles */}
+      <div className="an-grid proxy-stats gap-2.5 sm:gap-3">
+        <AntaresStat
+          label="Total"
+          icon="lan"
+          tone="default"
+          value={proxyPools.length}
+          foot="pool terdaftar"
+        />
+        <AntaresStat
+          label="Active"
+          icon="toggle_on"
+          tone="ok"
+          value={activeCount}
+          foot="pool menyala"
+        />
+        <AntaresStat
+          label="Terpakai"
+          icon="link"
+          tone="violet"
+          value={boundTotal}
+          foot="koneksi terikat"
+        />
+        <AntaresStat
+          label="Health"
+          icon="health_and_safety"
+          tone={healthyCount > 0 ? "ok" : "default"}
+          value={healthyCount}
+          foot="pool sehat"
+        />
+        <AntaresStat
+          label="Gagal"
+          icon="error"
+          tone={failedPools.length > 0 ? "danger" : "default"}
+          value={failedPools.length}
+          foot="proxy mati"
+        />
+      </div>
 
       {/* Toolbar */}
-      <div className="an-toolbar an-toolbar-wrap">
-        <div className="relative" ref={relayMenuRef}>
-          <div className="relative" ref={relayMenuRef}>
-            <button
-              type="button"
-              onClick={() => setShowRelayMenu(!showRelayMenu)}
-              className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
-              Deploy Relay
-              <span className="material-symbols-outlined text-[15px]">
-                {showRelayMenu ? "expand_less" : "expand_more"}
-              </span>
-            </button>
-
-            {showRelayMenu && (
-              <div className="an-panel absolute left-0 top-full z-50 mt-1 w-56 p-1 sm:left-auto sm:right-0">
-                <button
-                  onClick={() => {
-                    openCloudflareModal();
-                    setShowRelayMenu(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
-                >
-                  <span className="material-symbols-outlined text-[20px] text-orange-500">cloud</span>
-                  Cloudflare Relay
-                </button>
-                <button
-                  onClick={() => {
-                    openVercelModal();
-                    setShowRelayMenu(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
-                >
-                  <span className="material-symbols-outlined text-[20px] text-blue-500">cloud_upload</span>
-                  Vercel Relay
-                </button>
-                <button
-                  onClick={() => {
-                    openDenoModal();
-                    setShowRelayMenu(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
-                >
-                  <span className="material-symbols-outlined text-[20px] text-green-500">terminal</span>
-                  Deno Relay
-                </button>
-                <button
-                  onClick={() => {
-                    openNetlifyModal();
-                    setShowRelayMenu(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
-                >
-                  <span className="material-symbols-outlined text-[20px] text-teal-500">deployed_code</span>
-                  Netlify Relay
-                </button>
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleHealthCheck}
-            disabled={healthChecking || bulkBusy || visiblePools.length === 0}
-            className="an-btn an-primary h-9 px-3 text-[11px] gap-1.5 disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined text-[14px]">
-              {healthChecking ? "progress_activity" : "health_and_safety"}
-            </span>
-            {healthChecking
-              ? `Memeriksa ${healthProgress.current}/${healthProgress.total}`
-              : "Cek Semua"}
-          </button>
-          <button
-            type="button"
-            onClick={deleteFailedPools}
-            disabled={healthChecking || bulkBusy || failedPools.length === 0}
-            title="Hapus semua proxy yang gagal health check"
-            className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5 disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
-            Hapus Gagal
-            {failedPools.length > 0 ? (
-              <span className="an-chip danger !h-auto !px-1.5 !py-0 !text-[9px]">{failedPools.length}</span>
-            ) : null}
-          </button>
-          <button type="button" onClick={openBatchImportModal} className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5">
-            <span className="material-symbols-outlined text-[14px]">upload</span>
-            Import Massal
-          </button>
-          <button type="button" onClick={openCreateModal} className="an-btn an-primary h-9 px-3 text-[11px] gap-1.5">
-            <span className="material-symbols-outlined text-[14px]">add</span>
-            Tambah Proxy Pool
-          </button>
+      <div className="an-toolbar an-toolbar-wrap proxy-toolbar">
+        <div className="an-search">
+          <span className="material-symbols-outlined">search</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari nama, URL, atau exit IP…"
+            className="an-input"
+            aria-label="Cari proxy pool"
+          />
         </div>
+
+        <AntaresSegmented
+          size="sm"
+          value={statusFilter}
+          onChange={(next) => {
+            if (bulkBusy || healthChecking) return;
+            setStatusFilter(next);
+            clearSelection();
+          }}
+          options={[
+            { value: "all", label: "All" },
+            { value: "enabled", label: "Active" },
+            { value: "disabled", label: "Inactive" },
+          ]}
+        />
+
+        <div className="relative proxy-relay" ref={relayMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowRelayMenu(!showRelayMenu)}
+            className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5"
+          >
+            <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
+            Deploy Relay
+            <span className="material-symbols-outlined text-[15px]">
+              {showRelayMenu ? "expand_less" : "expand_more"}
+            </span>
+          </button>
+
+          {showRelayMenu && (
+            <div className="an-panel absolute left-0 top-full z-50 mt-1 w-56 p-1 sm:left-auto sm:right-0">
+              <button
+                onClick={() => {
+                  openCloudflareModal();
+                  setShowRelayMenu(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
+              >
+                <span className="material-symbols-outlined text-[20px] text-orange-500">cloud</span>
+                Cloudflare Relay
+              </button>
+              <button
+                onClick={() => {
+                  openVercelModal();
+                  setShowRelayMenu(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
+              >
+                <span className="material-symbols-outlined text-[20px] text-blue-500">cloud_upload</span>
+                Vercel Relay
+              </button>
+              <button
+                onClick={() => {
+                  openDenoModal();
+                  setShowRelayMenu(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
+              >
+                <span className="material-symbols-outlined text-[20px] text-green-500">terminal</span>
+                Deno Relay
+              </button>
+              <button
+                onClick={() => {
+                  openNetlifyModal();
+                  setShowRelayMenu(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] text-[var(--t-ink)] transition-colors hover:bg-[var(--t-raised)]"
+              >
+                <span className="material-symbols-outlined text-[20px] text-teal-500">deployed_code</span>
+                Netlify Relay
+              </button>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleHealthCheck}
+          disabled={healthChecking || bulkBusy || visiblePools.length === 0}
+          className="an-btn an-primary h-9 px-3 text-[11px] gap-1.5 disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-[14px]">
+            {healthChecking ? "progress_activity" : "health_and_safety"}
+          </span>
+          {healthChecking
+            ? `Memeriksa ${healthProgress.current}/${healthProgress.total}`
+            : "Cek Semua"}
+        </button>
+        <button
+          type="button"
+          onClick={deleteFailedPools}
+          disabled={healthChecking || bulkBusy || failedPools.length === 0}
+          title="Delete all proxies that failed health checks"
+          className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5 disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
+          Hapus Gagal
+          {failedPools.length > 0 ? (
+            <span className="an-chip danger !h-auto !px-1.5 !py-0 !text-[9px]">{failedPools.length}</span>
+          ) : null}
+        </button>
+        <button type="button" onClick={openBatchImportModal} className="an-btn an-ghost h-9 px-3 text-[11px] gap-1.5">
+          <span className="material-symbols-outlined text-[14px]">upload</span>
+          Import Massal
+        </button>
+        <button type="button" onClick={openCreateModal} className="an-btn an-primary h-9 px-3 text-[11px] gap-1.5">
+          <span className="material-symbols-outlined text-[14px]">add</span>
+          Tambah Proxy Pool
+        </button>
       </div>
 
       <section className="an-panel">
@@ -935,47 +1107,30 @@ export default function ProxyPoolsPage() {
           <div className="min-w-0 flex-1">
             <h2 className="an-panel-title">Proxy Pool</h2>
             <p className="an-panel-sub">
-              <span>{proxyPools.length}</span>{" "}
-              <span>pool dalam daftar ini</span>
+              <span>{visiblePools.length}</span>
+              <span> pool tampil</span>
+              <span> · </span>
+              <span>{activeCount}</span>
+              <span> aktif</span>
+              {visiblePools.length !== proxyPools.length ? (
+                <span> · {proxyPools.length} total</span>
+              ) : null}
             </p>
           </div>
         </header>
         <div className="an-panel-pad">
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <AntaresSegmented
-            size="sm"
-            value={statusFilter}
-            onChange={(next) => {
-              if (bulkBusy || healthChecking) return;
-              setStatusFilter(next);
-              clearSelection();
-            }}
-            options={[
-              { value: "all", label: "Semua" },
-              { value: "enabled", label: "Aktif" },
-              { value: "disabled", label: "Nonaktif" },
-            ]}
-          />
           {visiblePools.length > 0 && (
-            <label className="flex items-center gap-1.5 text-xs text-[var(--t-muted)] cursor-pointer">
+            <label className="an-check">
               <input
                 type="checkbox"
                 checked={allSelected}
                 onChange={toggleSelectAll}
                 disabled={bulkBusy || healthChecking}
-                className="size-4 rounded accent-[var(--t-accent)] cursor-pointer"
               />
-              {allSelected ? "Batal pilih yang tampil" : "Pilih semua yang tampil"}
+              {allSelected ? "Batalkan pilihan" : "Pilih semua yang tampil"}
             </label>
           )}
-          <span className="an-chip">
-            <span>{proxyPools.length}</span>{" "}
-            <span>total</span>
-          </span>
-          <span className="an-chip ok">
-            <span>{activeCount}</span>{" "}
-            <span>aktif</span>
-          </span>
           <span className="text-[11px] text-[var(--t-muted)]">
             <span>{visiblePools.length}</span>{" "}
             <span>tampil · Shift+klik untuk memilih rentang</span>
@@ -983,10 +1138,12 @@ export default function ProxyPoolsPage() {
         </div>
 
         {(selectedIds.length > 0 || healthChecking) && (
-          <div className="an-bulkbar mb-4 rounded-[10px] border border-[rgba(232,0,31,0.3)] bg-[var(--t-accent-soft)] px-3 py-2">
-            <span className="material-symbols-outlined text-[18px] text-[var(--t-star-ink)]">checklist</span>
-            <span className="text-xs font-medium text-[var(--t-star-ink)]">
-              {selectedIds.length > 0 ? `${selectedIds.length} dipilih` : "Pool yang tampil"}
+          <div className="an-bulkbar proxy-bulkbar mb-4 rounded-[10px] border border-[rgba(232,0,31,0.3)] bg-[var(--t-accent-soft)] px-3 py-2">
+            <span className="proxy-bulkbar-info">
+              <span className="material-symbols-outlined text-[18px] text-[var(--t-star-ink)]">checklist</span>
+              <span className="text-xs font-medium text-[var(--t-star-ink)]">
+                {selectedIds.length > 0 ? `${selectedIds.length} dipilih` : `${visiblePools.length} pool tampil`}
+              </span>
             </span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <button
@@ -1006,18 +1163,21 @@ export default function ProxyPoolsPage() {
               </button>
               {selectedIds.length > 0 && (
                 <>
-                  <Button size="sm" variant="secondary" icon="toggle_on" onClick={() => bulkSetActive(true)} disabled={bulkBusy || healthChecking}>
-                    Activate
-                  </Button>
-                  <Button size="sm" variant="secondary" icon="toggle_off" onClick={() => bulkSetActive(false)} disabled={bulkBusy || healthChecking}>
-                    Deactivate
-                  </Button>
-                  <Button size="sm" variant="secondary" icon="delete" onClick={bulkDelete} disabled={bulkBusy || healthChecking}>
-                    Delete
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={clearSelection} disabled={bulkBusy || healthChecking}>
-                    Clear
-                  </Button>
+                  <button type="button" onClick={() => bulkSetActive(true)} disabled={bulkBusy || healthChecking} className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 disabled:opacity-50">
+                    <span className="material-symbols-outlined text-[14px]">toggle_on</span>
+                    Aktifkan
+                  </button>
+                  <button type="button" onClick={() => bulkSetActive(false)} disabled={bulkBusy || healthChecking} className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 disabled:opacity-50">
+                    <span className="material-symbols-outlined text-[14px]">toggle_off</span>
+                    Nonaktifkan
+                  </button>
+                  <button type="button" onClick={bulkDelete} disabled={bulkBusy || healthChecking} className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 text-[var(--t-danger)] disabled:opacity-50">
+                    <span className="material-symbols-outlined text-[14px]">delete</span>
+                    Hapus
+                  </button>
+                  <button type="button" onClick={clearSelection} disabled={bulkBusy || healthChecking} className="an-btn an-ghost h-8 px-3 text-[11px] gap-1.5 disabled:opacity-50">
+                    Bersihkan
+                  </button>
                 </>
               )}
             </div>
@@ -1039,107 +1199,130 @@ export default function ProxyPoolsPage() {
         ) : visiblePools.length === 0 ? (
           <div className="an-empty">
             <span className="material-symbols-outlined">filter_alt_off</span>
-            <p>Tidak ada proxy pool dengan status ini</p>
+            <p>Tidak ada proxy pool yang cocok dengan filter atau pencarian</p>
           </div>
         ) : (
-          <div className="an-conn-list">
-            {visiblePools.map((pool) => (
-              <div key={pool.id} className="an-conn">
-                <div className="an-conn-main">
-                  <div className="an-conn-ico">
-                    <span className="material-symbols-outlined">lan</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(pool.id)}
-                    onChange={(event) => toggleSelect(pool.id, event.target.checked, event.nativeEvent.shiftKey === true)}
-                    disabled={bulkBusy || healthChecking}
-                    aria-label={`Pilih ${pool.name}`}
-                    className="mt-1 size-4 shrink-0 rounded accent-[var(--t-accent)] cursor-pointer"
-                  />
-                  <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="an-conn-name">{pool.name}</p>
-                    <span className="an-chip">
-                      <span>{pool.testStatus || "unknown"}</span>
-                    </span>
-                    <span className={`an-chip ${pool.isActive ? "ok" : ""}`}>
-                      <span>{pool.isActive ? "aktif" : "nonaktif"}</span>
-                    </span>
-                    {pool.type && (
-                      <span className="an-chip">
-                        <span>{pool.type} relay</span>
+          <>
+            <div className="an-conn-list">
+              {paged.items.map((pool) => (
+                <div key={pool.id} className="an-conn proxy-pool-row">
+                  <div className="an-conn-main">
+                    <div className="an-conn-ico">
+                      <span className="material-symbols-outlined">lan</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={selectedIdSet.has(pool.id)}
+                      onChange={(event) => toggleSelect(pool.id, event.target.checked, event.nativeEvent.shiftKey === true)}
+                      disabled={bulkBusy || healthChecking}
+                      aria-label={`Pilih ${pool.name}`}
+                      className="mt-1 size-4 shrink-0 rounded accent-[var(--t-accent)] cursor-pointer"
+                    />
+                    <div className="min-w-0 flex-1">
+                    <div className="an-conn-chips !mt-0">
+                      <p className="an-conn-name">{pool.name}</p>
+                      {(() => {
+                        const h = healthChip(pool.testStatus);
+                        return (
+                          <span className={`an-chip ${h.tone}`}>
+                            <span>{h.label}</span>
+                          </span>
+                        );
+                      })()}
+                      <span className={`an-chip ${pool.isActive ? "ok" : ""}`}>
+                        <span>{pool.isActive ? "aktif" : "nonaktif"}</span>
                       </span>
-                    )}
-                    <span className="an-chip">
-                      <span>{pool.boundConnectionCount || 0}</span>{" "}
-                      <span>terpakai</span>
-                    </span>
-                  </div>
-                  <p className="an-conn-sub mt-1">{pool.proxyUrl}</p>
-                  {pool.noProxy ? (
+                      {pool.type && (
+                        <span className="an-chip">
+                          <span>relay {pool.type}</span>
+                        </span>
+                      )}
+                      <span className="an-chip">
+                        <span>{pool.boundConnectionCount || 0}</span>{" "}
+                        <span>terpakai</span>
+                      </span>
+                    </div>
+                    <p className="an-conn-sub mt-1">{pool.proxyUrl}</p>
+                    {pool.noProxy ? (
+                      <p className="an-conn-sub mt-1">
+                        <span>no_proxy: </span>
+                        <span>{pool.noProxy}</span>
+                      </p>
+                    ) : null}
+                    {pool.exitIp ? (
+                      <p className="an-conn-sub mt-1">
+                        <span>exit: </span>
+                        <span>{pool.exitIp}</span>
+                        {pool.exitCountry ? <span> · {pool.exitCountry}</span> : null}
+                      </p>
+                    ) : null}
                     <p className="an-conn-sub mt-1">
-                      <span>no_proxy: </span>
-                      <span>{pool.noProxy}</span>
+                      <span>tes terakhir: </span>
+                      <span>{formatDateTime(pool.lastTestedAt)}</span>
                     </p>
-                  ) : null}
-                  {pool.exitIp ? (
-                    <p className="an-conn-sub mt-1">
-                      <span>exit: </span>
-                      <span>{pool.exitIp}</span>
-                      {pool.exitCountry ? <span> · {pool.exitCountry}</span> : null}
-                    </p>
-                  ) : null}
-                  <p className="an-conn-sub mt-1">
-                    <span>tes terakhir: </span>
-                    <span>{formatDateTime(pool.lastTestedAt)}</span>
-                    {pool.lastError ? <span> · {pool.lastError}</span> : null}
-                  </p>
+                    {pool.lastError ? (
+                      <p className="an-conn-sub mt-1 proxy-err" title={pool.lastError}>
+                        <span>{pool.lastError}</span>
+                      </p>
+                    ) : null}
+                    </div>
                   </div>
-                </div>
 
-                <div className="an-conn-actions">
-                  <button
-                    onClick={() => handleTest(pool.id)}
-                    className="an-conn-btn"
-                    title="Test proxy"
-                    aria-label={`Test ${pool.name}`}
-                    disabled={testingId === pool.id}
-                  >
-                    <span
-                      className="material-symbols-outlined"
-                      style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}
+                  <div className="an-conn-actions">
+                    <button
+                      onClick={() => handleTest(pool.id)}
+                      className="an-conn-btn"
+                      title="Test proxy"
+                      aria-label={`Test ${pool.name}`}
+                      disabled={testingId === pool.id}
                     >
-                      {testingId === pool.id ? "progress_activity" : "science"}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => openEditModal(pool)}
-                    className="an-conn-btn"
-                    title="Edit"
-                    aria-label={`Edit ${pool.name}`}
-                  >
-                    <span className="material-symbols-outlined">edit</span>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(pool)}
-                    className="an-conn-btn danger"
-                    title="Delete"
-                    aria-label={`Delete ${pool.name}`}
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                  </button>
-                  <AntaresSwitch
-                    on={pool.isActive === true}
-                    onChange={() => handleToggleActive(pool)}
-                    label={pool.isActive ? "On" : "Off"}
-                    title={pool.isActive ? "Disable" : "Enable"}
-                    ariaLabel={`Toggle ${pool.name}`}
-                  />
+                      <span
+                        className="material-symbols-outlined"
+                        style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}
+                      >
+                        {testingId === pool.id ? "progress_activity" : "science"}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => openEditModal(pool)}
+                      className="an-conn-btn"
+                      title="Edit"
+                      aria-label={`Edit ${pool.name}`}
+                    >
+                      <span className="material-symbols-outlined">edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(pool)}
+                      className="an-conn-btn danger"
+                      title="Delete"
+                      aria-label={`Delete ${pool.name}`}
+                    >
+                      <span className="material-symbols-outlined">delete</span>
+                    </button>
+                    <AntaresSwitch
+                      on={pool.isActive === true}
+                      onChange={() => handleToggleActive(pool)}
+                      label={pool.isActive ? "On" : "Off"}
+                      title={pool.isActive ? "Disable" : "Enable"}
+                      ariaLabel={`Toggle ${pool.name}`}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <div className="proxy-list-foot">
+              <span className="proxy-list-range">
+                Menampilkan {paged.start + 1}–
+                {Math.min(paged.start + PAGE_SIZE, paged.total)} dari {paged.total}
+              </span>
+              <ProxyPager
+                page={paged.page}
+                pageCount={paged.pageCount}
+                total={paged.total}
+                onChange={setPage}
+              />
+            </div>
+          </>
         )}
         </div>
       </section>
@@ -1235,7 +1418,7 @@ export default function ProxyPoolsPage() {
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button fullWidth onClick={handleBatchImport} disabled={!batchImportText.trim() || importing}>
-              {importing ? "Menguji proxy…" : "Import & Test"}
+              {importing ? "Testing proxy…" : "Import & Test"}
             </Button>
             <Button fullWidth variant="ghost" onClick={closeBatchImportModal} disabled={importing}>
               Cancel
@@ -1555,7 +1738,7 @@ export default function ProxyPoolsPage() {
               onClick={handleSave}
               disabled={!formData.name.trim() || !formData.proxyUrl.trim() || saving}
             >
-              {saving ? (editingProxyPool ? "Menyimpan..." : "Menguji & menyimpan...") : "Save"}
+              {saving ? (editingProxyPool ? "Menyimpan..." : "Testing & saving...") : "Save"}
             </Button>
             <Button fullWidth variant="ghost" onClick={closeFormModal} disabled={saving}>
               Cancel

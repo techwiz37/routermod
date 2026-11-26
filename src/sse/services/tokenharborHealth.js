@@ -190,7 +190,7 @@ async function clearHealthLock(connection, nowIso) {
 }
 
 async function probeConnection(connection, nowMs) {
-  const proxyCfg = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+  const proxyCfg = await resolveConnectionProxyConfig(connection.providerSpecificData || {}, connection.provider);
   const proxyOptions = buildProxyOptions(proxyCfg);
 
   let result;

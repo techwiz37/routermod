@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import PropTypes from "prop-types";
-import { Card, Badge, Button, Modal, Select, Toggle, EditConnectionModal, ConfirmModal } from "@/shared/components";
+import { Badge, Button, EditConnectionModal, ConfirmModal } from "@/shared/components";
+import AntaresPanel from "@/shared/components/AntaresPanel";
+import AntaresSwitch from "@/shared/components/AntaresSwitch";
+import AntaresModal from "@/shared/components/AntaresModal";
+import AntaresSelect from "@/shared/components/AntaresSelect";
 import { translate } from "@/i18n/runtime";
 import { useNotificationStore } from "@/store/notificationStore";
 
@@ -109,80 +113,103 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
     });
   };
 
+  const statusLabel = connection.isActive === false ? "Off" : (effectiveStatus || "Unknown");
+  const statusChipClass = connection.isActive === false
+    ? "danger"
+    : effectiveStatus === "active" || effectiveStatus === "success"
+      ? "ok"
+      : effectiveStatus === "unavailable" || effectiveStatus === "expired"
+        ? "danger"
+        : "";
+  const chipVariantClass = (variant) => variant === "success" ? "ok" : variant === "error" ? "danger" : "";
+
   return (
-    <div className={`group flex flex-col gap-3 p-2 rounded-lg sm:flex-row sm:items-center sm:justify-between hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${connection.isActive === false ? "opacity-60" : ""}`}>
-      <div className="flex w-full min-w-0 flex-1 items-start gap-3 sm:items-center">
-        <div className="flex flex-col">
-          <button onClick={onMoveUp} disabled={isFirst} className={`p-0.5 rounded ${isFirst ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}>
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
+    <div className={`an-conn ${connection.isActive === false ? "is-off" : ""}`}>
+      <div className="an-conn-main">
+        <div className="an-conn-prio">
+          <button onClick={onMoveUp} disabled={isFirst} title={translate("Move up")} aria-label={translate("Move up")}>
+            <span className="material-symbols-outlined">keyboard_arrow_up</span>
           </button>
-          <button onClick={onMoveDown} disabled={isLast} className={`p-0.5 rounded ${isLast ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}>
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
+          <button onClick={onMoveDown} disabled={isLast} title={translate("Move down")} aria-label={translate("Move down")}>
+            <span className="material-symbols-outlined">keyboard_arrow_down</span>
           </button>
         </div>
-        <span className="material-symbols-outlined text-base text-text-muted">{isOAuth ? "lock" : "key"}</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{displayName}</p>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <Badge variant={getStatusVariant()} size="sm" dot>
-              {connection.isActive === false ? "disabled" : (effectiveStatus || "Unknown")}
-            </Badge>
-            {hasAnyProxy && <Badge variant={proxyBadgeVariant} size="sm">Proxy</Badge>}
+
+        <span className="an-conn-ico" aria-hidden>
+          <span className="material-symbols-outlined">{isOAuth ? "lock" : "key"}</span>
+        </span>
+
+        <div className="an-conn-id">
+          <p className="an-conn-name" title={displayName}>{displayName}</p>
+          <div className="an-conn-chips">
+            <span className={`an-chip ${statusChipClass}`}>
+              <span className="size-1.5 rounded-full shrink-0 bg-current" />
+              {statusLabel}
+            </span>
+            <span className="an-chip">{isOAuth ? "OAuth" : "API Key"}</span>
+            <span className="an-conn-meta">#{connection.priority}</span>
+            {hasAnyProxy && <span className={`an-chip ${chipVariantClass(proxyBadgeVariant)}`}>Proxy</span>}
             {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}
             {connection.lastError && connection.isActive !== false && (
               <button
                 type="button"
                 onClick={showConnectionError}
-                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-500/15 hover:text-amber-400"
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[var(--t-star-ink)] transition-colors hover:bg-[var(--t-accent-soft)]"
                 title={translate("Show connection error")}
                 aria-label={translate("Show connection error")}
               >
-                <span className="text-sm leading-none">⚠️</span>
+                <span className="material-symbols-outlined text-[15px]">error</span>
               </button>
             )}
-            <span className="text-xs text-text-muted">#{connection.priority}</span>
           </div>
           {hasAnyProxy && (
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] text-text-muted truncate max-w-[420px]" title={proxyDisplayText}>{proxyDisplayText}</span>
-              {maskedProxyUrl && <code className="text-[10px] font-mono bg-black/5 dark:bg-white/5 px-1 py-0.5 rounded text-text-muted">{maskedProxyUrl}</code>}
-              {noProxyText && <span className="text-[11px] text-text-muted truncate max-w-[320px]" title={noProxyText}>no_proxy: {noProxyText}</span>}
+            <div className="an-conn-chips !mt-1.5">
+              <span className="an-conn-meta" title={proxyDisplayText}>{proxyDisplayText}</span>
+              {maskedProxyUrl && <code className="an-conn-meta" title={maskedProxyUrl}>{maskedProxyUrl}</code>}
+              {noProxyText && <span className="an-conn-meta" title={noProxyText}>no_proxy: {noProxyText}</span>}
             </div>
           )}
         </div>
       </div>
-      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
-        <div className="flex flex-wrap gap-1">
-          {(proxyPools || []).length > 0 && (
-            <div className="relative" ref={proxyDropdownRef}>
-              <button
-                onClick={() => setShowProxyDropdown((v) => !v)}
-                className={`flex flex-col items-center px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}
-                disabled={updatingProxy}
-              >
-                <span className="material-symbols-outlined text-[18px]">{updatingProxy ? "progress_activity" : "lan"}</span>
-                <span className="text-[10px] leading-tight">Proxy</span>
-              </button>
-              {showProxyDropdown && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-bg border border-border rounded-lg shadow-lg py-1 min-w-[160px]">
-                  <button onClick={() => handleSelectProxy("__none__")} className={`w-full text-left px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${!boundProxyPoolId ? "text-primary font-medium" : "text-text-main"}`}>None</button>
-                  {(proxyPools || []).map((pool) => (
-                    <button key={pool.id} onClick={() => handleSelectProxy(pool.id)} className={`w-full text-left px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${boundProxyPoolId === pool.id ? "text-primary font-medium" : "text-text-main"}`}>{pool.name}</button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <button onClick={onEdit} className="flex flex-col items-center px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-text-muted hover:text-primary">
-            <span className="material-symbols-outlined text-[18px]">edit</span>
-            <span className="text-[10px] leading-tight">Edit</span>
-          </button>
-          <button onClick={onDelete} className="flex flex-col items-center px-2 py-1 rounded hover:bg-red-500/10 text-red-500">
-            <span className="material-symbols-outlined text-[18px]">delete</span>
-            <span className="text-[10px] leading-tight">Delete</span>
-          </button>
-        </div>
-        <Toggle size="sm" checked={connection.isActive ?? true} onChange={onToggleActive} title={(connection.isActive ?? true) ? "Disable" : "Enable"} />
+
+      <div className="an-conn-actions">
+        {(proxyPools || []).length > 0 && (
+          <div className="relative" ref={proxyDropdownRef}>
+            <button
+              onClick={() => setShowProxyDropdown((v) => !v)}
+              className="an-conn-btn"
+              title={hasAnyProxy ? proxyDisplayText : translate("Set proxy")}
+              aria-label={translate("Proxy")}
+              disabled={updatingProxy}
+            >
+              <span className="material-symbols-outlined">{updatingProxy ? "progress_activity" : "lan"}</span>
+            </button>
+            {showProxyDropdown && (
+              <div className="an-panel absolute right-0 top-full z-[60] mt-1 max-h-[240px] min-w-[170px] max-w-[80vw] overflow-y-auto !rounded-[10px] py-1">
+                <button onClick={() => handleSelectProxy("__none__")} className={`w-full px-3 py-1.5 text-left text-[13px] hover:bg-[var(--t-raised)] ${!boundProxyPoolId ? "text-[var(--t-star-ink)] font-medium" : "text-[var(--t-ink)]"}`}>
+                  None
+                </button>
+                {(proxyPools || []).map((pool) => (
+                  <button key={pool.id} onClick={() => handleSelectProxy(pool.id)} className={`w-full px-3 py-1.5 text-left text-[13px] hover:bg-[var(--t-raised)] ${boundProxyPoolId === pool.id ? "text-[var(--t-star-ink)] font-medium" : "text-[var(--t-ink)]"}`}>
+                    {pool.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <button onClick={onEdit} className="an-conn-btn" title={translate("Edit")} aria-label={translate("Edit")}>
+          <span className="material-symbols-outlined">edit</span>
+        </button>
+        <button onClick={onDelete} className="an-conn-btn danger" title={translate("Delete")} aria-label={translate("Delete")}>
+          <span className="material-symbols-outlined">delete</span>
+        </button>
+        <AntaresSwitch
+          on={connection.isActive ?? true}
+          onChange={onToggleActive}
+          ariaLabel={translate("Toggle connection")}
+          title={(connection.isActive ?? true) ? translate("Disable") : translate("Enable")}
+        />
       </div>
     </div>
   );
@@ -262,22 +289,35 @@ function AddApiKeyModal({ isOpen, provider, providerName, proxyPools, onSave, on
   if (!provider) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Add ${providerName || provider} API Key`} onClose={onClose}>
+    <AntaresModal
+      isOpen={isOpen}
+      title={`Add ${providerName || provider} API Key`}
+      subtitle={translate("Add a credential for this provider")}
+      size="lg"
+      hideScrollbar
+      onClose={onClose}
+      footer={
+        <div className="flex w-full gap-2">
+          <Button skin="antares" onClick={handleSubmit} fullWidth disabled={!formData.name || !formData.apiKey || saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+          <Button skin="antares" variant="ghost" onClick={onClose} fullWidth>Cancel</Button>
+        </div>
+      }
+    >
       <div className="flex flex-col gap-4">
         <div>
           <label className="text-xs text-text-muted mb-1 block">Name</label>
           <input className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Production Key" />
         </div>
-        <div className="flex gap-2">
-          <div className="flex-1">
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
             <label className="text-xs text-text-muted mb-1 block">API Key</label>
-            <input type="password" className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary" value={formData.apiKey} onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })} />
+            <input type="password" className="w-full h-[42px] px-3 text-[16px] sm:text-sm border border-[var(--t-line)] rounded-[10px] bg-[var(--t-field)] text-[var(--t-ink)] placeholder:text-[var(--t-dim)] focus:outline-none focus:border-[var(--t-accent)]" value={formData.apiKey} onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })} />
           </div>
-          <div className="pt-6">
-            <Button onClick={handleValidate} disabled={!formData.apiKey || validating || saving} variant="secondary">
-              {validating ? "Checking..." : "Check"}
-            </Button>
-          </div>
+          <Button onClick={handleValidate} disabled={!formData.apiKey || validating || saving} variant="secondary" className="!h-[42px] shrink-0">
+            {validating ? "Checking..." : "Check"}
+          </Button>
         </div>
         {validationResult && (
           <Badge variant={validationResult === "success" ? "success" : "error"}>
@@ -288,16 +328,22 @@ function AddApiKeyModal({ isOpen, provider, providerName, proxyPools, onSave, on
           <label className="text-xs text-text-muted mb-1 block">Priority</label>
           <input type="number" className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary" value={formData.priority} onChange={(e) => setFormData({ ...formData, priority: Number.parseInt(e.target.value) || 1 })} />
         </div>
-        <Select label="Proxy Pool" value={formData.proxyPoolId} onChange={(e) => setFormData({ ...formData, proxyPoolId: e.target.value })}
-          options={[{ value: NONE, label: "None" }, ...(proxyPools || []).map((p) => ({ value: p.id, label: p.name }))]} />
-        <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={!formData.name || !formData.apiKey || saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-text-muted">{translate("Proxy Pool")}</label>
+          <AntaresSelect
+            value={formData.proxyPoolId}
+            onChange={(e) => setFormData({ ...formData, proxyPoolId: e.target.value })}
+            ariaLabel={translate("Proxy Pool")}
+            portal
+            placement="top"
+            maxVisible={5}
+            buttonClassName="h-[42px] font-mono"
+            options={[{ value: NONE, label: translate("None") }, ...(proxyPools || []).map((p) => ({ value: p.id, label: p.name }))]}
+            placeholder={translate("None")}
+          />
         </div>
       </div>
-    </Modal>
+    </AntaresModal>
   );
 }
 
@@ -344,16 +390,16 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
 
   const saveStrategy = async (strategy, stickyLimit) => {
     try {
-      const res = await fetch("/api/settings", { cache: "no-store" });
-      const data = res.ok ? await res.json() : {};
-      const current = data.providerStrategies || {};
-      const override = {};
-      if (strategy) override.fallbackStrategy = strategy;
-      if (strategy === "round-robin" && stickyLimit !== "") override.stickyRoundRobinLimit = Number(stickyLimit) || 3;
-      const updated = { ...current };
-      if (Object.keys(override).length === 0) delete updated[providerId];
-      else updated[providerId] = override;
-      await fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerStrategies: updated }) });
+      const res = await fetch("/api/providers/strategy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId,
+          strategy,
+          stickyRoundRobinLimit: strategy === "round-robin" ? Number(stickyLimit) || 1 : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (e) { console.log("saveStrategy error:", e); }
   };
 
@@ -411,45 +457,64 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
     } catch (e) { console.log("update connection error:", e); }
   };
 
-  if (loading) return <Card><div className="h-20 animate-pulse bg-black/5 rounded-lg" /></Card>;
+  if (loading) return <AntaresPanel><div className="h-20 animate-pulse rounded-[10px] bg-[var(--t-raised)]" /></AntaresPanel>;
 
   return (
     <>
-      <Card>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <h2 className="text-lg font-semibold">Connections</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-text-muted font-medium">Round Robin</span>
-            <Toggle
-              checked={providerStrategy === "round-robin"}
-              onChange={(enabled) => {
-                const strategy = enabled ? "round-robin" : null;
-                setProviderStrategy(strategy);
-                if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
-                saveStrategy(strategy, enabled ? (providerStickyLimit || "1") : providerStickyLimit);
-              }}
-            />
-            {providerStrategy === "round-robin" && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-text-muted">Sticky:</span>
-                <input
-                  type="number" min={1} value={providerStickyLimit}
-                  onChange={(e) => { setProviderStickyLimit(e.target.value); saveStrategy("round-robin", e.target.value); }}
-                  className="w-16 px-2 py-1 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary"
-                />
-              </div>
-            )}
-          </div>
+      <AntaresPanel
+        icon="hub"
+        title={translate("Connections")}
+        subtitle={translate("Manage accounts and proxies for this provider")}
+        headClassName="an-connections-head"
+        action={<span className="an-chip">{connections.length} {translate("connections")}</span>}
+        bodyClassName="!p-0"
+      >
+        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--t-line-soft)] px-3 py-2.5 sm:px-5 sm:py-3">
+          <AntaresSwitch
+            on={providerStrategy === "round-robin"}
+            label={translate("Round Robin")}
+            ariaLabel={translate("Round Robin")}
+            onChange={(enabled) => {
+              const strategy = enabled ? "round-robin" : null;
+              const sticky = enabled ? (Number(providerStickyLimit) > 0 ? providerStickyLimit : "1") : undefined;
+              if (enabled) setProviderStickyLimit(String(sticky));
+              setProviderStrategy(strategy);
+              saveStrategy(strategy, sticky);
+            }}
+          />
+          {providerStrategy === "round-robin" && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-[var(--t-muted)]">{translate("Sticky:")}</span>
+              <input
+                type="number"
+                min={1}
+                value={providerStickyLimit}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setProviderStickyLimit(value);
+                  const n = Number(value);
+                  // Ignore empty/invalid intermediate values while typing.
+                  if (Number.isInteger(n) && n > 0) saveStrategy("round-robin", n);
+                }}
+                className="h-6 w-12 rounded-[6px] border border-[var(--t-line)] bg-[var(--t-raised)] px-1.5 text-center font-mono text-[11px] text-[var(--t-ink)] focus:border-[var(--t-accent)] focus:outline-none"
+              />
+            </div>
+          )}
         </div>
 
         {connections.length === 0 ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-text-muted">No connections yet</p>
-            <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add Connection</Button>
+          <div className="flex flex-col gap-3 px-4 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex items-center gap-3">
+              <div className="an-conn-ico shrink-0">
+                <span className="material-symbols-outlined">{isOAuth ? "lock" : "key"}</span>
+              </div>
+              <p className="text-[13px] text-[var(--t-ink)]">{translate("No connections yet")}</p>
+            </div>
+            <Button skin="antares" size="sm" icon="add" onClick={() => setShowAddModal(true)}>{translate("Add Connection")}</Button>
           </div>
         ) : (
-          <>
-            <div className="flex flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03] max-h-[500px] overflow-y-auto pr-1">
+          <div className="px-3 py-3 sm:px-4">
+            <div className="an-conn-list scrollbar-none max-h-[600px] overflow-y-auto pr-0.5">
               {connections.map((conn, idx) => (
                 <ConnectionRow
                   key={conn.id}
@@ -467,12 +532,12 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
                 />
               ))}
             </div>
-            <div className="mt-4 flex justify-stretch sm:justify-start">
-              <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add</Button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button skin="antares" size="sm" icon="add" onClick={() => setShowAddModal(true)}>{translate("Add Connection")}</Button>
             </div>
-          </>
+          </div>
         )}
-      </Card>
+      </AntaresPanel>
 
       <AddApiKeyModal
         isOpen={showAddModal}

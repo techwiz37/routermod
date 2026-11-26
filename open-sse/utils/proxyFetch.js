@@ -1,6 +1,8 @@
 import { Readable } from "stream";
 import {
   MEMORY_CONFIG,
+  OPENCODE_MAX_HOPS,
+  OPENCODE_HOP_BUDGET_MS,
   FRESH_RETRY_KEEPALIVE_TIMEOUT_MS,
   STALE_SOCKET_ERROR_CODES,
   NON_STALE_SOCKET_ERROR_CODES,
@@ -10,6 +12,134 @@ import {
 } from "../config/runtimeConfig.js";
 import { dbg } from "./debugLog.js";
 import { ensureClaudeCliVersion, applyClaudeCliVersion } from "./claudeCliVersion.js";
+import {
+  warpHop,
+  whenWarpStable,
+  beginWarpRequest,
+  releaseWarpRequest,
+  waitForWarpIdle,
+  ensureWarpProxyReady,
+} from "@/lib/network/warpRotator.js";
+
+// Generic WARP auto-hop (openhop.cfd behaviour) for EVERY provider that uses
+// the RouterMod WARP tunnel — not just OpenCode Free. A 429 from an IP-limited
+// upstream rotates the IPv6 /64 and replays the request through the fresh
+// tunnel. Use the SAME 100-IP / 1h target as the OpenCode executor: a failed
+// or same-IP hop is not a stop condition, only the target or budget ends it.
+const WARP_AUTO_HOP_BUDGET_MS = Number(process.env.ROUTERMOD_WARP_HOP_BUDGET_MS || OPENCODE_HOP_BUDGET_MS);
+const WARP_AUTO_HOP_MAX = Number(process.env.ROUTERMOD_WARP_HOP_MAX || OPENCODE_MAX_HOPS);
+
+function isRouterModWarpProxy(proxyUrl) {
+  try {
+    const u = new URL(proxyUrl);
+    const port = String(process.env.ROUTERMOD_WARP_PORT || 40000);
+    const host = u.hostname.replace(/^\[|\]$/g, "");
+    return (host === "127.0.0.1" || host === "localhost" || host === "::1")
+      && (u.port || (u.protocol === "https:" ? "443" : "80")) === port;
+  } catch { return false; }
+}
+
+// A WARP hop disconnects and reconnects the tunnel; any request already in
+// flight through it dies with a broken pipe / ECONNRESET. Wait for the hop to
+// settle, then replay the request instead of surfacing a spurious 502.
+const HOP_DISRUPTION_RE = /broken pipe|econnreset|econnrefused|connection error|stream closed|socket closed|sendrequest|und_err_socket|proxy required but failed/i;
+
+function isHopDisruption(error) {
+  if (!error || error?.name === "AbortError") return false;
+  const message = `${error?.message || ""} ${error?.cause?.message || ""}`;
+  return HOP_DISRUPTION_RE.test(message);
+}
+
+async function retryAfterHop(url, options, once) {
+  // Use the same 100-IP / 1h target as the 429 hop loop. A tunnel disruption
+  // is just another symptom of an exhausted exit — rotate it and replay until
+  // the target or budget ends, instead of giving up after two retries.
+  const maxAttempts = WARP_AUTO_HOP_MAX;
+  const deadline = Date.now() + WARP_AUTO_HOP_BUDGET_MS;
+  for (let attempt = 1; attempt <= maxAttempts && Date.now() < deadline; attempt++) {
+    try {
+      return await once();
+    } catch (error) {
+      const replaySafe = isBodyReplaySafe(options?.body);
+      if (!replaySafe || !isHopDisruption(error) || options?.signal?.aborted || attempt >= maxAttempts) throw error;
+      console.log(`[WARP-HOP] tunnel dropped mid-request (${String(error?.message || error).slice(0, 110)}) — rotating then retry ${attempt}/${maxAttempts}: ${safeTargetHost(url)}`);
+      await whenWarpStable().catch(() => {});
+      const detail = `${error?.message || ""} ${error?.cause?.message || ""}`;
+      if (/proxyconnect|connection refused|econnrefused|proxy required but failed/i.test(detail)) {
+        // Tunnel is down (port 40000 closed). Reconnect it instead of replaying
+        // into a dead socket — strictProxy would otherwise surface a 502.
+        console.log(`[WARP-HOP] proxy unreachable — reconnecting tunnel then retry ${attempt}/${maxAttempts}`);
+        await ensureWarpProxyReady().catch(() => {});
+      }
+      const hop = await warpHop().catch((e) => ({ ok: false, changed: false, error: e?.message }));
+      console.log(`[WARP-HOP] disruption hop ${attempt}/${maxAttempts}: ${hop?.oldIp || "?"} → ${hop?.newIp || "?"} (changed=${hop?.changed}${hop?.error ? `, ${hop.error}` : ""})`);
+      // Drop pooled sockets — the proxy now exits from a different address.
+      proxyDispatchers.clear();
+      await new Promise((resolve) => setTimeout(resolve, Math.min(250 * attempt, 1000)));
+    }
+  }
+  return once(); // unreachable
+}
+
+/**
+ * Keep a WARP-proxied response "active" until its body has been fully read or
+ * cancelled, so a concurrent hop never tears down a stream mid-flight.
+ */
+function withWarpTracking(response, onRelease) {
+  if (!response?.body || typeof response.body.pipeThrough !== "function") {
+    onRelease();
+    return response;
+  }
+  let released = false;
+  const release = () => { if (!released) { released = true; onRelease(); } };
+  const tracked = response.body.pipeThrough(new TransformStream({
+    flush() { release(); },
+    cancel() { release(); },
+  }));
+  return new Response(tracked, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+async function warpHopAndRetry(url, options, proxyUrl, once, onBeforeHop, onAfterHop) {
+  const deadline = Date.now() + WARP_AUTO_HOP_BUDGET_MS;
+  for (let hop = 1; hop <= WARP_AUTO_HOP_MAX && Date.now() < deadline; hop++) {
+    const res = await once();
+    if (res?.status !== 429 || options?.signal?.aborted) return res;
+
+    // This response is discarded — release its tunnel before hopping so the
+    // gate does not wait on the very request that triggered the hop.
+    try { await res.body?.cancel?.(); } catch { /* already closed */ }
+    onBeforeHop?.();
+    await waitForWarpIdle();
+
+    console.log(`[WARP-HOP] HTTP 429 from ${safeTargetHost(url)} — rotating WARP IP (${hop}/${WARP_AUTO_HOP_MAX})`);
+    let result;
+    try { result = await warpHop(); }
+    catch (error) {
+      console.log(`[WARP-HOP] failed on ${hop}/${WARP_AUTO_HOP_MAX}, continuing: ${error?.message || error}`);
+      onAfterHop?.();
+      continue;
+    }
+    onAfterHop?.();
+    console.log(`[WARP-HOP] ${hop}/${WARP_AUTO_HOP_MAX} ${result?.oldIp || "?"} → ${result?.newIp || "?"} (changed=${result?.changed})`);
+    // A same-IP / failed hop only means this attempt did not earn a fresh
+    // quota bucket. Keep rotating until the 100-IP target or the budget ends.
+    if (!result?.ok || !result?.changed) {
+      // Drop pooled sockets anyway — the tunnel may have reconnected with the
+      // same address but a different CONNECT session.
+      proxyDispatchers.clear();
+      continue;
+    }
+
+    // Drop cached CONNECT tunnels to the proxy so the next request reconnects
+    // through the new WARP address instead of reusing a dead pooled socket.
+    proxyDispatchers.clear();
+  }
+  return once();
+}
 
 const CLAUDE_UA_PROBE = /claude-cli\/\d/;
 function hasClaudeCliHeader(headers) {
@@ -286,12 +416,13 @@ function resolveConnectionProxyUrl(targetUrl, proxyOptions) {
 }
 
 // ISP DPI (VN → api.anthropic.com) RSTs Node's default TLS ClientHello curve
-// list; a single curve rewrites the fingerprint enough to pass. Empirically:
-// default agent = ECONNRESET 100%, X25519 = through 100%.
-const TLS_ECDH_CURVE = process.env.NINEROUTER_TLS_ECDH_CURVE || "X25519";
-// Some edges (AWS OIDC / CodeWhisperer used by Kiro) reset an X25519-only
-// ClientHello. Hosts that do are retried with a standard curve list and
-// remembered, so they skip the failing handshake afterwards.
+// list, so keep X25519 first. But X25519 alone is too narrow: AWS OIDC
+// (Kiro IdC / Builder ID sign-in and IdC token refresh) resets an X25519-only
+// handshake, so offer P-256/P-384 as well (#5613). NINEROUTER_TLS_ECDH_CURVE
+// still overrides the list for operators who need the old behaviour.
+const TLS_ECDH_CURVE = process.env.NINEROUTER_TLS_ECDH_CURVE || "X25519:prime256v1:secp384r1";
+// Compatibility list for hosts that still reset the default handshake; the
+// aliases below are equivalent to the OpenSSL names used above.
 const TLS_COMPAT_CURVES = "X25519:P-256:P-384";
 const compatTlsHosts = new Set();
 
@@ -521,7 +652,7 @@ async function createBypassRequest(parsedUrl, realIP, options) {
   });
 }
 
-export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
+async function proxyAwareFetchOnce(url, options = {}, proxyOptions = null) {
   // Keep the spoofed Claude Code version current (new models require a minimum CLI version).
   // Refresh in the background: the request uses the version already known, so an
   // unreachable npm registry can never add latency to the chat path.
@@ -633,6 +764,54 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   // got-scraping disabled — use native fetch directly
   // (Re-enable per-host by wrapping with tryGotScrapingFetch when needed)
   return fetchWithTlsFallback(url, options, null, forceFreshSocket);
+}
+
+/**
+ * Fetch with automatic WARP rotation on IP-based rate limits. OpenCode owns
+ * its own hop in its executor (wreq-js sessions), so adapters declaring
+ * `proxyCapable` are left untouched here to avoid a double hop.
+ */
+export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
+  const targetUrl = typeof url === "string" ? url : url.toString();
+  let proxyUrl = null;
+  try {
+    const connectionProxyUrl = resolveConnectionProxyUrl(targetUrl, proxyOptions);
+    proxyUrl = connectionProxyUrl || normalizeProxyUrl(getEnvProxyUrl(targetUrl));
+  } catch { /* no proxy → no auto-hop */ }
+
+  const once = () => proxyAwareFetchOnce(url, options, proxyOptions);
+  if (!proxyUrl || !isRouterModWarpProxy(proxyUrl)) return await once();
+
+  // A concurrent rotation briefly closes port 40000. New requests must wait
+  // for the hop to finish instead of immediately failing with ECONNREFUSED
+  // and triggering yet another "reconnect" cycle.
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, 20_000);
+    try {
+      whenWarpStable().then(() => { clearTimeout(timer); resolve(); }, () => { clearTimeout(timer); resolve(); });
+    } catch { clearTimeout(timer); resolve(); }
+  });
+
+  let held = false;
+  const hold = () => { if (!held) { beginWarpRequest(); held = true; } };
+  const drop = () => { if (held) { releaseWarpRequest(); held = false; } };
+  hold();
+  // The triggering request temporarily leaves the gate while it hops.
+  const onBeforeHop = () => drop();
+  const onAfterHop = () => hold();
+
+  try {
+    const stable = () => retryAfterHop(url, options, once);
+    // OpenCode drives its own 429 hop in its executor; here we only need to
+    // survive a concurrent hop that tears down the shared WARP tunnel.
+    const response = options?.directFetch?.proxyCapable === true
+      ? await stable()
+      : await warpHopAndRetry(url, options, proxyUrl, stable, onBeforeHop, onAfterHop);
+    return withWarpTracking(response, drop);
+  } catch (error) {
+    drop();
+    throw error;
+  }
 }
 
 /**

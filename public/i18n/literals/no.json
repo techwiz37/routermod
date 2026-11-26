@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "Bruk 5–128 tegn: bokstaver, tall, bindestreker (-) eller understreker (_). Prefikset rmod- er valgfritt. Unngå lettgjettede ord.",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "API-nøkkelen må være 5–128 tegn og kan bare inneholde bokstaver, tall, bindestreker (-) eller understreker (_)."
 }

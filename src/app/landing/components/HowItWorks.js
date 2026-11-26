@@ -14,9 +14,9 @@ export default function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="relative border-y border-[var(--l-line)] bg-[var(--l-card-veil-soft)] px-5 py-14 sm:px-8 sm:py-16"
+      className="relative landing-section border-y border-[var(--l-line)] bg-[var(--l-card-veil-soft)] py-20 sm:py-24"
     >
-      <div className="mx-auto max-w-none">
+      <div className="mx-auto landing-container">
         <div className="mb-9 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="landing-eyebrow">
@@ -28,25 +28,19 @@ export default function HowItWorks() {
           <p className="landing-lead max-w-sm">{t("howDesc")}</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {STEPS.map((s, i) => (
-            <div key={s.n} className="landing-card relative p-4">
-              <div className="flex items-start gap-3">
-                <span
-                  className={`landing-ico ${
-                    i === 1 ? "border-[var(--l-accent)]/50 text-[var(--l-accent-ink)]" : ""
-                  }`}
-                >
+            <div key={s.n} className="an-card overflow-hidden">
+              <div className="an-card-head">
+                <span className={`an-ic ${i === 1 ? "border-[var(--l-accent)]/60" : ""}`} aria-hidden>
                   <span className="material-symbols-outlined">{s.icon}</span>
                 </span>
-                <div className="min-w-0">
-                  <p className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--l-dim)]">
-                    {t("howStep")} {s.n}
-                  </p>
-                  <h3 className="landing-h3 mt-1">{s.title}</h3>
-                </div>
+                <span className="an-chip">{t("howStep")} {s.n}</span>
               </div>
-              <p className="mt-3 text-[12px] leading-relaxed text-[var(--l-muted)]">{s.desc}</p>
+              <div className="lf-card-body">
+                <h3 className="an-card-title">{s.title}</h3>
+                <p className="lf-card-desc">{s.desc}</p>
+              </div>
             </div>
           ))}
         </div>

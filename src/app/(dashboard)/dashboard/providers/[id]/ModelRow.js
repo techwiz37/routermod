@@ -2,25 +2,29 @@ import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import { CapacityBadges, VisionSelector, visionFromCaps } from "@/shared/components";
 import { translate } from "@/i18n/runtime";
+import ModelTestButton from "@/shared/components/ModelTestButton";
+import ModelCapabilities from "@/shared/components/ModelCapabilities";
 
 function EditPopover({ model, alias, isCustom, providerAlias, caps, capsEditable, onSave, onClose }) {
-  const aliasParts = alias ? alias.split("/") : [];
-  const initPrefix  = aliasParts.length > 1 ? aliasParts.slice(0, -1).join("/") : (providerAlias || "");
-  const initModelId = aliasParts.length > 1 ? aliasParts[aliasParts.length - 1] : (alias || model.id);
+  // Support both old format (alias) and new format (custom ID with slash)
+  const initCustomId = alias || `${providerAlias || ""}/${model.id}`;
 
-  const [prefix,  setPrefix]  = useState(initPrefix);
-  const [modelId, setModelId] = useState(initModelId);
-  const [name,    setName]    = useState(model.name || model.id);
-  const [vision,  setVision]  = useState(visionFromCaps(caps));
+  const [customId, setCustomId] = useState(initCustomId);
+  const [originalId, setOriginalId] = useState(model.id);
+  const [vision,   setVision]   = useState(visionFromCaps(caps));
   const firstRef = useRef(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
 
-  const previewAlias = [prefix.trim(), modelId.trim()].filter(Boolean).join("/");
+  // Parse customId to extract prefix and modelId for backward compatibility
+  const customIdParts = customId.trim().split("/");
+  const hasSlash = customIdParts.length > 1;
+  const previewAlias = customId.trim();
 
   function handleSave(e) {
     e.preventDefault();
-    const payload = { prefix: prefix.trim(), modelId: modelId.trim(), name: name.trim(), aliasKey: previewAlias };
+    if (!originalId.trim() || !previewAlias) return;
+    const payload = { modelId: model.id, newId: originalId.trim(), name: hasSlash ? previewAlias : `${providerAlias}/${previewAlias}`, customId: hasSlash ? previewAlias : `${providerAlias}/${previewAlias}` };
     // Custom models store a caps override; only send a patch when the user
     // changed the selector. A `null` vision value removes the override.
     if (capsEditable && vision !== visionFromCaps(caps)) {
@@ -36,35 +40,30 @@ function EditPopover({ model, alias, isCustom, providerAlias, caps, capsEditable
       onClick={(e) => e.stopPropagation()}
     >
       <label className="flex flex-col gap-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{translate("Prefix")}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{translate("Original ID")}</span>
         <input
-          ref={firstRef}
-          value={prefix}
-          onChange={(e) => setPrefix(e.target.value)}
-          className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-          placeholder={providerAlias || "ag"}
-        />
-      </label>
-
-      <label className="flex flex-col gap-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{translate("Model ID")}</span>
-        <input
-          value={modelId}
-          onChange={(e) => setModelId(e.target.value)}
-          className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+          value={originalId}
+          required
+          onChange={(e) => setOriginalId(e.target.value)}
+          className="min-h-11 rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
           placeholder={model.id}
         />
+        <span className="text-[10px] text-text-muted mt-0.5">{translate("The model ID sent to the upstream provider.")}</span>
       </label>
 
       <label className="flex flex-col gap-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{translate("Display Name")}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{translate("Custom ID")}</span>
         <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
-          placeholder={isCustom ? "e.g. Gemini 3.8 High" : "e.g. Claude Sonnet 4.6"}
+          ref={firstRef}
+          value={customId}
+          required
+          onChange={(e) => setCustomId(e.target.value)}
+          className="rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text-main outline-none focus:border-primary/70 focus:ring-1 focus:ring-primary/30"
+          placeholder={`${providerAlias || "model"}/${model.id} or custom/name`}
         />
+        <span className="text-[10px] text-text-muted/60 mt-0.5">{translate("The ID used by the API. Can include alias (e.g. coa/gpt4) or just the name.")}</span>
       </label>
+
       {capsEditable && (
         <div className="rounded border border-border/60 bg-bg/40 p-2">
           <VisionSelector value={vision} onChange={setVision} hint={translate("Auto keeps the catalog default.")} />
@@ -82,13 +81,13 @@ function EditPopover({ model, alias, isCustom, providerAlias, caps, capsEditable
           onClick={onClose}
           className="px-2.5 py-1 rounded border border-border text-[11px] text-text-muted hover:bg-surface-2 transition-colors"
         >
-          Cancel
+          {translate("Cancel")}
         </button>
         <button
           type="submit"
           className="px-2.5 py-1 rounded border-2 border-primary bg-primary text-[11px] font-bold text-white hover:bg-primary-hover transition-colors shadow-[1.5px_1.5px_0px_var(--color-border)]"
         >
-          Save
+          {translate("Save")}
         </button>
       </div>
     </form>
@@ -98,14 +97,15 @@ function EditPopover({ model, alias, isCustom, providerAlias, caps, capsEditable
 export default function ModelRow({
   model, fullModel, alias, copied, onCopy,
   testStatus, isCustom, isFree,
-  onDeleteAlias, onTest, isTesting,
+  onDeleteAlias, onTest, isTesting, onRemoveTestedModel,
   onDisable, onEnable, onEdit, providerAlias,
-  caps, capsEditable, thinkingSuffix, prefix, isDisabled,
+  caps, capsEditable, thinkingSuffix, prefix, isDisabled, canonicalModel,
 }) {
-  const rawModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
+  const publicId = alias || fullModel;
+  const rawModel = thinkingSuffix ? `${publicId}(${thinkingSuffix})` : publicId;
   const displayName = model.name || alias || null;
   const displayModel = rawModel;
-  const modelPath = `${prefix || providerAlias || "model"}/${displayName || rawModel}`;
+  const modelPath = publicId;
   const [editing, setEditing] = useState(false);
 
   const borderColor = testStatus === "ok"  ? "border-green-500/40"
@@ -150,20 +150,14 @@ export default function ModelRow({
                 PAID
               </span>
             )}
-            <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
+            <ModelCapabilities model={canonicalModel || fullModel} caps={caps} size={14} />
           </span>
         </div>
 
       </div>
 
-      <div className="mt-2 flex min-h-7 items-center justify-end gap-1 border-t border-border/60 pt-1.5">
-        {onTest && !isDisabled && (
-          <button onClick={onTest} disabled={isTesting} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={isTesting ? translate("Testing...") : translate("Test")}>
-            <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-              {isTesting ? "progress_activity" : "science"}
-            </span>
-          </button>
-        )}
+      <div className="mt-2 flex min-h-7 flex-wrap items-center justify-end gap-1 border-t border-border/60 pt-1.5">
+        <ModelTestButton model={fullModel} resultModel={canonicalModel || fullModel} disabled={isDisabled} hideControl={!onTest} onRemove={onRemoveTestedModel || onDeleteAlias} />
         <button onClick={() => onCopy(displayModel, `model-${model.id}`)} className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary" title={copied === `model-${model.id}` ? translate("Copied!") : translate("Copy")}>
           <span className="material-symbols-outlined text-sm">
             {copied === `model-${model.id}` ? "check" : "content_copy"}

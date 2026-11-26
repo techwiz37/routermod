@@ -2,17 +2,15 @@
  * Kiro model catalog fetcher.
  *
  * Calls AWS CodeWhisperer's `ListAvailableModels` endpoint to get the live
- * catalog for an authenticated Kiro account, then expands each upstream model
- * into 9router-shaped variants:
+ * catalog for an authenticated Kiro account. Each model is exposed under the
+ * exact upstream id returned by Kiro — no 9router-specific `-thinking` or
+ * `-agentic` variants are generated, so the dashboard lists only real Kiro
+ * model ids.
  *
- *   {upstream}                          - base model
- *   {upstream}-thinking                 - same model, thinking on at request time
- *   {upstream}-agentic                  - same model, chunked-write prompt prepended
- *   {upstream}-thinking-agentic         - both
- *
- * The `-thinking` and `-agentic` suffixes do not exist on the Kiro upstream
- * API. They are 9router fictions and the `openai-to-kiro` translator strips
- * them before the request leaves this process.
+ * Thinking / agentic behaviour cannot be requested through an id suffix any
+ * more. Use the request body (`reasoning_effort`, `thinking`, or the generic
+ * model(level) override) instead. The `openai-to-kiro` translator still strips
+ * legacy suffixes defensively so older stored ids keep working.
  *
  * The runtime UA is built to match what Kiro IDE itself sends, because the
  * upstream rejects requests with malformed `User-Agent` headers (returns 400
@@ -21,10 +19,11 @@
 
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
-import { refreshKiroToken } from "./tokenRefresh.js";
-import { KIRO_IDE_VERSION, KIRO_UA_OS, KIRO_UA_NODE, resolveDefaultProfileArn } from "../config/kiroConstants.js";
-
-const KIRO_RUNTIME_SDK_VERSION = "1.0.0";
+import { refreshKiroToken, isUnrecoverableRefreshError } from "./tokenRefresh.js";
+import { getKiroRefreshRejection } from "../shared/kiroRefreshState.js";
+import { isKiroSuspension } from "../shared/kiroSuspension.js";
+import { buildKiroIdentityHeaders } from "../shared/kiroIdentity.js";
+import { resolveDefaultProfileArn } from "../config/kiroConstants.js";
 
 const DEFAULT_REGION = "us-east-1";
 const FETCH_TIMEOUT_MS = 30_000;
@@ -32,18 +31,6 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes per credential
 
 /** @type {Map<string, { expiresAt: number, models: any[] }>} */
 const catalogCache = new Map();
-
-/**
- * Strip the `-agentic` and/or `-thinking` suffixes from a synthetic id, if
- * any. Used only for display naming when a Kiro upstream id happens to look
- * synthetic (defensive).
- */
-function stripSyntheticSuffixes(id) {
-  let out = id;
-  if (out.endsWith("-agentic")) out = out.slice(0, -"-agentic".length);
-  if (out.endsWith("-thinking")) out = out.slice(0, -"-thinking".length);
-  return out;
-}
 
 /**
  * Extract region from a profileArn like
@@ -62,25 +49,8 @@ function regionFromProfileArn(profileArn) {
  * same account always presents the same machineId.
  */
 function buildKiroFingerprintHeaders(credentials) {
-  const seed =
-    credentials?.providerSpecificData?.clientId
-    || credentials?.refreshToken
-    || credentials?.providerSpecificData?.profileArn
-    || credentials?.accessToken
-    || "kiro-anonymous";
-  const machineId = createHash("sha256").update(String(seed)).digest("hex");
-
-  const userAgent =
-    `aws-sdk-js/${KIRO_RUNTIME_SDK_VERSION} ua/2.1 ` +
-    `os/${KIRO_UA_OS} ` +
-    `lang/js md/nodejs#${KIRO_UA_NODE} ` +
-    `api/codewhispererruntime#${KIRO_RUNTIME_SDK_VERSION} m/N,E ` +
-    `KiroIDE-${KIRO_IDE_VERSION}-${machineId}`;
-  const amzUserAgent = `aws-sdk-js/${KIRO_RUNTIME_SDK_VERSION} KiroIDE-${KIRO_IDE_VERSION}-${machineId}`;
-
   return {
-    "User-Agent": userAgent,
-    "x-amz-user-agent": amzUserAgent,
+    ...buildKiroIdentityHeaders(credentials, "runtime"),
     "x-amzn-kiro-agent-mode": "vibe",
     "x-amzn-codewhisperer-optout": "true",
     "amz-sdk-request": "attempt=1; max=1",
@@ -90,48 +60,23 @@ function buildKiroFingerprintHeaders(credentials) {
 }
 
 /**
- * Build the synthetic 9router variant set for a single upstream Kiro model.
+ * Build the model entry for a single upstream Kiro model.
  *
  * Returns objects shaped for `PROVIDER_MODELS` (`{ id, name }`) so they can
- * be slotted directly into the existing model registry.
- *
- * The `auto` model is special: Kiro picks the underlying model server-side,
- * so the chunked-write `-agentic` prompt is not meaningful (the prompt
- * targets coding-agent file writes). Match CLIProxyAPIPlus and skip
- * `-agentic` / `-thinking-agentic` for `auto`.
+ * be slotted directly into the existing model registry. Only the upstream id
+ * is emitted; synthetic `-thinking` / `-agentic` variants are intentionally
+ * not offered.
  */
 function buildVariants(upstream, displayName) {
-  const safeUpstream = stripSyntheticSuffixes(upstream);
-  const display = displayName || `Kiro ${safeUpstream}`;
-  const isAuto = safeUpstream === "auto";
+  const display = displayName || `Kiro ${upstream}`;
 
-  const variants = [
+  return [
     {
-      id: safeUpstream,
+      id: upstream,
       name: display,
       capabilities: { thinking: false, agentic: false }
-    },
-    {
-      id: `${safeUpstream}-thinking`,
-      name: `${display} (Thinking)`,
-      capabilities: { thinking: true, agentic: false }
     }
   ];
-
-  if (!isAuto) {
-    variants.push({
-      id: `${safeUpstream}-agentic`,
-      name: `${display} (Agentic)`,
-      capabilities: { thinking: false, agentic: true }
-    });
-    variants.push({
-      id: `${safeUpstream}-thinking-agentic`,
-      name: `${display} (Thinking + Agentic)`,
-      capabilities: { thinking: true, agentic: true }
-    });
-  }
-
-  return variants;
 }
 
 /**
@@ -213,17 +158,17 @@ async function fetchKiroCatalogRaw(credentials, signal) {
 function cacheKey(credentials) {
   const psd = credentials?.providerSpecificData || {};
   const seed =
-    psd.profileArn
-    || psd.clientId
-    || credentials?.refreshToken
+    credentials?.refreshToken
     || credentials?.accessToken
+    || psd.clientId
+    || psd.profileArn
     || "anonymous";
   return createHash("sha256").update(`kiro:${seed}`).digest("hex");
 }
 
 /**
- * Resolve the live Kiro model catalog for a credential and expand each entry
- * into 9router variants (`-thinking`, `-agentic`, `-thinking-agentic`).
+ * Resolve the live Kiro model catalog for a credential, one entry per
+ * upstream model id.
  *
  * On any error (network, 4xx, 5xx), returns `null` so callers can fall back
  * to the static catalog without taking down the dashboard or `/v1/models`.
@@ -257,17 +202,22 @@ export async function resolveKiroModels(credentials, options = {}) {
   try {
     raw = await fetchKiroCatalogRaw(credentials, options.signal);
   } catch (err) {
-    if (err && err.status === 401 && credentials.refreshToken) {
+    if (isKiroSuspension(err)) throw err;
+    if (err && err.status === 401 && credentials.refreshToken && !getKiroRefreshRejection(credentials)) {
       options.log?.info?.("KIRO_MODELS", "Got 401 from Kiro; refreshing token");
       const refreshed = await refreshKiroToken(
         credentials.refreshToken,
         credentials.providerSpecificData,
         options.log
       );
+      if (isUnrecoverableRefreshError(refreshed)) {
+        await options.onRefreshRejected?.(refreshed);
+        return null;
+      }
       if (refreshed?.accessToken) {
-        const next = { ...credentials, ...refreshed };
+        const next = { ...credentials, ...refreshed, providerSpecificData: { ...credentials.providerSpecificData, ...refreshed.providerSpecificData } };
         if (typeof options.onCredentialsRefreshed === "function") {
-          try { await options.onCredentialsRefreshed(refreshed); } catch (e) {
+          try { await options.onCredentialsRefreshed(next); } catch (e) {
             options.log?.warn?.("KIRO_MODELS", `onCredentialsRefreshed failed: ${e?.message || e}`);
           }
         }
@@ -276,8 +226,10 @@ export async function resolveKiroModels(credentials, options = {}) {
           // Update the in-memory credential reference too so retry logic uses
           // the fresh token consistently.
           credentials.accessToken = next.accessToken;
+          credentials.providerSpecificData = next.providerSpecificData;
           if (next.refreshToken) credentials.refreshToken = next.refreshToken;
         } catch (err2) {
+          if (isKiroSuspension(err2)) throw err2;
           options.log?.warn?.("KIRO_MODELS", `Retry after refresh failed: ${err2?.message || err2}`);
           return null;
         }

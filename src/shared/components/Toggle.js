@@ -32,6 +32,7 @@ export default function Toggle({
       <button
         type="button"
         role="switch"
+        aria-label={label}
         aria-checked={checked}
         disabled={disabled}
         onClick={handleClick}

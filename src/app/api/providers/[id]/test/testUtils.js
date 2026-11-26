@@ -22,14 +22,14 @@ import {
 import {
   GEMINI_CONFIG,
   ANTIGRAVITY_CONFIG,
-  KIRO_CONFIG,
   CLAUDE_CONFIG,
   CLINE_CONFIG,
   KILOCODE_CONFIG,
   KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
-import { REFRESH_REJECTED_PREFIX } from "@/sse/services/tokenRefresh.js";
+import { REFRESH_REJECTED_PREFIX, recordKiroRefreshRejection } from "@/sse/services/tokenRefresh.js";
+import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
 
 const OAUTH_TEST_CONFIG = {
   claude: { checkExpiry: true, refreshable: true },
@@ -294,28 +294,21 @@ async function refreshOAuthToken(connection) {
 
     if (provider === "kiro") {
       const psd = connection.providerSpecificData || {};
-      const clientId = psd.clientId || connection.clientId;
-      const clientSecret = psd.clientSecret || connection.clientSecret;
-      const region = psd.region || connection.region;
-      if (clientId && clientSecret) {
-        const endpoint = `https://oidc.${region || "us-east-1"}.amazonaws.com/token`;
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clientId, clientSecret, refreshToken, grantType: "refresh_token" }),
-        });
-        if (!response.ok) return null;
-        const data = await response.json();
-        return { accessToken: data.accessToken, expiresIn: data.expiresIn || 3600, refreshToken: data.refreshToken || refreshToken };
+      const credentials = {
+        ...connection,
+        providerSpecificData: {
+          ...psd,
+          clientId: psd.clientId || connection.clientId,
+          clientSecret: psd.clientSecret || connection.clientSecret,
+          region: psd.region || connection.region,
+        },
+      };
+      const result = await refreshProviderCredentials(provider, credentials, console);
+      if (isUnrecoverableRefreshError(result)) {
+        await recordKiroRefreshRejection(connection.id, credentials, result);
+        return { reason: result.description };
       }
-      const response = await fetch(KIRO_CONFIG.socialRefreshUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "kiro-cli/1.0.0" },
-        body: JSON.stringify({ refreshToken }),
-      });
-      if (!response.ok) return null;
-      const data = await response.json();
-      return { accessToken: data.accessToken, expiresIn: data.expiresIn || 3600, refreshToken: data.refreshToken || refreshToken };
+      return result;
     }
 
     if (provider === "cline") {
@@ -937,7 +930,7 @@ export async function testSingleConnection(id) {
   const connection = await getProviderConnectionById(id);
   if (!connection) return { valid: false, error: "Connection not found", latencyMs: 0, testedAt: new Date().toISOString() };
 
-  const effectiveProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+  const effectiveProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {}, connection.provider);
 
   if (effectiveProxy.connectionProxyEnabled && effectiveProxy.connectionProxyUrl && !effectiveProxy.vercelRelayUrl) {
     const proxyResult = await testProxyUrl({ proxyUrl: effectiveProxy.connectionProxyUrl });

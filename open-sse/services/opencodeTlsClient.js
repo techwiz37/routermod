@@ -105,6 +105,50 @@ export function resetOpencodeTlsSession() {
   for (const promise of pending) promise?.then?.((session) => session.close?.()).catch(() => {});
 }
 
+// wreq-js/reqwest reports a tunnel that dies mid-request as "error decoding
+// response body ... stream closed because of a broken pipe". If that happens
+// before the first SSE byte, replay once on a freshly opened upstream request
+// so the client gets an answer instead of a raw transport error.
+const EARLY_STREAM_FAILURE_RE =
+  /broken pipe|stream closed|error decoding response body|error reading a body from connection/i;
+
+function resilientBody(res, retry, signal) {
+  const source = res?.body;
+  if (!source || typeof source.getReader !== "function" || !res.ok) return source;
+
+  let reader = source.getReader();
+  let gotChunk = false;
+  let retries = 0;
+  return new ReadableStream({
+    async pull(controller) {
+      for (;;) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) { controller.close(); return; }
+          gotChunk = true;
+          controller.enqueue(value);
+          return;
+        } catch (error) {
+          const detail = `${error?.message || ""} ${error?.cause?.message || ""}`;
+          if (!gotChunk && retries < 1 && !signal?.aborted && EARLY_STREAM_FAILURE_RE.test(detail)) {
+            retries++;
+            try {
+              const replay = await retry();
+              if (replay?.body && typeof replay.body.getReader === "function") {
+                reader = replay.body.getReader();
+                continue;
+              }
+            } catch { /* fall through: surface the original error */ }
+          }
+          controller.error(error);
+          return;
+        }
+      }
+    },
+    cancel(reason) { return reader.cancel(reason); }
+  });
+}
+
 /**
  * Fetch through the impersonated-TLS session. Returns a native Response so
  * downstream `.body` / `.text()` / `.json()` consumers keep working unchanged.
@@ -144,7 +188,11 @@ export async function opencodeTlsFetch(url, init = {}, { signal, timeoutMs = DEF
   // session that actually holds the proxy tunnel returned a response. The
   // value never carries credentials (normalizeProxyKey strips them).
   if (proxyUrl) headers["x-9r-proxy-via"] = session.__proxyKey || "wreq-js-proxy";
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  const retry = async () => {
+    const fresh = await loadSession(proxyUrl);
+    return fresh.fetch(url, options);
+  };
+  return new Response(resilientBody(res, retry, signal), { status: res.status, statusText: res.statusText, headers });
 }
 
-export const __test__ = { OPENCODE_CIPHER_LIST, normalizeProxyKey, sessionsByProxy };
+export const __test__ = { OPENCODE_CIPHER_LIST, normalizeProxyKey, sessionsByProxy, resilientBody };

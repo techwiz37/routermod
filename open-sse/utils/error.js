@@ -118,7 +118,7 @@ export function extractResetFromBody(root) {
     }
   }
 
-  // Some providers only embed the reset epoch inside the message text.
+  // Some providers only embed the reset epoch inside the message text or human duration like (reset after 2m) or (reset after 30s)
   const text = typeof root.error?.message === "string"
     ? root.error.message
     : typeof root.message === "string" ? root.message : "";
@@ -126,6 +126,14 @@ export function extractResetFromBody(root) {
   if (match) {
     const ms = Number(match[1]);
     if (ms > now) return ms * 1000;
+  }
+  const durationMatch = text.match(/reset[s]? after (\d+h)?(\d+m)?(\d+s)?/i);
+  if (durationMatch) {
+    let deltaMs = 0;
+    if (durationMatch[1]) deltaMs += parseInt(durationMatch[1], 10) * 3600 * 1000;
+    if (durationMatch[2]) deltaMs += parseInt(durationMatch[2], 10) * 60 * 1000;
+    if (durationMatch[3]) deltaMs += parseInt(durationMatch[3], 10) * 1000;
+    if (deltaMs > 0) return now + deltaMs;
   }
   return null;
 }
@@ -157,17 +165,21 @@ export async function parseUpstreamError(response, executor = null) {
         return {
           statusCode: parsed.status || response.status,
           message: msg,
+          code: parsed.code || undefined,
           resetsAtMs: parsed.resetsAtMs ?? headerResetsAtMs ?? undefined,
+          quotaExhausted: parsed.quotaExhausted === true,
         };
       }
     } catch { /* fall through to default parsing */ }
   }
 
   let message = "";
+  let errorCode = "";
   let bodyResetsAtMs = null;
   try {
     const json = JSON.parse(bodyText);
     message = json.error?.message || json.message || json.error || bodyText;
+    errorCode = json.error?.code || json.error_code || json.code || "";
     bodyResetsAtMs = extractResetFromBody(json);
   } catch {
     message = bodyText;
@@ -179,6 +191,7 @@ export async function parseUpstreamError(response, executor = null) {
   return {
     statusCode: response.status,
     message: finalMessage,
+    code: typeof errorCode === "string" ? errorCode : undefined,
     resetsAtMs: bodyResetsAtMs ?? headerResetsAtMs ?? undefined,
   };
 }
@@ -223,6 +236,7 @@ function extractLastUserText(body) {
  * raw upstream provider error details, matching the request/user language.
  */
 export function getMaskedProviderErrorMessage(clientRawRequest = null, body = null) {
+  if (clientRawRequest?.trustedDiagnostics === true) return null;
   const userText = extractLastUserText(body || clientRawRequest?.body);
   if (userText) {
     const hasId = ID_WORDS_RE.test(userText);
@@ -254,12 +268,13 @@ export function getMaskedProviderErrorMessage(clientRawRequest = null, body = nu
  * @param {string} [clientMessage] - Optional sanitized message sent in HTTP response body to the client
  * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders = null, clientMessage = null) {
+export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders = null, clientMessage = null, details = null) {
   return {
     success: false,
     status: statusCode,
     error: message,
     resetsAtMs,
+    ...(details && typeof details === "object" ? details : {}),
     response: errorResponse(statusCode, clientMessage || message, extraHeaders)
   };
 }
@@ -299,10 +314,23 @@ export function unavailableResponse(statusCode, message, retryAfter, retryAfterH
  */
 export function formatProviderError(error, provider, model, statusCode) {
   const code = statusCode || error.code || "FETCH_FAILED";
-  const message = error.message || "Unknown error";
-  // Expose low-level cause (e.g. UND_ERR_SOCKET, ECONNRESET, ETIMEDOUT) for diagnosing fetch failures
-  const causeCode = error.cause?.code;
-  const causeMsg = error.cause?.message;
-  const causeStr = causeCode || causeMsg ? ` (cause: ${[causeCode, causeMsg].filter(Boolean).join(": ")})` : "";
-  return `[${code}]: ${message}${causeStr}`;
+  let message = String(error?.message || "Unknown error");
+
+  // Dependency network errors (undici/wreq) already embed the low-level cause
+  // in `message` (e.g. "... socket disconnected ... (ECONNRESET)"). Appending
+  // `error.cause` again produced the long duplicated reply users complained
+  // about. Only add the cause when it is genuinely new information.
+  const causeCode = error?.cause?.code;
+  const causeMsg = String(error?.cause?.message || "");
+  const parts = [causeCode, causeMsg].filter(Boolean);
+  const unseen = parts.filter((part) => !message.toLowerCase().includes(String(part).toLowerCase()));
+  if (unseen.length) message += ` (${unseen.join(": ")})`;
+
+  // Collapse repeated fragments caused by nested wrappers, e.g.
+  // "socket disconnected: socket disconnected (ECONNRESET)".
+  message = message.replace(/\b(.{12,}?)\s*(?::\s*\1)+/gi, "$1");
+  // Keep the client-facing message short and actionable.
+  if (message.length > 240) message = message.slice(0, 237) + "…";
+
+  return `[${code}]: ${message}`;
 }

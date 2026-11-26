@@ -1,4 +1,5 @@
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS, getModelKind } from "@/shared/constants/models";
+import { publicModelId as getPublicModelId } from "@/shared/utils/publicModelId.js";
 import {
   ALIAS_TO_ID,
   AI_PROVIDERS,
@@ -12,6 +13,9 @@ import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { getDeletedModels } from "@/lib/deletedModelsDb";
 import { getKeyAccessContext, filterModelsListForKey, enforceKeyIpBlacklist } from "@/sse/services/keyAccess.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
+import { isKiroSuspension } from "open-sse/shared/kiroSuspension.js";
+import { runKiroSuspensionHook } from "@/lib/kiroSuspensionHook";
+import { deleteProviderConnectionById } from "@/lib/localDb";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels, routableQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveCopilotModels } from "open-sse/services/copilotModels.js";
@@ -20,8 +24,10 @@ import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { resolveCommandCodeModels } from "open-sse/services/commandcodeModels.js";
-import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
+import { updateProviderCredentials, recordKiroRefreshRejection } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { proxyAwareFetch } from "open-sse/utils/proxyFetch.js";
+import { getLiveOpenCodeFreeModels } from "@/lib/network/opencodeCatalog";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { getProviderNodes } from "@/lib/db/repos/nodesRepo.js";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
@@ -112,7 +118,11 @@ const LIVE_MODEL_RESOLVERS = {
       accessToken: conn.accessToken,
       refreshToken: conn.refreshToken,
       providerSpecificData: conn.providerSpecificData || {}
-    }, { log: console });
+    }, {
+      log: console,
+      onRefreshRejected: (failure) => recordKiroRefreshRejection(conn.id, conn, failure),
+      onCredentialsRefreshed: (refreshed) => updateProviderCredentials(conn.id, refreshed),
+    });
     return result?.models?.length ? { models: result.models } : null;
   },
   qoder: async (conn) => resolveQoderLiveModels(conn, "qoder"),
@@ -157,7 +167,7 @@ const LIVE_MODEL_RESOLVERS = {
     return result?.models?.length ? { models: result.models } : null;
   },
   "grok-cli": async (conn) => {
-    const proxy = await resolveConnectionProxyConfig(conn.providerSpecificData || {});
+    const proxy = await resolveConnectionProxyConfig(conn.providerSpecificData || {}, conn.provider);
     const result = await resolveGrokCliModels({
       ...conn,
       connectionId: conn.id,
@@ -245,6 +255,7 @@ function inferKindFromUnknownModelId(modelId) {
 
 async function fetchCompatibleModelIds(connection) {
   if (!connection?.apiKey) return [];
+  const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {}, connection.provider).catch(() => null);
 
   const baseUrl = typeof connection?.providerSpecificData?.baseUrl === "string"
     ? connection.providerSpecificData.baseUrl.trim().replace(/\/$/, "")
@@ -275,12 +286,12 @@ async function fetchCompatibleModelIds(connection) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(url, {
+    const response = await proxyAwareFetch(url, {
       method: "GET",
       headers: { ...headers, [INTERNAL_MODELS_FETCH_HEADER]: "1" },
       cache: "no-store",
       signal: controller.signal,
-    });
+    }, proxy);
     clearTimeout(timeoutId);
 
     if (!response.ok) return [];
@@ -351,6 +362,7 @@ function comboSeatLimits(combo, combosByName, visiting = new Set()) {
 
 export async function buildModelsList(kindFilter, options = {}) {
   const skipDynamicFetch = options.skipDynamicFetch === true;
+  const onlyActiveConnections = options.onlyActiveConnections === true;
   let connections = [];
   try {
     connections = await getProviderConnections();
@@ -426,7 +438,10 @@ export async function buildModelsList(kindFilter, options = {}) {
     }
   }
 
-  // Include no-auth free providers (e.g. opencode) so their models are exposed in /v1/models
+  // Include no-auth free providers (opencode, solana, freepi, …) so their
+  // models are exposed in /v1/models AND on the public /models catalogue.
+  // These providers have no DB connection row, so `onlyActiveConnections`
+  // must not filter them out — they are always-on by definition.
   for (const [id, provider] of Object.entries(FREE_PROVIDERS || {})) {
     if (provider?.noAuth && !activeConnectionByProvider.has(id)) {
       activeConnectionByProvider.set(id, {
@@ -463,7 +478,7 @@ export async function buildModelsList(kindFilter, options = {}) {
     models.push(entry);
   }
 
-  if (connections.length === 0) {
+  if (connections.length === 0 && !onlyActiveConnections) {
     for (const [alias, providerModels] of Object.entries(PROVIDER_MODELS)) {
       const providerId = ALIAS_TO_PROVIDER_ID[alias] || alias;
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
@@ -500,19 +515,35 @@ export async function buildModelsList(kindFilter, options = {}) {
   } else {
     const settingsForPrefix = await getSettings().catch(() => ({}));
     const providerPrefixes = settingsForPrefix?.providerPrefixes || {};
-    for (const [providerId, conn] of activeConnectionByProvider.entries()) {
+    // Use the DB connections when requested, but ALWAYS append no-auth free
+    // providers — they have no connection row yet are available to every request.
+    const activeEntries = onlyActiveConnections
+      ? [
+          ...connections.map((conn) => [conn.provider, conn]),
+          ...Object.entries(FREE_PROVIDERS || {})
+            .filter(([id, p]) => p?.noAuth && !connections.some((c) => c.provider === id))
+            .map(([id]) => [id, { id: "noauth", provider: id, isActive: true }]),
+        ]
+      : [...activeConnectionByProvider.entries()];
+    for (const [providerId, conn] of activeEntries) {
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
 
       const staticAlias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
       const outputAlias = (
-        providerNodePrefixes.get(providerId)
-        ||
-        conn?.providerSpecificData?.prefix
+        conn?.providerSpecificData?.customAlias
+        || providerNodePrefixes.get(providerId)
+        || conn?.providerSpecificData?.prefix
         || providerPrefixes?.[providerId]
         || getProviderAlias(providerId)
         || staticAlias
       ).trim();
-      const providerModels = PROVIDER_MODELS[staticAlias] || [];
+      let providerModels = PROVIDER_MODELS[staticAlias] || [];
+      // Keep OpenCode Free in sync with the CLI catalogue even on the fast path
+      // (skipDynamicFetch). The fetch is cached for 10 minutes.
+      if (providerId === "opencode" && (!skipDynamicFetch || providerModels.length)) {
+        const live = await getLiveOpenCodeFreeModels();
+        if (live?.length) providerModels = live;
+      }
       const enabledModels = conn?.providerSpecificData?.enabledModels;
       const hasExplicitEnabledModels =
         Array.isArray(enabledModels) && enabledModels.length > 0;
@@ -562,6 +593,11 @@ export async function buildModelsList(kindFilter, options = {}) {
             );
           }
         } catch (err) {
+          if (providerId === "kiro" && isKiroSuspension(err)) {
+            await deleteProviderConnectionById(conn.id);
+            runKiroSuspensionHook(conn.id);
+            continue;
+          }
           console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
         }
       }
@@ -640,56 +676,75 @@ export async function buildModelsList(kindFilter, options = {}) {
           return alias === staticAlias || alias === outputAlias || alias === providerId || publicAlias === outputAlias;
         });
         const fullModel = `${outputAlias}/${modelId}`;
-        const legacyAlias = Object.entries(modelAliases || {}).find(([, value]) =>
-          value === fullModel || value === `${staticAlias}/${modelId}` || value === `${providerId}/${modelId}`
-        )?.[0];
-        const displayName = modelNames[fullModel] || modelNames[`${staticAlias}/${modelId}`] || customModel?.name || legacyAlias || staticModel?.name || modelId;
-        // The custom model id is the public/routable identifier.  The display
-        // name must never replace it: names can contain spaces or punctuation
-        // and are not necessarily accepted by the request router.
-        // A configured custom name is the public model id exposed to clients.
-        // The resolver accepts this display id and maps it back to the
-        // canonical provider/model before contacting the upstream provider.
+        // Do not collapse aliases which share one upstream target. Each key is
+        // an independently selectable public model ID, even when its value is
+        // the same canonical provider/model pair.
+        const legacyAliases = Object.entries(modelAliases || {})
+          .filter(([, value]) =>
+            value === fullModel ||
+            value === `${staticAlias}/${modelId}` ||
+            value === `${providerId}/${modelId}`
+          )
+          .map(([alias]) => alias)
+          .filter((alias, index, aliases) => aliases.indexOf(alias) === index);
+        const hasOwnRow = Boolean(customModel) || modelIds.includes(modelId);
+        const publicVariants = [...(hasOwnRow ? [fullModel] : []), ...legacyAliases].filter(
+          (id, index, ids) => ids.indexOf(id) === index,
+        );
+
         const hasCustomDisplayName = Boolean(
           modelNames[fullModel] || modelNames[`${staticAlias}/${modelId}`],
         );
-        const publicModelId = customModel
-          ? `${outputAlias}/${displayName}`
-          : (hasCustomDisplayName
-            ? `${outputAlias}/${displayName}`
-            : (legacyAlias || `${outputAlias}/${modelId}`));
-
-         const model = {
-           id: publicModelId,
-           custom_id: customModel?.id || null,
-           // Dashboard-facing identifier. `id` remains the canonical public
-           // route, while this field reflects a configured custom model name.
-           display_id: `${outputAlias}/${displayName}`,
-           object: "model",
-          name: displayName,
-          owned_by: outputAlias,
-        };
         const liveCaps = liveCapabilitiesById.get(modelId);
         const serviceCaps = capabilitiesFromServiceKind(customKind || liveKind);
         const caps = liveCaps || serviceCaps || (kind === LLM_KIND ? getCapabilitiesForModel(providerId, modelId) : null);
-        if (caps) model.capabilities = caps;
-        if (kind === LLM_KIND || allowAsLlm) {
-          let contextWindow = caps?.contextWindow;
-          let maxOutput = caps?.maxOutput;
-          if (!Number.isFinite(contextWindow) || !Number.isFinite(maxOutput)) {
-            const fallback = getCapabilitiesForModel(providerId, modelId);
-            if (!Number.isFinite(contextWindow)) contextWindow = fallback.contextWindow;
-            if (!Number.isFinite(maxOutput)) maxOutput = fallback.maxOutput;
+
+        for (const variantId of publicVariants) {
+          const isLegacyAlias = variantId !== fullModel;
+          const displayName = isLegacyAlias
+            ? (modelNames[variantId] || variantId)
+            : (modelNames[fullModel] || modelNames[`${staticAlias}/${modelId}`] || customModel?.name || staticModel?.name || modelId);
+          const publicModelId = isLegacyAlias
+            ? variantId
+            : (customModel || hasCustomDisplayName
+              ? getPublicModelId(outputAlias, modelId, displayName, Boolean(customModel))
+              : fullModel);
+
+          const model = {
+            id: publicModelId,
+            custom_id: customModel?.id || null,
+            display_id: publicModelId,
+            object: "model",
+            name: displayName,
+            owned_by: outputAlias,
+            ...(options.includeKind ? {
+              kind,
+              catalogueCapabilities: {
+                ...staticModel?.capabilities,
+                ...staticModel?.caps,
+                ...customModel?.caps,
+              },
+            } : {}),
+            ...(options.includeKind && typeof (customModel?.description || staticModel?.description) === "string"
+              ? { description: customModel?.description || staticModel?.description }
+              : {}),
+          };
+          if (caps) model.capabilities = caps;
+          if (kind === LLM_KIND || allowAsLlm) {
+            let contextWindow = caps?.contextWindow;
+            let maxOutput = caps?.maxOutput;
+            if (!Number.isFinite(contextWindow) || !Number.isFinite(maxOutput)) {
+              const fallback = getCapabilitiesForModel(providerId, modelId);
+              if (!Number.isFinite(contextWindow)) contextWindow = fallback.contextWindow;
+              if (!Number.isFinite(maxOutput)) maxOutput = fallback.maxOutput;
+            }
+            if (Number.isFinite(contextWindow)) model.context_length = contextWindow;
+            if (Number.isFinite(maxOutput)) model.max_completion_tokens = maxOutput;
+            const thinkingLevels = getThinkingLevels(providerId, modelId);
+            if (Array.isArray(thinkingLevels) && thinkingLevels.length > 0) model.thinking_levels = thinkingLevels;
           }
-          if (Number.isFinite(contextWindow)) model.context_length = contextWindow;
-          if (Number.isFinite(maxOutput)) model.max_completion_tokens = maxOutput;
-          // Selectable reasoning levels (the set the dashboard picker shows) so clients
-          // can build their effort selector from the gateway instead of keeping a
-          // per-model table. Omitted when the model has no reasoning.
-          const thinkingLevels = getThinkingLevels(providerId, modelId);
-          if (Array.isArray(thinkingLevels) && thinkingLevels.length > 0) model.thinking_levels = thinkingLevels;
+          models.push(model);
         }
-        models.push(model);
       }
 
       const providerInfo = AI_PROVIDERS[providerId];

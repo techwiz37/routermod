@@ -6,11 +6,13 @@
 // Fail-open by contract: an unknown shape or any error leaves the body
 // untouched — a broken trimmer must never break a chat request.
 import { FORMATS } from "../formats.js";
-import { ROLE, GEMINI_ROLE, RESPONSES_ITEM } from "../schema/index.js";
+import { ROLE, GEMINI_ROLE, RESPONSES_ITEM, CLAUDE_BLOCK } from "../schema/index.js";
+import { BODY_TRIM_NOTICE } from "../../config/upstreamBodyLimits.js";
 import {
   CHARS_PER_TOKEN,
   COMPACT_NOTICE,
   CONTEXT_GUARD,
+  CONTEXT_SHRINK_MAX_DEPTH,
   MEDIA_TOKEN_COST,
   TRIM_NOTICE,
 } from "../../config/contextGuard.js";
@@ -21,22 +23,17 @@ const OUTPUT_TOKEN_FIELDS = ["max_tokens", "max_completion_tokens", "max_output_
 // Baseline framing cost for one message (role markers, separators).
 const MESSAGE_OVERHEAD_TOKENS = 4;
 
-const CJK = /[\u2e80-\u9fff\uac00-\ud7af\uff00-\uffef]/;
+const CJK = /[\u2e80-\u9fff\uac00-\ud7af\uff00-\uffef]/g;
 
 function countStringTokens(text) {
   if (typeof text !== "string" || text.length === 0) return 0;
   for (const [prefix, cost] of Object.entries(MEDIA_TOKEN_COST)) {
     if (text.startsWith(prefix)) return cost;
   }
-  let chars = 0;
-  let wide = 0;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charCodeAt(i);
-    if (ch < 128) chars += 1;
-    else if (CJK.test(text[i])) wide += 1;
-    else chars += 1;
-  }
-  return Math.ceil(chars / CHARS_PER_TOKEN) + wide;
+  // Same estimate as the old per-character loop, but the CJK count runs in
+  // native regex code. A long chat no longer blocks the event loop here.
+  const wide = text.match(CJK)?.length || 0;
+  return Math.ceil((text.length - wide) / CHARS_PER_TOKEN) + wide;
 }
 
 // Walk any provider-shaped value and count approximate tokens. Media payloads
@@ -102,6 +99,21 @@ const OVERFLOW_PATTERNS = [
   "reduce the length",
   "reduce your prompt",
   "too large for the model",
+  // Kiro / AWS Q Developer reject an oversized request body with this reason
+  // long before the model window is full.
+  "content_length_exceeds_threshold",
+  "content length exceeds",
+  "input content length",
+  // FreePi (via freepi-bridge) refuses requests past its hard 250k ceiling with
+  // "This conversation is too long. Run /compact or start a new session with
+  // /new." and code context_too_long. Treat it as an overflow so chatCore and
+  // the agent route compact the oldest turns and retry instead of surfacing a
+  // dead-end 413 to the client.
+  "context_too_long",
+  "conversation is too long",
+  "conversation too long",
+  "session is too long",
+  "run /compact",
 ];
 
 export function isContextOverflowError(statusCode, message) {
@@ -178,6 +190,11 @@ function writeOutputLimit(body, field, value) {
 // assistant tool call and the tool results answering it are one unit.
 function roleOf(item, format) {
   if (!item || typeof item !== "object") return null;
+  if (format === FORMATS.KIRO) {
+    if (item.userInputMessage) return ROLE.USER;
+    if (item.assistantResponseMessage) return ROLE.ASSISTANT;
+    return null;
+  }
   if (format === FORMATS.OPENAI_RESPONSES || format === FORMATS.OPENAI_RESPONSE || format === FORMATS.CODEX) {
     if (item.type === RESPONSES_ITEM.FUNCTION_CALL_OUTPUT || item.type === RESPONSES_ITEM.CUSTOM_TOOL_CALL_OUTPUT) return ROLE.TOOL;
     return item.role || null;
@@ -205,21 +222,68 @@ function conversationArray(body, format) {
       return Array.isArray(body?.request?.contents)
         ? { items: body.request.contents, key: "request.contents", format }
         : null;
+    case FORMATS.KIRO: {
+      // Kiro/AWS Q keeps the newest turn outside the replay history.
+      const state = body?.conversationState;
+      if (!state || !state.currentMessage) return null;
+      const history = Array.isArray(state.history) ? state.history : [];
+      return {
+        items: [...history, state.currentMessage],
+        key: "conversationState",
+        format,
+      };
+    }
     default:
       return Array.isArray(body.messages) ? { items: body.messages, key: "messages", format } : null;
   }
 }
 
+// A user-shaped entry that only answers an earlier assistant tool call. It
+// must travel with that call, so it never starts a new droppable unit.
+function carriesToolResult(item, format) {
+  if (!item || typeof item !== "object") return false;
+  if (format === FORMATS.KIRO) {
+    const results = item.userInputMessage?.userInputMessageContext?.toolResults;
+    return Array.isArray(results) && results.length > 0;
+  }
+  if (format === FORMATS.CLAUDE) {
+    if (item.role !== ROLE.USER || !Array.isArray(item.content)) return false;
+    return item.content.some((block) => block?.type === CLAUDE_BLOCK.TOOL_RESULT);
+  }
+  return false;
+}
+
 // Split into units that may be dropped from the front without orphaning a tool
 // result. System/developer preamble is returned separately and always kept.
-function splitUnits(items, format) {
+/**
+ * Keep only the newest complete turns for providers that advertise a huge
+ * window (so the generic token guard never trims) but still suffer a slow
+ * prefill when the whole transcript is replayed. System preamble stays, and
+ * assistant tool calls remain attached to their tool results.
+ */
+export function capConversationHistory(body, format, maxTurns) {
+  if (!maxTurns || maxTurns <= 0) return false;
+  const responses = format === FORMATS.OPENAI_RESPONSES;
+  const key = responses ? "input" : "messages";
+  const items = body?.[key];
+  if (!Array.isArray(items)) return false;
+  const { preamble, units } = splitUnits(items, format);
+  if (units.length <= maxTurns) return false;
+  const notice = responses
+    ? { type: "message", role: ROLE.USER, content: [{ type: "input_text", text: TRIM_NOTICE }] }
+    : { role: ROLE.USER, content: TRIM_NOTICE };
+  body[key] = [...preamble, notice, ...units.slice(-maxTurns).flat()];
+  return true;
+}
+
+export function splitUnits(items, format) {
   const preamble = [];
   const units = [];
   let current = null;
 
   for (const item of items) {
     const role = roleOf(item, format);
-    const startsTurn = role === ROLE.USER;
+    const startsTurn = role === ROLE.USER && !carriesToolResult(item, format);
     const isPreamble = role === ROLE.SYSTEM || role === ROLE.DEVELOPER;
 
     if (isPreamble && units.length === 0 && !current) {
@@ -242,6 +306,51 @@ function unitTokens(unit) {
   return total;
 }
 
+// Byte guard for OpenAI chat JSON. Unlike token compaction, never shorten an
+// individual message, media block, instruction or tool schema. Work on a copy:
+// combo fallback must still receive the caller's original, complete history.
+export function fitChatBodyToBytes(body, maxBytes, options = {}) {
+  const serialized = JSON.stringify(body);
+  const beforeBytes = Buffer.byteLength(serialized, "utf8");
+  const unchanged = { body, serialized, beforeBytes, afterBytes: beforeBytes, removedGroups: 0, fits: beforeBytes <= maxBytes };
+  if (unchanged.fits || !(options.enabled ?? CONTEXT_GUARD.enabled) || !Array.isArray(body?.messages)) return unchanged;
+
+  const { preamble, units } = splitUnits(body.messages, FORMATS.OPENAI);
+  const minKeep = options.minKeepMessages ?? CONTEXT_GUARD.minKeepMessages;
+  let remaining = units.reduce((sum, unit) => sum + unit.length, 0);
+  let maxRemove = 0;
+  for (let i = 0; i < units.length - 1; i++) {
+    if (remaining - units[i].length < minKeep) break;
+    // Instructions occurring mid-conversation must not disappear either.
+    if (units[i].some(item => item?.role === ROLE.SYSTEM || item?.role === ROLE.DEVELOPER)) break;
+    remaining -= units[i].length;
+    maxRemove++;
+  }
+  const candidate = removedGroups => {
+    const nextBody = { ...body, messages: [
+      ...preamble,
+      { role: ROLE.USER, content: BODY_TRIM_NOTICE },
+      ...units.slice(removedGroups).flat(),
+    ] };
+    const nextSerialized = JSON.stringify(nextBody);
+    const afterBytes = Buffer.byteLength(nextSerialized, "utf8");
+    return { body: nextBody, serialized: nextSerialized, beforeBytes, afterBytes, removedGroups, fits: afterBytes <= maxBytes };
+  };
+  if (!maxRemove) return unchanged;
+  // Fixed notice size makes candidate byte sizes monotonic. Find the smallest
+  // removable prefix in O(log turns) serializations, not a quadratic loop.
+  let best = candidate(maxRemove);
+  if (!best.fits) return unchanged;
+  let low = 1, high = maxRemove;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    const fit = candidate(middle);
+    if (fit.fits) { best = fit; high = middle; }
+    else low = middle + 1;
+  }
+  return best;
+}
+
 function systemTokens(preamble, body, format) {
   let total = 0;
   for (const item of preamble) total += estimateTokens(item) + MESSAGE_OVERHEAD_TOKENS;
@@ -260,8 +369,21 @@ function systemTokens(preamble, body, format) {
 }
 
 function setConversationArray(body, target, items) {
-  if (target.key === "request.contents") body.request.contents = items;
-  else body[target.key] = items;
+  if (target.key === "request.contents") {
+    body.request.contents = items;
+    return;
+  }
+  if (target.format === FORMATS.KIRO) {
+    const next = Array.isArray(items) ? items.slice() : [];
+    // The last entry is the current turn, the rest is replay history.
+    const current = next.length > 0 && next[next.length - 1]?.userInputMessage
+      ? next.pop()
+      : null;
+    body.conversationState.history = next;
+    if (current) body.conversationState.currentMessage = current;
+    return;
+  }
+  body[target.key] = items;
 }
 
 function trimSystemText(body, format, overflow) {
@@ -342,12 +464,12 @@ const SHRINK_SKIP_KEYS = new Set(["id", "role", "type", "name", "tool_call_id"])
 // Pure: returns a copy with long strings truncated, leaving the caller's
 // messages untouched (the agent route reuses its history across steps).
 function shrinkStrings(value, state, depth = 0) {
-  if (state.chars <= 0 || depth > 8) return value;
+  if (state.chars <= 0 || depth > CONTEXT_SHRINK_MAX_DEPTH) return value;
   if (typeof value === "string") {
     if (value.length < SHRINKABLE_MIN_CHARS) return value;
-    const cut = Math.min(value.length - SHRINKABLE_MIN_CHARS, Math.ceil(state.chars));
-    if (cut <= 0) return value;
-    state.chars -= cut;
+    const cut = Math.min(value.length - SHRINKABLE_MIN_CHARS, Math.ceil(state.chars) + SHRUNK_SUFFIX.length);
+    if (cut <= SHRUNK_SUFFIX.length) return value;
+    state.chars -= cut - SHRUNK_SUFFIX.length;
     return `${value.slice(0, value.length - cut)}${SHRUNK_SUFFIX}`;
   }
   if (Array.isArray(value)) {
@@ -401,7 +523,13 @@ export function fitBodyToContext(body, format, caps, options = {}) {
     }
 
     const output = readOutputLimit(body);
-    const budget = resolveInputBudget(caps, output?.value ?? null, ratio);
+    // A retry after an upstream "payload too large" rejection may need a budget
+    // tighter than the advertised model window (some upstreams accept less
+    // than they advertise). The caller passes that budget explicitly.
+    const forcedBudget = Number(options.forceBudgetTokens);
+    const budget = Number.isFinite(forcedBudget) && forcedBudget > 0
+      ? Math.floor(forcedBudget)
+      : resolveInputBudget(caps, output?.value ?? null, ratio);
     result.budget = budget;
     if (!Number.isFinite(budget) || budget <= 0) return result;
 
@@ -438,7 +566,12 @@ export function fitBodyToContext(body, format, caps, options = {}) {
 
     // Drop whole oldest turns, never a single message of a turn: an assistant
     // tool call must keep its tool results or every provider rejects the body.
-    const keep = Math.max(CONTEXT_GUARD.minKeepMessages, 0);
+    // Kiro also keeps its newest turn outside the history array, so at least
+    // one unit must survive to become `currentMessage` again.
+    const keep = Math.max(
+      format === FORMATS.KIRO ? Math.max(CONTEXT_GUARD.minKeepMessages, 1) : CONTEXT_GUARD.minKeepMessages,
+      0,
+    );
     let dropped = 0;
     let sizeDropped = 0;
     const dropTarget = budget - noticeTokens - summaryBudget;
@@ -489,7 +622,7 @@ export function fitBodyToContext(body, format, caps, options = {}) {
       }
     }
 
-    const kept = units.slice(dropped).flat();
+    let kept = units.slice(dropped).flat();
     const notice = {
       role: ROLE.USER,
       content: noticeText,
@@ -500,6 +633,22 @@ export function fitBodyToContext(body, format, caps, options = {}) {
       delete notice.content;
     } else if (format === FORMATS.OPENAI_RESPONSES || format === FORMATS.OPENAI_RESPONSE || format === FORMATS.CODEX) {
       notice.content = [{ type: "input_text", text: noticeText }];
+    }
+
+    // The newest turns can still exceed the budget on their own — a huge tool
+    // result, a pasted file, a big diff. Dropping them would drop the user's
+    // actual question, so cut their long strings instead. (Upstreams with a
+    // payload cap tighter than the advertised window, e.g. Kiro, land here.)
+    if (after > budget) {
+      const shrinkState = { chars: Math.ceil((after - budget) * CHARS_PER_TOKEN) };
+      if (Array.isArray(body.tools)) body.tools = shrinkStrings(body.tools, shrinkState);
+      const shrunkKept = shrinkStrings(kept, shrinkState);
+      if (shrunkKept !== kept) {
+        kept = shrunkKept;
+        let resized = systemTokens(preamble, body, format) + unitTokens([{ role: ROLE.USER, content: noticeText }]);
+        for (const item of kept) resized += estimateTokens(item) + MESSAGE_OVERHEAD_TOKENS;
+        after = resized;
+      }
     }
 
     // Gemini rejects two user turns in a row, so the summary is folded into the
@@ -514,6 +663,16 @@ export function fitBodyToContext(body, format, caps, options = {}) {
         head.parts = [{ text: noticeText }, ...head.parts];
       } else {
         head.parts = [{ text: noticeText }];
+      }
+      setConversationArray(body, target, [...preamble, ...kept]);
+    } else if (format === FORMATS.KIRO && kept.length > 0 && kept[0].userInputMessage) {
+      // Kiro requires alternating user/assistant turns; a standalone notice
+      // would create two user turns in a row, so prefix the first kept turn.
+      const head = kept[0].userInputMessage;
+      head.content = head.content ? `${noticeText}\n\n${head.content}` : noticeText;
+      // Ensure modelId is preserved on the head turn so Kiro schema validation passes
+      if (!head.modelId && body?.conversationState?.currentMessage?.userInputMessage?.modelId) {
+        head.modelId = body.conversationState.currentMessage.userInputMessage.modelId;
       }
       setConversationArray(body, target, [...preamble, ...kept]);
     } else {

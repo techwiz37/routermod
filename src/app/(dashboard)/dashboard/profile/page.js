@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePageReady } from "@/shared/components/PageReadyContext";
-import { Card, Button, Toggle, Input } from "@/shared/components";
+import { Button, Toggle, Input } from "@/shared/components";
 import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
+import AntaresStat from "@/shared/components/AntaresStat";
+import StarField from "@/shared/components/StarField";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import { cn } from "@/shared/utils/cn";
@@ -84,6 +86,13 @@ export default function ProfilePage() {
   const [proxyStatus, setProxyStatus] = useState({ type: "", message: "" });
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyTestLoading, setProxyTestLoading] = useState(false);
+  const [warpForm, setWarpForm] = useState({
+    warpHopCooldownSec: 5,
+    opencodeMaxHops: 100,
+    opencodeHopBudgetSec: 3600,
+  });
+  const [warpStatus, setWarpStatus] = useState({ type: "", message: "" });
+  const [warpSaving, setWarpSaving] = useState(false);
 
 
   const [isRemoteHost, setIsRemoteHost] = useState(false);
@@ -127,6 +136,11 @@ export default function ProfilePage() {
           outboundProxyUrl: data?.outboundProxyUrl || "",
           outboundNoProxy: data?.outboundNoProxy || "",
         });
+        setWarpForm({
+          warpHopCooldownSec: Number.isFinite(Number(data?.warpHopCooldownSec)) ? Number(data.warpHopCooldownSec) : 5,
+          opencodeMaxHops: Number.isFinite(Number(data?.opencodeMaxHops)) ? Number(data.opencodeMaxHops) : 100,
+          opencodeHopBudgetSec: Number.isFinite(Number(data?.opencodeHopBudgetSec)) ? Number(data.opencodeHopBudgetSec) : 3600,
+        });
         setLoading(false);
       })
       .catch((err) => {
@@ -134,6 +148,32 @@ export default function ProfilePage() {
         setLoading(false);
       });
   }, []);
+
+  const saveWarpRotation = async (e) => {
+    e.preventDefault();
+    setWarpSaving(true);
+    setWarpStatus({ type: "", message: "" });
+    try {
+      const body = {
+        warpHopCooldownSec: Math.max(0, Number(warpForm.warpHopCooldownSec) || 0),
+        opencodeMaxHops: Math.max(0, Number(warpForm.opencodeMaxHops) || 0),
+        opencodeHopBudgetSec: Math.max(1, Number(warpForm.opencodeHopBudgetSec) || 600),
+      };
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save rotation settings");
+      setWarpForm(body);
+      setWarpStatus({ type: "success", message: "Rotation settings saved — applied on the next OpenCode request." });
+    } catch (err) {
+      setWarpStatus({ type: "error", message: err.message || "An error occurred" });
+    } finally {
+      setWarpSaving(false);
+    }
+  };
 
   const updateOutboundProxy = async (e) => {
     e.preventDefault();
@@ -767,78 +807,78 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="an-scope an-settingsscope flex flex-col gap-5">
-      {/* Hero */}
-      <section className="an-panel an-hero">
-        <div className="an-hero-main">
-          <span className="an-hero-eyebrow">Pengaturan</span>
-          <h1 className="an-hero-title">Pengaturan Sistem</h1>
-          <p className="an-hero-sub">
-            Atur bahasa, keamanan, routing, jaringan, dan preferensi RouterMod
-            di satu tempat.
-          </p>
-        </div>
-        <div className="an-hero-stats">
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">computer</span>
-              Mode
-            </span>
-            <span className="an-stat-value !text-[15px]">Lokal</span>
-            <span className="an-stat-foot">jalan di mesin sendiri</span>
-          </div>
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">translate</span>
-              Bahasa
-            </span>
-            <span className="an-stat-value !text-[15px]">
-              {mounted ? (locale || "id").toUpperCase() : "—"}
-            </span>
-            <span className="an-stat-foot">bahasa antarmuka</span>
-          </div>
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">lock</span>
-              Keamanan
-            </span>
-            <span className="an-stat-value !text-[15px]">
-              {mounted ? (settings.hasPassword ? "Aktif" : "Belum") : "—"}
-            </span>
-            <span className="an-stat-foot">password dashboard</span>
-          </div>
-          <div className="an-stat">
-            <span className="an-stat-label">
-              <span className="material-symbols-outlined">hub</span>
-              Mode Login
-            </span>
-            <span className="an-stat-value !text-[15px]">
-              {mounted ? settings.authMode || "password" : "—"}
-            </span>
-            <span className="an-stat-foot">cara masuk</span>
-          </div>
-        </div>
-      </section>
+    <div className="an-scope an-shell an-settingsscope settings-page flex min-w-0 flex-col gap-4 sm:gap-6">
+      <div className="an-shell-bg" aria-hidden>
+        <StarField />
+      </div>
+
+      {/* ---- Hero ---- */}
+      <header className="min-w-0">
+        <p className="an-eyebrow">
+          <span className="an-num">12</span>
+          <span className="an-rule" />
+          <span>RouterMod · AI Gateway</span>
+        </p>
+        <h1 className="an-h1 text-[clamp(1.6rem,4.6vw,2.3rem)]">
+          System Settings
+        </h1>
+        <p className="an-hint max-w-[70ch]">
+          Manage language, security, routing, network, and RouterMod preferences
+          in one place.
+        </p>
+      </header>
+
+      {/* ---- Summary tiles ---- */}
+      <div className="an-grid settings-stats gap-2.5 sm:gap-3">
+        <AntaresStat
+          label="Mode"
+          icon="computer"
+          tone="default"
+          value="Local"
+          foot="running on your own machine"
+        />
+        <AntaresStat
+          label="Language"
+          icon="translate"
+          tone="default"
+          value={mounted ? (locale || "en").toUpperCase() : "—"}
+          foot="interface language"
+        />
+        <AntaresStat
+          label="Security"
+          icon="lock"
+          tone={mounted && settings.hasPassword ? "ok" : "warn"}
+          value={mounted ? (settings.hasPassword ? "Active" : "Pending") : "—"}
+          foot="dashboard password"
+        />
+        <AntaresStat
+          label="Login Mode"
+          icon="hub"
+          tone="violet"
+          value={mounted ? settings.authMode || "password" : "—"}
+          foot="sign-in method"
+        />
+      </div>
 
       <SurfaceSkinContext.Provider value="antares">
         {/* Local Mode Info */}
-        <Card>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="size-10 sm:size-12 rounded-xl border-2 border-border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
-                <span className="material-symbols-outlined text-xl sm:text-2xl">computer</span>
-              </div>
-              <div>
-                <h2 className="an-panel-title">Local Mode</h2>
-                <p className="text-sm text-text-muted">Running on your machine</p>
-              </div>
+        <section className="an-panel">
+          <header className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">computer</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Local Mode</h2>
+              <p className="an-panel-sub">Running on your machine</p>
             </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-text-main">
-              <span className="material-symbols-outlined text-[18px] text-[var(--color-primary)]">dark_mode</span>
-              <span className="text-xs sm:text-sm font-medium">Dark</span>
+            <div className="an-panel-actions">
+              <span className="an-chip">
+                <span className="material-symbols-outlined">dark_mode</span>
+                Dark
+              </span>
             </div>
-          </div>
-          <div className="flex flex-col gap-3 pt-4 border-t border-border">
+          </header>
+          <div className="an-panel-pad flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] gap-2">
               <div>
                 <p className="font-medium text-sm sm:text-base">Database Location</p>
@@ -878,37 +918,56 @@ export default function ProfilePage() {
               </p>
             )}
           </div>
-        </Card>
+        </section>
 
         {/* Language */}
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
-              <span className="material-symbols-outlined text-[20px]">language</span>
+        <section className="an-panel">
+          <header className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">language</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Language</h2>
+              <p className="an-panel-sub">Interface language for the dashboard</p>
             </div>
-            <h3 className="an-panel-title">Language</h3>
-          </div>
-          <button
-            onClick={() => setLangOpen(true)}
-            className="flex items-center justify-between w-full p-3 rounded-xl border-2 border-border bg-surface-2 shadow-[2px_2px_0_var(--color-border)] hover:border-primary/60 hover:-translate-y-px hover:shadow-[3px_3px_0_var(--color-border)] active:translate-y-0 transition-all"
-            data-i18n-skip="true"
-          >
-            <span className="text-sm text-text-muted">Display language</span>
-            <span className="text-2xl">
+          </header>
+          <div className="an-panel-pad">
+            <button
+              type="button"
+              onClick={() => setLangOpen(true)}
+              className="an-conn w-full text-left"
+              data-i18n-skip="true"
+            >
+            <div className="an-conn-main">
+              <span className="an-conn-ico" aria-hidden>
+                <span className="material-symbols-outlined">translate</span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="an-conn-name">Display language</p>
+                <p className="an-conn-sub">Dashboard interface</p>
+              </div>
+            </div>
+            <div className="an-conn-actions">
+              <span className="text-2xl leading-none">
               {mounted ? LOCALE_FLAGS[locale] || "ðŸŒ" : "\u00A0"}
             </span>
-          </button>
-        </Card>
+            </div>
+            </button>
+          </div>
+        </section>
 
         {/* Security */}
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-xl border-2 border-border bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
-              <span className="material-symbols-outlined text-[20px]">shield</span>
+        <section className="an-panel">
+          <header className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">shield</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Security</h2>
+              <p className="an-panel-sub">Dashboard access and password</p>
             </div>
-            <h3 className="an-panel-title">Security</h3>
-          </div>
-          <div className="flex flex-col gap-4">
+          </header>
+          <div className="an-panel-pad flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">Require login</p>
@@ -980,21 +1039,21 @@ export default function ProfilePage() {
               </form>
             )}
           </div>
-        </Card>
+        </section>
 
         {/* Single Sign-On (SSO) */}
-        <Card>
+        <section className="an-panel">
           <button
             type="button"
             onClick={() => setOidcExpanded((v) => !v)}
-            className="w-full flex items-center gap-3 text-left"
+            className="an-panel-head w-full text-left"
           >
-            <div className="size-10 rounded-xl border-2 border-border bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
-              <span className="material-symbols-outlined text-[20px]">lock_open</span>
-            </div>
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">lock_open</span>
+            </span>
             <div className="flex-1 min-w-0">
-              <h3 className="an-panel-title">Single Sign-On (SSO)</h3>
-              <p className="text-xs text-text-muted">
+              <h2 className="an-panel-title">Single Sign-On (SSO)</h2>
+              <p className="an-panel-sub">
                 {settings.authMode === "sso" || settings.authMode === "oidc" || settings.authMode === "saml"
                   ? `${settings.ssoType === "saml" ? "SAML 2.0" : "OIDC"} SSO active`
                   : settings.authMode === "both"
@@ -1007,7 +1066,7 @@ export default function ProfilePage() {
             </span>
           </button>
           {oidcExpanded && (
-            <div className="flex flex-col gap-4 mt-4">
+            <div className="an-panel-pad flex flex-col gap-4">
               <p className="text-xs sm:text-sm text-text-muted">
                 Configure enterprise Single Sign-On (SSO) for dashboard access using SAML 2.0 or OIDC.
               </p>
@@ -1472,17 +1531,20 @@ export default function ProfilePage() {
               )}
             </div>
           )}
-        </Card>
+        </section>
 
         {/* Routing Preferences */}
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-xl border-2 border-border bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
-              <span className="material-symbols-outlined text-[20px]">route</span>
+        <section className="an-panel">
+          <header className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">route</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Routing Strategy</h2>
+              <p className="an-panel-sub">How requests pick an account</p>
             </div>
-            <h3 className="an-panel-title">Routing Strategy</h3>
-          </div>
-          <div className="flex flex-col gap-4">
+          </header>
+          <div className="an-panel-pad flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">Round Robin</p>
@@ -1563,18 +1625,21 @@ export default function ProfilePage() {
                 : " Combos always start with their first model."}
             </p>
           </div>
-        </Card>
+        </section>
 
         {/* Network */}
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-xl border-2 border-border bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
-              <span className="material-symbols-outlined text-[20px]">wifi</span>
+        <section className="an-panel">
+          <header className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">wifi</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Network</h2>
+              <p className="an-panel-sub">Outbound proxy and rotation</p>
             </div>
-            <h3 className="an-panel-title">Network</h3>
-          </div>
+          </header>
 
-          <div className="flex flex-col gap-4">
+          <div className="an-panel-pad flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">Outbound Proxy</p>
@@ -1634,18 +1699,79 @@ export default function ProfilePage() {
                 {proxyStatus.message}
               </p>
             )}
+
+            <form onSubmit={saveWarpRotation} className="flex flex-col gap-3 border-t border-border/50 pt-4">
+              <div>
+                <p className="font-medium text-sm sm:text-base">OpenCode Free · WARP rotation</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  The proxy starts automatically with RouterMod. On a free-model 429 it rotates the WARP exit IP and replays the request. RouterMod enforces a target of <strong className="text-text-main">100 distinct IPs</strong> — lower saved values are raised automatically. 0 rotations = unlimited (still capped by the budget).
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-text-muted" htmlFor="warp-cooldown">Cooldown (seconds, max 5)</label>
+                  <Input
+                    id="warp-cooldown"
+                    type="number"
+                    min="0"
+                    max="5"
+                    value={warpForm.warpHopCooldownSec}
+                    onChange={(e) => setWarpForm((p) => ({ ...p, warpHopCooldownSec: e.target.value }))}
+                    disabled={warpSaving}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-text-muted" htmlFor="warp-max-hops">Max rotations (min 100 · 0 = unlimited)</label>
+                  <Input
+                    id="warp-max-hops"
+                    type="number"
+                    min="0"
+                    value={warpForm.opencodeMaxHops}
+                    onChange={(e) => setWarpForm((p) => ({ ...p, opencodeMaxHops: e.target.value }))}
+                    disabled={warpSaving}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-text-muted" htmlFor="warp-budget">Budget (seconds, min 3600)</label>
+                  <Input
+                    id="warp-budget"
+                    type="number"
+                    min="1"
+                    value={warpForm.opencodeHopBudgetSec}
+                    onChange={(e) => setWarpForm((p) => ({ ...p, opencodeHopBudgetSec: e.target.value }))}
+                    disabled={warpSaving}
+                  />
+                </div>
+              </div>
+              <Button type="submit" variant="primary" loading={warpSaving} className="w-full sm:w-auto">
+                Apply rotation settings
+              </Button>
+              {warpStatus.message && (
+                <p className={`text-xs sm:text-sm ${warpStatus.type === "error" ? "text-red-500" : "text-green-500"}`}>
+                  {warpStatus.message}
+                </p>
+              )}
+            </form>
           </div>
-        </Card>
+        </section>
 
         {/* Observability Settings */}
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-xl border-2 border-border bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-[2px_2px_0_var(--color-border)]">
-              <span className="material-symbols-outlined text-[20px]">monitoring</span>
+        <section className="an-panel">
+          <header className="an-panel-head">
+            <span className="an-panel-ico" aria-hidden>
+              <span className="material-symbols-outlined">monitoring</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="an-panel-title">Observability</h2>
+              <p className="an-panel-sub">Request inspection logging</p>
             </div>
-            <h3 className="an-panel-title">Observability</h3>
-          </div>
-          <div className="flex items-start sm:items-center justify-between gap-4">
+            <div className="an-panel-actions">
+              <span className={`an-chip ${observabilityEnabled ? "" : "opacity-60"}`}>
+                {observabilityEnabled ? "On" : "Off"}
+              </span>
+            </div>
+          </header>
+          <div className="an-panel-pad flex items-start sm:items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm sm:text-base">Enable Observability</p>
               <p className="text-xs sm:text-sm text-text-muted">
@@ -1658,7 +1784,7 @@ export default function ProfilePage() {
               disabled={loading}
             />
           </div>
-        </Card>
+        </section>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Button

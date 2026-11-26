@@ -50,7 +50,7 @@ const getBreadcrumbs = (pathname) => {
   return [];
 };
 
-export default function Header({ onMenuClick, showMenuButton = true }) {
+export default function Header({ onMenuClick, showMenuButton = true, sessionType = "admin", onLogout }) {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState("");
   const [loginMethod, setLoginMethod] = useState("");
@@ -59,6 +59,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname]);
 
   useEffect(() => {
+    if (sessionType === "apiKey") return;
     let cancelled = false;
 
     async function loadAuthStatus() {
@@ -82,9 +83,13 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sessionType]);
 
   const handleLogout = async () => {
+    if (sessionType === "apiKey") {
+      await onLogout?.();
+      return;
+    }
     try {
       const res = await fetch("/api/auth/logout", { method: "POST" });
       if (res.ok) {
@@ -110,7 +115,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
         )}
 
         {/* Brand with 3D R Logo (matching login page) */}
-        <Link href="/dashboard" className="flex items-center gap-2 group shrink-0">
+        <Link href={sessionType === "apiKey" ? "/dashboard-keys" : "/dashboard"} className="flex items-center gap-2 group shrink-0">
           <Soft3DLogo className="size-7 sm:size-8" />
           <div className="hidden min-[380px]:flex flex-col leading-none">
             <span className="font-mono text-xs sm:text-sm font-black tracking-wider text-text-main">
@@ -151,7 +156,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
             </span>
           </div>
         )}
-        <HeaderSearch />
+        {sessionType === "admin" && <HeaderSearch />}
         <button
           onClick={() => setDonateOpen(true)}
           className="flex items-center gap-1.5 px-3 h-8 rounded-md border-2 border-border bg-[var(--color-primary)]/15 text-[var(--color-primary)] shadow-[2px_2px_0px_var(--color-border)] hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_var(--color-border)] active:translate-y-0 transition-all text-xs font-mono font-bold uppercase cursor-pointer"
@@ -161,7 +166,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
           <span className="hidden sm:inline">{translate("Donate")}</span>
         </button>
         <HeaderLanguage />
-        <HeaderMenu onLogout={handleLogout} />
+        <HeaderMenu onLogout={handleLogout} sessionType={sessionType} />
       </div>
       <DonateModal isOpen={donateOpen} onClose={() => setDonateOpen(false)} />
     </header>
@@ -205,4 +210,6 @@ function HeaderSearch() {
 Header.propTypes = {
   onMenuClick: PropTypes.func,
   showMenuButton: PropTypes.bool,
+  sessionType: PropTypes.oneOf(["admin", "apiKey"]),
+  onLogout: PropTypes.func,
 };

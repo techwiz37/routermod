@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useRef, useState } from "react";
+import AntaresSelect from "@/shared/components/AntaresSelect";
 import PropTypes from "prop-types";
 import { translate } from "@/i18n/runtime";
 
@@ -110,10 +111,17 @@ export default function SystemPromptCard({
         <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted" htmlFor="system-prompt-model">{translate("Target model")}</label>
         <div className="relative mb-4">
           <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-primary"><span className="material-symbols-outlined text-[18px]">smart_toy</span></span>
-          <select id="system-prompt-model" value={systemPromptModel} onChange={(e) => onSystemPromptModelChange(e.target.value)} className="an-select system-prompt-select h-11 w-full font-mono text-xs">
-            <option value="">{translate("Choose a model to configure")}</option>
-            {modelOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          <AntaresSelect
+            id="system-prompt-model"
+            value={systemPromptModel}
+            onChange={(e) => onSystemPromptModelChange(e.target.value)}
+            ariaLabel={translate("Target model")}
+            buttonClassName="h-11 pl-10 font-mono"
+            options={[
+              { value: "", label: translate("Choose a model to configure") },
+              ...modelOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+            ]}
+          />
         </div>
 
         <label className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted" htmlFor="system-prompt-textarea">
@@ -181,26 +189,30 @@ export default function SystemPromptCard({
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <label className="flex flex-col gap-1">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{translate("Source")}</span>
-                  <select
+                  <AntaresSelect
                     value={testSource}
                     onChange={(e) => setTestSource(e.target.value)}
-                    className="an-select h-9 w-full text-xs"
-                  >
-                    <option value="model">{translate("From selected model")}</option>
-                    <option value="prompt">{translate("From prompt")}</option>
-                  </select>
+                    ariaLabel={translate("Source")}
+                    buttonClassName="h-9"
+                    options={[
+                      { value: "model", label: translate("From selected model") },
+                      { value: "prompt", label: translate("From prompt") },
+                    ]}
+                  />
                 </label>
                 {testSource === "prompt" ? (
                   <label className="flex flex-col gap-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{translate("Model")}</span>
-                    <select
+                    <AntaresSelect
                       value={testModel}
                       onChange={(e) => setTestModel(e.target.value)}
-                      className="an-select h-9 w-full font-mono text-xs"
-                    >
-                      <option value="">{translate("Choose a model")}</option>
-                      {modelOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                    </select>
+                      ariaLabel={translate("Model")}
+                      buttonClassName="h-9 font-mono"
+                      options={[
+                        { value: "", label: translate("Choose a model") },
+                        ...modelOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+                      ]}
+                    />
                   </label>
                 ) : (
                   <div className="flex flex-col gap-1">

@@ -205,5 +205,7 @@
   "Test Semua": "Test All",
   "Stop Test": "Stop Test",
   "Stop Testing...": "Stopping...",
-  "Test Selesai": "Test Complete"
+  "Test Selesai": "Test Complete",
+  "Use 5–128 characters: letters, numbers, hyphens (-), or underscores (_). The rmod- prefix is optional. Avoid easily guessed words.": "5–128টি অক্ষর ব্যবহার করুন: বর্ণ, সংখ্যা, হাইফেন (-) বা আন্ডারস্কোর (_)। rmod- প্রিফিক্স ঐচ্ছিক। সহজে অনুমানযোগ্য শব্দ এড়িয়ে চলুন।",
+  "The API key must be 5–128 characters and contain only letters, numbers, hyphens (-), or underscores (_).": "API কী-তে 5–128টি অক্ষর থাকতে হবে এবং এতে শুধুমাত্র বর্ণ, সংখ্যা, হাইফেন (-) বা আন্ডারস্কোর (_) থাকতে হবে।"
 }

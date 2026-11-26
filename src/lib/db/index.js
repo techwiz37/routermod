@@ -10,9 +10,14 @@ export {
 export {
   getProviderConnections, getProviderConnectionById,
   createProviderConnection, updateProviderConnection,
-  deleteProviderConnection, deleteProviderConnectionsByProvider,
+  deleteProviderConnection, deleteProviderConnectionsByProvider, deleteProviderConnectionById,
+  deleteProviderConnectionsByIds,
   reorderProviderConnections, cleanupProviderConnections,
 } from "./repos/connectionsRepo.js";
+
+export {
+  getBackupList, restoreBackup,
+} from "./backupScheduler.js";
 
 export {
   getProviderNodes, getProviderNodeById,
@@ -55,7 +60,7 @@ export {
 export {
   statsEmitter, trackPendingRequest, getActiveRequests,
   saveRequestUsage, getUsageHistory, getUsageStats, getChartData,
-  appendRequestLog, getRecentLogs,
+  appendRequestLog, getRecentLogs, getRequestIpStats,
 } from "./repos/usageRepo.js";
 
 export {

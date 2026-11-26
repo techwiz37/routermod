@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { RequestLogger, CardSkeleton } from "@/shared/components";
 import AntaresSegmented from "@/shared/components/AntaresSegmented";
+import StarField from "@/shared/components/StarField";
 import UsageStats from "@/shared/components/UsageStats";
 import RequestDetailsTab from "./components/RequestDetailsTab";
 import LiveServerTab from "./components/LiveServerTab";
@@ -15,6 +16,12 @@ const PERIODS = [
   { value: "30d", label: "30D" },
   { value: "60d", label: "60D" },
   { value: "all", label: "All" },
+];
+
+const TABS = [
+  { value: "overview", label: "Ringkasan", icon: "space_dashboard" },
+  { value: "details", label: "Detail", icon: "list_alt" },
+  { value: "live", label: "Live Server", icon: "monitor_heart" },
 ];
 
 export default function UsagePage() {
@@ -44,38 +51,73 @@ function UsageContent() {
   };
 
   return (
-    <div className="an-scope flex min-w-0 flex-col gap-5">
-      {/* Tabs + period selector on same row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="an-scope an-shell flex flex-col gap-5 sm:gap-6">
+      <div className="an-shell-bg" aria-hidden>
+        <StarField />
+      </div>
+
+      {/* ---- Hero ---- */}
+      <header className="flex min-w-0 flex-col gap-2">
+        <p className="an-eyebrow">
+          <span className="an-num">02</span>
+          <span className="an-rule" />
+          <span>RouterMod · Analytics</span>
+        </p>
+        <h1 className="an-h1 text-[clamp(1.6rem,4.6vw,2.3rem)]">
+          Usage <span className="an-dim mx-2">Analytics</span>
+        </h1>
+        <p className="an-hint max-w-[70ch]">
+          Pantau konsumsi token, estimasi biaya, dan kesehatan provider dalam satu ruang kendali real-time.
+        </p>
+      </header>
+
+      {/* Navigation toolbar */}
+      <div className="us-toolbar">
         <AntaresSegmented
-          options={[
-            { value: "overview", label: "Ringkasan" },
-            { value: "details", label: "Detail Permintaan" },
-            { value: "live", label: "Live Server" },
-          ]}
+          options={TABS}
           value={activeTab}
           onChange={handleTabChange}
-          className="w-full sm:w-auto"
+          className="us-tabs"
         />
-        {activeTab === "overview" && (
-          <AntaresSegmented
-            options={PERIODS}
-            value={period}
-            onChange={setPeriod}
-            size="sm"
-            className="w-full sm:w-auto"
-          />
+        {activeTab === "overview" ? (
+          <div className="us-toolbar-right">
+            <span className="us-period-label">Rentang waktu</span>
+            <AntaresSegmented
+              options={PERIODS}
+              value={period}
+              onChange={setPeriod}
+              size="sm"
+            />
+          </div>
+        ) : (
+          <span className="us-toolbar-hint">
+            <span className="material-symbols-outlined" aria-hidden="true">schedule</span>
+            Data diperbarui otomatis
+          </span>
         )}
       </div>
 
+      {/* Content - Lazy loaded per tab */}
       {activeTab === "overview" && (
         <Suspense fallback={<CardSkeleton />}>
           <UsageStats period={period} setPeriod={setPeriod} hidePeriodSelector />
         </Suspense>
       )}
-      {activeTab === "details" && <RequestDetailsTab />}
-      {activeTab === "live" && <LiveServerTab />}
-      {activeTab === "logs" && <RequestLogger />}
+      {activeTab === "details" && (
+        <Suspense fallback={<CardSkeleton />}>
+          <RequestDetailsTab />
+        </Suspense>
+      )}
+      {activeTab === "live" && (
+        <Suspense fallback={<CardSkeleton />}>
+          <LiveServerTab />
+        </Suspense>
+      )}
+      {activeTab === "logs" && (
+        <Suspense fallback={<CardSkeleton />}>
+          <RequestLogger />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Button, Modal } from "@/shared/components";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
+import { translate } from "@/i18n/runtime";
 
 // Step 1: key validation
 // Step 2: email list input
@@ -47,7 +49,7 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
     };
     es.onerror = () => {
       setDone(true);
-      setBotError("Koneksi SSE terputus.");
+      setBotError("SSE connection lost.");
       es.close();
     };
     return () => { es.close(); };
@@ -73,7 +75,7 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
   // Step 1: validate key
   const handleValidateKey = async () => {
     const k = key.trim();
-    if (!k) { setKeyError("Masukkan access key terlebih dahulu."); return; }
+    if (!k) { setKeyError(translate("Enter an access key first.")); return; }
     setKeyLoading(true);
     setKeyError("");
     try {
@@ -83,11 +85,11 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
         body: JSON.stringify({ key: k, emails: ["__validate__"] }),
       });
       if (res.status === 403) {
-        setKeyError("Key tidak valid atau tidak memiliki akses VIP.");
+        setKeyError("Key is invalid or does not have VIP access.");
       } else if (res.status === 503) {
-        setKeyError("Tidak dapat memverifikasi key saat ini. Coba lagi.");
+        setKeyError("Could not verify the key right now. Please try again.");
       } else if (res.status === 401) {
-        setKeyError("Sesi tidak valid. Silakan login ulang.");
+        setKeyError("Session is invalid. Please log in again.");
       } else {
         // Any other response (including 400 from empty email list = key was valid)
         // 400 = key valid, email kosong/invalid → key OK
@@ -95,11 +97,11 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
           setStep(2);
         } else {
           const j = await res.json().catch(() => ({}));
-          setKeyError(j.error || "Terjadi kesalahan. Coba lagi.");
+          setKeyError(j.error || "An error occurred. Please try again.");
         }
       }
     } catch {
-      setKeyError("Network error. Coba lagi.");
+      setKeyError("Network error. Please try again.");
     } finally {
       setKeyLoading(false);
     }
@@ -111,12 +113,12 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
     // Keep full "email|password" entry; filter only lines that have a valid email
     const entries = lines.filter(l => l.includes("@"));
     if (entries.length === 0) {
-      setEmailError("Format salah atau tidak ada email valid. Gunakan: email@domain.com atau email|password per baris.");
+      setEmailError("Invalid format or no valid email. Use: email@domain.com or email|password per line.");
       return;
     }
     setEmailError("");
     setStep(3);
-    setLogLines([`[Bot] Memulai proses ${entries.length} akun...`]);
+    setLogLines([`[Bot] Starting process for ${entries.length} accounts...`]);
     setDone(false);
 
     try {
@@ -127,7 +129,7 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setBotError(data.error || "Gagal memulai bot.");
+        setBotError(data.error || "Failed to start the bot.");
         setDone(true);
       } else {
         setJobId(data.jobId);
@@ -138,15 +140,21 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
     }
   };
 
-  const title = step === 1 ? "VIP ACCESS" : step === 2 ? "BULK ADD ANTIGRAVITY" : "BOT RUNNING";
+  const title =
+    step === 1
+      ? translate("VIP access")
+      : step === 2
+        ? translate("Bulk add Antigravity")
+        : translate("Bot running");
 
   return (
+    <SurfaceSkinContext.Provider value="antares">
     <Modal isOpen={isOpen} onClose={handleClose} title={title} size={step === 3 ? "lg" : "md"}>
       {/* ── STEP 1: Key input ── */}
       {step === 1 && (
         <div className="space-y-4">
           <p className="text-xs text-text-muted leading-relaxed">
-            Fitur ini memerlukan akses khusus. Masukkan access key untuk melanjutkan.
+            {translate("This feature needs special access. Enter an access key to continue.")}
           </p>
           <div>
             <input
@@ -154,7 +162,7 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
               value={key}
               onChange={e => { setKey(e.target.value); setKeyError(""); }}
               onKeyDown={e => e.key === "Enter" && handleValidateKey()}
-              placeholder="Masukkan access key..."
+              placeholder={translate("Enter access key...")}
               autoFocus
               className="w-full rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-sm text-[var(--color-text-main)] shadow-[2px_2px_0_var(--color-border)] focus:border-[var(--color-primary)] focus:outline-none"
             />
@@ -162,10 +170,10 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
           </div>
           <div className="flex gap-2">
             <Button onClick={handleValidateKey} fullWidth icon="key" loading={keyLoading}>
-              Verifikasi
+              {translate("Verify")}
             </Button>
             <Button onClick={handleClose} variant="ghost" fullWidth>
-              Batal
+              {translate("Cancel")}
             </Button>
           </div>
         </div>
@@ -175,9 +183,9 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
       {step === 2 && (
         <div className="space-y-4">
           <p className="text-xs text-text-muted leading-relaxed">
-            Masukkan daftar akun, satu per baris.{" "}
-            Format: <code className="font-mono text-[var(--color-primary)] font-bold">email@domain.com</code>{" "}
-            atau <code className="font-mono text-[var(--color-primary)] font-bold">email|password</code>.
+            {translate("Enter one account per line.")}{" "}
+            {translate("Format:")} <code className="font-mono text-[var(--t-accent)] font-bold">email@domain.com</code>{" "}
+            {translate("or")} <code className="font-mono text-[var(--t-accent)] font-bold">email|password</code>.
           </p>
           <div>
             <textarea
@@ -190,14 +198,14 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
             {emailError && <p className="mt-1 text-xs text-[var(--color-danger)] font-medium">{emailError}</p>}
           </div>
           <div className="text-[10px] font-mono text-text-muted">
-            {emailText.trim().split("\n").filter(l => l.trim().includes("@")).length} akun siap diproses
+            {translate("{n} accounts ready").replace("{n}", emailText.trim().split("\n").filter(l => l.trim().includes("@")).length)}
           </div>
           <div className="flex gap-2">
             <Button onClick={handleStart} fullWidth icon="smart_toy">
-              Mulai Bot
+              {translate("Start bot")}
             </Button>
             <Button onClick={() => setStep(1)} variant="ghost" fullWidth>
-              Kembali
+              {translate("Back")}
             </Button>
           </div>
         </div>
@@ -212,18 +220,18 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
             <span className="size-3 rounded-full bg-amber-400" />
             <span className="size-3 rounded-full bg-green-500" />
             <span className="ml-2 font-mono text-[10px] text-[var(--color-surface)] font-bold uppercase tracking-wider">
-              antigravity bot — live output
+              {translate("Antigravity bot — live output")}
             </span>
             {!done && (
               <span className="ml-auto flex items-center gap-1 text-[10px] font-mono text-green-400">
                 <span className="size-1.5 rounded-full bg-green-400 animate-pulse" />
-                RUNNING
+                {translate("Running")}
               </span>
             )}
             {done && (
               <span className="ml-auto flex items-center gap-1 text-[10px] font-mono text-[var(--color-surface)]/70">
                 <span className="size-1.5 rounded-full bg-[var(--color-surface)]/70" />
-                DONE
+                {translate("Done")}
               </span>
             )}
           </div>
@@ -260,10 +268,10 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
           {/* Summary */}
           {done && summary && (
             <div className="flex items-center gap-3 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 font-mono text-xs shadow-[2px_2px_0_var(--color-border)]">
-              <span className="text-text-muted">Hasil:</span>
-              <span className="font-bold text-[var(--color-success)]">✓ {summary.added} sukses</span>
-              {summary.failed > 0 && <span className="font-bold text-[var(--color-danger)]">✗ {summary.failed} gagal</span>}
-              <span className="text-text-muted ml-auto">dari {summary.total} akun</span>
+              <span className="text-text-muted">{translate("Result:")}</span>
+              <span className="font-bold text-[var(--t-ok)]">✓ {translate("{n} passed").replace("{n}", summary.added)}</span>
+              {summary.failed > 0 && <span className="font-bold text-[var(--t-danger)]">✗ {translate("{n} failed").replace("{n}", summary.failed)}</span>}
+              <span className="text-text-muted ml-auto">{translate("out of {n} accounts").replace("{n}", summary.total)}</span>
             </div>
           )}
 
@@ -274,16 +282,17 @@ export default function BulkImportAntigravityModal({ isOpen, onClose }) {
           <div className="flex gap-2">
             {done && (
               <Button onClick={resetAll} variant="secondary" fullWidth icon="refresh">
-                Mulai Lagi
+                {translate("Start again")}
               </Button>
             )}
             <Button onClick={handleClose} variant={done ? "ghost" : "danger"} fullWidth icon={done ? "close" : "stop"}>
-              {done ? "Tutup" : "Hentikan & Tutup"}
+              {done ? translate("Close") : translate("Stop & close")}
             </Button>
           </div>
         </div>
       )}
     </Modal>
+    </SurfaceSkinContext.Provider>
   );
 }
 

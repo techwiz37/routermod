@@ -58,7 +58,7 @@ export default function CLIToolsPageClient({ machineId }) {
       <section className="an-panel an-hero">
         <div className="an-hero-main">
           <span className="an-hero-eyebrow">Tool CLI</span>
-          <h1 className="an-hero-title">Semua Tool CLI di Satu Tempat</h1>
+          <h1 className="an-hero-title">All CLI Tools in One Place</h1>
           <p className="an-hero-sub">
             Pasang tool CLI favoritmu, sambungkan ke RouterMod, lalu pantau status
             koneksinya langsung dari sini.

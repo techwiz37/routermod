@@ -1,13 +1,21 @@
 import crypto from "crypto";
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
-import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
+import {
+  MEMORY_CONFIG,
+  resolveOpencodeRotationSettings,
+} from "../config/runtimeConfig.js";
+import { getSettings } from "@/lib/localDb";
+import { OPENCODE_MAX_HISTORY_TURNS } from "../config/contextGuard.js";
+import { FORMATS } from "../translator/formats.js";
+import { capConversationHistory } from "../translator/concerns/contextTrim.js";
 import { getThinkingLevels } from "../providers/thinkingLevels.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { isMuseSparkModel } from "../providers/models/helpers.js";
 import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
-import { opencodeTlsFetch } from "../services/opencodeTlsClient.js";
+import { opencodeTlsFetch, resetOpencodeTlsSession } from "../services/opencodeTlsClient.js";
+import { warpHop, warpStatus, waitForWarpIdle, hopCooldownRemainingMs } from "@/lib/network/warpRotator.js";
 import { ANTHROPIC_API_VERSION } from "../providers/shared.js";
 import {
   normalizeResponsesInput,
@@ -35,24 +43,51 @@ const OPENCODE_OVERLOAD_BASE_MS = 800;
 const OPENCODE_OVERLOAD_MAX_MS = 4000;
 const OPENCODE_OVERLOAD_RE = /overloaded/i;
 
+// WARP-backed quota hop limits live in config/runtimeConfig.js. Rotation keeps
+// going across every free model until the 429 clears, the budget expires, or
+// the client disconnects — a single failed/same-IP hop no longer ends the loop.
+
+async function warpAvailable() {
+  try { return (await warpStatus()).connected === true; } catch { return false; }
+}
+
+async function hopAndReset(args) {
+  try {
+    // Let other in-flight WARP requests finish streaming before disconnecting
+    // the shared tunnel — otherwise they fail with a broken pipe.
+    await waitForWarpIdle();
+    const hop = await warpHop();
+    if (!hop?.ok || !hop.changed) {
+      console.log(`[HOP] WARP hop did not change address (${hop?.error || "same IP"})`);
+      return false;
+    }
+    // Drop cached wreq-js sessions — they are keyed by proxy URL, and the
+    // tunnel behind that URL now exits from a different IPv6 /64.
+    resetOpencodeTlsSession();
+    console.log(`[HOP] WARP ${hop.oldIp || "?"} → ${hop.newIp} — retrying OpenCode request`);
+    return true;
+  } catch (error) {
+    console.log(`[HOP] WARP hop failed: ${error?.message || error}`);
+    return false;
+  }
+}
+
 /**
  * Classify a gated free-lane rejection:
- * - "overload": transient 429 load shedding, worth retrying.
- * - "session":  any other 429 (FreeUsageLimitError) or 403, which can mean the
- *               session id itself is spent or flagged.
+ * - "overload": transient 429 load shedding, worth retrying with backoff.
+ * - "limit":    429 FreeUsageLimitError — the /64 quota bucket is spent. A
+ *               WARP hop can hand us a fresh bucket (openhop.cfd behaviour).
+ * - "session":  403 or a spent/flagged session id.
  * - null:       anything else.
  */
 async function classifyRejection(response) {
   const status = response?.status;
   if (status !== 429 && status !== 403) return null;
   if (status === 403) return "session";
-  try {
-    // The body is the response stream; clone it so a non-retryable 429 is still
-    // delivered intact to the caller.
-    return OPENCODE_OVERLOAD_RE.test(await response.clone().text()) ? "overload" : "session";
-  } catch {
-    return "session";
-  }
+  let text = "";
+  try { text = await response.clone().text(); } catch { /* keep as-is */ }
+  if (OPENCODE_OVERLOAD_RE.test(text)) return "overload";
+  return "limit";
 }
 
 function sleep(ms, signal) {
@@ -455,7 +490,31 @@ export class OpenCodeExecutor extends BaseExecutor {
       dropAdaptiveReasoningEffort(body);
       applyFingerprintTools(body, false, { claude: isMessagesModel(model || body?.model) });
     }
-    return injectReasoningContent({ provider: this.provider, model, body });
+    const name = model || body?.model;
+    const format = isResponsesModel(name)
+      ? FORMATS.OPENAI_RESPONSES
+      : isMessagesModel(name) ? FORMATS.CLAUDE : FORMATS.OPENAI;
+    const prepared = injectReasoningContent({ provider: this.provider, model, body });
+    // Cap replayed history for this provider only — see contextGuard config.
+    capConversationHistory(prepared, format, OPENCODE_MAX_HISTORY_TURNS);
+    return prepared;
+  }
+
+  // Keep the custom quota-exhausted payload readable. Base parseError returns
+  // the whole raw body as the message, which surfaces as an intimidating JSON
+  // blob in the client's log detail — extract the human line instead.
+  parseError(response, bodyText) {
+    try {
+      const json = JSON.parse(bodyText);
+      if (json?.error?.type === "opencode_free_quota_exhausted") {
+        return {
+          status: response.status,
+          message: json.error.message,
+          quotaExhausted: true,
+        };
+      }
+    } catch { /* not our custom payload */ }
+    return super.parseError(response, bodyText);
   }
 
   // The free gate keys on the TLS ClientHello, so a native Node fetch is refused
@@ -465,6 +524,12 @@ export class OpenCodeExecutor extends BaseExecutor {
   // URL through when one is). Fail-open: without wreq-js the request still goes
   // out on native fetch instead of erroring here.
   async execute(args) {
+    // Rotation knobs live in Dashboard → Settings → Network (no .env needed).
+    // Read once per request; the resolver enforces the 100-IP target even when
+    // an older DB still holds a smaller cap (e.g. 7 hops / 610 s).
+    const saved = await getSettings().catch(() => ({}));
+    const { maxHops, cooldownMs: hopCooldownMs, budgetMs: hopBudgetMs } = resolveOpencodeRotationSettings(saved);
+
     const credentials = this.prepareRequestCredentials(args);
     const directFetch = (url, options, proxyUrl) => opencodeTlsFetch(url, {
       method: options.method,
@@ -473,35 +538,105 @@ export class OpenCodeExecutor extends BaseExecutor {
     }, { signal: options.signal, proxyUrl });
     // wreq-js tunnels the proxy itself; adapters that cannot must stay on undici.
     directFetch.proxyCapable = true;
-    const run = () => super.execute({ ...args, credentials, directFetch });
+    // One prepared-body cache per request: WARP hops replay the same body, so
+    // transform + JSON.stringify must happen once, not on every rotation.
+    const preparedCache = new Map();
+    const run = () => super.execute({ ...args, credentials, directFetch, _preparedCache: preparedCache });
 
     // The free lane sheds load with 429 "The inference service is overloaded.
     // Please try again later." even after the request passes the TLS gate, and
     // the OpenCode CLI retries it. Match that behaviour here: inspect a clone of
     // the body (a stream, so never read the original), retry transient overloads
     // with backoff, and hand back every other response untouched.
+    let rotationAttempts = 0;
+    let rotations = 0;
+    let hopDeadline = 0; // set on the first 429 so the budget covers retries, not the first attempt
+
+    // Rotate the WARP /64 and signal the caller to replay the request. A hop
+    // that fails or returns the same IP is NOT a stop condition: keep going
+    // until a different exit is found, the budget runs out, or the client leaves.
+    const hopAndRetry = async (result) => {
+      // Free models are IP-quota limited: even a health probe needs a fresh
+      // WARP /64 or it will always report a false failure. Rotation is already
+      // rate-limited by hopCooldownRemainingMs() (45s default), so a burst of
+      // probes cannot thrash the tunnel.
+      if (!hopDeadline) hopDeadline = Date.now() + hopBudgetMs;
+      if (args.signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError");
+      if (maxHops > 0 && rotationAttempts >= maxHops) return false;
+      if (Date.now() >= hopDeadline) return false;
+      // A transient warp-status read failure must not end the rotation early:
+      // hopAndReset() probes the tunnel itself and a failed hop is retried.
+      if (!(await warpAvailable())) {
+        console.log(`[HOP] WARP status temporarily unavailable — attempting hop ${rotationAttempts + 1}/${maxHops} anyway`);
+      }
+
+      result.response?.body?.cancel?.().catch?.(() => {});
+
+      // Don't disconnect/reconnect the shared tunnel on every 429. Space the
+      // rotations out; within the gap the same IP is retried instead.
+      const cooldown = args.isHealthProbe ? 0 : hopCooldownRemainingMs(hopCooldownMs);
+      if (cooldown > 0) {
+        const wait = Math.min(cooldown, Math.max(0, hopDeadline - Date.now()));
+        if (wait > 0) await sleep(wait, args.signal);
+      }
+      if (args.signal?.aborted || Date.now() >= hopDeadline) return false;
+
+      rotationAttempts++;
+      const hop = await hopAndReset(args);
+      if (hop) rotations++;
+      return true;
+    };
+
     for (let attempt = 1; ; attempt++) {
       const result = await run();
       const rejection = await classifyRejection(result?.response);
       if (rejection === "session") {
-        // A client-supplied native session is not ours to replace; this only
-        // drops ids we minted, so the next request starts on a fresh one.
         if (forgetOpencodeSession(credentials[SESSION_FIELD])) {
           args.log?.debug?.("SESSION", `OpenCode ${result.response.status}: dropped cached session, next request re-mints`);
         }
+        // A 403 can also be a spent quota bucket on some clients — hop and retry.
+        if (await hopAndRetry(result)) continue;
         return result;
+      }
+      if (rejection === "limit") {
+        // 429 FreeUsageLimitError: keep rotating the WARP /64 and retrying
+        // within the wall-clock budget until a fresh, unthrottled IP is found.
+        if (await hopAndRetry(result)) continue;
+        console.log(`[HOP] 429 persists after ${rotationAttempts} rotation(s) (${rotations} IP change(s)) within ${hopBudgetMs / 1000}s — declaring failure`);
+        // The raw upstream body is an intimidating JSON blob and reads like a
+        // RouterMod/proxy limit. Replace it with a clear, actionable message
+        // that says the free-model quota is exhausted at OpenCode itself.
+        const modelId = baseModelId(args.model || "") || "model ini";
+        const elapsedS = hopDeadline
+          ? Math.round((Date.now() - (hopDeadline - hopBudgetMs)) / 1000)
+          : Math.round(hopBudgetMs / 1000);
+        const payload = {
+          type: "error",
+          error: {
+            type: "opencode_free_quota_exhausted",
+            message: `Kuota gratis OpenCode untuk model "${modelId}" sedang habis di sisi penyedia (bukan batas RouterMod/proxy). RouterMod sudah mencoba ${rotationAttempts}× rotasi IP WARP (${rotations}× ganti IP) selama ${elapsedS} detik namun tetap menerima 429. Silakan pakai model gratis lain, tunggu reset kuota OpenCode, atau upgrade ke OpenCode Go.`,
+            provider: "opencode",
+            model: modelId,
+            upstream_status: 429,
+            warp_rotations: rotations,
+            rotation_attempts: rotationAttempts,
+            retry_duration_s: elapsedS,
+          },
+        };
+        const headers = new Headers(result.response.headers);
+        headers.set("Content-Type", "application/json; charset=utf-8");
+        const customResponse = new Response(JSON.stringify(payload), { status: 429, headers });
+        return { ...result, response: customResponse };
       }
       // A disconnected client should not keep the retry loop (and the free lane)
       // busy for another ~20 s.
       if (rejection !== "overload" || attempt >= OPENCODE_OVERLOAD_ATTEMPTS || args.signal?.aborted) {
         return result;
       }
-      // Release the discarded 429 instead of leaving its stream half-read.
       result.response.body?.cancel?.().catch?.(() => {});
       args.log?.debug?.("RETRY", `OpenCode free lane overloaded, retry ${attempt}/${OPENCODE_OVERLOAD_ATTEMPTS - 1}`);
       const backoff = Math.min(OPENCODE_OVERLOAD_BASE_MS * attempt, OPENCODE_OVERLOAD_MAX_MS);
       await sleep(backoff + Math.random() * 250, args.signal);
-      // Aborted mid-backoff: surface it the way a disconnect during the fetch does.
       if (args.signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError");
     }
   }

@@ -5,6 +5,7 @@ import { FORMATS } from "../translator/formats.js";
 import { normalizeClaudePassthrough, anchorClaudeCache } from "../translator/formats/claude.js";
 import { createStreamController } from "../utils/streamHandler.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
+import { isKiroSuspension, kiroSuspensionError } from "../shared/kiroSuspension.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
@@ -27,11 +28,15 @@ import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
+import { trackModelFailure } from "@/lib/automate/failureTracker.js";
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
 import { getCapabilitiesForModel, learnContextWindow } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
-import { fitBodyToContext, isContextOverflowError, parseContextWindow } from "../translator/concerns/contextTrim.js";
-import { CONTEXT_FIT_REASON, CONTEXT_GUARD } from "../config/contextGuard.js";
+import { capConversationHistory, fitBodyToContext, isContextOverflowError, parseContextWindow } from "../translator/concerns/contextTrim.js";
+import {
+  CONTEXT_FIT_REASON, CONTEXT_GUARD, SESSION_TURN_LIMIT, isSessionTurnLimitError,
+} from "../config/contextGuard.js";
+import { KIRO_BODY_INVALID_MIN_TURNS, KIRO_BODY_INVALID_RETRY_PATTERNS } from "../config/kiroConstants.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
@@ -81,13 +86,28 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, promptInjections = [], providerSystemPrompt = null, jailbreakText = null }) {
+/** Read an upstream error body without assuming a native WHATWG Response.
+ *  Some executors return a response-like object that has no `.clone()`; the
+ *  old direct `.clone().text()` crashed with `clone is not a function`. */
+async function safeResponseText(response) {
+  if (!response) return "";
+  try {
+    if (typeof response.clone === "function") return await response.clone().text();
+    if (typeof response.text === "function") return await response.text();
+    if (typeof response.body === "string") return response.body;
+    if (response.body && typeof response.body.toString === "function") return response.body.toString("utf8");
+  } catch { /* diagnostic only — never break the request */ }
+  return "";
+}
+
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onSuspension, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, promptInjections = [], providerSystemPrompt = null, jailbreakText = null }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
   const usageModel = clientRawRequest?.headers?.["x-routermod-requested-model"]
     || clientRawRequest?.body?.model
     || model;
   const clientIp = clientRawRequest?.clientIp || null;
+  const isHealthProbe = clientRawRequest?.headers?.["x-routermod-health-probe"] === "1";
   // Stable per-session color so all lines of one CLI conversation share a tag
   const sessionSeed = (() => {
     try {
@@ -106,21 +126,24 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Session-based per-model rate limiting for custom providers
   // Check if this session has exceeded the rate limit for this model
   const stripPrefix = (m) => (typeof m === "string" && m.includes("/") ? m.slice(m.indexOf("/") + 1) : m);
-  const cleanModel = stripPrefix(model);
-  const cleanUsageModel = stripPrefix(usageModel);
-  let matchedRateLimitKey = null;
+    const cleanModel = stripPrefix(model);
+    const cleanUsageModel = stripPrefix(usageModel);
+    let matchedRateLimitKey = null;
   const sessionRateLimitId = sessionSeed || clientIp || "unknown";
   if (credentials?.providerSpecificData?.modelRateLimits) {
     const rateLimits = credentials.providerSpecificData.modelRateLimits;
-    if (rateLimits[cleanModel]) matchedRateLimitKey = cleanModel;
+    // Prefer the exact requested public id.  Stripping the provider prefix
+    // first made aliases targeting one upstream model share one rate-limit
+    // bucket and made `dps/deepseek-v4-pro` impossible to select at runtime.
+    if (rateLimits[usageModel]) matchedRateLimitKey = usageModel;
     else if (rateLimits[model]) matchedRateLimitKey = model;
     else if (rateLimits[cleanUsageModel]) matchedRateLimitKey = cleanUsageModel;
-    else if (rateLimits[usageModel]) matchedRateLimitKey = usageModel;
+    else if (rateLimits[cleanModel]) matchedRateLimitKey = cleanModel;
     else if (rateLimits["*"]) matchedRateLimitKey = "*";
 
     const modelRateLimit = matchedRateLimitKey ? rateLimits[matchedRateLimitKey] : null;
     if (modelRateLimit) {
-      const check = checkSessionModelRateLimit(sessionRateLimitId, provider, matchedRateLimitKey === "*" ? cleanModel : matchedRateLimitKey, modelRateLimit);
+      const check = checkSessionModelRateLimit(sessionRateLimitId, provider, matchedRateLimitKey === "*" ? (usageModel || model) : matchedRateLimitKey, modelRateLimit);
       if (!check.allowed) {
         const errorMsg = check.reason || `Rate limit exceeded for model ${cleanModel}`;
         log?.warn?.("SESSION_RATE_LIMIT", errorMsg);
@@ -490,6 +513,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   let providerResponseFormat = targetFormat;
   try {
     const result = await executor.execute({
+      onSuspension,
       model,
       body: translatedBody,
       stream,
@@ -500,6 +524,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       log,
       proxyOptions,
       providerOverrides,
+      isHealthProbe,
     });
     providerResponse = result.response;
     providerUrl = result.url;
@@ -537,7 +562,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   }
 
   // Handle 401/403 - try token refresh (skip for noAuth providers)
-  if (!executor.noAuth && (providerResponse.status === HTTP_STATUS.UNAUTHORIZED || providerResponse.status === HTTP_STATUS.FORBIDDEN)) {
+  const kiroSuspended = provider === "kiro" && !providerResponse.ok && isKiroSuspension(await safeResponseText(providerResponse));
+  const staticCustomApiKey = isCustomProvider(provider) && credentials?.apiKey && !credentials?.refreshToken;
+  if (!executor.noAuth && !staticCustomApiKey && !kiroSuspended && (providerResponse.status === HTTP_STATUS.UNAUTHORIZED || providerResponse.status === HTTP_STATUS.FORBIDDEN)) {
     try {
       // Mutate credentials after each successful refresh: rotating refresh_token
       // providers (xAI/grok-cli) issue a new RT on every refresh; without this,
@@ -553,12 +580,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       }, 3, log);
       if (newCredentials?.accessToken || newCredentials?.copilotToken) {
         if (log?.line) log.line(reqTag, "🔑", `TOKEN REFRESHED · ${provider}/${model}`);
+        newCredentials.providerSpecificData = { ...credentials.providerSpecificData, ...newCredentials.providerSpecificData };
         Object.assign(credentials, newCredentials);
         if (onCredentialsRefreshed) {
           try { await onCredentialsRefreshed(newCredentials); } catch (e) { log?.warn?.("TOKEN", `onCredentialsRefreshed failed: ${e.message}`); }
         }
         try {
           const retryResult = await executor.execute({
+            onSuspension,
             model,
             body: translatedBody,
             stream,
@@ -569,17 +598,25 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             log,
             proxyOptions,
             providerOverrides,
+            isHealthProbe,
           });
-          if (retryResult.response.ok) {
+          if (retryResult.response.ok || (provider === "kiro" && isKiroSuspension(await safeResponseText(retryResult.response)))) {
             providerResponse = retryResult.response;
             providerUrl = retryResult.url;
             providerResponseFormat = retryResult.responseFormat || targetFormat;
           }
         } catch { log?.warn?.("TOKEN", `${provider.toUpperCase()} | retry after refresh failed`); }
       } else {
+        if (provider === "kiro" && newCredentials?.error === "unrecoverable_refresh_error" && onCredentialsRefreshed) {
+          await onCredentialsRefreshed(newCredentials);
+        }
         log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh failed`);
       }
     } catch (e) {
+      if (provider === "kiro" && isKiroSuspension(e)) {
+        const error = kiroSuspensionError(e.message);
+        providerResponse = Response.json({ error: { message: error.message } }, { status: error.status });
+      }
       log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh threw: ${e.message}`);
     }
   }
@@ -591,23 +628,64 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // Upstream context overflow: the guard estimate was optimistic, or the
     // provider serves a smaller window than the catalog advertises. Compact
     // harder and retry instead of ending the conversation with a 400.
+    // Kiro also labels oversized/complex transcripts REQUEST_BODY_INVALID, so
+    // give those the same treatment when there is a history worth shrinking.
+    // Some providers (xingchiapi /responses) cap the NUMBER of turns instead of
+    // tokens — drop the oldest complete turns and retry transparently so the
+    // client never has to start a new session manually.
     for (let attempt = 1; attempt <= CONTEXT_GUARD.maxRetry; attempt++) {
-      if (!isContextOverflowError(errorInfo.statusCode, errorInfo.message)) break;
-      const reported = parseContextWindow(errorInfo.statusCode, errorInfo.message);
-      if (reported && learnContextWindow(provider, model, reported)) {
-        modelCaps = getCapabilitiesForModel(provider, model);
-        log?.info?.("CONTEXT", `${provider}/${model} | upstream window learned: ${reported} tokens`);
+      const upstreamText = String(errorInfo.message || "");
+      const turnLimit = isSessionTurnLimitError(errorInfo.statusCode, errorInfo.code, upstreamText);
+      const kiroBodyInvalid = provider === "kiro"
+        && errorInfo.statusCode === 400
+        && KIRO_BODY_INVALID_RETRY_PATTERNS.some((pattern) => pattern.test(upstreamText))
+        && ((translatedBody?.conversationState?.history?.length || translatedBody?.messages?.length || 0) >= KIRO_BODY_INVALID_MIN_TURNS);
+      if (!turnLimit && !isContextOverflowError(errorInfo.statusCode, upstreamText) && !kiroBodyInvalid) break;
+
+      if (turnLimit) {
+        const keepTurns = Math.max(
+          SESSION_TURN_LIMIT.minKeepTurns,
+          SESSION_TURN_LIMIT.initialKeepTurns - attempt * SESSION_TURN_LIMIT.stepTurns
+        );
+        if (!capConversationHistory(translatedBody, finalFormat, keepTurns)) break;
+        log?.info?.(
+          "CONTEXT",
+          `${provider}/${model} | upstream session turn limit (${errorInfo.code || errorInfo.statusCode}) | retry ${attempt}/${CONTEXT_GUARD.maxRetry} with newest ${keepTurns} turns`
+        );
+      } else {
+        const reported = parseContextWindow(errorInfo.statusCode, upstreamText);
+        if (reported && learnContextWindow(provider, model, reported)) {
+          modelCaps = getCapabilitiesForModel(provider, model);
+          log?.info?.("CONTEXT", `${provider}/${model} | upstream window learned: ${reported} tokens`);
+        }
+        const ratio = Math.max(CONTEXT_GUARD.retryRatio ** attempt, 0.2);
+        let fit = fitBodyToContext(translatedBody, finalFormat, modelCaps, { ratio, compact: true });
+        if (kiroBodyInvalid || (!fit.trimmed && fit.before > 0)) {
+          // The upstream rejected a body our estimator says fits: its accepted
+          // payload is smaller than the advertised window (Kiro/AWS Q does this
+          // with CONTENT_LENGTH_EXCEEDS_THRESHOLD / REQUEST_BODY_INVALID).
+          // Shrink the history to a forced budget instead of returning the 400.
+          const forced = Math.max(
+            1024,
+            Math.floor(fit.before * Math.max(0.25, CONTEXT_GUARD.retryRatio ** (attempt + 1)))
+          );
+          fit = fitBodyToContext(translatedBody, finalFormat, modelCaps, {
+            ratio,
+            compact: true,
+            forceBudgetTokens: forced,
+          });
+        }
+        if (!fit.trimmed) break;
+        log?.info?.(
+          "CONTEXT",
+          `${provider}/${model} | upstream ${kiroBodyInvalid ? "body-invalid" : "overflow"} (${errorInfo.statusCode}) | retry ${attempt}/${CONTEXT_GUARD.maxRetry} with ~${fit.after}/${fit.budget ?? "?"} tokens`
+        );
       }
-      const ratio = Math.max(CONTEXT_GUARD.retryRatio ** attempt, 0.2);
-      const fit = fitBodyToContext(translatedBody, finalFormat, modelCaps, { ratio, compact: true });
-      if (!fit.trimmed) break;
-      log?.info?.(
-        "CONTEXT",
-        `${provider}/${model} | upstream overflow (${errorInfo.statusCode}) | retry ${attempt}/${CONTEXT_GUARD.maxRetry} with ~${fit.after}/${fit.budget ?? "?"} tokens`
-      );
+
       let retryResult;
       try {
         retryResult = await executor.execute({
+          onSuspension,
           model,
           body: translatedBody,
           stream,
@@ -618,9 +696,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           log,
           proxyOptions,
           providerOverrides,
+          isHealthProbe,
         });
       } catch (e) {
-        log?.warn?.("CONTEXT", `${provider}/${model} | retry after overflow failed: ${e.message}`);
+        log?.warn?.("CONTEXT", `${provider}/${model} | retry after error failed: ${e.message}`);
         break;
       }
       providerResponse = retryResult.response;
@@ -633,7 +712,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     }
 
     if (!providerResponse.ok) {
-      const { statusCode, message, resetsAtMs } = errorInfo;
+      const { statusCode, message, resetsAtMs, quotaExhausted } = errorInfo;
       trackPendingRequest(model, provider, connectionId, false, true);
       appendRequestLog({ model: usageModel, provider, connectionId, clientIp, status: `FAILED ${statusCode}` }).catch(() => { });
       saveRequestDetail(buildRequestDetail({
@@ -647,13 +726,28 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         status: "error"
       })).catch(() => { });
 
+      // Track failure for auto-disable
+      if (statusCode >= 500 || statusCode === 429 || statusCode === 402) {
+        trackModelFailure(provider, model, connectionId, message).catch(() => {});
+      }
+
+      // A suspended Kiro credential is dead forever: delete it immediately
+      // via the caller's callback instead of waiting for a later cooldown.
+      if (provider === "kiro" && isKiroSuspension(message)) {
+        try {
+          await onSuspension?.(message);
+        } catch (suspensionError) {
+          log?.warn?.("AUTH", `onSuspension failed: ${suspensionError.message}`);
+        }
+      }
+
       const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
       if (log?.errorLine) {
         const urlStr = providerUrl ? `\n    URL: ${providerUrl}` : "";
         log.errorLine(reqTag, "✗", `ERROR ${statusCode} · ${provider}/${model} · ${Date.now() - requestStartTime}ms${urlStr}\n    ${errMsg}`);
       }
       reqLogger.logError(new Error(message), finalBody || translatedBody);
-      return createErrorResult(statusCode, errMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers), maskedClientError);
+      return createErrorResult(statusCode, errMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers), maskedClientError, { quotaExhausted });
     }
   }
 

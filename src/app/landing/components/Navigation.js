@@ -14,6 +14,7 @@ export default function Navigation() {
   const { locale, setLocale, t } = useLandingT();
 
   const LINKS = [
+    { label: t("navModels"), href: "/models", icon: "view_list" },
     { label: t("navFeatures"), href: "#features", icon: "auto_awesome" },
     { label: t("navHow"), href: "#how-it-works", icon: "account_tree" },
     { label: t("navStart"), href: "#get-started", icon: "rocket_launch" },
@@ -54,7 +55,7 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="fixed top-0 z-50 w-full border-b border-[var(--l-line)] bg-[var(--l-bg-veil)] backdrop-blur-xl">
+      <nav className="landing-topbar fixed top-0 z-50 w-full border-b border-[var(--l-line)] bg-[var(--l-bg-veil)] backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-none items-center justify-between gap-3 px-5 sm:px-8">
           {/* Brand */}
           <button
@@ -63,7 +64,7 @@ export default function Navigation() {
             className="flex shrink-0 items-center gap-2.5 bg-transparent p-0"
             aria-label={t("navHome")}
           >
-            <span className="flex size-8 items-center justify-center rounded-[9px] border border-[var(--l-line)] bg-[var(--l-raised)] text-[var(--l-accent-ink)]">
+            <span className="an-ic !size-8 !w-8 !h-8" aria-hidden>
               <span className="material-symbols-outlined text-[19px]">hub</span>
             </span>
             <span className="flex flex-col items-start leading-none">
@@ -96,7 +97,7 @@ export default function Navigation() {
               <button
                 type="button"
                 onClick={() => setLangOpen((v) => !v)}
-                className="flex h-9 items-center gap-1.5 rounded-[9px] border border-[var(--l-line)] bg-[var(--l-raised)] px-2.5 text-[12.5px] font-medium text-[var(--l-ink)] transition-colors hover:border-[var(--l-hover-line)]"
+                className="an-btn an-ghost h-9 px-3 text-xs gap-1.5"
                 aria-label="Language"
                 aria-expanded={langOpen}
                 aria-haspopup="listbox"
@@ -154,7 +155,7 @@ export default function Navigation() {
               href={SOCIAL_LINKS.github}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden h-9 items-center gap-1.5 rounded-[9px] border border-[var(--l-line)] bg-[var(--l-raised)] px-3.5 text-[13px] font-medium text-[var(--l-ink)] transition-colors hover:border-[var(--l-hover-line)] sm:inline-flex"
+              className="an-btn an-ghost landing-nav-desktop h-9 px-3.5 text-xs gap-1.5"
             >
               <span className="material-symbols-outlined text-[16px]">download</span>
               {t("navInstall")}
@@ -162,8 +163,26 @@ export default function Navigation() {
 
             <button
               type="button"
+              onClick={() => router.push("/buy-key")}
+              className="an-btn an-ghost landing-nav-desktop h-9 px-3.5 text-xs gap-1.5 border-[var(--l-accent)]/50 text-[var(--l-accent-ink)] hover:bg-[var(--l-accent-soft)]"
+            >
+              <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
+              {t("navBuyKey")}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/login-key")}
+              className="an-btn an-ghost landing-nav-desktop h-9 px-3.5 text-xs gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">key</span>
+              {t("navLoginKey")}
+            </button>
+
+            <button
+              type="button"
               onClick={() => router.push("/login")}
-              className="hidden h-9 items-center gap-1.5 rounded-[9px] bg-[var(--l-accent)] px-4 text-[13px] font-semibold text-[var(--l-on-accent)] transition-colors hover:bg-[var(--l-accent-hover)] sm:inline-flex"
+              className="an-btn an-primary landing-nav-desktop h-9 px-4 text-xs gap-1.5"
             >
               <span className="material-symbols-outlined text-[16px]">login</span>
               {t("navLogin")}
@@ -171,7 +190,7 @@ export default function Navigation() {
 
             <button
               type="button"
-              className="flex size-9 items-center justify-center rounded-[9px] text-[var(--l-ink)] transition-colors hover:bg-[var(--l-raised)] md:hidden"
+              className="an-btn an-ghost landing-nav-mobile size-9 p-0"
               onClick={() => setOpen(true)}
               aria-label={t("navOpen")}
               aria-expanded={open}
@@ -207,7 +226,7 @@ export default function Navigation() {
           {/* Sidebar header */}
           <div className="flex items-center justify-between border-b border-[var(--l-line)] px-4 py-3.5">
             <div className="flex items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-[9px] border border-[var(--l-line)] bg-[var(--l-raised)] text-[var(--l-accent-ink)]">
+              <span className="an-ic !size-8 !w-8 !h-8" aria-hidden>
                 <span className="material-symbols-outlined text-[19px]">hub</span>
               </span>
               <span className="flex flex-col items-start leading-none">
@@ -222,7 +241,7 @@ export default function Navigation() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="flex size-8 items-center justify-center rounded-lg text-[var(--l-muted)] transition-colors hover:bg-[var(--l-raised)] hover:text-[var(--l-ink)]"
+              className="an-btn an-ghost size-8 p-0"
               aria-label={t("navClose")}
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
@@ -247,6 +266,17 @@ export default function Navigation() {
                 {l.label}
               </a>
             ))}
+
+            <button
+              type="button"
+              onClick={() => go("/buy-key")}
+              className="flex items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-left text-[13.5px] text-[var(--l-accent-ink)] transition-colors hover:bg-[var(--l-accent-soft)]"
+            >
+              <span className="material-symbols-outlined text-[18px] text-[var(--l-accent-ink)]">
+                shopping_cart
+              </span>
+              {t("navBuyKey")}
+            </button>
 
             <div className="my-2 h-px bg-[var(--l-line)]" />
 
@@ -323,8 +353,24 @@ export default function Navigation() {
           <div className="border-t border-[var(--l-line)] p-3">
             <button
               type="button"
+              onClick={() => go("/buy-key")}
+              className="mb-2 flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-[var(--l-accent)] text-[13.5px] font-semibold text-[var(--l-on-accent)] transition-colors hover:bg-[var(--l-accent-hover)]"
+            >
+              <span className="material-symbols-outlined text-[17px]">shopping_cart</span>
+              {t("navBuyKey")}
+            </button>
+            <button
+              type="button"
+              onClick={() => go("/login-key")}
+              className="mb-2 flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--l-line)] bg-[var(--l-raised)] text-[13.5px] font-medium text-[var(--l-ink)] transition-colors hover:border-[var(--l-hover-line)]"
+            >
+              <span className="material-symbols-outlined text-[17px]">key</span>
+              {t("navLoginKey")}
+            </button>
+            <button
+              type="button"
               onClick={() => go("/login")}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-[var(--l-accent)] text-[13.5px] font-semibold text-[var(--l-on-accent)] transition-colors hover:bg-[var(--l-accent-hover)]"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--l-line)] bg-[var(--l-raised)] text-[13.5px] font-medium text-[var(--l-ink)] transition-colors hover:border-[var(--l-hover-line)]"
             >
               <span className="material-symbols-outlined text-[17px]">login</span>
               {t("navLogin")}

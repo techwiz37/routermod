@@ -19,7 +19,6 @@ export function injectSystemPrompt(body, format, prompt, position = "append") {
       injectKiroSystem(body, prompt, prepend);
       return;
     }
-
     // Claude/Gemini own a dedicated system field, yet their bodies also carry
     // messages[]/contents[] — decide by format label before the shape sniff below.
     // Anthropic rejects a "system" role inside messages[] (no such input role).
@@ -50,7 +49,7 @@ export function injectSystemPrompt(body, format, prompt, position = "append") {
       return;
     }
     if (typeof body.input === "string") {
-      // string input must stay untouched
+      body.instructions = prompt;
       return;
     }
 
@@ -76,7 +75,7 @@ function isKiroBody(body) {
 function hasPrompt(haystack, prompt) {
   if (!haystack || typeof haystack !== "string") return false;
   if (haystack === prompt) return true;
-  return haystack.split(SEP).includes(prompt);
+  return (`${SEP}${haystack}${SEP}`).includes(`${SEP}${prompt}${SEP}`);
 }
 
 function dedupStringAppend(curr, prompt, prepend = false) {
@@ -269,8 +268,8 @@ function injectGeminiSystem(body, prompt, prepend) {
 }
 
 // ---- Kiro ----
-// The prompt is appended to the first user turn's content — the same place the
-// Kiro translator already mirrors the system text via its contentPrefix.
+// Keep configured instructions in the current turn so history trimming cannot
+// drop them. Kiro has no supported dedicated system field.
 //
 // A top-level `systemPrompt` is deliberately NOT written: the kiro.dev gateway
 // answers any body carrying that field with
@@ -281,16 +280,7 @@ function injectGeminiSystem(body, prompt, prepend) {
 function injectKiroSystem(body, prompt, prepend) {
   try {
     const cs = body.conversationState;
-    let targetMsg = null;
-    const hist = Array.isArray(cs?.history) ? cs.history : null;
-    if (hist) {
-      for (const item of hist) {
-        if (item && item.userInputMessage) { targetMsg = item.userInputMessage; break; }
-      }
-    }
-    if (!targetMsg && cs?.currentMessage?.userInputMessage) {
-      targetMsg = cs.currentMessage.userInputMessage;
-    }
+    const targetMsg = cs?.currentMessage?.userInputMessage;
     if (!targetMsg) return;
 
     const content = typeof targetMsg.content === "string" ? targetMsg.content : "";

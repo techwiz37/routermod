@@ -3,6 +3,7 @@ import { PROVIDERS } from "../config/providers.js";
 import {
   KIRO_CODEWHISPERER_TARGET,
   KIRO_ENDPOINT_FALLBACK_STATUSES,
+  KIRO_UNSUPPORTED_THINKING_FIELDS,
   resolveKiroModel,
   buildKiroUserAgentHeaders,
   resolveDefaultProfileArn,
@@ -15,6 +16,7 @@ import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { STREAM_FIRST_CHUNK_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { AWS_EVENTSTREAM } from "../config/awsConstants.js";
 import { crc32, parseEventFrame } from "../utils/awsEventStream.js";
+import { canonicalizeKiroConversation } from "../translator/concerns/kiroConversation.js";
 
 const KIRO_REPAIR_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 // Regions per service host; a region outside the set is never spliced into the hostname.
@@ -272,11 +274,22 @@ export class KiroExecutor extends BaseExecutor {
     if (credentials?.accessToken) {
       headers["x-amz-sso-bearer"] = credentials.accessToken;
     }
-    headers["x-amzn-kiro-agent-mode"] = "spec";
+    // The streaming GenerateAssistantResponse API expects the IDE's vibe mode;
+    // `spec` is only valid for the separate spec-generation surface and makes
+    // otherwise valid model requests fail with REQUEST_BODY_INVALID.
+    headers["x-amzn-kiro-agent-mode"] = "vibe";
     headers["x-amzn-codewhisperer-optout"] = "true";
+    // Match the machine id already embedded in the User-Agent above. A single
+    // hard-coded id shared by every account (the old "kiro-desktop" value) is
+    // an inconsistent fingerprint: AWS sees many distinct Kiro identities all
+    // claiming the same machine and flags the accounts as unusual activity.
+    headers["x-amzn-codewhisperer-machine-id"] = machineId;
     const accountBound = authMethod === "api_key" || authMethod === "idc" || isExternalIdp;
     const profileArn = psd.profileArn || (accountBound ? "" : resolveDefaultProfileArn(authMethod));
     if (profileArn) {
+      // Kiro 1.5.11 runtime reads x-amzn-kiro-profile-arn; CodeWhisperer/Q
+      // surfaces still read the legacy header. Send both.
+      headers["x-amzn-kiro-profile-arn"] = profileArn;
       headers["x-amzn-codewhisperer-profile-arn"] = profileArn;
     }
 
@@ -348,7 +361,45 @@ export class KiroExecutor extends BaseExecutor {
   }
 
   transformRequest(model, body, stream, credentials) {
-    return body;
+    // Non-Chat clients can pass through the generic thinking normalizer after
+    // translation. Remove its unsupported fields at the final wire boundary,
+    // including integrity retries, while retaining Kiro's nested native effort.
+    if (body && typeof body === "object") {
+      for (const field of KIRO_UNSUPPORTED_THINKING_FIELDS) delete body[field];
+      // chatCore adds a generic top-level model; Kiro only accepts modelId on
+      // each userInputMessage — the extra field invalidates the request.
+      delete body.model;
+    }
+    // Context fitting runs after translation and can change the wire turns.
+    // Reconcile the final history, not only the translator's earlier copy.
+    const state = body?.conversationState;
+    if (!state?.currentMessage?.userInputMessage) return body;
+    const current = state.currentMessage.userInputMessage;
+    const canonical = canonicalizeKiroConversation({
+      history: state.history,
+      currentMessage: state.currentMessage,
+      modelId: current.modelId || resolveKiroModel(model),
+      toolSpecs: current.userInputMessageContext?.tools || [],
+    });
+    if (!canonical.valid) {
+      throw new Error(`Invalid final Kiro conversation: ${canonical.errors.join(", ")}`);
+    }
+    // Live probe: /generateAssistantResponse returns 400 "profileArn is
+    // required" when the top-level profileArn is missing. Retries/context
+    // fitting can rebuild the body, so enforce it at the final wire boundary.
+    const psd = credentials?.providerSpecificData || {};
+    const authMethod = psd.authMethod;
+    const accountBound = authMethod === "api_key" || authMethod === "idc" || authMethod === "external_idp";
+    const profileArn = psd.profileArn || (accountBound ? "" : resolveDefaultProfileArn(authMethod));
+    return {
+      ...body,
+      ...(profileArn ? { profileArn } : {}),
+      conversationState: {
+        ...state,
+        history: canonical.history,
+        currentMessage: canonical.currentMessage,
+      },
+    };
   }
 
   /**
@@ -369,6 +420,20 @@ export class KiroExecutor extends BaseExecutor {
    */
   async execute(args) {
     const result = await super.execute(args);
+    if (result?.response?.status === 400) {
+      // Diagnostic only: a 400 is now retried on the alternate surfaces, but
+      // keep a redacted fingerprint so a future regression is debuggable.
+      let upstream = "";
+      try {
+        upstream = typeof result.response.clone === "function"
+          ? (await result.response.clone().text()).slice(0, 220)
+          : typeof result.response.text === "function"
+            ? (await result.response.text()).slice(0, 220)
+            : "";
+      } catch { /* diagnostic only */ }
+      const msg = args?.body?.conversationState?.currentMessage?.userInputMessage;
+      console.log(`[KIRO_400] url=${result.url || "-"} keys=${Object.keys(args?.body || {}).join("|")} modelId=${msg?.modelId || "-"} hasProfileArn=${!!args?.body?.profileArn} history=${args?.body?.conversationState?.history?.length ?? 0} upstream=${upstream.replace(/\s+/g, " ")}`);
+    }
     if (result?.response?.ok) {
       // KIRO_INTEGRITY_GATE=off streams through, forfeiting the tool-call repair retry.
       if (process.env.KIRO_INTEGRITY_GATE === "off") {

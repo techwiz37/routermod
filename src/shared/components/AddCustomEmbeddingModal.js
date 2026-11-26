@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Modal, Input, Button, Badge } from "@/shared/components";
+import { Input, Button } from "@/shared/components";
+import AntaresModal from "@/shared/components/AntaresModal";
+import { SurfaceSkinContext } from "@/shared/components/SurfaceSkinContext";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
@@ -15,16 +17,9 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
     systemPrompt: "",
   });
   const [submitting, setSubmitting] = useState(false);
-  const [checkKey, setCheckKey] = useState("");
-  const [checkModelId, setCheckModelId] = useState("");
-  const [validating, setValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    setValidationResult(null);
-    setCheckKey("");
-    setCheckModelId("");
     if (isEdit) {
       setFormData({
         name: node.name || "",
@@ -68,114 +63,64 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
     }
   };
 
-  const handleValidate = async () => {
-    setValidating(true);
-    try {
-      const res = await fetch("/api/provider-nodes/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseUrl: formData.baseUrl,
-          apiKey: checkKey,
-          type: "custom-embedding",
-          modelId: checkModelId.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      setValidationResult(data);
-    } catch {
-      setValidationResult({ valid: false, error: "Network error" });
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  const renderValidationResult = () => {
-    if (!validationResult) return null;
-    const { valid, error, dimensions } = validationResult;
-    if (valid) {
-      return (
-        <>
-          <Badge variant="success">Valid</Badge>
-          {dimensions && <span className="text-sm text-text-muted">{dimensions} dims</span>}
-        </>
-      );
-    }
-    return (
-      <div className="flex flex-col gap-1">
-        <Badge variant="error">Invalid</Badge>
-        {error && <span className="text-sm text-red-500">{error}</span>}
-      </div>
-    );
-  };
+  const disabled = !formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || submitting;
 
   return (
-    <Modal isOpen={isOpen} title={isEdit ? "Edit Custom Embedding" : "Add Custom Embedding"} onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        <Input
-          label="Name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Voyage AI"
-          hint="Required. A friendly label for this embedding provider."
-        />
-        <Input
-          label="Prefix"
-          value={formData.prefix}
-          onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
-          placeholder="voyage"
-          hint="Required. Used as the provider prefix for model IDs (e.g. voyage/voyage-3)."
-        />
-        <Input
-          label="Base URL"
-          value={formData.baseUrl}
-          onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-          placeholder="https://api.voyageai.com/v1"
-          hint="Most embedding APIs are OpenAI-compatible: Voyage, Cohere, Jina, Mistral, Together..."
-        />
-        <textarea
-          value={formData.systemPrompt}
-          onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
-          placeholder="Kamu adalah ai devtalk yang dibuat oleh Techwiz. model kamu bernama asolole"
-          rows={3}
-          className="w-full rounded-md border border-input-border bg-input text-text-primary text-sm px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-        <p className="text-xs text-text-muted">Optional. System prompt injected into every request for this provider. Leave empty to use the default system prompt.</p>
-        <Input
-          label="API Key (for Check)"
-          type="password"
-          value={checkKey}
-          onChange={(e) => setCheckKey(e.target.value)}
-        />
-        <Input
-          label="Model ID (for Check)"
-          value={checkModelId}
-          onChange={(e) => setCheckModelId(e.target.value)}
-          placeholder="e.g. voyage-3, embed-english-v3.0, text-embedding-3-small"
-          hint="Required for validation. Will send a test embeddings request."
-        />
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={handleValidate}
-            disabled={!checkKey || !checkModelId.trim() || validating || !formData.baseUrl.trim()}
-            variant="secondary"
-          >
-            {validating ? "Checking..." : "Check"}
-          </Button>
-          {renderValidationResult()}
+    <AntaresModal
+      isOpen={isOpen}
+      title={isEdit ? "Edit Custom Embedding" : "Add Custom Embedding"}
+      subtitle={isEdit ? "Update the endpoint details for this embedding provider." : "Add an OpenAI-compatible embedding provider."}
+      onClose={onClose}
+      size="lg"
+      hideScrollbar
+      footer={
+        <SurfaceSkinContext.Provider value="antares">
+          <div className="flex w-full gap-2">
+            <Button skin="antares" onClick={handleSubmit} fullWidth disabled={disabled}>
+              {submitting ? (isEdit ? "Saving..." : "Creating...") : (isEdit ? "Save" : "Create")}
+            </Button>
+            <Button skin="antares" variant="ghost" onClick={onClose} fullWidth>Cancel</Button>
+          </div>
+        </SurfaceSkinContext.Provider>
+      }
+    >
+      <SurfaceSkinContext.Provider value="antares">
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="Voyage AI"
+            hint="Required. A friendly label for this embedding provider."
+          />
+          <Input
+            label="Prefix"
+            value={formData.prefix}
+            onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
+            placeholder="voyage"
+            hint="Required. Used as the provider prefix for model IDs (e.g. voyage/voyage-3)."
+          />
+          <Input
+            label="Base URL"
+            value={formData.baseUrl}
+            onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+            placeholder="https://api.voyageai.com/v1"
+            hint="Most embedding APIs are OpenAI-compatible: Voyage, Cohere, Jina, Mistral, Together..."
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--t-ink)]">System Prompt (Optional)</label>
+            <textarea
+              value={formData.systemPrompt}
+              onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+              placeholder="You are a devtalk AI created by Techwiz. Your model is named asolole"
+              rows={3}
+              className="w-full resize-none rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] px-3.5 py-2.5 text-[16px] text-[var(--t-ink)] placeholder:text-[var(--t-dim)] focus:border-[var(--t-accent)] focus:outline-none sm:text-sm"
+            />
+            <p className="text-xs text-[var(--t-muted)]">Injected into every request for this provider. Leave empty to use the default system prompt.</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleSubmit}
-            fullWidth
-            disabled={!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || submitting}
-          >
-            {submitting ? (isEdit ? "Saving..." : "Creating...") : (isEdit ? "Save" : "Create")}
-          </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
-        </div>
-      </div>
-    </Modal>
+      </SurfaceSkinContext.Provider>
+    </AntaresModal>
   );
 }
 
@@ -184,10 +129,5 @@ AddCustomEmbeddingModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   onCreated: PropTypes.func,
   onSaved: PropTypes.func,
-  node: PropTypes.shape({
-    id: PropTypes.string,
-    name: PropTypes.string,
-    prefix: PropTypes.string,
-    baseUrl: PropTypes.string,
-  }),
+  node: PropTypes.object,
 };

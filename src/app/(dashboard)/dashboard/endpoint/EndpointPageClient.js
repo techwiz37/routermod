@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import { Button, Input, Toggle, ConfirmModal } from "@/shared/components";
 import AntaresModal from "@/shared/components/AntaresModal";
@@ -29,9 +29,24 @@ import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
 import KeyAccessControls from "./components/KeyAccessControls";
 import KeyLiveStats from "./components/KeyLiveStats";
+import KeyCardSlider from "./components/KeyCardSlider";
 import IpBlacklistModal from "./components/IpBlacklistModal";
+import KeyConfigModal from "./components/KeyConfigModal";
 import DashboardProviderOverview from "./components/DashboardProviderOverview";
 import { usePageReady } from "@/shared/components/PageReadyContext";
+
+function formatRemaining(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  if (d > 0) return `${d}d ${pad(h)}h ${pad(m)}m`;
+  if (h > 0) return `${pad(h)}h ${pad(m)}m ${pad(s)}s`;
+  return `${pad(m)}m ${pad(s)}s`;
+}
+
 export default function APIPageClient({ machineId }) {
   const addNotification = useNotificationStore((s) => s.addNotification);
   const [keys, setKeys] = useState([]);
@@ -42,22 +57,48 @@ export default function APIPageClient({ machineId }) {
   const [confirmState, setConfirmState] = useState(null);
   const [showModelsModal, setShowModelsModal] = useState(false);
   const [fetchedModelsData, setFetchedModelsData] = useState(null);
+  const [fetchedModelsQuery, setFetchedModelsQuery] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const expiringHandled = useRef(new Set());
+  const filteredFetchedModels = useMemo(() => {
+    const q = fetchedModelsQuery.trim().toLowerCase();
+    const list = fetchedModelsData?.data || [];
+    if (!q) return list;
+    return list.filter((m) => String(m?.id || "").toLowerCase().includes(q));
+  }, [fetchedModelsData, fetchedModelsQuery]);
+
+  // One shared clock drives every key countdown and removes expired keys.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    for (const key of keys) {
+      if (!key?.expiresAt || expiringHandled.current.has(key.id)) continue;
+      const expiresAt = new Date(key.expiresAt).getTime();
+      if (!Number.isFinite(expiresAt) || now < expiresAt) continue;
+      expiringHandled.current.add(key.id);
+      fetch(`/api/keys/${key.id}`, { method: "DELETE" })
+        .then((r) => {
+          if (r.ok) {
+            setKeys((prev) => prev.filter((k) => k.id !== key.id));
+            setVisibleKeys((prev) => {
+              const next = new Set(prev);
+              next.delete(key.id);
+              return next;
+            });
+          } else {
+            expiringHandled.current.delete(key.id);
+          }
+        })
+        .catch(() => expiringHandled.current.delete(key.id));
+    }
+  }, [now, keys]);
+
   const [fetchingModelKey, setFetchingModelKey] = useState(null);
   const [configKey, setConfigKey] = useState(null);
   const [blacklistKey, setBlacklistKey] = useState(null);
-  const [configMinuteLimit, setConfigMinuteLimit] = useState(0);
-  const [configHourLimit, setConfigHourLimit] = useState(0);
-  const [configDailyLimit, setConfigDailyLimit] = useState(0);
-  const [configMonthLimit, setConfigMonthLimit] = useState(0);
-  const [configMaintenance, setConfigMaintenance] = useState(false);
-  const [configMaintenanceMessage, setConfigMaintenanceMessage] = useState("");
-  const [savingKeyConfig, setSavingKeyConfig] = useState(false);
-  const [configExpiresInDays, setConfigExpiresInDays] = useState(0);
-  const [configTokenLimit, setConfigTokenLimit] = useState(0);
-  const [configTokenWindow, setConfigTokenWindow] = useState("24h");
-  const [configSpendLimit, setConfigSpendLimit] = useState(0);
-  const [configTokensPerMinute, setConfigTokensPerMinute] = useState(0);
-  const [configMaxConcurrent, setConfigMaxConcurrent] = useState(0);
   const [liveStats, setLiveStats] = useState({});
   usePageReady(loading);
 
@@ -105,6 +146,7 @@ export default function APIPageClient({ machineId }) {
 
   const [visibleKeys, setVisibleKeys] = useState(new Set());
 
+
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined")
@@ -114,7 +156,7 @@ export default function APIPageClient({ machineId }) {
   const { copied, copy } = useCopyToClipboard();
 
   const isLoginUnsafe = !requireLogin;
-  const unsafeReason = "Aktifkan \"Require login\" sebelum mengaktifkan tunnel.";
+  const unsafeReason = "Enable \"Require login\" before activating the tunnel.";
 
   useEffect(() => {
     if (tsLogRef.current) tsLogRef.current.scrollTop = tsLogRef.current.scrollHeight;
@@ -796,51 +838,6 @@ export default function APIPageClient({ machineId }) {
 
   const openKeyConfig = (key) => {
     setConfigKey(key);
-    setConfigMinuteLimit(key.minuteLimit || 0);
-    setConfigHourLimit(key.hourLimit || 0);
-    setConfigDailyLimit(key.dailyLimit || 0);
-    setConfigMonthLimit(key.monthLimit || 0);
-    setConfigTokenLimit(key.tokenLimit || 0);
-    setConfigTokenWindow(key.tokenLimitWindow || "24h");
-    setConfigSpendLimit(key.spendLimit || 0);
-    setConfigTokensPerMinute(key.tokensPerMinuteLimit || 0);
-    setConfigMaxConcurrent(key.maxConcurrentLimit || 0);
-    setConfigMaintenance(!!key.maintenanceEnabled);
-    setConfigMaintenanceMessage(key.maintenanceMessage || "");
-    setConfigExpiresInDays(key.expiresAt ? Math.max(1, Math.ceil((new Date(key.expiresAt).getTime() - Date.now()) / 86400000)) : 0);
-  };
-
-  const saveKeyConfig = async () => {
-    if (!configKey) return;
-    setSavingKeyConfig(true);
-    try {
-      const res = await fetch(`/api/keys/${configKey.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          minuteLimit: Math.max(0, Number(configMinuteLimit) || 0),
-          hourLimit: Math.max(0, Number(configHourLimit) || 0),
-          dailyLimit: Math.max(0, Number(configDailyLimit) || 0),
-          monthLimit: Math.max(0, Number(configMonthLimit) || 0),
-          tokenLimit: Math.max(0, Number(configTokenLimit) || 0),
-          tokenLimitWindow: configTokenWindow,
-          spendLimit: Math.max(0, Number(configSpendLimit) || 0),
-          tokensPerMinuteLimit: Math.max(0, Number(configTokensPerMinute) || 0),
-          maxConcurrentLimit: Math.max(0, Number(configMaxConcurrent) || 0),
-          maintenanceEnabled: configMaintenance,
-          maintenanceMessage: configMaintenanceMessage,
-          expiresInDays: Math.max(0, Number(configExpiresInDays) || 0),
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to save API key configuration");
-      setKeys((prev) => prev.map((key) => key.id === configKey.id ? { ...key, ...data.key } : key));
-      setConfigKey(null);
-    } catch (error) {
-      addNotification({ type: "error", title: "API Key", message: error.message });
-    } finally {
-      setSavingKeyConfig(false);
-    }
   };
 
   const maskKey = (fullKey) => {
@@ -874,7 +871,7 @@ export default function APIPageClient({ machineId }) {
           <div className="lf-loading-dots">
             <span /><span /><span />
           </div>
-          <p className="lf-loading-text">{translate("Memuat dashboard...")}</p>
+          <p className="lf-loading-text">{translate("Loading dashboard...")}</p>
         </div>
       </div>
     );
@@ -899,8 +896,9 @@ export default function APIPageClient({ machineId }) {
           {translate("Endpoint")}<span className="an-dim mx-2">&amp;</span>{translate("Keys")}
         </h1>
         <p className="an-hint max-w-[70ch]">
-          Satu endpoint untuk seluruh model AI. Salin base URL, buat API key, lalu pakai
-          di klien OpenAI-compatible apa pun.
+          {translate(
+            "One endpoint for every AI model. Copy the base URL, create an API key, and use it in any OpenAI-compatible client."
+          )}
         </p>
       </header>
 
@@ -911,7 +909,7 @@ export default function APIPageClient({ machineId }) {
       <AntaresPanel
         icon="dns"
         title={translate("API Endpoint")}
-        subtitle={translate("Alamat akses untuk seluruh request OpenAI-compatible")}
+        subtitle={translate("Access address for all OpenAI-compatible requests")}
       >
         {/* Endpoint rows */}
         <div className="flex flex-col gap-3">
@@ -986,8 +984,8 @@ export default function APIPageClient({ machineId }) {
               onChange={() => handleTunnelDashboardAccess(!tunnelDashboardAccess)}
             />
             <div className="flex items-center gap-1.5 min-w-0">
-              <p className="text-sm leading-tight">Izinkan akses dasbor melalui domain</p>
-              <Tooltip text="Jika aktif, dashboard bisa diakses lewat domain r<id>.abc-tunnel.us. Jika nonaktif, hanya endpoint API yang bisa diakses via domain publik." />
+              <p className="text-sm leading-tight">{translate("Allow dashboard access via domain")}</p>
+              <Tooltip text="When enabled, the dashboard is reachable via the r<id>.abc-tunnel.us domain. When disabled, only the API endpoint is accessible through the public domain." />
             </div>
           </div>
         )}
@@ -998,7 +996,7 @@ export default function APIPageClient({ machineId }) {
         id="require-api-key"
         icon="vpn_key"
         title={translate("API Keys")}
-        subtitle={translate("Kunci yang dipakai klien untuk mengakses endpoint")}
+        subtitle={translate("Keys clients use to access the endpoint")}
         action={
           <AntaresButton icon="add" size="sm" onClick={() => setShowAddModal(true)}>
             <span className="hidden sm:inline">{translate("Create Key")}</span>
@@ -1036,123 +1034,180 @@ export default function APIPageClient({ machineId }) {
               {translate("Create Key")}
             </AntaresButton>
           </div>
-        ) : (
-          <div className="flex flex-col">
-            {keys.map((key) => (
-              <div
-                key={key.id}
-                className={`group min-w-0 rounded-xl border border-[var(--t-line-soft)] bg-[var(--t-surface)] p-3 shadow-sm transition hover:border-[var(--t-accent)]/40 sm:p-4 ${key.isActive === false ? "opacity-60" : ""}`}
-              >
-                {/* Top row: name + actions */}
-                <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="min-w-0 truncate text-sm font-semibold text-[var(--t-ink)]">{key.name}</p>
-                  <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-                    <button
-                      onClick={() => toggleKeyVisibility(key.id)}
-                      className="p-1 hover:bg-[var(--t-raised)] rounded text-[var(--t-muted)] hover:text-[var(--t-ink)] transition-colors"
-                      title={visibleKeys.has(key.id) ? translate("Hide key") : translate("Show key")}
-                    >
-                      <span className="material-symbols-outlined text-[15px]">
-                        {visibleKeys.has(key.id) ? "visibility_off" : "visibility"}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => copy(key.key, key.id)}
-                      className="p-1 hover:bg-[var(--t-raised)] rounded text-[var(--t-muted)] hover:text-[var(--t-ink)] transition-colors"
-                      title={translate("Copy key")}
-                    >
-                      <span className="material-symbols-outlined text-[15px]">
-                        {copied === key.id ? "check" : "content_copy"}
-                      </span>
-                    </button>
-                    <Toggle
-                      size="sm"
-                      checked={key.isActive ?? true}
-                      onChange={(checked) => {
-                        if (key.isActive && !checked) {
-                          setConfirmState({
-                            title: translate("Pause API Key"),
-                            message: `${translate("Pause API key")} "${key.name}"?\n\n${translate("This key will stop working immediately but can be resumed later.")}`,
-                            onConfirm: async () => {
-                              setConfirmState(null);
-                              handleToggleKey(key.id, checked);
-                            }
-                          });
-                        } else {
-                          handleToggleKey(key.id, checked);
-                        }
-                      }}
-                      title={key.isActive ? translate("Pause key") : translate("Resume key")}
-                    />
-                    <button
-                      onClick={() => openKeyConfig(key)}
-                      className="p-1.5 hover:bg-[var(--t-accent-soft)] rounded text-[var(--t-accent)] transition-all"
-                      title={translate("Configure API key")}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">settings</span>
-                    </button>
-                    <button
-                      onClick={() => setBlacklistKey(key)}
-                      className={`relative p-1.5 rounded transition-all ${key.ipBlacklist?.length ? "text-[var(--t-danger)] hover:bg-[var(--t-danger)]/10" : "text-[var(--t-muted)] hover:bg-[var(--t-raised)] hover:text-[var(--t-ink)]"}`}
-                      title={key.ipBlacklist?.length ? `${translate("IP Blacklist")} (${key.ipBlacklist.length})` : translate("IP Blacklist")}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">block</span>
-                      {key.ipBlacklist?.length > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[var(--t-danger)] text-white text-[9px] leading-[14px] text-center font-bold">
-                          {key.ipBlacklist.length > 99 ? "99+" : key.ipBlacklist.length}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteKey(key.id)}
-                      className="p-1.5 hover:bg-[var(--t-danger)]/10 rounded text-[var(--t-danger)] transition-all"
-                      title={translate("Delete key")}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">delete</span>
-                    </button>
-                    <button
-                      onClick={() => fetchModelsForKey(key)}
-                      disabled={fetchingModelKey === key.id || !key.isActive}
-                      className="p-1.5 hover:bg-[var(--t-accent-soft)] rounded text-[var(--t-accent)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      title={translate("Fetch models")}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">
-                        {fetchingModelKey === key.id ? "progress_activity" : "model_training"}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-                {/* Key value */}
-                <code className="mt-3 block max-w-full overflow-hidden rounded-lg bg-[var(--t-raised)] px-2.5 py-2 text-[11px] leading-relaxed text-[var(--t-muted)] font-mono break-all">
-                  {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
-                </code>
-                {/* Meta */}
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <p className="text-xs text-[var(--t-muted)]">
-                    {translate("Created")} {new Date(key.createdAt).toLocaleDateString()}
-                  </p>
-                  {key.isActive === false && (
-                    <span className="text-xs text-[var(--color-warning)]">· {translate("Paused")}</span>
-                  )}
-                </div>
-                <KeyLiveStats keyData={key} stats={liveStats[key.id]} onReset={refreshKeyLiveStats} />
-                <KeyAccessControls
-                  apiKey={key}
-                  onChange={(access) => handleUpdateKeyAccess(key.id, access)}
-                  onRequestRestrict={() => setConfirmState({
-                    title: translate("Restrict API Key"),
-                    message: `${translate("Restrict API key")} "${key.name}"?\n\n${translate("It will only be able to call the combos and models you add. Until you add one, it can call nothing.")}`,
-                    onConfirm: async () => {
-                      setConfirmState(null);
-                      handleUpdateKeyAccess(key.id, { restricted: true, allow: key.access?.allow || [] });
-                    }
-                  })}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </AntaresPanel>
+         ) : (
+           <>
+             {(() => {
+               return (
+                 <KeyCardSlider>
+                   {keys.map((key) => (
+                 <div
+                   key={key.id}
+                   className={`key-card ${key.isActive === false ? "is-paused" : ""}`}
+                 >
+                   <div className="key-card-head">
+                     {/* Header: identity + status + actions */}
+                     <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
+                       <div className="flex min-w-0 items-center gap-3">
+                         <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--t-line)] bg-[var(--t-field)] text-[var(--t-accent)]">
+                           <span className="material-symbols-outlined text-[20px]">vpn_key</span>
+                         </div>
+                         <div className="min-w-0">
+                           <h3 className="truncate text-sm font-semibold text-[var(--t-ink)]" title={key.name}>{key.name}</h3>
+                           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                             <span className={`an-chip ${key.isActive === false ? "danger" : "ok"}`}>
+                               <span className="size-1.5 rounded-full bg-current" />
+                               {key.isActive === false ? translate("Paused") : translate("Active")}
+                             </span>
+                             <span className="truncate text-[11px] text-[var(--t-muted)]">
+                               {translate("Created")} {new Date(key.createdAt).toLocaleDateString()}
+                             </span>
+                             {(() => {
+                               // Explicit expiry is deleted automatically; a fixed
+                               // quota lifetime (Reset token off) is only disabled,
+                               // so the badge must not promise removal.
+                               const expiry = key.expiresAt || key.effectiveExpiresAt;
+                               if (!expiry) return null;
+                               const explicit = Boolean(key.expiresAt);
+                               const remaining = new Date(expiry).getTime() - now;
+                               const tone = remaining <= 0
+                                 ? "bg-[var(--t-danger-soft)] text-[var(--t-danger)]"
+                                 : remaining < 86400000
+                                   ? "bg-[var(--t-raised)] text-[#f0a13a]"
+                                   : "bg-[var(--t-field)] text-[var(--t-muted)]";
+                               return (
+                                 <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${tone}`} title={`${translate("Expires")}: ${new Date(expiry).toLocaleString()}`}>
+                                   <span className="material-symbols-outlined text-[12px]">schedule</span>
+                                   {remaining <= 0
+                                     ? translate(explicit ? "Expired — removing" : "Expired")
+                                     : `${translate("Expires in")} ${formatRemaining(remaining)}`}
+                                 </span>
+                               );
+                             })()}
+                           </div>
+                         </div>
+                       </div>
+
+                       <div className="flex shrink-0 flex-wrap items-center gap-0.5 sm:gap-1">
+                         <button
+                           onClick={() => toggleKeyVisibility(key.id)}
+                           className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-[var(--t-muted)] transition-all hover:border-[var(--t-line)] hover:bg-[var(--t-raised)] hover:text-[var(--t-ink)] focus-visible:outline-2 focus-visible:outline-[var(--t-accent)]"
+                           title={visibleKeys.has(key.id) ? translate("Hide key") : translate("Show key")}
+                         >
+                           <span className="material-symbols-outlined text-[16px]">
+                             {visibleKeys.has(key.id) ? "visibility_off" : "visibility"}
+                           </span>
+                         </button>
+                         <button
+                           onClick={() => copy(key.key, key.id)}
+                           className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-[var(--t-muted)] transition-all hover:border-[var(--t-line)] hover:bg-[var(--t-raised)] hover:text-[var(--t-ink)] focus-visible:outline-2 focus-visible:outline-[var(--t-accent)]"
+                           title={translate("Copy key")}
+                         >
+                           <span className="material-symbols-outlined text-[16px]">
+                             {copied === key.id ? "check" : "content_copy"}
+                           </span>
+                         </button>
+                         <Toggle
+                           size="sm"
+                           checked={key.isActive ?? true}
+                           onChange={(checked) => {
+                             if (key.isActive && !checked) {
+                               setConfirmState({
+                                 title: translate("Pause API Key"),
+                                 message: `${translate("Pause API key")} "${key.name}"?\n\n${translate("This key will stop working immediately but can be resumed later.")}`,
+                                 onConfirm: async () => {
+                                   setConfirmState(null);
+                                   handleToggleKey(key.id, checked);
+                                 }
+                               });
+                             } else {
+                               handleToggleKey(key.id, checked);
+                             }
+                           }}
+                           title={key.isActive ? translate("Pause key") : translate("Resume key")}
+                         />
+                         <div className="mx-0.5 hidden h-5 w-px bg-[var(--t-line)] sm:block" />
+                         <button
+                           onClick={() => openKeyConfig(key)}
+                           className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-[var(--t-accent)] transition-all hover:border-[var(--t-accent)]/40 hover:bg-[var(--t-accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--t-accent)]"
+                           title={translate("Configure API key")}
+                         >
+                           <span className="material-symbols-outlined text-[17px]">settings</span>
+                         </button>
+                         <button
+                           onClick={() => setBlacklistKey(key)}
+                           className={`relative inline-flex size-8 items-center justify-center rounded-lg border border-transparent transition-all focus-visible:outline-2 focus-visible:outline-[var(--t-accent)] ${key.ipBlacklist?.length ? "text-[var(--t-danger)] hover:bg-[var(--t-danger)]/10" : "text-[var(--t-muted)] hover:bg-[var(--t-raised)] hover:text-[var(--t-ink)]"}`}
+                           title={key.ipBlacklist?.length ? `${translate("IP Blacklist")} (${key.ipBlacklist.length})` : translate("IP Blacklist")}
+                         >
+                           <span className="material-symbols-outlined text-[17px]">block</span>
+                           {key.ipBlacklist?.length > 0 && (
+                             <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-[var(--t-danger)] text-white text-[9px] leading-[15px] text-center font-bold">
+                               {key.ipBlacklist.length > 99 ? "99+" : key.ipBlacklist.length}
+                             </span>
+                           )}
+                         </button>
+                         <button
+                           onClick={() => fetchModelsForKey(key)}
+                           disabled={fetchingModelKey === key.id || !key.isActive}
+                           className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-[var(--t-accent)] transition-all hover:border-[var(--t-accent)]/40 hover:bg-[var(--t-accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--t-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+                           title={translate("Fetch models")}
+                         >
+                           <span className="material-symbols-outlined text-[17px]">
+                             {fetchingModelKey === key.id ? "progress_activity" : "model_training"}
+                           </span>
+                         </button>
+                         <button
+                           onClick={() => handleDeleteKey(key.id)}
+                           className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-[var(--t-danger)] transition-all hover:border-[var(--t-danger)]/40 hover:bg-[var(--t-danger)]/10 focus-visible:outline-2 focus-visible:outline-[var(--t-danger)]"
+                           title={translate("Delete key")}
+                         >
+                           <span className="material-symbols-outlined text-[17px]">delete</span>
+                         </button>
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="key-card-body">
+                     {/* Key value */}
+                     <div className="flex min-w-0 items-center gap-2 rounded-[10px] border border-[var(--t-line-soft)] bg-[var(--t-field)] px-3 py-2.5 transition-colors focus-within:border-[var(--t-accent)]">
+                       <span className="material-symbols-outlined shrink-0 text-[16px] text-[var(--t-muted)]">key</span>
+                       <code className="min-w-0 flex-1 truncate font-mono text-[11px] leading-relaxed text-[var(--t-muted)]">
+                         {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
+                       </code>
+                       <button
+                         onClick={() => copy(key.key, key.id)}
+                         className="shrink-0 rounded-md p-1 text-[var(--t-muted)] transition-colors hover:bg-[var(--t-raised)] hover:text-[var(--t-ink)]"
+                         title={translate("Copy key")}
+                       >
+                         <span className="material-symbols-outlined text-[15px]">
+                           {copied === key.id ? "check" : "content_copy"}
+                         </span>
+                       </button>
+                     </div>
+
+                     <KeyLiveStats keyData={key} stats={liveStats[key.id]} onReset={refreshKeyLiveStats} />
+                     <div className="mt-3 rounded-xl border border-[var(--t-line-soft)] bg-[var(--t-raised)]/40 p-3">
+                       <KeyAccessControls
+                         apiKey={key}
+                         onChange={(access) => handleUpdateKeyAccess(key.id, access)}
+                         onRequestRestrict={() => setConfirmState({
+                           title: translate("Restrict API Key"),
+                           message: `${translate("Restrict API key")} "${key.name}"?\n\n${translate("It will only be able to call the combos and models you add. Until you add one, it can call nothing.")}`,
+                           onConfirm: async () => {
+                             setConfirmState(null);
+                             handleUpdateKeyAccess(key.id, { restricted: true, allow: key.access?.allow || [] });
+                           }
+                         })}
+                       />
+                     </div>
+                   </div>
+                 </div>
+                   ))}
+                 </KeyCardSlider>
+               );
+             })()}
+           </>
+         )}
+       </AntaresPanel>
 
       {/* Add Key Modal */}
       <AntaresModal
@@ -1168,7 +1223,7 @@ export default function APIPageClient({ machineId }) {
             label={translate("Key Name")}
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
-            placeholder={translate("Kosongkan untuk auto (rmod-xxxxxx)")}
+            placeholder={translate("Leave blank for auto (rmod-xxxxxx)")}
           />
           <div className="flex gap-2">
             <Button skin="antares" onClick={handleCreateKey} fullWidth>
@@ -1188,160 +1243,18 @@ export default function APIPageClient({ machineId }) {
         </div>
       </AntaresModal>
 
-      {/* Per-key request limit and maintenance configuration */}
-      <AntaresModal
-        isOpen={!!configKey}
-        title={translate("API Key Configuration")}
-        subtitle={configKey ? configKey.name : ""}
-        onClose={() => !savingKeyConfig && setConfigKey(null)}
-      >
-        <div className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Input
-                variant="antares"
-                type="number"
-                min="0"
-                label={translate("Maximum requests per minute")}
-                value={configMinuteLimit}
-                onChange={(e) => setConfigMinuteLimit(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <Input
-                variant="antares"
-                type="number"
-                min="0"
-                label={translate("Maximum requests per hour")}
-                value={configHourLimit}
-                onChange={(e) => setConfigHourLimit(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <Input
-                variant="antares"
-                type="number"
-                min="0"
-                label={translate("Maximum requests per day")}
-                value={configDailyLimit}
-                onChange={(e) => setConfigDailyLimit(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <Input
-                variant="antares"
-                type="number"
-                min="0"
-                label={translate("Maximum requests per month")}
-                value={configMonthLimit}
-                onChange={(e) => setConfigMonthLimit(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          </div>
-          <p className="-mt-2 text-xs text-[var(--t-muted)]">{translate("Use 0 for unlimited requests. Each window resets automatically (per minute, hour, day, and month).")}</p>
-
-          {/* Token quota */}
-          <div className="border-t border-[var(--t-line-soft)] pt-4 flex flex-col gap-3">
-            <div>
-              <p className="text-sm font-medium">{translate("API key token quota")}</p>
-              <p className="text-xs text-[var(--t-muted)] mt-1">
-                {translate("Cap how many tokens this key may consume inside a rolling window. 0 = unlimited.")}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                variant="antares"
-                type="number"
-                min="0"
-                label={translate("Max tokens")}
-                value={configTokenLimit}
-                onChange={(e) => setConfigTokenLimit(e.target.value)}
-                placeholder="0"
-              />
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-[var(--t-ink)]">{translate("Window")}</label>
-                <select
-                  value={configTokenWindow}
-                  onChange={(e) => setConfigTokenWindow(e.target.value)}
-                  className="w-full py-2.5 px-3.5 text-sm text-[var(--t-ink)] bg-[var(--t-field)] rounded-[10px] border border-[var(--t-line)] font-mono focus:outline-none focus:border-[var(--t-accent)] transition-colors"
-                >
-                  {Object.entries(TOKEN_WINDOWS).map(([value, meta]) => (
-                    <option key={value} value={value}>{translate(meta.label)}</option>
-                  ))}
-                </select>
-              </div>
-              <Input
-                variant="antares"
-                type="number"
-                min="0"
-                step="0.01"
-                label={translate("Max spend (USD)")}
-                value={configSpendLimit}
-                onChange={(e) => setConfigSpendLimit(e.target.value)}
-                placeholder={translate("0 = no cap")}
-              />
-              <Input
-                variant="antares"
-                type="number"
-                min="0"
-                label={translate("Max tokens per minute")}
-                value={configTokensPerMinute}
-                onChange={(e) => setConfigTokensPerMinute(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <Input
-              variant="antares"
-              type="number"
-              min="0"
-              label={translate("Max concurrent requests")}
-              value={configMaxConcurrent}
-              onChange={(e) => setConfigMaxConcurrent(e.target.value)}
-              placeholder={translate("0 = unlimited")}
-            />
-          </div>
-
-          <div>
-            <Input
-              variant="antares"
-              type="number"
-              min="0"
-              label={translate("Expire after (days)")}
-              value={configExpiresInDays}
-              onChange={(e) => setConfigExpiresInDays(e.target.value)}
-              placeholder={translate("0 = never expires")}
-            />
-            <p className="text-xs text-[var(--t-muted)] mt-1.5">{translate("The countdown starts when you save. After expiry, the key is automatically disabled.")}</p>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 border-t border-[var(--t-line-soft)] pt-4">
-            <div>
-              <p className="text-sm font-medium">{translate("Maintenance mode")}</p>
-              <p className="text-xs text-[var(--t-muted)] mt-1">{translate("Reject requests using this key with your custom message.")}</p>
-            </div>
-            <Toggle checked={configMaintenance} onChange={setConfigMaintenance} />
-          </div>
-
-          {configMaintenance && (
-            <Input
-              variant="antares"
-              label={translate("Maintenance message")}
-              value={configMaintenanceMessage}
-              onChange={(e) => setConfigMaintenanceMessage(e.target.value)}
-              placeholder={translate("API sedang maintenance, coba lagi nanti.")}
-            />
-          )}
-
-          <div className="flex gap-2">
-            <Button skin="antares" onClick={saveKeyConfig} loading={savingKeyConfig} fullWidth>{translate("Save")}</Button>
-            <Button skin="antares" variant="ghost" onClick={() => setConfigKey(null)} disabled={savingKeyConfig} fullWidth>{translate("Cancel")}</Button>
-          </div>
-        </div>
-      </AntaresModal>
+      {/* Per-key request limit, quota and maintenance configuration */}
+      <KeyConfigModal
+        apiKey={configKey}
+        onClose={() => setConfigKey(null)}
+        onSaved={(updated) => {
+          if (updated) {
+            setKeys((prev) => prev.map((k) => (k.id === updated.id ? { ...k, ...updated } : k)));
+          }
+          setConfigKey(null);
+        }}
+        addNotification={addNotification}
+      />
 
       <IpBlacklistModal
         apiKey={blacklistKey}
@@ -1557,33 +1470,58 @@ export default function APIPageClient({ machineId }) {
       <AntaresModal
         isOpen={showModelsModal}
         title={translate("Fetched Models")}
-        onClose={() => { setShowModelsModal(false); setFetchedModelsData(null); }}
-      >
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-[var(--t-muted)]">
-            {fetchedModelsData && fetchedModelsData.object === "list"
-              ? `${fetchedModelsData.data?.length ?? 0} ${translate("models returned")}`
-              : fetchedModelsData?.error?.message ?? ""}
-          </p>
-          {fetchedModelsData?.data && fetchedModelsData.data.length > 0 && (
-            <div className="flex flex-col gap-1">
-               {fetchedModelsData.data.map((m, i) => (
-                 <div key={i} className="font-mono text-xs text-[var(--t-muted)]">{m.id}</div>
-              ))}
-            </div>
-          )}
-          {fetchedModelsData?.data && fetchedModelsData.data.length > 0 && (
+        subtitle={fetchedModelsData?.object === "list"
+          ? `${fetchedModelsData.data?.length ?? 0} ${translate("models returned")}`
+          : (fetchedModelsData?.error?.message || "")}
+        size="lg"
+        hideScrollbar
+        onClose={() => { setShowModelsModal(false); setFetchedModelsData(null); setFetchedModelsQuery(""); }}
+        footer={fetchedModelsData?.data?.length ? (
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="text-[11px] text-[var(--t-muted)]">
+              {fetchedModelsQuery
+                ? `${filteredFetchedModels.length}/${fetchedModelsData.data.length}`
+                : `${fetchedModelsData.data.length}`}
+            </span>
             <Button
               skin="antares"
               icon={copied === "fetched_models" ? "check" : "content_copy"}
               onClick={() => {
-                 const ids = fetchedModelsData.data.map(m => m.id).join("\n");
+                const ids = (fetchedModelsQuery ? filteredFetchedModels : fetchedModelsData.data).map((m) => m.id).join("\n");
                 copy(ids, "fetched_models");
               }}
               variant="ghost"
             >
               {copied === "fetched_models" ? translate("Copied!") : translate("Copy All")}
             </Button>
+          </div>
+        ) : undefined}
+      >
+        <div className="flex min-h-0 flex-col gap-3">
+          {fetchedModelsData?.data?.length ? (
+            <>
+              <div className="relative shrink-0">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--t-muted)]">search</span>
+                <input
+                  value={fetchedModelsQuery}
+                  onChange={(e) => setFetchedModelsQuery(e.target.value)}
+                  placeholder={translate("Search models...")}
+                  className="an-input !h-10 !w-full !pl-9 !text-[12px]"
+                />
+              </div>
+              <div className="max-h-[45dvh] min-h-0 overflow-y-auto overscroll-contain rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] scrollbar-none">
+                {filteredFetchedModels.length === 0 ? (
+                  <p className="p-4 text-center text-xs text-[var(--t-muted)]">{translate("No models match your filter.")}</p>
+                ) : filteredFetchedModels.map((m, i) => (
+                  <div key={m.id || i} className="flex items-center gap-2 border-b border-[var(--t-line-soft)] px-3 py-2 last:border-0">
+                    <span className="material-symbols-outlined shrink-0 text-[14px] text-[var(--t-muted)]">neurology</span>
+                    <span className="min-w-0 break-all font-mono text-[11.5px] text-[var(--t-ink)]">{m.id}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-[var(--t-muted)]">{fetchedModelsData?.error?.message || ""}</p>
           )}
         </div>
       </AntaresModal>
@@ -1595,7 +1533,4 @@ export default function APIPageClient({ machineId }) {
 APIPageClient.propTypes = {
   machineId: PropTypes.string.isRequired,
 };
-
-
-
 

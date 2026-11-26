@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
 import { cleanupProviderConnections, getSettings, updateSettings, getApiKeys } from "../../lib/localDb.js";
+import { startExpiredKeysCleanup } from "../../lib/db/cleanupExpiredKeys.js";
 import {
   enableTunnel, enableTailscale,
   isTunnelManuallyDisabled, isTunnelReconnecting, isTailscaleReconnecting,
@@ -77,6 +78,10 @@ export async function initializeApp() {
 
 async function runHeavyStartup() {
   await cleanupProviderConnections();
+  
+  // Start auto-cleanup for expired API keys
+  startExpiredKeysCleanup();
+  
   const settings = await getSettings();
 
   if (settings.tunnelEnabled && !g.tunnelAutoResumed) {

@@ -65,10 +65,24 @@ export function autoDetectFilter(text) {
   // Fallback: dedupLog for generic multi-line noise with duplicates
   if (nonEmpty.length >= 5) return dedupLog;
 
-  // Last resort: big blob with no structure — smart truncate
-  if (text.split("\n").length >= SMART_TRUNCATE_MIN_LINES) return smartTruncate;
+  // Last resort: big blob with no structure — smart truncate. Count only up
+  // to the threshold instead of allocating an array of every line in a huge
+  // tool output.
+  if (countNewlinesUpTo(text, SMART_TRUNCATE_MIN_LINES) >= SMART_TRUNCATE_MIN_LINES) return smartTruncate;
 
   return null;
+}
+
+function countNewlinesUpTo(text, limit) {
+  let count = 0;
+  let from = 0;
+  while (count < limit) {
+    const next = text.indexOf("\n", from);
+    if (next === -1) break;
+    count++;
+    from = next + 1;
+  }
+  return count;
 }
 
 function isGrepLine(line) {

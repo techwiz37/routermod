@@ -19,13 +19,14 @@ export default function AntaresModal({
   size = "md",
   closeOnOverlay = true,
   className,
+  hideScrollbar = false,
 }) {
   const sizes = {
     sm: "max-w-sm",
     md: "max-w-md",
-    lg: "max-w-lg",
-    xl: "max-w-xl",
-    full: "max-w-4xl",
+    lg: "max-w-lg sm:max-w-lg",
+    xl: "max-w-xl sm:max-w-xl",
+    full: "max-w-2xl sm:max-w-4xl",
   };
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function AntaresModal({
   if (!isOpen) return null;
 
   return (
-    <div className="an-scope fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
+    <div className="an-scope fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-2.5 md:p-4 overflow-y-auto">
       <div
         className="absolute inset-0 bg-black/65 backdrop-blur-[3px]"
         onClick={closeOnOverlay ? onClose : undefined}
@@ -58,17 +59,19 @@ export default function AntaresModal({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "relative w-full bg-[var(--t-card)] border border-[var(--t-line)] rounded-[14px]",
+          "relative w-[calc(100%-1rem)] sm:w-full bg-[var(--t-card)] border border-[var(--t-line)] rounded-[14px]",
           "shadow-[0_24px_60px_rgba(0,0,0,0.55)]",
+          "max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-1.25rem)] md:max-h-[calc(100dvh-2rem)] flex flex-col my-auto overflow-hidden",
           sizes[size],
+          hideScrollbar && "scrollbar-none",
           className
         )}
       >
         {(title || subtitle) && (
-          <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-[var(--t-line-soft)]">
-            <div className="min-w-0">
+          <div className="sticky top-0 z-10 shrink-0 flex items-start justify-between gap-3 px-4 sm:px-5 py-3 sm:py-3.5 border-b border-[var(--t-line-soft)] bg-[var(--t-card)]">
+            <div className="min-w-0 flex-1">
               {title && <h2 className="text-[15px] font-medium text-[var(--t-ink)] leading-tight">{title}</h2>}
-              {subtitle && <p className="an-panel-sub mt-1">{subtitle}</p>}
+              {subtitle && <div className="an-panel-sub mt-1 text-xs">{subtitle}</div>}
             </div>
             <button
               onClick={onClose}
@@ -80,12 +83,12 @@ export default function AntaresModal({
           </div>
         )}
 
-        <div className="p-5 max-h-[calc(85vh-120px)] overflow-y-auto custom-scrollbar">
+        <div className={cn("p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto", hideScrollbar ? "scrollbar-none" : "custom-scrollbar")}>
           {children}
         </div>
 
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2.5 px-5 py-4 border-t border-[var(--t-line-soft)]">
+          <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 px-4 sm:px-5 py-3 border-t border-[var(--t-line-soft)] bg-[var(--t-card)]">
             {footer}
           </div>
         )}
@@ -97,13 +100,14 @@ export default function AntaresModal({
 AntaresModal.propTypes = {
   isOpen: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
-  title: PropTypes.string,
-  subtitle: PropTypes.string,
+  title: PropTypes.node,
+  subtitle: PropTypes.node,
   children: PropTypes.node,
   footer: PropTypes.node,
   size: PropTypes.string,
   closeOnOverlay: PropTypes.bool,
   className: PropTypes.string,
+  hideScrollbar: PropTypes.bool,
 };
 
 export { AntaresButton };

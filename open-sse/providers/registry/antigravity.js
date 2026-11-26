@@ -45,41 +45,10 @@ export default {
     clientSecret: "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",
   },
   models: [
-    { id: "gemini-4-carbon-high", name: "Gemini 4 Carbon (High)", upstreamModelId: "gemini-4-carbon-high(high)" },
-    { id: "gemini-4-carbon-medium", name: "Gemini 4 Carbon (Medium)", upstreamModelId: "gemini-4-carbon-medium(medium)" },
-    { id: "gemini-4-carbon-low", name: "Gemini 4 Carbon (Low)", upstreamModelId: "gemini-4-carbon-low(low)" },
-    { id: "gemini-4-carbon", name: "Gemini 4 Carbon", upstreamModelId: "gemini-4-carbon-medium(medium)" },
-    { id: "gemini-4-argon-high", name: "Gemini 4 Argon (High)", upstreamModelId: "gemini-4-argon-high(high)" },
-    // ── Gemini 3.8 Flash (default, all plans) ──────────────────────────────
+    // Chat picker catalog. Gemini 4 entries shown as Unavailable are not advertised.
     { id: "gemini-3.8-flash-high",   name: "Gemini 3.8 Flash (High)",   upstreamModelId: "gemini-3.8-flash-tiered(high)" },
     { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)", upstreamModelId: "gemini-3.8-flash-tiered(medium)" },
     { id: "gemini-3.8-flash-low",    name: "Gemini 3.8 Flash (Low)",    upstreamModelId: "gemini-3.8-flash-tiered(low)" },
-    { id: "gemini-3.8-flash",        name: "Gemini 3.8 Flash",          upstreamModelId: "gemini-3.8-flash-tiered(medium)" },
-    // ── Gemini 3.7 Flash (fallback to 3.8) ─────────────────────────────────
-    { id: "gemini-3.7-flash-high",   name: "Gemini 3.7 Flash (High)",   upstreamModelId: "gemini-3.8-flash-tiered(high)" },
-    { id: "gemini-3.7-flash-medium", name: "Gemini 3.7 Flash (Medium)", upstreamModelId: "gemini-3.8-flash-tiered(medium)" },
-    { id: "gemini-3.7-flash-low",    name: "Gemini 3.7 Flash (Low)",    upstreamModelId: "gemini-3.8-flash-tiered(low)" },
-    { id: "gemini-3.7-flash",        name: "Gemini 3.7 Flash",          upstreamModelId: "gemini-3.8-flash-tiered(medium)" },
-    // ── Gemini 3.6 Flash (fallback to 3.8) ─────────────────────────────────
-    { id: "gemini-3.6-flash-high",   name: "Gemini 3.6 Flash (High)",   upstreamModelId: "gemini-3.8-flash-tiered(high)" },
-    { id: "gemini-3.6-flash-medium", name: "Gemini 3.6 Flash (Medium)", upstreamModelId: "gemini-3.8-flash-tiered(medium)" },
-    { id: "gemini-3.6-flash-low",    name: "Gemini 3.6 Flash (Low)",    upstreamModelId: "gemini-3.8-flash-tiered(low)" },
-    { id: "gemini-3.6-flash",        name: "Gemini 3.6 Flash",          upstreamModelId: "gemini-3.8-flash-tiered(medium)" },
-    // ── Gemini 3.1 Pro / Agent ────────────────────────────────────────────
-    { id: "gemini-3.1-pro-high",     name: "Gemini 3.1 Pro (High)",     upstreamModelId: "gemini-3-flash-agent" },
-    { id: "gemini-pro-agent",        name: "Gemini 3.1 Pro (High)",     upstreamModelId: "gemini-3-flash-agent" },
-    { id: "gemini-3.1-pro-low",      name: "Gemini 3.1 Pro (Low)",      upstreamModelId: "gemini-3-flash-agent" },
-    // ── Claude Sonnet ─────────────────────────────────────────────────────
-    { id: "claude-sonnet-5-5-high",   name: "Claude Sonnet 5.5 (High)",    upstreamModelId: "claude-sonnet-4-6(high)" },
-    { id: "claude-sonnet-5-5-medium", name: "Claude Sonnet 5.5 (Medium)",  upstreamModelId: "claude-sonnet-4-6(medium)" },
-    { id: "claude-sonnet-5-5-low",    name: "Claude Sonnet 5.5 (Low)",     upstreamModelId: "claude-sonnet-4-6(low)" },
-    { id: "claude-sonnet-5-5",        name: "Claude Sonnet 5.5 (Thinking)",upstreamModelId: "claude-sonnet-4-6(high)" },
-    // ── Claude Opus ───────────────────────────────────────────────────────
-    { id: "claude-opus-5-5-high",     name: "Claude Opus 5.5 (High)",      upstreamModelId: "claude-opus-4-6-thinking(high)" },
-    { id: "claude-opus-5-5-medium",   name: "Claude Opus 5.5 (Medium)",    upstreamModelId: "claude-opus-4-6-thinking(medium)" },
-    { id: "claude-opus-5-5-low",      name: "Claude Opus 5.5 (Low)",       upstreamModelId: "claude-opus-4-6-thinking(low)" },
-    { id: "claude-opus-5-5",          name: "Claude Opus 5.5 (Thinking)",  upstreamModelId: "claude-opus-4-6-thinking(high)" },
-    // ── Base models ───────────────────────────────────────────────────────
     { id: "claude-sonnet-4-6",       name: "Claude Sonnet 4.6 (Thinking)", upstreamModelId: "claude-sonnet-4-6" },
     { id: "claude-opus-4-6-thinking",name: "Claude Opus 4.6 (Thinking)",   upstreamModelId: "claude-opus-4-6-thinking" },
     { id: "gpt-oss-120b-medium",     name: "GPT-OSS 120B (Medium)",        upstreamModelId: "gpt-oss-120b-medium" },

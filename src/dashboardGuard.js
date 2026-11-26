@@ -35,6 +35,7 @@ const PUBLIC_API_PATHS = [
   "/api/tunnel/ping",
   "/api/public",
   "/api/usage/logs",
+  "/api/usage/top-models",
 ];
 
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex", "/responses"];
@@ -42,6 +43,7 @@ const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex", "
 const ALWAYS_PROTECTED = [
   "/api/shutdown",
   "/api/settings/database",
+  "/api/automate/",
   "/api/version/shutdown",
   "/api/version/update",
   "/api/oauth/cursor/auto-import",
@@ -224,6 +226,10 @@ export async function proxy(request) {
       return NextResponse.next();
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // API-key customers authenticate through the HttpOnly key-dashboard cookie,
+  // independently from the administrator dashboard session.
+  if (pathname === "/dashboard-keys" || pathname === "/dashboard-keys/manage-keys" || pathname === "/dashboard-keys/live-models" || pathname === "/dashboard-keys/top-models-keys" || pathname === "/dashboard-keys/billing" || pathname === "/dashboard-keys/topup") return NextResponse.next();
 
   if (pathname.startsWith("/dashboard")) {
     let requireLogin = true;

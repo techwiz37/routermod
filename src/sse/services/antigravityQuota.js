@@ -9,28 +9,6 @@ const inflightRefresh = new Map();
 
 const MIN_REFRESH_INTERVAL_MS = 30_000; // 30s between refreshes per connection
 
-const STRIKE_WINDOW_MS = 60_000; // strikes older than this reset the count
-const STRIKE_THRESHOLD = 3;
-const STRIKE_BLOCK_MS = 15 * 60_000;
-const strikeCounts = new Map(); // "connectionId|model" → { count, windowStart (anchored at first strike) }
-const strikeBlocks = new Map(); // "connectionId|model" → blockedUntil ms
-
-function applyActiveStrikeBlocks(connectionId, quotas) {
-  const now = Date.now();
-  for (const [key, until] of strikeBlocks) {
-    if (!key.startsWith(`${connectionId}|`)) continue;
-    if (until <= now) {
-      strikeBlocks.delete(key);
-      continue;
-    }
-    quotas[key.slice(connectionId.length + 1)] = {
-      remainingPercentage: 0,
-      resetAt: new Date(until).toISOString(),
-    };
-  }
-  return quotas;
-}
-
 export function getAntigravityModelFamily(model) {
   if (!model || typeof model !== "string") return null;
   const clean = (model.includes("/") ? model.slice(model.indexOf("/") + 1) : model).toLowerCase();
@@ -55,41 +33,45 @@ export function getAntigravityModelQuota(quotas, model) {
 
   const family = getAntigravityModelFamily(cleanModel);
   const candidates = [];
+  const hasExactModelQuota = Object.hasOwn(quotas, cleanModel);
 
-  if (quotas[cleanModel]) {
-    candidates.push(quotas[cleanModel]);
-  }
+  if (hasExactModelQuota) candidates.push(quotas[cleanModel]);
 
-  if (cleanModel === "gemini-4-argon" && quotas["gemini-4-argon-high"]) {
-    candidates.push(quotas["gemini-4-argon-high"]);
-  }
-  if (cleanModel === "claude-sonnet-5-5" && quotas["claude-sonnet-5-5-high"]) {
-    candidates.push(quotas["claude-sonnet-5-5-high"]);
-  }
-  if (cleanModel === "claude-opus-5-5" && quotas["claude-opus-5-5-high"]) {
-    candidates.push(quotas["claude-opus-5-5-high"]);
-  }
-  if (cleanModel === "gemini-3.8-flash" && quotas["gemini-3.8-flash-medium"]) {
-    candidates.push(quotas["gemini-3.8-flash-medium"]);
-  }
-  if (cleanModel === "gemini-3.7-flash" && quotas["gemini-3.7-flash-medium"]) {
-    candidates.push(quotas["gemini-3.7-flash-medium"]);
-  }
-  if (cleanModel === "gemini-3.6-flash" && quotas["gemini-3.6-flash-medium"]) {
-    candidates.push(quotas["gemini-3.6-flash-medium"]);
-  }
+  // A model's own bucket is authoritative. Cross-model compatibility aliases
+  // are only safe when the quota API did not return a bucket for this model;
+  // provider-reported shared family/session buckets still apply to each model.
+  if (!hasExactModelQuota) {
+    if (cleanModel === "gemini-4-argon" && quotas["gemini-4-argon-high"]) {
+      candidates.push(quotas["gemini-4-argon-high"]);
+    }
+    if (cleanModel === "claude-sonnet-5-5" && quotas["claude-sonnet-5-5-high"]) {
+      candidates.push(quotas["claude-sonnet-5-5-high"]);
+    }
+    if (cleanModel === "claude-opus-5-5" && quotas["claude-opus-5-5-high"]) {
+      candidates.push(quotas["claude-opus-5-5-high"]);
+    }
+    if (cleanModel === "gemini-3.8-flash" && quotas["gemini-3.8-flash-medium"]) {
+      candidates.push(quotas["gemini-3.8-flash-medium"]);
+    }
+    if (cleanModel === "gemini-3.7-flash" && quotas["gemini-3.7-flash-medium"]) {
+      candidates.push(quotas["gemini-3.7-flash-medium"]);
+    }
+    if (cleanModel === "gemini-3.6-flash" && quotas["gemini-3.6-flash-medium"]) {
+      candidates.push(quotas["gemini-3.6-flash-medium"]);
+    }
 
-  if (cleanModel.startsWith("gemini-3.8-flash") || cleanModel.startsWith("gemini-3.7-flash") || cleanModel.startsWith("gemini-3.6-flash")) {
-    if (quotas["gemini-3.8-flash-tiered"]) candidates.push(quotas["gemini-3.8-flash-tiered"]);
-  }
-  if (cleanModel.startsWith("claude-sonnet")) {
-    if (quotas["claude-sonnet-4-6"]) candidates.push(quotas["claude-sonnet-4-6"]);
-  }
-  if (cleanModel.startsWith("claude-opus")) {
-    if (quotas["claude-opus-4-6-thinking"]) candidates.push(quotas["claude-opus-4-6-thinking"]);
-  }
-  if (cleanModel.startsWith("gemini-3.1-pro") || cleanModel === "gemini-pro-agent") {
-    if (quotas["gemini-3-flash-agent"]) candidates.push(quotas["gemini-3-flash-agent"]);
+    if (cleanModel.startsWith("gemini-3.8-flash") || cleanModel.startsWith("gemini-3.7-flash") || cleanModel.startsWith("gemini-3.6-flash")) {
+      if (quotas["gemini-3.8-flash-tiered"]) candidates.push(quotas["gemini-3.8-flash-tiered"]);
+    }
+    if (cleanModel.startsWith("claude-sonnet")) {
+      if (quotas["claude-sonnet-4-6"]) candidates.push(quotas["claude-sonnet-4-6"]);
+    }
+    if (cleanModel.startsWith("claude-opus")) {
+      if (quotas["claude-opus-4-6-thinking"]) candidates.push(quotas["claude-opus-4-6-thinking"]);
+    }
+    if (cleanModel.startsWith("gemini-3.1-pro") || cleanModel === "gemini-pro-agent") {
+      if (quotas["gemini-3-flash-agent"]) candidates.push(quotas["gemini-3-flash-agent"]);
+    }
   }
 
   if (family === "claude_gpt") {
@@ -145,45 +127,24 @@ export function getAntigravityModelQuota(quotas, model) {
   return valid[0];
 }
 
-export function clearAntigravityStrikes(connectionId, model) {
-  const key = `${connectionId}|${model}`;
-  strikeCounts.delete(key);
-  const until = strikeBlocks.get(key);
-  if (until === undefined) return;
-  strikeBlocks.delete(key);
-  const cached = quotaCache.get(connectionId);
-  const iso = new Date(until).toISOString();
-  if (cached?.[model]?.resetAt === iso) {
-    delete cached[model];
-  }
-  const family = getAntigravityModelFamily(model);
-  if (family === "claude_gpt" && cached?.claude_gpt_session?.resetAt === iso) {
-    delete cached.claude_gpt_session;
-  } else if (family === "gemini_argon" && cached?.gemini_argon_session?.resetAt === iso) {
-    delete cached.gemini_argon_session;
-  } else if (family === "gemini" && cached?.gemini_session?.resetAt === iso) {
-    delete cached.gemini_session;
-  }
-  quotaCache.set(connectionId, cached);
-}
-
 export function getAntigravityQuotaCache() {
   return quotaCache;
 }
 
-export async function refreshAntigravityQuota(connectionId, accessToken, providerSpecificData) {
+export async function refreshAntigravityQuota(connectionId, accessToken, providerSpecificData, { force = false } = {}) {
   const now = Date.now();
   const inflight = inflightRefresh.get(connectionId);
   if (inflight) return inflight;
 
   const lastRefresh = lastRefreshAt.get(connectionId) || 0;
-  if (now - lastRefresh < MIN_REFRESH_INTERVAL_MS) {
+  if (!force && now - lastRefresh < MIN_REFRESH_INTERVAL_MS) {
     log.debug("AG_QUOTA", `${connectionId.slice(0, 8)} | skip refresh (${Math.round((now - lastRefresh) / 1000)}s ago)`);
     return quotaCache.get(connectionId) || null;
   }
 
+  if (force) quotaCache.delete(connectionId);
   lastRefreshAt.set(connectionId, now);
-  const promise = _doRefresh(connectionId, accessToken, providerSpecificData, now);
+  const promise = _doRefresh(connectionId, accessToken, providerSpecificData);
   inflightRefresh.set(connectionId, promise);
   try {
     return await promise;
@@ -192,7 +153,7 @@ export async function refreshAntigravityQuota(connectionId, accessToken, provide
   }
 }
 
-async function _doRefresh(connectionId, accessToken, providerSpecificData, now) {
+async function _doRefresh(connectionId, accessToken, providerSpecificData) {
   try {
     const proxyCfg = await resolveConnectionProxyConfig(providerSpecificData || {});
     const proxyOptions = {
@@ -206,7 +167,7 @@ async function _doRefresh(connectionId, accessToken, providerSpecificData, now) 
     const usage = await getAntigravityUsage(accessToken, providerSpecificData, proxyOptions);
     if (!usage?.quotas || usage.message) return null;
 
-    quotaCache.set(connectionId, applyActiveStrikeBlocks(connectionId, usage.quotas));
+    quotaCache.set(connectionId, usage.quotas);
 
     return usage.quotas;
   } catch (e) {
@@ -215,43 +176,37 @@ async function _doRefresh(connectionId, accessToken, providerSpecificData, now) 
   }
 }
 
-export async function handleAntigravityQuotaError(connectionId, status, model, accessToken, providerSpecificData) {
-  log.info("AG_QUOTA", `${connectionId.slice(0, 8)} | ${status} on ${model} — refreshing quota`);
+export async function handleAntigravityQuotaError(connectionId, status, model, accessToken, providerSpecificData, upstreamQuotaExhausted = false, upstreamResetsAtMs = null) {
+  if (!upstreamQuotaExhausted || (status !== 429 && status !== 409)) return null;
 
-  const quotas = await refreshAntigravityQuota(connectionId, accessToken, providerSpecificData);
+  log.info("AG_QUOTA", `${connectionId.slice(0, 8)} | confirmed RESOURCE_EXHAUSTED for ${model}; checking current quota`);
+  // Quota-related fallback must be based on a fresh upstream quota read, not a
+  // cached response or repeated generic 429s. An unavailable quota endpoint is
+  // inconclusive, never proof that the model is exhausted.
+  const quotas = await refreshAntigravityQuota(connectionId, accessToken, providerSpecificData, { force: true });
   const quota = getAntigravityModelQuota(quotas, model);
 
-  if (!quota || quota.remainingPercentage > 0) {
-    const key = `${connectionId}|${model}`;
-    const now = Date.now();
-    const strike = strikeCounts.get(key);
-    const windowStart = strike && now - strike.windowStart <= STRIKE_WINDOW_MS ? strike.windowStart : now;
-    const count = strike && windowStart === strike.windowStart ? strike.count + 1 : 1;
-    strikeCounts.set(key, { count, windowStart });
-    if (count >= STRIKE_THRESHOLD) {
-      strikeCounts.delete(key);
-      const blockedUntil = now + STRIKE_BLOCK_MS;
-      const reading = quota ? `${Math.round(quota.remainingPercentage)}%` : "unknown";
-      log.warn("AG_QUOTA", `${connectionId.slice(0, 8)} | STRIKE_${status} ${model} — ${count}x 429 (quota ${reading}); CACHE_BLOCK 15m`);
-      const cached = quotaCache.get(connectionId) || {};
-      cached[model] = { remainingPercentage: 0, resetAt: new Date(blockedUntil).toISOString() };
-      quotaCache.set(connectionId, cached);
-      strikeBlocks.set(key, blockedUntil);
-      return blockedUntil;
-    }
+  if (!quota || quota.remainingPercentage !== 0) {
+    log.info("AG_QUOTA", `${connectionId.slice(0, 8)} | no confirmed exhausted quota for ${model}; not quota-blocking account`);
     return null;
   }
 
-  strikeCounts.delete(`${connectionId}|${model}`);
-  if (!quota.resetAt) return null;
+  const quotaResetMs = quota.resetAt ? new Date(quota.resetAt).getTime() : null;
+  const resetMs = Number.isFinite(quotaResetMs) && quotaResetMs > Date.now()
+    ? quotaResetMs
+    : Number.isFinite(upstreamResetsAtMs) && upstreamResetsAtMs > Date.now() ? upstreamResetsAtMs : null;
+  if (!resetMs) return null;
 
-  const resetMs = new Date(quota.resetAt).getTime();
+  const resetAt = new Date(resetMs).toISOString();
   if (resetMs <= Date.now()) return null;
 
   const cached = quotaCache.get(connectionId) || {};
-  cached[model] = { remainingPercentage: 0, resetAt: quota.resetAt };
+  cached[model] = {
+    ...(quota || {}),
+    remainingPercentage: 0,
+    resetAt,
+  };
   quotaCache.set(connectionId, cached);
-
-  log.warn("AG_QUOTA", `${connectionId.slice(0, 8)} | UPSTREAM_${status} ${model} — quota exhausted; CACHE_BLOCK until ${quota.resetAt}`);
+  log.warn("AG_QUOTA", `${connectionId.slice(0, 8)} | confirmed quota exhausted for ${model}; account fallback until ${resetAt}`);
   return resetMs;
 }

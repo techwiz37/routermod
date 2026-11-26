@@ -125,7 +125,8 @@ export async function GET(request, { params }) {
       }
 
       if (provider === "antigravity") {
-        const proxyResult = await startAntigravityProxy();
+        const requestOrigin = new URL(request.url).origin;
+        const proxyResult = await startAntigravityProxy(requestOrigin);
         if (!proxyResult.success) {
           return NextResponse.json({ error: `Failed to start callback server: ${proxyResult.reason}` }, { status: 500 });
         }
@@ -179,7 +180,8 @@ export async function GET(request, { params }) {
         return NextResponse.json(result);
       }
       if (provider === "antigravity") {
-        const result = await startAntigravityProxy();
+        const requestOrigin = new URL(request.url).origin;
+        const result = await startAntigravityProxy(requestOrigin);
         return NextResponse.json(result);
       }
       if (!["codex", "xai"].includes(provider)) {
@@ -538,7 +540,7 @@ export async function POST(request, { params }) {
         });
       }
 
-      const noPkceExchangeProviders = ["cline", "clinepass", "kimchi"];
+      const noPkceExchangeProviders = ["cline", "clinepass", "kimchi", "antigravity"];
       if (!code || !redirectUri || (!codeVerifier && !noPkceExchangeProviders.includes(provider))) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }

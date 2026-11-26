@@ -1,4 +1,5 @@
 import "open-sse/index.js";
+import { isKiroSuspension, kiroSuspensionError } from "open-sse/shared/kiroSuspension.js";
 
 import {
   getProviderCredentials,
@@ -7,7 +8,7 @@ import {
   extractApiKey,
   isValidApiKey,
 } from "../services/auth.js";
-import { handleAntigravityQuotaError, clearAntigravityStrikes } from "../services/antigravityQuota.js";
+import { handleAntigravityQuotaError } from "../services/antigravityQuota.js";
 import { getSettings, getApiKeyByKey } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
@@ -22,16 +23,19 @@ import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
-import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
+import { updateProviderCredentials, checkAndRefreshToken, clearKiroRefreshRejection } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels, enforceKeyPolicy } from "../services/keyAccess.js";
 import { resolveSmartChoice } from "../services/systemoneRouter.js";
 import { resolveSessionIdentity } from "open-sse/utils/sessionManager.js";
-import { resolveInjections, applyInjections } from "../services/promptInjection.js";
+import { resolveInjections, resolveJailbreakText, applyInjections, getPromptModelCandidates } from "../services/promptInjection.js";
 import { getProviderAlias } from "@/shared/constants/providers.js";
 import { getClientIp } from "@/lib/auth/loginLimiter.js";
 import { normalizeIp } from "@/shared/utils/ipBlacklist.js";
+import { stripThinkingFromSSE } from "../utils/thinkingFilter.js";
+import { getConsistentMachineId } from "@/shared/utils/machineId";
+import { runKiroSuspensionHook } from "@/lib/kiroSuspensionHook.js";
 
 export async function handleChat(request, clientRawRequest = null) {
   let body;
@@ -54,6 +58,10 @@ export async function handleChat(request, clientRawRequest = null) {
     const ip = normalizeIp(getClientIp(request));
     clientRawRequest.clientIp = ip && ip !== "unknown" ? ip : null;
   }
+  // Only the authenticated internal model probe may see upstream diagnostics.
+  // Never trust the marker alone on the public completion endpoint.
+  clientRawRequest.trustedDiagnostics = request.headers.get("x-routermod-model-test") === "1"
+    && request.headers.get("x-9r-cli-token") === await getConsistentMachineId("9r-cli-auth");
   const { model: modelStr, contextMarker } = stripModelContextMarker(body.model);
   if (contextMarker) body.model = modelStr;
 
@@ -79,12 +87,14 @@ export async function handleChat(request, clientRawRequest = null) {
     const valid = await isValidApiKey(apiKey);
     if (!valid) {
       log.warn("AUTH", "Invalid API key (requireApiKey=true)");
-      return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
+      return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid or deleted API key. Please create a new key in the dashboard.");
     }
   }
 
   const policyDenied = await enforceKeyPolicy(request);
-  if (policyDenied) return policyDenied;
+  const trustedHealthProbe = request.headers.get("x-routermod-health-probe") === "1"
+    && clientRawRequest.trustedDiagnostics;
+  if (policyDenied && !trustedHealthProbe) return policyDenied;
 
   if (!modelStr) {
     log.warn("CHAT", "Missing model");
@@ -92,8 +102,10 @@ export async function handleChat(request, clientRawRequest = null) {
   }
 
   const keyAccess = await getKeyAccessContext(request);
-  const keyAccessDenied = await enforceKeyAccess(keyAccess, modelStr);
-  if (keyAccessDenied) return keyAccessDenied;
+  if (!trustedHealthProbe) {
+    const keyAccessDenied = await enforceKeyAccess(keyAccess, modelStr);
+    if (keyAccessDenied) return keyAccessDenied;
+  }
 
   const userAgent = request?.headers?.get("user-agent") || "";
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
@@ -244,17 +256,26 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   let lastError = null;
   let lastStatus = null;
   let lastHeaders = null;
+  let suspensionError = null;
 
   while (true) {
     const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { requestedModel: requestedModel || model });
 
     if (!credentials || credentials.allRateLimited) {
+      if (suspensionError) return errorResponse(403, suspensionError);
       const maskedClientError = isCustomProvider(provider)
         ? getMaskedProviderErrorMessage(clientRawRequest, body)
         : null;
+      
+      // Trigger auto-registration for Kiro when no accounts ready (either none exist or all rate-limited)
+      const isKiro = provider === "kiro" || getProviderAlias(provider) === "kiro";
+      if (isKiro && (!credentials || credentials.allRateLimited)) {
+        runKiroSuspensionHook("no-accounts-ready");
+      }
+      
       if (credentials?.allRateLimited) {
         const errorMsg = lastError || credentials.lastError || "Unavailable";
-        const status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+        const status = clientRawRequest?.trustedDiagnostics && lastStatus ? lastStatus : HTTP_STATUS.SERVICE_UNAVAILABLE;
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
         if (maskedClientError) {
           return errorResponse(status, maskedClientError, lastHeaders);
@@ -269,7 +290,24 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, maskedClientError || lastError || "All accounts unavailable", lastHeaders);
     }
 
-    const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
+    let refreshedCredentials;
+    try {
+      refreshedCredentials = await checkAndRefreshToken(provider, credentials);
+    } catch (error) {
+      if (provider === "kiro" && error.code === "kiro_refresh_rejected") {
+        excludeConnectionIds.add(credentials.connectionId);
+        lastError = error.message;
+        lastStatus = 401;
+        continue;
+      }
+      if (provider !== "kiro" || !isKiroSuspension(error)) throw error;
+      await markAccountUnavailable(credentials.connectionId, 403, error.message, provider, model);
+      excludeConnectionIds.add(credentials.connectionId);
+      lastError = kiroSuspensionError(error.message).message;
+      suspensionError = lastError;
+      lastStatus = 403;
+      continue;
+    }
 
     if ((provider === "antigravity" || provider === "gemini-cli") && !refreshedCredentials.projectId) {
       const pid = await getProjectIdForConnection(credentials.connectionId, refreshedCredentials.accessToken, provider);
@@ -285,19 +323,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // receives its native wire shape. Scripts remain pre-translation turns.
     const providerSystemPrompt = refreshedCredentials.providerSpecificData?.systemPrompt;
 
+    const { getModelAliases } = await import("@/models");
+    const aliases = await getModelAliases();
+    const providerKeys = [provider, getProviderAlias(provider)].filter(Boolean);
+    const modelCandidates = getPromptModelCandidates({ provider, model, requestedModel, aliases });
+
     // Jailbreak: injected as the very first system message, before the
     // provider system prompt and before all other injections. Stored at
     // settings.jailbreakModels["provider/model"] (enabled flag must be true).
-    const jailbreakModels = chatSettings.jailbreakModels || {};
-    const modelShort = String(model).split("/").pop();
-    const jailbreakEntry =
-      jailbreakModels[`${provider}/${model}`] ||
-      jailbreakModels[`${provider}/${modelShort}`] ||
-      null;
-    const jailbreakText =
-      jailbreakEntry?.enabled !== false && typeof jailbreakEntry?.text === "string" && jailbreakEntry.text.trim()
-        ? jailbreakEntry.text.trim()
-        : null;
+    const jailbreakText = resolveJailbreakText({ settings: chatSettings, providerKeys, modelCandidates });
 
     // Prompt injection: global -> per API key -> per model, applied after the
     // provider/model system prompt so the user's own instructions win.
@@ -310,10 +344,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     const promptTest = clientRawRequest?.headers?.["x-routermod-prompt-test"] === "1";
     const injections = promptTest ? [] : resolveInjections({
       settings: chatSettings,
-      providerKeys: [provider, getProviderAlias(provider)].filter(Boolean),
-      modelCandidates: [requestedModel, model]
-        .filter(Boolean)
-        .flatMap((v) => [String(v), String(v).split("/").pop()]),
+      providerKeys,
+      modelCandidates,
       apiKeyId: apiKeyRecord?.id || null,
     });
     const promptAppliedBody = applyInjections(
@@ -365,20 +397,29 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
           testStatus: "active"
         });
       },
+      onSuspension: provider === "kiro"
+        ? (message) => markAccountUnavailable(credentials.connectionId, 403, message, provider, model)
+        : undefined,
       onRequestSuccess: async () => {
+        // A successful upstream call proves the account's credentials work.
+        // Drop any stale rejection marker so a healthy account cannot stay
+        // flagged (and later report an old rejection) in the dashboard.
+        if (provider === "kiro" && credentials.providerSpecificData?.kiroRefreshError) {
+          await clearKiroRefreshRejection(credentials.connectionId);
+        }
         await clearAccountError(credentials.connectionId, credentials, model);
-        clearAntigravityStrikes(credentials.connectionId, model);
       }
     });
 
-    if (result.success) return result.response;
+    if (result.success) return stripThinkingFromSSE(result.response, requestedModel);
+    if (provider === "kiro" && isKiroSuspension(result.error)) suspensionError = result.error;
 
     let quotaResetMs = null;
     let resetsAtMs = result.resetsAtMs;
-    if (provider === "antigravity" && (result.status === 409 || result.status === 429)) {
+    if (provider === "antigravity" && result.quotaExhausted === true) {
       quotaResetMs = await handleAntigravityQuotaError(
         credentials.connectionId, result.status, model,
-        refreshedCredentials.accessToken, credentials.providerSpecificData
+        refreshedCredentials.accessToken, credentials.providerSpecificData, result.quotaExhausted, result.resetsAtMs
       );
       if (quotaResetMs) resetsAtMs = quotaResetMs;
     }
@@ -396,6 +437,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
-    return result.response;
+    return stripThinkingFromSSE(result.response, requestedModel);
   }
 }

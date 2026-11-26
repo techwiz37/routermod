@@ -13,6 +13,8 @@ import {
   resolveKiroThinkingBudget,
   buildThinkingSystemPrefix,
   KIRO_AGENTIC_SYSTEM_PROMPT,
+  kiroAgenticPromptEnabled,
+  kiroTimeContextEnabled,
   resolveDefaultProfileArn,
   buildKiroAdditionalModelRequestFieldsForModel,
   usesKiroNativeGptEffort
@@ -340,20 +342,22 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     ? (credentials?.providerSpecificData?.profileArn || "")
     : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
 
-  const timestamp = new Date().toISOString();
-
   // The system prompt travels inside the first user turn's content (contentPrefix):
   // the CodeWhisperer surface rejects a top-level `systemPrompt` with
   // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
+  // Only client-requested thinking adds a protocol prefix; the time context and
+  // the agentic chunked-write persona stay off unless explicitly enabled.
   const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
     systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
   }
-  if (agentic) {
+  if (agentic && kiroAgenticPromptEnabled()) {
     systemPromptParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
   }
   const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
-  const currentTimeContext = `[Context: Current time is ${timestamp}]`;
+  const currentTimeContext = kiroTimeContextEnabled()
+    ? `[Context: Current time is ${new Date().toISOString()}]`
+    : "";
   const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
 
   const sessionIdentity = resolveSessionIdentity({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" });

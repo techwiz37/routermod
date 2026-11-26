@@ -236,13 +236,13 @@ function normalizeToolInput(input) {
 }
 
 function normalizeToolResult(result) {
-  const content = Array.isArray(result?.content)
+  const content = (Array.isArray(result?.content)
     ? result.content.map((part) => ({ text: text(part?.text ?? part) }))
-    : [{ text: text(result?.content) }];
+    : [{ text: text(result?.content) }]).filter((part) => part.text.trim());
   return {
     toolUseId: rawId(result?.toolUseId),
     status: result?.status === "error" ? "error" : "success",
-    content: content.length > 0 ? content : [{ text: "" }],
+    content: content.length > 0 ? content : [{ text: KIRO_TOOL_RESULTS_PLACEHOLDER }],
   };
 }
 
@@ -348,6 +348,11 @@ export function validateKiroConversation(history, currentMessage, toolSpecs = []
     const expectedUser = index % 2 === 0;
     const isUser = !!turns[index]?.userInputMessage;
     if (isUser !== expectedUser) errors.push(`role:${index}`);
+    for (const result of turns[index]?.userInputMessage?.userInputMessageContext?.toolResults || []) {
+      if (!result.content?.length || result.content.some((part) => typeof part.text !== "string" || !part.text.trim())) {
+        errors.push(`result-content:${index}`);
+      }
+    }
     if (!isUser) {
       const calls = turns[index].assistantResponseMessage?.toolUses || [];
       const results = turns[index + 1]?.userInputMessage?.userInputMessageContext?.toolResults || [];

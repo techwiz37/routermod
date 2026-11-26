@@ -17,8 +17,8 @@ export default function Features() {
   ];
 
   return (
-    <section id="features" className="relative px-5 py-14 sm:px-8 sm:py-16">
-      <div className="mx-auto max-w-none">
+    <section id="features" className="relative landing-section py-20 sm:py-24">
+      <div className="mx-auto landing-container">
         <div className="mb-9 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="landing-eyebrow">
@@ -30,14 +30,16 @@ export default function Features() {
           <p className="landing-lead max-w-sm">{t("featDesc")}</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((f) => (
-            <div key={f.title} className="landing-card p-4">
-              <span className="landing-ico">
-                <span className="material-symbols-outlined">{f.icon}</span>
-              </span>
-              <h3 className="landing-h3 mt-3">{f.title}</h3>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--l-muted)]">{f.desc}</p>
+            <div key={f.title} className="an-card p-5">
+              <div className="flex items-center gap-3.5">
+                <span className="an-ic !size-10 !w-10 !h-10 flex-none" aria-hidden>
+                  <span className="material-symbols-outlined">{f.icon}</span>
+                </span>
+                <h3 className="an-card-title min-w-0 flex-1 leading-snug">{f.title}</h3>
+              </div>
+              <p className="lf-card-desc mt-4">{f.desc}</p>
             </div>
           ))}
         </div>

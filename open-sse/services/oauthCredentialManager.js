@@ -4,6 +4,7 @@ import {
   refreshTokenByProvider,
 } from "./tokenRefresh.js";
 import { PROVIDER_OAUTH } from "../providers/index.js";
+import { getKiroRefreshRejection } from "../shared/kiroRefreshState.js";
 
 // Single source: codex.oauth.maxRefreshAgeMs (8 days) — proactive refresh window
 export const CODEX_MAX_REFRESH_AGE_MS = PROVIDER_OAUTH["codex"]?.maxRefreshAgeMs;
@@ -44,6 +45,7 @@ export function isCodexRefreshStale(credentials, nowMs = Date.now(), maxAgeMs = 
 
 export function shouldRefreshCredentials(provider, credentials, nowMs = Date.now()) {
   if (!credentials) return false;
+  if (provider === "kiro" && getKiroRefreshRejection(credentials)) return false;
 
   const expiresAtMs = getCredentialExpiryMs(credentials);
   if (expiresAtMs !== null && expiresAtMs - nowMs < getRefreshLeadMs(provider)) {

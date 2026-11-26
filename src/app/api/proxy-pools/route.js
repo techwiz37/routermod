@@ -54,6 +54,13 @@ export async function GET(request) {
 
     const proxyPools = await getProxyPools(filter);
 
+    // Provider selectors need labels and transport hints, not health history.
+    if (searchParams.get("view") === "options") {
+      return NextResponse.json({ proxyPools: proxyPools.map(({ id, name, isActive, proxyUrl, noProxy }) => ({
+        id, name, isActive, proxyUrl, noProxy,
+      })) });
+    }
+
     if (!includeUsage) {
       return NextResponse.json({ proxyPools });
     }

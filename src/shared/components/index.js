@@ -1,6 +1,7 @@
 export { default as Button } from "./Button";
 export { default as Input } from "./Input";
 export { default as Select } from "./Select";
+export { default as AntaresSelect } from "./AntaresSelect";
 export { default as Card } from "./Card";
 export { default as Modal, ConfirmModal } from "./Modal";
 export { default as Loading, Spinner, PageLoading, Skeleton, CardSkeleton } from "./Loading";
@@ -35,6 +36,8 @@ export { default as GitLabAuthModal } from "./GitLabAuthModal";
 export { default as EditConnectionModal } from "./EditConnectionModal";
 export { default as AddCustomEmbeddingModal } from "./AddCustomEmbeddingModal";
 export { default as NoAuthProxyCard } from "./NoAuthProxyCard";
+export { default as FreePiConnectCard } from "./FreePiConnectCard";
+export { default as RouterModProxyCard } from "./RouterModProxyCard";
 export { default as SegmentedControl } from "./SegmentedControl";
 export { default as Tooltip } from "./Tooltip";
 export { default as ProviderInfoCard } from "./ProviderInfoCard";

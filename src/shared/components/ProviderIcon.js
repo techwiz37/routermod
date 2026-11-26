@@ -4,6 +4,10 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 
+// Shown whenever a provider has no recognizable icon of its own. Using the
+// RouterMod mark avoids the old text initials / generic upstream icon flash.
+const ROUTERMOD_ICON = "/favicon.svg";
+
 function resolveSrc(src, providerId) {
   if (providerId) return getProviderIconSrc(providerId);
   if (!src) return null;
@@ -26,17 +30,14 @@ export default function ProviderIcon({
 
   if (!effectiveSrc || errored) {
     return (
-      <span
-        className={`inline-flex items-center justify-center font-bold rounded-lg ${className}`.trim()}
-        style={{
-          width: size,
-          height: size,
-          color: fallbackColor,
-          fontSize: Math.max(10, Math.floor(size * 0.38)),
-        }}
-      >
-        {fallbackText}
-      </span>
+      <img
+        src={ROUTERMOD_ICON}
+        alt={alt || "RouterMod"}
+        title={fallbackText && fallbackText !== "?" ? fallbackText : undefined}
+        width={size}
+        height={size}
+        className={`object-contain ${className}`.trim()}
+      />
     );
   }
 

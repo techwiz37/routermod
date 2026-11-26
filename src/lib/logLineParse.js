@@ -108,6 +108,19 @@ export function parseConsoleLine(raw, fallback = {}) {
 
   const message = rest.replace(EMOJI_RE, "").replace(/[ \t]{2,}/g, " ").trim();
   const details = restLines.join("\n").replace(/[ \t]+$/gm, "").trim();
+  // Use the routed target, never the client alias or session-dot color:
+  // session colors are reused and concurrent requests can share them.
+  const provider = rest.match(/→\s*([A-Za-z0-9_-]+)\//)?.[1]
+    // [CHAT]/[ERR] rows keep the target in brackets: "[provider/model] [429]:".
+    || rest.match(/^\[([A-Za-z0-9_-]+)\//)?.[1]
+    || rest.match(/(?:^|·\s*)([A-Za-z0-9_-]+)\/[^\s]+/)?.[1]
+    || firstLine.match(/(?:^|\s)([A-Za-z0-9_-]+) \[\d{3}\]:/)?.[1]
+    // [AUTH]/[TOKEN]/[PROXY] rows lead with the provider: "provider | ...".
+    || rest.match(/^([A-Za-z0-9_-]+)\s*\|/)?.[1]
+    // Structured logger metadata (e.g. TOKEN_REFRESH/BG_TOKEN_REFRESH):
+    // {"provider":"antigravity", ...}.
+    || rest.match(/[,{]\s*"provider"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1]
+    || "";
 
   return {
     time: time || String(fallback.time || "").slice(0, 8),
@@ -116,6 +129,7 @@ export function parseConsoleLine(raw, fallback = {}) {
     dot,
     message: message || firstLine.trim(),
     details,
+    provider: provider.toLowerCase(),
   };
 }
 

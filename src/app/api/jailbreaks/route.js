@@ -69,14 +69,19 @@ export async function GET(request) {
       return NextResponse.json({ content: text });
     }
 
+    let templatesWarning;
     const [templates, settings] = await Promise.all([
-      fetchTree().catch(() => []),
+      fetchTree().catch(() => {
+        templatesWarning = "Could not load templates. Try again or upload a .md file.";
+        return [];
+      }),
       getSettings(),
     ]);
 
     return NextResponse.json({
       templates,
       assignments: settings.jailbreakModels || {},
+      ...(templatesWarning ? { templatesWarning } : {}),
     });
   } catch (error) {
     console.log("[jailbreaks] GET error:", error.message);

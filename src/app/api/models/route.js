@@ -5,7 +5,8 @@ import { getProviderConnections } from "@/lib/db/repos/connectionsRepo";
 import { getProviderNodes } from "@/lib/db/repos/nodesRepo";
 import { getSettings, getModelNames } from "@/lib/localDb";
 import { AI_MODELS } from "@/shared/constants/config";
-import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
+import { getLiveOpenCodeFreeModels } from "@/lib/network/opencodeCatalog";
+import { getProviderAlias, ALIAS_TO_ID, FREE_PROVIDERS } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export async function GET(request) {
     const settings = await getSettings();
     const prefixOverrides = settings?.providerPrefixes || {};
     const disabled = await getDisabledModels();
+    const storedCustomModels = await getCustomModels();
+    const capsByFull = new Map(storedCustomModels.map((model) => [`${model.providerAlias}/${model.id}`, model.caps]));
     const providerNodes = await getProviderNodes();
     const nodePrefixById = new Map(
       providerNodes
@@ -40,10 +43,14 @@ export async function GET(request) {
     }
 
     const publicPrefixFor = (providerId) => {
-      const id = String(providerId || "");
-      const nodePrefix = nodePrefixById.get(id);
+      const raw = String(providerId || "");
+      // Static OpenCode Free entries are stored under the short alias `oc`,
+      // while the user's custom prefix is saved under the canonical id
+      // `opencode`. Check both so a custom prefix is actually reflected.
+      const id = ALIAS_TO_ID[raw] || raw;
+      const nodePrefix = nodePrefixById.get(id) || nodePrefixById.get(raw);
       if (nodePrefix) return nodePrefix;
-      const override = prefixOverrides?.[id];
+      const override = prefixOverrides?.[raw] || prefixOverrides?.[id];
       if (override && String(override).trim()) return String(override).trim();
       return getProviderAlias(id) || id;
     };
@@ -86,9 +93,34 @@ export async function GET(request) {
         const alias = getProviderAlias(c.provider);
         if (alias) activeAliasSet.add(alias);
       }
+      // No-auth free providers (OpenCode Free) have no connection rows, so the
+      // loop above would hide them. They are always active and must stay
+      // selectable in the API-key "Restrict models" picker.
+      for (const [id, provider] of Object.entries(FREE_PROVIDERS || {})) {
+        if (!provider?.noAuth) continue;
+        activeAliasSet.add(id);
+        const alias = provider.alias || getProviderAlias(id);
+        if (alias) activeAliasSet.add(alias);
+      }
     }
 
-    const models = AI_MODELS
+    // OpenCode Free follows the live CLI catalogue: models added/removed
+    // upstream appear/disappear here too. Cached in-process for 10 minutes.
+    let catalogModels = AI_MODELS;
+    if (!activeAliasSet || activeAliasSet.has("oc") || activeAliasSet.has("opencode")) {
+      const live = await getLiveOpenCodeFreeModels();
+      if (live?.length) {
+        const liveIds = new Set(live.map((m) => m.id));
+        catalogModels = catalogModels.filter((m) => m.provider !== "oc" || liveIds.has(m.model));
+        const existing = new Set(AI_MODELS.filter((m) => m.provider === "oc").map((m) => m.model));
+        const extra = live
+          .filter((m) => !existing.has(m.id))
+          .map((m) => ({ provider: "oc", model: m.id, name: m.name }));
+        catalogModels = [...catalogModels, ...extra];
+      }
+    }
+
+    const models = catalogModels
       .filter((m) => {
         if (activeAliasSet && !activeAliasSet.has(m.provider)) return false;
         if (providerFilter && m.provider !== providerFilter && getProviderAlias(m.provider) !== providerFilter) return false;
@@ -103,7 +135,8 @@ export async function GET(request) {
         const publicId = publicModelIdFor(providerId, m.model);
         const providerPrefix = publicPrefixFor(providerId);
         const customName = modelNames[`${providerId}/${m.model}`] || modelNames[fullModel] || null;
-        const c = getCapabilitiesForModel(providerId, m.model);
+        const c = getCapabilitiesForModel(ALIAS_TO_ID[providerId] || providerId, m.model);
+        const capsOverride = capsByFull.get(fullModel) || capsByFull.get(`${providerId}/${m.model}`);
         return {
           ...m,
           provider: providerId,
@@ -124,13 +157,14 @@ export async function GET(request) {
             reasoning: c.reasoning,
             contextWindow: c.contextWindow,
             maxOutput: c.maxOutput,
+            ...capsOverride,
           },
         };
       });
 
     const seenFull = new Set(models.map((m) => m.fullModel));
     const seenPublic = new Set(models.map((m) => m.publicId));
-    const customModels = (await getCustomModels()).filter((m) => {
+    const customModels = storedCustomModels.filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
       if (activeAliasSet && !activeAliasSet.has(m.providerAlias)) return false;
       if (seenFull.has(`${m.providerAlias}/${m.id}`)) return false;
@@ -169,6 +203,37 @@ export async function GET(request) {
           maxOutput: c.maxOutput,
           ...(m.caps || {}),
         },
+      });
+    }
+
+    // `/v1/models` deliberately keeps every public alias of one upstream
+    // target as a separate selectable model id. Mirror that contract here:
+    // `bc/gpt-6.1-sol` and `dps/deepseek-v4-pro` may both point at the same
+    // original `gpt-6.1-sol`, but both must appear in the picker (and in the
+    // API-key allow-list), not just the first alias for that target.
+    const targetToModel = new Map();
+    for (const m of models) {
+      const providerAlias = getProviderAlias(m.provider) || m.provider;
+      const targets = [m.fullModel, `${m.provider}/${m.model}`, `${providerAlias}/${m.model}`];
+      for (const target of targets) {
+        if (!targetToModel.has(target)) targetToModel.set(target, m);
+      }
+    }
+    const knownPublicIds = new Set(models.map((m) => m.publicId));
+    for (const [alias, target] of Object.entries(modelAliases || {})) {
+      if (typeof target !== "string" || !target || knownPublicIds.has(alias)) continue;
+      const base = targetToModel.get(target);
+      if (!base) continue;
+      knownPublicIds.add(alias);
+      models.push({
+        ...base,
+        publicId: alias,
+        displayId: alias,
+        routedModel: alias,
+        name: modelNames[alias] || alias,
+        alias,
+        isAlias: true,
+        customId: base.customId || base.model,
       });
     }
 

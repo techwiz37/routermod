@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 8;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -83,6 +83,8 @@ export const TABLES = {
       monthLimit: "INTEGER DEFAULT 0",
       tokenLimit: "INTEGER DEFAULT 0",
       tokenLimitWindow: "TEXT DEFAULT '24h'",
+      tokenResetEnabled: "INTEGER DEFAULT 1",
+      tokenCycleStart: "TEXT",
       spendLimit: "REAL DEFAULT 0",
       tokensPerMinuteLimit: "INTEGER DEFAULT 0",
       maxConcurrentLimit: "INTEGER DEFAULT 0",
@@ -159,6 +161,32 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_rd_provider ON requestDetails(provider)",
       "CREATE INDEX IF NOT EXISTS idx_rd_model ON requestDetails(model)",
       "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)",
+    ],
+  },
+  automateConfig: {
+    columns: {
+      id: "INTEGER PRIMARY KEY CHECK (id = 1)",
+      enabled: "INTEGER DEFAULT 0",
+      failureThreshold: "INTEGER DEFAULT 4",
+      timeWindowHours: "INTEGER DEFAULT 1",
+      telegramBotToken: "TEXT",
+      telegramChatId: "TEXT",
+      whatsappRecipient: "TEXT",
+      data: "TEXT NOT NULL",
+    },
+  },
+  automateFailures: {
+    columns: {
+      id: "INTEGER PRIMARY KEY AUTOINCREMENT",
+      provider: "TEXT NOT NULL",
+      model: "TEXT NOT NULL",
+      connectionId: "TEXT",
+      timestamp: "TEXT NOT NULL",
+      error: "TEXT",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_af_ts ON automateFailures(timestamp DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_af_provider_model ON automateFailures(provider, model)",
     ],
   },
 };

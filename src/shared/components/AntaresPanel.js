@@ -15,6 +15,7 @@ export default function AntaresPanel({
   icon,
   action,
   className,
+  headClassName,
   bodyClassName,
   padded = true,
   ...props
@@ -24,7 +25,7 @@ export default function AntaresPanel({
   return (
     <section className={cn("an-panel", className)} {...props}>
       {hasHead && (
-        <header className="an-panel-head">
+        <header className={cn("an-panel-head", headClassName)}>
           {icon && (
             <span className="an-panel-ico" aria-hidden>
               <span className="material-symbols-outlined">{icon}</span>
@@ -51,6 +52,7 @@ AntaresPanel.propTypes = {
   icon: PropTypes.string,
   action: PropTypes.node,
   className: PropTypes.string,
+  headClassName: PropTypes.string,
   bodyClassName: PropTypes.string,
   padded: PropTypes.bool,
 };

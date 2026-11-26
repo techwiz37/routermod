@@ -78,7 +78,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
           <button
             onClick={onClose}
             className="size-8 rounded-md border-2 border-border bg-surface text-text-muted hover:text-text-main hover:bg-surface-2 shadow-[1.5px_1.5px_0px_var(--color-border)] active:translate-y-0.5 transition-all flex items-center justify-center cursor-pointer"
-            aria-label="Tutup"
+            aria-label="Close"
           >
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>

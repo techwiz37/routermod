@@ -27,9 +27,23 @@ export function getKeyInFlight(key) {
  * @param {string} window - Window type (1m, 1h, 24h, 7d, 30d)
  * @returns {{ start: string, end: string, resetAt: string }} ISO timestamps
  */
-function getQuotaCycle(window) {
+export function getQuotaCycle(window, options = {}) {
   const now = Date.now();
   const windowMs = tokenWindowMs(window);
+  const baselineMs = Date.parse(options.cycleStart || "");
+  const resetEnabled = options.resetEnabled !== false;
+
+  // When token reset is disabled there is no upcoming reset — keep a stable
+  // window that starts at the key's baseline so usage never rolls over.
+  if (!resetEnabled) {
+    const start = Number.isFinite(baselineMs) ? baselineMs : now;
+    return {
+      start: new Date(start).toISOString(),
+      end: null,
+      resetAt: null,
+      neverResets: true,
+    };
+  }
   
   let cycleStart, cycleEnd;
   
@@ -55,33 +69,14 @@ function getQuotaCycle(window) {
       0, 0, 0, 0
     ));
     cycleEnd = new Date(cycleStart.getTime() + windowMs);
-  } else if (window === "7d") {
-    // Reset at midnight UTC every Monday
-    const nowDate = new Date(now);
-    const dayOfWeek = nowDate.getUTCDay(); // 0=Sunday, 1=Monday, ...
-    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days since last Monday
-    cycleStart = new Date(Date.UTC(
-      nowDate.getUTCFullYear(),
-      nowDate.getUTCMonth(),
-      nowDate.getUTCDate() - daysToMonday,
-      0, 0, 0, 0
-    ));
+  } else if (window === "7d" || window === "30d") {
+    // Fixed 7d/30d cycle anchored to key creation (or last reset), NOT the
+    // Unix epoch. Anchoring to epoch made a brand-new 30d key show ~7d left.
+    const anchor = Number.isFinite(baselineMs) ? baselineMs : now;
+    const elapsed = Math.max(0, now - anchor);
+    const cycles = Math.floor(elapsed / windowMs);
+    cycleStart = new Date(anchor + cycles * windowMs);
     cycleEnd = new Date(cycleStart.getTime() + windowMs);
-  } else if (window === "30d") {
-    // Reset at midnight UTC on the 1st of each month
-    const nowDate = new Date(now);
-    cycleStart = new Date(Date.UTC(
-      nowDate.getUTCFullYear(),
-      nowDate.getUTCMonth(),
-      1,
-      0, 0, 0, 0
-    ));
-    cycleEnd = new Date(Date.UTC(
-      nowDate.getUTCFullYear(),
-      nowDate.getUTCMonth() + 1,
-      1,
-      0, 0, 0, 0
-    ));
   } else {
     // 1h or any other: simple modulo-based cycle
     cycleStart = new Date(Math.floor(now / windowMs) * windowMs);
@@ -103,6 +98,8 @@ function emptyStats(key) {
     promptTokens: 0,
     completionTokens: 0,
     tokensUsed: 0,
+    lifetimeTokensUsed: 0,
+    lifetimeRequests: 0,
     cost: 0,
     lastUsedAt: null,
     windowStart: null,
@@ -110,7 +107,7 @@ function emptyStats(key) {
   };
 }
 
-function mapStats(row, minute, key, window, cycle) {
+function mapStats(row, minute, key, window, cycle, lifetime) {
   const promptTokens = Number(row?.promptTokens) || 0;
   const completionTokens = Number(row?.completionTokens) || 0;
 
@@ -121,6 +118,8 @@ function mapStats(row, minute, key, window, cycle) {
     promptTokens,
     completionTokens,
     tokensUsed: promptTokens + completionTokens,
+    lifetimeTokensUsed: Number(lifetime?.tokensUsed) || 0,
+    lifetimeRequests: Number(lifetime?.requests) || 0,
     cost: Number(row?.cost) || 0,
     lastUsedAt: row?.lastUsedAt || null,
     windowStart: cycle.start,
@@ -128,11 +127,11 @@ function mapStats(row, minute, key, window, cycle) {
   };
 }
 
-export async function getKeyLiveStats(key, { window = "24h" } = {}) {
+export async function getKeyLiveStats(key, { window = "24h", cycleStart = null, resetEnabled = true } = {}) {
   if (!key || typeof key !== "string") return emptyStats(key);
 
   const db = await getAdapter();
-  const cycle = getQuotaCycle(window);
+  const cycle = getQuotaCycle(window, { cycleStart, resetEnabled });
 
   const row = db.get(
     `SELECT COUNT(*) AS requests,
@@ -153,7 +152,17 @@ export async function getKeyLiveStats(key, { window = "24h" } = {}) {
     [key, new Date(Date.now() - 60000).toISOString()]
   );
 
-  return mapStats(row, minute, key, window, cycle);
+  // All-time counters so unlimited keys still show real consumption even
+  // though their quota window never accumulates a balance.
+  const lifetime = db.get(
+    `SELECT COUNT(*) AS requests,
+            COALESCE(SUM(promptTokens + completionTokens), 0) AS tokensUsed
+     FROM usageHistory
+     WHERE apiKey = ?`,
+    [key]
+  );
+
+  return mapStats(row, minute, key, window, cycle, lifetime);
 }
 
 export async function getKeysLiveStats(keys, { window = "24h" } = {}) {
@@ -161,7 +170,11 @@ export async function getKeysLiveStats(keys, { window = "24h" } = {}) {
   const entries = await Promise.all(
     list.map(async (key) => [
       key.id,
-      await getKeyLiveStats(key.key, { window: key.tokenLimitWindow || window }),
+      await getKeyLiveStats(key.key, {
+        window: key.tokenLimitWindow || window,
+        cycleStart: key.tokenCycleStart || key.createdAt,
+        resetEnabled: key.tokenResetEnabled !== false,
+      }),
     ])
   );
   return Object.fromEntries(entries);

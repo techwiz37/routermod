@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { cn } from "@/shared/utils/cn";
 import Button from "./Button";
 import Tooltip from "./Tooltip";
+import AntaresModal from "./AntaresModal";
+import { SurfaceSkinContext } from "./SurfaceSkinContext";
 
 export default function Modal({
   isOpen,
@@ -53,8 +55,12 @@ export default function Modal({
 
       {/* Modal content */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || undefined}
         className={cn(
-          "relative w-full bg-surface",
+          "relative flex w-full flex-col bg-surface",
+          "max-h-[calc(100dvh-1.5rem)]",
           "border-3 border-black",
           "rounded shadow-[8px_8px_0px_#000000]",
           "fade-in",
@@ -64,8 +70,8 @@ export default function Modal({
       >
         {/* Header */}
         {(title || showTrafficLights) && (
-          <div className="flex items-center justify-between p-3 border-b-2 border-black bg-bg-alt">
-            <div className="flex items-center">
+          <div className="flex items-center justify-between gap-2 p-3 border-b-2 border-black bg-bg-alt sm:p-4">
+            <div className="flex min-w-0 items-center">
               {/* Traffic lights — desktop only */}
               {showTrafficLights && (
                 <div className="hidden md:flex items-center gap-2 mr-4 ml-2">
@@ -84,14 +90,14 @@ export default function Modal({
                 </div>
               )}
               {title && (
-                <h2 className="text-base font-bold uppercase tracking-wider text-text-main">{title}</h2>
+                <h2 className="break-words text-sm font-bold uppercase tracking-wider text-text-main sm:text-base">{title}</h2>
               )}
             </div>
             {/* X button — mobile only */}
             <button
               onClick={onClose}
               aria-label="Close"
-              className="md:hidden p-1 rounded-sm border-2 border-black bg-surface text-text-muted hover:text-text-main shadow-[2px_2px_0px_#000000] transition-colors"
+              className="md:hidden flex h-11 w-11 shrink-0 items-center justify-center rounded-sm border-2 border-black bg-surface text-text-muted hover:text-text-main shadow-[2px_2px_0px_#000000] transition-colors"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
@@ -99,7 +105,7 @@ export default function Modal({
         )}
 
         {/* Body */}
-        <div className="p-6 max-h-[calc(85vh-100px)] overflow-y-auto custom-scrollbar">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">{children}</div>
 
         {/* Footer */}
         {footer && (
@@ -124,23 +130,28 @@ export function ConfirmModal({
   loading = false,
 }) {
   return (
-    <Modal
+    <AntaresModal
       isOpen={isOpen}
       onClose={onClose}
       title={title}
       size="sm"
+      hideScrollbar
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={loading}>
-            {cancelText}
-          </Button>
-          <Button variant={variant} onClick={onConfirm} loading={loading}>
-            {confirmText}
-          </Button>
-        </>
+        <SurfaceSkinContext.Provider value="antares">
+          <div className="flex w-full gap-2">
+            <Button skin="antares" variant="ghost" onClick={onClose} disabled={loading} fullWidth>
+              {cancelText}
+            </Button>
+            <Button skin="antares" variant={variant} onClick={onConfirm} loading={loading} fullWidth>
+              {confirmText}
+            </Button>
+          </div>
+        </SurfaceSkinContext.Provider>
       }
     >
-      <p className="text-text-muted">{message}</p>
-    </Modal>
+      <SurfaceSkinContext.Provider value="antares">
+        <p className="text-sm text-[var(--t-muted)]">{message}</p>
+      </SurfaceSkinContext.Provider>
+    </AntaresModal>
   );
 }

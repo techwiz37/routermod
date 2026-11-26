@@ -24,13 +24,11 @@ export default {
     ],
     format: "kiro",
     retry: {
-      "429": 0,
+      "429": 2,
     },
     headers: {
       "Content-Type": "application/json",
       Accept: "application/vnd.amazon.eventstream",
-      "User-Agent": "AWS-SDK-JS/3.0.0 kiro-ide/1.0.0",
-      "X-Amz-User-Agent": "aws-sdk-js/3.0.0 kiro-ide/1.0.0",
     },
     tokenUrl: "https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken",
     authUrl: "https://prod.us-east-1.auth.desktop.kiro.dev",
@@ -43,42 +41,30 @@ export default {
   // Static fallback = live ListAvailableModels catalog for Kiro free / Builder ID
   // accounts (verified 2026-11-14). Paid-plan models (Opus, Sonnet 5.x, GPT-5.6,
   // Kimi K3, Grok …) are served per-account by services/kiroModels.js live fetch.
+  // Only upstream model ids are listed — no synthetic `-thinking` / `-agentic`
+  // variants.
   models: [
-    // Auto — Kiro picks the model server-side; no -agentic variants.
+    // Auto — Kiro picks the model server-side.
     { id: "auto", name: "Auto", contextLength: 1000000, rateMultiplier: 1.0 },
-    { id: "auto-thinking", name: "Auto (Thinking)", contextLength: 1000000, rateMultiplier: 1.0 },
     // Claude
     { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5", contextLength: 200000, rateMultiplier: 1.3 },
-    { id: "claude-sonnet-4.5-thinking", name: "Claude Sonnet 4.5 (Thinking)", contextLength: 200000, rateMultiplier: 1.3 },
-    { id: "claude-sonnet-4.5-agentic", name: "Claude Sonnet 4.5 (Agentic)", contextLength: 200000, rateMultiplier: 1.3 },
-    { id: "claude-sonnet-4.5-thinking-agentic", name: "Claude Sonnet 4.5 (Thinking + Agentic)", contextLength: 200000, rateMultiplier: 1.3 },
     { id: "claude-haiku-4.5", name: "Claude Haiku 4.5", contextLength: 200000, rateMultiplier: 0.4 },
-    { id: "claude-haiku-4.5-thinking", name: "Claude Haiku 4.5 (Thinking)", contextLength: 200000, rateMultiplier: 0.4 },
-    { id: "claude-haiku-4.5-agentic", name: "Claude Haiku 4.5 (Agentic)", contextLength: 200000, rateMultiplier: 0.4 },
-    { id: "claude-haiku-4.5-thinking-agentic", name: "Claude Haiku 4.5 (Thinking + Agentic)", contextLength: 200000, rateMultiplier: 0.4 },
     // Open-weight
     { id: "deepseek-3.2", name: "DeepSeek 3.2", contextLength: 164000, rateMultiplier: 0.25, strip: ["image","audio"] },
-    { id: "deepseek-3.2-thinking", name: "DeepSeek 3.2 (Thinking)", contextLength: 164000, rateMultiplier: 0.25, strip: ["image","audio"] },
-    { id: "deepseek-3.2-agentic", name: "DeepSeek 3.2 (Agentic)", contextLength: 164000, rateMultiplier: 0.25, strip: ["image","audio"] },
-    { id: "deepseek-3.2-thinking-agentic", name: "DeepSeek 3.2 (Thinking + Agentic)", contextLength: 164000, rateMultiplier: 0.25, strip: ["image","audio"] },
     { id: "minimax-m2.5", name: "MiniMax M2.5", contextLength: 196000, rateMultiplier: 0.25 },
-    { id: "minimax-m2.5-thinking", name: "MiniMax M2.5 (Thinking)", contextLength: 196000, rateMultiplier: 0.25 },
-    { id: "minimax-m2.5-agentic", name: "MiniMax M2.5 (Agentic)", contextLength: 196000, rateMultiplier: 0.25 },
-    { id: "minimax-m2.5-thinking-agentic", name: "MiniMax M2.5 (Thinking + Agentic)", contextLength: 196000, rateMultiplier: 0.25 },
     { id: "minimax-m2.1", name: "MiniMax M2.1", contextLength: 196000, rateMultiplier: 0.15 },
-    { id: "minimax-m2.1-thinking", name: "MiniMax M2.1 (Thinking)", contextLength: 196000, rateMultiplier: 0.15 },
-    { id: "minimax-m2.1-agentic", name: "MiniMax M2.1 (Agentic)", contextLength: 196000, rateMultiplier: 0.15 },
-    { id: "minimax-m2.1-thinking-agentic", name: "MiniMax M2.1 (Thinking + Agentic)", contextLength: 196000, rateMultiplier: 0.15 },
     { id: "glm-5", name: "GLM 5", contextLength: 200000, rateMultiplier: 0.5 },
-    { id: "glm-5-thinking", name: "GLM 5 (Thinking)", contextLength: 200000, rateMultiplier: 0.5 },
-    { id: "glm-5-agentic", name: "GLM 5 (Agentic)", contextLength: 200000, rateMultiplier: 0.5 },
-    { id: "glm-5-thinking-agentic", name: "GLM 5 (Thinking + Agentic)", contextLength: 200000, rateMultiplier: 0.5 },
     { id: "qwen3-coder-next", name: "Qwen3 Coder Next", contextLength: 256000, rateMultiplier: 0.05, strip: ["image","audio"] },
-    { id: "qwen3-coder-next-thinking", name: "Qwen3 Coder Next (Thinking)", contextLength: 256000, rateMultiplier: 0.05, strip: ["image","audio"] },
-    { id: "qwen3-coder-next-agentic", name: "Qwen3 Coder Next (Agentic)", contextLength: 256000, rateMultiplier: 0.05, strip: ["image","audio"] },
-    { id: "qwen3-coder-next-thinking-agentic", name: "Qwen3 Coder Next (Thinking + Agentic)", contextLength: 256000, rateMultiplier: 0.05, strip: ["image","audio"] },
   ],
   oauth: {
+    defaultRegion: "us-east-1",
+    // Kiro's token endpoints occasionally omit expiresIn. Keep a sane default
+    // so a successful refresh never leaves a stale (already expired) expiresAt.
+    defaultExpiresIn: 3600,
+    refreshTimeoutMs: 30_000,
+    refreshFailureCooldownMs: 60_000,
+    refreshRejectedCacheMs: 6 * 60 * 60 * 1000,
+    permanentRefreshErrors: ["access_denied", "invalid_grant", "invalid_client", "unauthorized_client", "expired_token"],
     ssoOidcEndpoint: "https://oidc.us-east-1.amazonaws.com",
     registerClientUrl: "https://oidc.us-east-1.amazonaws.com/client/register",
     deviceAuthUrl: "https://oidc.us-east-1.amazonaws.com/device_authorization",

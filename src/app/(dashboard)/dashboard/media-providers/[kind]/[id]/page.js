@@ -3,9 +3,12 @@
 import { useParams, notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Card, Badge, Button, AddCustomEmbeddingModal, NoAuthProxyCard, ProviderInfoCard, PageLoader } from "@/shared/components";
+import { AddCustomEmbeddingModal, NoAuthProxyCard, ProviderInfoCard, PageLoader } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import StarField from "@/shared/components/StarField";
+import ProviderAlert from "@/app/(dashboard)/dashboard/providers/components/ProviderAlert";
 import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, isCustomEmbeddingProvider } from "@/shared/constants/providers";
+import { translate } from "@/i18n/runtime";
 import ConnectionsCard from "@/app/(dashboard)/dashboard/providers/components/ConnectionsCard";
 import ModelsCard from "@/app/(dashboard)/dashboard/providers/components/ModelsCard";
 import { KIND_EXAMPLE_CONFIG } from "./components/exampleShared";
@@ -59,97 +62,143 @@ export default function MediaProviderDetailPage() {
   if (!isCustom && !builtInProvider) return notFound();
   if (isCustom && !customLoading && !customNode) return notFound();
   if (isCustom && customLoading) {
-    return <PageLoader message="Memuat provider..." />;
+    return <PageLoader message="Loading provider..." />;
   }
 
   const kinds = isCustom ? ["embedding"] : (provider.serviceKinds ?? ["llm"]);
   if (!isCustom && !kinds.includes(kind)) return notFound();
 
-  return (
-    <div className="flex flex-col gap-8">
-      {/* Back */}
-      <div>
-        <Link
-          href={`/dashboard/media-providers/${kind}`}
-          className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
-        >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
-          {kindConfig.label}
-        </Link>
+  const kindIndex = MEDIA_PROVIDER_KINDS.findIndex((k) => k.id === kind);
+  const eyebrowNum = String(kindIndex + 1).padStart(2, "0");
+  const heroKinds = kinds.filter(
+    (k) => k === kind || MEDIA_PROVIDER_KINDS.some((m) => m.id === k)
+  );
+  const apiKeyUrl = !isCustom ? provider.notice?.apiKeyUrl : null;
 
-        {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="size-12 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${provider.color}15` }}>
+  return (
+    <div className="an-scope an-shell an-providerscope media-page flex min-w-0 flex-col gap-4 sm:gap-6">
+      <div className="an-shell-bg" aria-hidden>
+        <StarField />
+      </div>
+
+      {/* ---- Hero ---- */}
+      <header className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="an-eyebrow min-w-0">
+            <span className="an-num">{eyebrowNum}</span>
+            <span className="an-rule" />
+            <span className="truncate">{translate(kindConfig.label)}</span>
+          </p>
+          <Link
+            href={`/dashboard/media-providers/${kind}`}
+            className="an-btn an-ghost ml-auto h-8 shrink-0 gap-1 px-2.5 text-[11px]"
+          >
+            <span className="material-symbols-outlined">arrow_back</span>
+            {translate("Back")}
+          </Link>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <span
+            className="an-provider-hero-ico"
+            style={{ borderColor: `${provider.color}40`, background: `${provider.color}12` }}
+            aria-hidden
+          >
             <ProviderIcon
               src={`/providers/${provider.id}.png`}
               alt={provider.name}
-              size={48}
-              className="object-contain rounded-lg max-w-[48px] max-h-[48px]"
+              size={40}
+              className="object-contain"
               fallbackText={provider.textIcon || provider.id.slice(0, 2).toUpperCase()}
               fallbackColor={provider.color}
             />
-          </div>
-          <div className="flex-1">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <h1 className="text-3xl font-semibold tracking-tight">{provider.name}</h1>
-              {!isCustom && provider.notice?.apiKeyUrl && (
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <h1 className="an-h1 break-words text-[clamp(1.7rem,4.6vw,2.4rem)]">
+              {provider.name}
+            </h1>
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+              {isCustom && (
+                <span className="an-chip accent max-w-full truncate">
+                  {translate("Custom")} · <code>{customNode?.prefix}</code>
+                </span>
+              )}
+              {heroKinds.map((k) => (
+                <span key={k} className={`an-chip ${k === kind ? "accent" : ""}`}>
+                  {translate(MEDIA_PROVIDER_KINDS.find((m) => m.id === k)?.label || k)}
+                </span>
+              ))}
+              {apiKeyUrl && (
                 <a
-                  href={provider.notice.apiKeyUrl}
+                  href={apiKeyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                  className="an-chip ok"
                 >
-                  <span className="material-symbols-outlined text-sm">open_in_new</span>
-                  Get API Key
+                  <span className="material-symbols-outlined">open_in_new</span>
+                  {translate("Get API Key")}
                 </a>
               )}
             </div>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              {isCustom && <Badge variant="default" size="sm">Custom · {customNode?.prefix}</Badge>}
-              {kinds.map((k) => (
-                <Badge key={k} variant={k === kind ? "primary" : "default"} size="sm">
-                  {k.toUpperCase()}
-                </Badge>
-              ))}
-            </div>
           </div>
+
           {isCustom && (
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-              <Button size="sm" variant="secondary" icon="edit" onClick={() => setShowEditModal(true)}>
-                Edit
-              </Button>
-              <Button size="sm" variant="secondary" icon="delete" onClick={handleDeleteCustom}>
-                Delete
-              </Button>
+              <button
+                type="button"
+                className="an-btn an-ghost h-9 gap-1.5 px-3 text-[11px]"
+                onClick={() => setShowEditModal(true)}
+              >
+                <span className="material-symbols-outlined">edit</span>
+                {translate("Edit")}
+              </button>
+              <button
+                type="button"
+                className="an-btn an-ghost h-9 gap-1.5 px-3 text-[11px] !text-[var(--t-danger)] hover:!border-[var(--t-danger)]"
+                onClick={handleDeleteCustom}
+              >
+                <span className="material-symbols-outlined">delete</span>
+                {translate("Delete")}
+              </button>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Kind-specific notice (e.g. codex/image requires Plus) */}
+        <p className="an-hint max-w-[70ch]">
+          {isCustom
+            ? translate("Any OpenAI-compatible embedding endpoint can sit behind this node. Add credentials, then call it through RouterMod.")
+            : translate("Add an account or endpoint for this provider, then call it through RouterMod.")}
+        </p>
+      </header>
+
+      {/* ---- Notices ---- */}
       {!isCustom && provider.kindNotice?.[kind] && (
-        <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/50 shadow-[2px_2px_0px_theme(colors.amber.400)]">
-          <span className="material-symbols-outlined text-[17px] text-amber-500 mt-0.5 shrink-0">warning</span>
-          <p className="text-xs font-medium text-amber-800 dark:text-amber-300 leading-relaxed">{provider.kindNotice[kind]}</p>
-        </div>
+        <ProviderAlert variant="warning" title={translate("Notice")}>
+          {provider.kindNotice[kind]}
+        </ProviderAlert>
       )}
 
-      {/* Provider notice text (only when there's actual text content) */}
       {!isCustom && provider.notice?.text && !provider.deprecated && (
-        <div className="flex items-start gap-3 px-3.5 py-2.5 rounded-lg border-2 border-blue-400 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/50 shadow-[2px_2px_0px_theme(colors.blue.400)]">
-          <span className="material-symbols-outlined text-[17px] text-blue-500 shrink-0 mt-0.5">info</span>
-          <p className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-blue-800 dark:text-blue-300">{provider.notice.text}</p>
-          {provider.notice.apiKeyUrl && (
-            <a
-              href={provider.notice.apiKeyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[11px] font-bold uppercase tracking-wide px-2 py-1 rounded border border-blue-400 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 whitespace-nowrap shrink-0 transition-colors"
-            >
-              Get API Key
-            </a>
-          )}
-        </div>
+        <ProviderAlert
+          variant="info"
+          title={translate("Notice")}
+          action={
+            apiKeyUrl ? (
+              <a
+                href={apiKeyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="an-btn an-ghost h-8 gap-1 px-2.5 text-[11px]"
+              >
+                <span className="material-symbols-outlined">open_in_new</span>
+                {translate("Get API Key")}
+              </a>
+            ) : null
+          }
+        >
+          {provider.notice.text}
+        </ProviderAlert>
       )}
 
       {/* Connections */}
@@ -180,7 +229,7 @@ export default function MediaProviderDetailPage() {
               : provider.searchConfig || { mode: "chat-completions", defaultModel: provider.searchViaChat?.defaultModel, pricingUrl: provider.searchViaChat?.pricingUrl, freeTier: provider.searchViaChat?.freeTier }
           }
           provider={provider}
-          title={`${kindConfig.label} Config`}
+          title={`${translate(kindConfig.label)} ${translate("Config")}`}
         />
       )}
 

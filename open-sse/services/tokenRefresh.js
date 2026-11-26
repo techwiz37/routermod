@@ -276,6 +276,7 @@ export async function refreshWithRetry(refreshFn, maxRetries = 3, log = null) {
       if (result) return result;
     } catch (error) {
       log?.warn?.("TOKEN_REFRESH", `Attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`);
+      if (error.code === "kiro_user_suspended") throw error;
     }
   }
 

@@ -2,6 +2,8 @@
 import * as log from "../utils/logger.js";
 import { getRefreshLeadMs } from "open-sse/services/tokenRefresh.js";
 import { getCredentialExpiryMs } from "open-sse/services/oauthCredentialManager.js";
+import { getKiroRefreshRejection } from "open-sse/shared/kiroRefreshState.js";
+import { claimScheduler, releaseScheduler } from "@/lib/singletonScheduler";
 
 export const BACKGROUND_REFRESH_LEAD_MS = 30 * 60 * 1000;
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
@@ -42,6 +44,7 @@ function isNonServerRuntime() {
 
 export function isRefreshRejectedCooldown(conn, nowMs = Date.now()) {
   if (!conn) return false;
+  if (conn.provider === "kiro" && getKiroRefreshRejection(conn)) return true;
   const err = String(conn.lastError || "");
   if (!err.includes(REFRESH_REJECTED_MARKER)) return false;
   // If the rejection was recorded a long time ago, allow a retry.
@@ -56,6 +59,10 @@ export function selectConnectionsNeedingRefresh(connections, nowMs = Date.now())
   const out = [];
   for (const conn of connections) {
     if (!conn) continue;
+    // The DB loader already filters active rows, but callers can pass a mixed
+    // list. Never refresh a disabled account — wasted upstream calls and log
+    // spam on every tick.
+    if (conn.isActive === false) continue;
 
     const authType = String(conn.authType || "").toLowerCase().replace(/_/g, "");
     if (authType !== "oauth") continue;
@@ -145,6 +152,7 @@ export function startBackgroundTokenRefresh({ intervalMs } = {}) {
   if (started) return false;
   if (isTruthyEnv(process.env.DISABLE_BACKGROUND_TOKEN_REFRESH)) return false;
   if (isNonServerRuntime()) return false;
+  if (!claimScheduler("token-refresh")) return false;
 
   started = true;
   const period = Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : DEFAULT_INTERVAL_MS;
@@ -177,5 +185,6 @@ export function stopBackgroundTokenRefresh() {
   }
   if (started) {
     started = false;
+    releaseScheduler("token-refresh");
   }
 }

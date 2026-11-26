@@ -1,19 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import AntaresModal from "@/shared/components/AntaresModal";
 import { translate, translateServerMessage } from "@/i18n/runtime";
 import { parseIpBlacklistInput } from "@/shared/utils/ipBlacklist.js";
 
-function BlacklistForm({ apiKey, onSaved, onClose }) {
+const BlacklistForm = forwardRef(function BlacklistForm({ apiKey, onSaved, onClose, onSavingChange }, ref) {
   const [text, setText] = useState(() => (apiKey.ipBlacklist || []).join("\n"));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const { valid, invalid } = parseIpBlacklistInput(text);
 
+  useEffect(() => { onSavingChange?.(saving); }, [onSavingChange, saving]);
   const save = async () => {
     if (invalid.length) {
       setError(`${translate("Invalid IP")}: ${invalid.slice(0, 10).join(", ")}`);
@@ -36,6 +37,8 @@ function BlacklistForm({ apiKey, onSaved, onClose }) {
       setSaving(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({ save }), [save]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -69,29 +72,43 @@ function BlacklistForm({ apiKey, onSaved, onClose }) {
         </div>
       )}
 
-      <div className="flex gap-2">
-        <Button skin="antares" onClick={save} loading={saving} fullWidth>{translate("Save")}</Button>
-        <Button skin="antares" variant="ghost" onClick={onClose} disabled={saving} fullWidth>{translate("Cancel")}</Button>
-      </div>
     </div>
   );
-}
+});
 
 BlacklistForm.propTypes = {
   apiKey: PropTypes.object.isRequired,
   onSaved: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
+  onSavingChange: PropTypes.func,
 };
 
 export default function IpBlacklistModal({ apiKey, onSaved, onClose }) {
+  const formRef = useRef(null);
+  const [saving, setSaving] = useState(false);
+  if (!apiKey) return null;
   return (
     <AntaresModal
       isOpen={!!apiKey}
+      size="lg"
+      className="!max-h-[78dvh] sm:!max-h-[86dvh]"
+      hideScrollbar
       title={translate("IP Blacklist")}
-      subtitle={apiKey ? apiKey.name : ""}
+      subtitle={
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[var(--t-raised)] border border-[var(--t-line)] text-xs font-mono text-[var(--t-ink)]">
+          <span className="material-symbols-outlined text-[13px] text-[var(--t-muted)]">key</span>
+          {apiKey.name || "Default Key"}
+        </span>
+      }
       onClose={onClose}
+      footer={
+        <div className="flex w-full items-center gap-2">
+          <Button skin="antares" variant="ghost" onClick={onClose} disabled={saving} fullWidth>{translate("Cancel")}</Button>
+          <Button skin="antares" onClick={() => formRef.current?.save()} loading={saving} fullWidth>{translate("Save")}</Button>
+        </div>
+      }
     >
-      {apiKey && <BlacklistForm key={apiKey.id} apiKey={apiKey} onSaved={onSaved} onClose={onClose} />}
+      <BlacklistForm ref={formRef} key={apiKey.id} apiKey={apiKey} onSaved={onSaved} onClose={onClose} onSavingChange={setSaving} />
     </AntaresModal>
   );
 }
