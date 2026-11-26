@@ -229,7 +229,7 @@ export async function proxy(request) {
 
   // API-key customers authenticate through the HttpOnly key-dashboard cookie,
   // independently from the administrator dashboard session.
-  if (pathname === "/dashboard-keys" || pathname === "/dashboard-keys/manage-keys" || pathname === "/dashboard-keys/live-models" || pathname === "/dashboard-keys/top-models-keys" || pathname === "/dashboard-keys/billing" || pathname === "/dashboard-keys/topup") return NextResponse.next();
+  if (pathname === "/dashboard-keys" || pathname === "/dashboard-keys/manage-keys" || pathname === "/dashboard-keys/live-models" || pathname === "/dashboard-keys/top-models-keys" || pathname === "/dashboard-keys/billing" || pathname === "/dashboard-keys/topup" || pathname === "/dashboard-keys/permissions") return NextResponse.next();
 
   if (pathname.startsWith("/dashboard")) {
     let requireLogin = true;
