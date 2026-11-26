@@ -19,6 +19,9 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
   const [activeTab, setActiveTab] = useState("requests");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // The name is the only human-readable handle for this credential, so it is
+  // editable right here instead of forcing a delete/recreate cycle.
+  const [keyName, setKeyName] = useState(() => apiKey.name || "");
 
   // Keep the parent's loading state in sync so the sticky footer can show it.
   useEffect(() => { onSavingChange?.(saving); }, [onSavingChange, saving]);
@@ -69,6 +72,7 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: keyName.trim(),
           minuteLimit: Math.max(0, Number(minuteLimit) || 0),
           hourLimit: Math.max(0, Number(hourLimit) || 0),
           dailyLimit: Math.max(0, Number(dailyLimit) || 0),
@@ -117,6 +121,30 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Key name — surfaced first because it labels every other view. */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="api-key-name" className="text-xs font-medium text-[var(--t-ink)]">
+            {translate("Key name")}
+          </label>
+          <span className="shrink-0 text-[10px] font-mono text-[var(--t-muted)] px-1.5 py-0.5 rounded bg-[var(--t-field)] border border-[var(--t-line-soft)]">
+            {keyName.trim().length}/60
+          </span>
+        </div>
+        <Input
+          id="api-key-name"
+          variant="antares"
+          type="text"
+          maxLength={60}
+          value={keyName}
+          onChange={(e) => setKeyName(e.target.value)}
+          placeholder={translate("e.g. Production bot")}
+        />
+        <p className="text-[11px] leading-relaxed text-[var(--t-muted)]">
+          {translate("Shown in the key list and the live request feed. Leave empty to use the default label.")}
+        </p>
+      </div>
+
       {/* Navigation Tabs (Responsive Segmented Control) */}
       <div className="grid grid-cols-3 p-1 rounded-xl bg-[var(--t-field)] border border-[var(--t-line)] gap-0.5 sm:gap-1">
         <button

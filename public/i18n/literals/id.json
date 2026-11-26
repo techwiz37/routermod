@@ -1918,6 +1918,8 @@
   "Delete key": "Hapus kunci",
   "Fetch models": "Ambil model",
   "API Key Configuration": "Konfigurasi Kunci API",
+  "e.g. Production bot": "mis. Bot produksi",
+  "Shown in the key list and the live request feed. Leave empty to use the default label.": "Ditampilkan di daftar kunci dan feed request langsung. Kosongkan untuk memakai label bawaan.",
   "API key token quota": "Kuota token kunci API",
   "Cap how many tokens this key may consume inside a rolling window. 0 = unlimited.": "Batasi berapa token yang boleh dipakai kunci ini dalam jendela bergulir. 0 = tanpa batas.",
   "Max tokens": "Maksimal token",

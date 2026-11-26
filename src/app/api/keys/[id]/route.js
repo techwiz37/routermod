@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, tokenResetEnabled, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, expiresInDays, ipBlacklist } = body;
+    const { isActive, access, name, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, tokenResetEnabled, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, expiresInDays, ipBlacklist } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -31,6 +31,14 @@ export async function PUT(request, { params }) {
 
     const updateData = {};
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (name !== undefined) {
+      if (typeof name !== "string") return NextResponse.json({ error: "name must be a string" }, { status: 400 });
+      const trimmed = name.trim();
+      if (trimmed.length > 60) return NextResponse.json({ error: "name must be 60 characters or fewer" }, { status: 400 });
+      // An empty name is valid: the UI falls back to "Default Key" and the
+      // request feed falls back to the masked key value.
+      updateData.name = trimmed;
+    }
     if (access !== undefined) {
       const checked = validateKeyAccessInput(access);
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
