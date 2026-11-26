@@ -622,7 +622,7 @@ export default function BuyKeyPage() {
 
               {invoices.length > 1 && (
                 <AntaresPanel icon="history" title={t.historyTitle} subtitle={t.historySubtitle}>
-                  <ul className="topup-history">
+                  <ul className="topup-history" tabIndex={0} aria-label={t.historyTitle}>
                     {invoices.map((invoice) => {
                       const meta = STATUS_META[invoice.status] || STATUS_META.pending;
                       return (

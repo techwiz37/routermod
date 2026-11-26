@@ -425,7 +425,7 @@ export default function TopupTokenPage() {
                   title={translate("Invoice history")}
                   subtitle={translate("Your most recent topup invoices.")}
                 >
-                  <ul className="topup-history">
+                  <ul className="topup-history" tabIndex={0} aria-label={translate("Invoice history")}>
                     {invoices.map((invoice) => {
                       const meta = STATUS_META[invoice.status] || STATUS_META.pending;
                       return (
