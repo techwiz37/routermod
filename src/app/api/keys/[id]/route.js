@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access, name, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, tokenResetEnabled, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, expiresInDays, ipBlacklist } = body;
+    const { isActive, access, name, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, tokenResetEnabled, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, expiresInDays, expiresInSeconds, ipBlacklist } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -72,7 +72,14 @@ export async function PUT(request, { params }) {
     }
     if (maintenanceEnabled !== undefined) updateData.maintenanceEnabled = Boolean(maintenanceEnabled);
     if (maintenanceMessage !== undefined) updateData.maintenanceMessage = String(maintenanceMessage).trim().slice(0, 500);
-    if (expiresInDays !== undefined) {
+    if (expiresInSeconds !== undefined) {
+      const seconds = Number(expiresInSeconds);
+      if (!Number.isFinite(seconds) || seconds < 0) {
+        return NextResponse.json({ error: "expiresInSeconds must be a non-negative number" }, { status: 400 });
+      }
+      // 0 clears the explicit deadline (never expires).
+      updateData.expiresAt = seconds > 0 ? new Date(Date.now() + seconds * 1000).toISOString() : null;
+    } else if (expiresInDays !== undefined) {
       const days = Number(expiresInDays);
       if (!Number.isInteger(days) || days < 0) return NextResponse.json({ error: "expiresInDays must be a non-negative integer" }, { status: 400 });
       updateData.expiresAt = days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;

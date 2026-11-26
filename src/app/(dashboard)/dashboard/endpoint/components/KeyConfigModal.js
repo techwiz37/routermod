@@ -15,6 +15,37 @@ function formatNumber(num) {
   return Number(num).toLocaleString("en-US");
 }
 
+// Expiry is expressed as an amount plus a unit so operators can issue very
+// short-lived keys (minutes) as easily as monthly ones.
+const EXPIRY_UNITS = {
+  minutes: { seconds: 60, label: "minutes" },
+  hours: { seconds: 3600, label: "hours" },
+  days: { seconds: 86400, label: "days" },
+};
+
+const EXPIRY_PRESETS = {
+  minutes: [5, 15, 30, 60],
+  hours: [1, 6, 12, 24],
+  days: [7, 30, 90],
+};
+
+// Derive a readable amount/unit from the stored absolute expiry. The value is
+// only used to prefill the form; saving an untouched form keeps the original
+// timestamp because the field is omitted from the payload.
+function splitExpiry(expiresAt) {
+  if (!expiresAt) return { amount: 0, unit: "days" };
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return { amount: 0, unit: "days" };
+  const seconds = ms / 1000;
+  if (seconds >= EXPIRY_UNITS.days.seconds) {
+    return { amount: Math.max(1, Math.ceil(seconds / EXPIRY_UNITS.days.seconds)), unit: "days" };
+  }
+  if (seconds >= EXPIRY_UNITS.hours.seconds) {
+    return { amount: Math.max(1, Math.ceil(seconds / EXPIRY_UNITS.hours.seconds)), unit: "hours" };
+  }
+  return { amount: Math.max(1, Math.ceil(seconds / EXPIRY_UNITS.minutes.seconds)), unit: "minutes" };
+}
+
 const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSaved, addNotification, onSavingChange }, ref) {
   const [activeTab, setActiveTab] = useState("requests");
   const [saving, setSaving] = useState(false);
@@ -41,12 +72,19 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
   const [tokensPerMinute, setTokensPerMinute] = useState(() => apiKey.tokensPerMinuteLimit || 0);
 
   // Access & Expiry
-  const [expiresInDays, setExpiresInDays] = useState(() => {
-    if (!apiKey.expiresAt) return 0;
-    return Math.max(1, Math.ceil((new Date(apiKey.expiresAt).getTime() - Date.now()) / 86400000));
-  });
+  const [expiresAmount, setExpiresAmount] = useState(() => splitExpiry(apiKey.expiresAt).amount);
+  const [expiresUnit, setExpiresUnit] = useState(() => splitExpiry(apiKey.expiresAt).unit);
+  // Only send expiry when the operator actually edits it, so merely opening
+  // this dialog cannot shift an existing deadline.
+  const [expiresTouched, setExpiresTouched] = useState(false);
   const [maintenance, setMaintenance] = useState(() => !!apiKey.maintenanceEnabled);
   const [maintenanceMessage, setMaintenanceMessage] = useState(() => apiKey.maintenanceMessage || "");
+
+  const changeExpiry = (amount, unit = expiresUnit) => {
+    setExpiresAmount(amount);
+    setExpiresUnit(unit);
+    setExpiresTouched(true);
+  };
 
   // Indicator helpers
   const hasRequestsConfig =
@@ -62,7 +100,7 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
     Number(tokensPerMinute) > 0;
 
   const hasAccessConfig =
-    Number(expiresInDays) > 0 || maintenance;
+    Number(expiresAmount) > 0 || maintenance;
 
   const handleSave = async () => {
     setSaving(true);
@@ -85,7 +123,13 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
           maxConcurrentLimit: Math.max(0, Number(maxConcurrent) || 0),
           maintenanceEnabled: maintenance,
           maintenanceMessage: maintenanceMessage,
-          expiresInDays: Math.max(0, Number(expiresInDays) || 0),
+          ...(expiresTouched
+            ? {
+                expiresInSeconds: Number(expiresAmount) > 0
+                  ? Math.round(Number(expiresAmount) * EXPIRY_UNITS[expiresUnit].seconds)
+                  : 0,
+              }
+            : {}),
         }),
       });
 
@@ -428,38 +472,48 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[18px] text-[var(--t-muted)]">schedule</span>
-                <span className="text-xs font-medium text-[var(--t-ink)]">{translate("Expire after (days)")}</span>
+                <span className="text-xs font-medium text-[var(--t-ink)]">{translate("Expire after")}</span>
               </div>
-              {Number(expiresInDays) > 0 && (
+              {Number(expiresAmount) > 0 && (
                 <span className="text-[11px] font-mono text-[var(--t-star-ink)] font-medium">
-                  {expiresInDays} {translate("days")}
+                  {expiresAmount} {translate(EXPIRY_UNITS[expiresUnit].label)}
                 </span>
               )}
             </div>
 
-            <Input
-              variant="antares"
-              type="number"
-              min="0"
-              value={expiresInDays}
-              onChange={(e) => setExpiresInDays(e.target.value)}
-              placeholder={translate("0 = never expires")}
-            />
+            <div className="grid grid-cols-[minmax(0,1fr)_9rem] gap-2">
+              <Input
+                id="api-key-expiry-amount"
+                variant="antares"
+                type="number"
+                min="0"
+                value={expiresAmount}
+                onChange={(e) => changeExpiry(e.target.value)}
+                placeholder={translate("0 = never expires")}
+                aria-label={translate("Expire after")}
+              />
+              <AntaresSelect
+                id="api-key-expiry-unit"
+                value={expiresUnit}
+                onChange={(e) => changeExpiry(expiresAmount, e.target.value)}
+                ariaLabel={translate("Unit")}
+                buttonClassName="h-[42px] font-mono"
+                options={Object.entries(EXPIRY_UNITS).map(([value, meta]) => ({ value, label: translate(meta.label) }))}
+              />
+            </div>
 
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              {[
-                { label: translate("Never (0)"), value: 0 },
-                { label: `7 ${translate("days")}`, value: 7 },
-                { label: `30 ${translate("days")}`, value: 30 },
-                { label: `90 ${translate("days")}`, value: 90 },
-              ].map((preset) => (
+              {[{ label: translate("Never (0)"), value: 0 }, ...EXPIRY_PRESETS[expiresUnit].map((n) => ({
+                label: `${n} ${translate(EXPIRY_UNITS[expiresUnit].label)}`,
+                value: n,
+              }))].map((preset) => (
                 <button
-                  key={preset.value}
+                  key={`${preset.value}-${expiresUnit}`}
                   type="button"
-                  onClick={() => setExpiresInDays(preset.value)}
+                  onClick={() => changeExpiry(preset.value)}
                   className={cn(
                     "text-[11px] font-mono py-1 px-2.5 rounded-md border transition-colors",
-                    Number(expiresInDays) === preset.value
+                    Number(expiresAmount) === preset.value
                       ? "bg-[var(--t-raised)] border-[var(--t-hover-line)] text-[var(--t-ink)] font-medium"
                       : "bg-transparent border-[var(--t-line)] text-[var(--t-muted)] hover:text-[var(--t-ink)] hover:border-[var(--t-hover-line)]"
                   )}
