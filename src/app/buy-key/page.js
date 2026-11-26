@@ -369,7 +369,9 @@ export default function BuyKeyPage() {
   const hasPending = invoices.some((invoice) => invoice.status === "pending");
   useEffect(() => {
     if (loading || !hasPending) return undefined;
-    const timer = window.setInterval(() => { syncNow({ silent: true }); }, 20_000);
+    // Check the merchant mutations every 10s while a QRIS payment is still
+    // waiting, so the delivered key appears right after the money lands.
+    const timer = window.setInterval(() => { syncNow({ silent: true }); }, 10_000);
     return () => window.clearInterval(timer);
   }, [hasPending, loading, syncNow]);
 

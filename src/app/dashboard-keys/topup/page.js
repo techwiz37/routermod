@@ -141,10 +141,12 @@ export default function TopupTokenPage() {
   }, [refreshBilling, router]);
 
   // Auto-credit: poll while at least one invoice is still waiting for money.
+  // Every 10s keeps the confirmation close to the QRIS settlement without
+  // hammering GoBiz: the route itself throttles concurrent reads.
   const hasPending = useMemo(() => invoices.some((invoice) => invoice.status === "pending"), [invoices]);
   useEffect(() => {
     if (!hasPending) return undefined;
-    const timer = window.setInterval(() => { syncNow({ silent: true }); }, 20000);
+    const timer = window.setInterval(() => { syncNow({ silent: true }); }, 10000);
     return () => window.clearInterval(timer);
   }, [hasPending, syncNow]);
 
