@@ -50,6 +50,7 @@ function formatRemaining(ms) {
 export default function APIPageClient({ machineId }) {
   const addNotification = useNotificationStore((s) => s.addNotification);
   const [keys, setKeys] = useState([]);
+  const [keySearch, setKeySearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
@@ -66,6 +67,18 @@ export default function APIPageClient({ machineId }) {
     if (!q) return list;
     return list.filter((m) => String(m?.id || "").toLowerCase().includes(q));
   }, [fetchedModelsData, fetchedModelsQuery]);
+
+  // Search the key list by name or by the actual key value. The dashboard
+  // already receives full key values, so matching stays client-side and
+  // instant — no extra request per keystroke.
+  const filteredKeys = useMemo(() => {
+    const q = keySearch.trim().toLowerCase();
+    if (!q) return keys;
+    return keys.filter((key) => (
+      String(key?.name || "").toLowerCase().includes(q) ||
+      String(key?.key || "").toLowerCase().includes(q)
+    ));
+  }, [keys, keySearch]);
 
   // One shared clock drives every key countdown and removes expired keys.
   useEffect(() => {
@@ -1023,6 +1036,27 @@ export default function APIPageClient({ machineId }) {
           </div>
         )}
 
+        {keys.length > 0 && (
+          <div className="an-toolbar mb-4">
+            <div className="an-search">
+              <span className="material-symbols-outlined" aria-hidden>search</span>
+              <input
+                type="search"
+                value={keySearch}
+                onChange={(e) => setKeySearch(e.target.value)}
+                placeholder={translate("Search keys by name or value...")}
+                className="an-input"
+                aria-label={translate("Search keys")}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            <span className="an-toolbar-count" aria-live="polite">
+              {filteredKeys.length} / {keys.length}
+            </span>
+          </div>
+        )}
+
         {keys.length === 0 ? (
           <div className="text-center py-10 sm:py-12">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[var(--t-accent-soft)] text-[var(--t-star-ink)] mb-4">
@@ -1034,12 +1068,23 @@ export default function APIPageClient({ machineId }) {
               {translate("Create Key")}
             </AntaresButton>
           </div>
+         ) : filteredKeys.length === 0 ? (
+           <div className="text-center py-10 sm:py-12">
+             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[var(--t-field)] text-[var(--t-muted)] mb-4">
+               <span className="material-symbols-outlined text-[26px]">search_off</span>
+             </div>
+             <p className="font-medium mb-1">{translate("No keys match your search")}</p>
+             <p className="text-sm text-[var(--t-muted)] mb-4">{translate("Try a different name or key value.")}</p>
+             <AntaresButton icon="close" onClick={() => setKeySearch("")}>
+               {translate("Clear search")}
+             </AntaresButton>
+           </div>
          ) : (
            <>
              {(() => {
                return (
                  <KeyCardSlider>
-                   {keys.map((key) => (
+                   {filteredKeys.map((key) => (
                  <div
                    key={key.id}
                    className={`key-card ${key.isActive === false ? "is-paused" : ""}`}

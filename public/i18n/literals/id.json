@@ -2459,5 +2459,10 @@
   "Key": "Key",
   "No model usage recorded yet.": "Belum ada pemakaian model yang tercatat.",
   "No key usage recorded yet.": "Belum ada pemakaian key yang tercatat.",
-  "Could not load leaderboard.": "Papan peringkat tidak dapat dimuat."
+  "Could not load leaderboard.": "Papan peringkat tidak dapat dimuat.",
+  "Search keys by name or value...": "Cari key berdasarkan nama atau value...",
+  "Search keys": "Cari key",
+  "No keys match your search": "Tidak ada key yang cocok",
+  "Try a different name or key value.": "Coba nama atau value key lain.",
+  "Clear search": "Hapus pencarian"
 }
