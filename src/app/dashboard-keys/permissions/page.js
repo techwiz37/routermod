@@ -99,6 +99,7 @@ export default function KeyPermissionsPage() {
   };
 
   const blacklist = data?.blacklist || [];
+  const canManageIp = data?.manageIpEnabled !== false;
   const permissions = data?.permissions || { restricted: false, allow: [] };
   const limits = data?.limits || {};
 
@@ -324,6 +325,7 @@ export default function KeyPermissionsPage() {
                             </p>
                           </div>
                           {blacklist.includes(row.ip) ? (
+                            canManageIp ? (
                             <AntaresButton
                               type="button"
                               variant="ghost"
@@ -334,9 +336,10 @@ export default function KeyPermissionsPage() {
                             >
                               {translate("Unblock")}
                             </AntaresButton>
+                            ) : null
                           ) : row.blocked ? (
                             <span className="key-ip-range-note">{translate("Blocked by a range")}</span>
-                          ) : (
+                          ) : canManageIp ? (
                             <AntaresButton
                               type="button"
                               variant="ghost"
@@ -348,7 +351,7 @@ export default function KeyPermissionsPage() {
                             >
                               {translate("Block")}
                             </AntaresButton>
-                          )}
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -382,6 +385,13 @@ export default function KeyPermissionsPage() {
                   <p>{translate("Supports IPv4, IPv6, and IPv4 CIDR ranges such as 10.0.0.0/24. Blocking takes effect on the next request.")}</p>
                 </AntaresNotice>
 
+                {!canManageIp && (
+                  <AntaresNotice variant="warn" icon="lock" className="key-ip-notice">
+                    <p>{translate("IP management is disabled by the administrator. You can still see the list, but only an admin can change the blacklist.")}</p>
+                  </AntaresNotice>
+                )}
+
+                {canManageIp && (
                 <form className="key-ip-add" onSubmit={addManual}>
                   <label className="sr-only" htmlFor="block-ip-input">{translate("IP or CIDR to block")}</label>
                   <input
@@ -399,6 +409,7 @@ export default function KeyPermissionsPage() {
                     {translate("Block IP")}
                   </AntaresButton>
                 </form>
+                )}
                 {draftError && <p className="key-ip-feedback is-error" role="alert">{draftError}</p>}
 
                 {blacklist.length ? (
@@ -406,6 +417,7 @@ export default function KeyPermissionsPage() {
                     {blacklist.map((entry) => (
                       <li key={entry} className="key-ip-chip is-blocked">
                         <code>{entry}</code>
+                        {canManageIp && (
                         <button
                           type="button"
                           onClick={() => toggleBlock(entry, true)}
@@ -415,6 +427,7 @@ export default function KeyPermissionsPage() {
                         >
                           <span className="material-symbols-outlined" aria-hidden>close</span>
                         </button>
+                        )}
                       </li>
                     ))}
                   </ul>

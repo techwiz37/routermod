@@ -79,6 +79,10 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
   const [expiresTouched, setExpiresTouched] = useState(false);
   const [maintenance, setMaintenance] = useState(() => !!apiKey.maintenanceEnabled);
   const [maintenanceMessage, setMaintenanceMessage] = useState(() => apiKey.maintenanceMessage || "");
+  // Default on: existing keys keep the ability to rotate their own secret.
+  const [changeKey, setChangeKey] = useState(() => apiKey.changeKeyEnabled !== false);
+  // Default on: existing keys keep control of their own IP blacklist.
+  const [manageIp, setManageIp] = useState(() => apiKey.manageIpEnabled !== false);
 
   const changeExpiry = (amount, unit = expiresUnit) => {
     setExpiresAmount(amount);
@@ -100,7 +104,7 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
     Number(tokensPerMinute) > 0;
 
   const hasAccessConfig =
-    Number(expiresAmount) > 0 || maintenance;
+    Number(expiresAmount) > 0 || maintenance || !changeKey || !manageIp;
 
   const handleSave = async () => {
     setSaving(true);
@@ -123,6 +127,8 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
           maxConcurrentLimit: Math.max(0, Number(maxConcurrent) || 0),
           maintenanceEnabled: maintenance,
           maintenanceMessage: maintenanceMessage,
+          changeKeyEnabled: changeKey,
+          manageIpEnabled: manageIp,
           ...(expiresTouched
             ? {
                 expiresInSeconds: Number(expiresAmount) > 0
@@ -573,6 +579,64 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
                   {maintenanceMessage || translate("API is under maintenance, please try again later.")}
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Change key section */}
+          <div className="p-3.5 rounded-xl bg-[var(--t-field)] border border-[var(--t-line)] flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "material-symbols-outlined text-[18px]",
+                      changeKey ? "text-[var(--t-muted)]" : "text-[var(--t-star-ink)]"
+                    )}
+                  >
+                    key
+                  </span>
+                  <p className="text-xs font-medium text-[var(--t-ink)]">{translate("Change key")}</p>
+                </div>
+                <p className="text-[11px] text-[var(--t-muted)] mt-1">
+                  {translate("Allow the key owner to replace this key in Manage Keys.")}
+                </p>
+              </div>
+              <Toggle checked={changeKey} onChange={setChangeKey} />
+            </div>
+
+            {!changeKey && (
+              <p className="text-[11px] text-[var(--t-muted)] pt-2.5 border-t border-[var(--t-line-soft)] leading-relaxed">
+                {translate("When off, the owner keeps using this key but cannot replace it. Only an admin can change it.")}
+              </p>
+            )}
+          </div>
+
+          {/* Manage IP section */}
+          <div className="p-3.5 rounded-xl bg-[var(--t-field)] border border-[var(--t-line)] flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "material-symbols-outlined text-[18px]",
+                      manageIp ? "text-[var(--t-muted)]" : "text-[var(--t-star-ink)]"
+                    )}
+                  >
+                    lan
+                  </span>
+                  <p className="text-xs font-medium text-[var(--t-ink)]">{translate("Manage IP")}</p>
+                </div>
+                <p className="text-[11px] text-[var(--t-muted)] mt-1">
+                  {translate("Allow the key owner to block or unblock IP addresses from the key dashboard.")}
+                </p>
+              </div>
+              <Toggle checked={manageIp} onChange={setManageIp} />
+            </div>
+
+            {!manageIp && (
+              <p className="text-[11px] text-[var(--t-muted)] pt-2.5 border-t border-[var(--t-line-soft)] leading-relaxed">
+                {translate("When off, the owner can still see the IP list but cannot change the blacklist. Only an admin can change it.")}
+              </p>
             )}
           </div>
         </div>

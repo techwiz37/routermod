@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access, name, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, tokenResetEnabled, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, expiresInDays, expiresInSeconds, ipBlacklist } = body;
+    const { isActive, access, name, dailyLimit, minuteLimit, hourLimit, monthLimit, tokenLimit, tokenLimitWindow, tokenResetEnabled, spendLimit, tokensPerMinuteLimit, maxConcurrentLimit, maintenanceEnabled, maintenanceMessage, changeKeyEnabled, manageIpEnabled, expiresInDays, expiresInSeconds, ipBlacklist } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -72,6 +72,8 @@ export async function PUT(request, { params }) {
     }
     if (maintenanceEnabled !== undefined) updateData.maintenanceEnabled = Boolean(maintenanceEnabled);
     if (maintenanceMessage !== undefined) updateData.maintenanceMessage = String(maintenanceMessage).trim().slice(0, 500);
+    if (changeKeyEnabled !== undefined) updateData.changeKeyEnabled = Boolean(changeKeyEnabled);
+    if (manageIpEnabled !== undefined) updateData.manageIpEnabled = Boolean(manageIpEnabled);
     if (expiresInSeconds !== undefined) {
       const seconds = Number(expiresInSeconds);
       if (!Number.isFinite(seconds) || seconds < 0) {

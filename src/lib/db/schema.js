@@ -90,6 +90,8 @@ export const TABLES = {
       maxConcurrentLimit: "INTEGER DEFAULT 0",
       maintenanceEnabled: "INTEGER DEFAULT 0",
       maintenanceMessage: "TEXT",
+      changeKeyEnabled: "INTEGER DEFAULT 1",
+      manageIpEnabled: "INTEGER DEFAULT 1",
       expiresAt: "TEXT",
       ipBlacklist: "TEXT",
     },

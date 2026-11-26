@@ -32,6 +32,9 @@ export async function replaceOwnApiKey(currentKey, newKey) {
     if (!record?.isActive || (record.expiresAt && Date.parse(record.expiresAt) <= Date.now())) {
       fail(401, "Sesi key tidak valid. Masukkan API key kembali.");
     }
+    if (record?.changeKeyEnabled === 0 || record?.changeKeyEnabled === false) {
+      fail(403, "Perubahan key dinonaktifkan oleh admin.");
+    }
     if (newKey === currentKey) fail(400, "API key baru harus berbeda dari key saat ini.");
     if (getKeyInFlight(currentKey) > 0) fail(409, "Masih ada request aktif. Tunggu sampai selesai sebelum mengganti key.");
     // Reject historical secrets as well, so another customer's usage can never

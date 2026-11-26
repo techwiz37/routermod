@@ -44,6 +44,13 @@ function rowToKey(row) {
     maxConcurrentLimit: Math.max(0, Number(row.maxConcurrentLimit) || 0),
     maintenanceEnabled: row.maintenanceEnabled === 1 || row.maintenanceEnabled === true,
     maintenanceMessage: row.maintenanceMessage || "",
+    // Absent column on an old row means "allowed", matching the migration.
+    changeKeyEnabled: row.changeKeyEnabled === undefined || row.changeKeyEnabled === null
+      ? true
+      : row.changeKeyEnabled === 1 || row.changeKeyEnabled === true,
+    manageIpEnabled: row.manageIpEnabled === undefined || row.manageIpEnabled === null
+      ? true
+      : row.manageIpEnabled === 1 || row.manageIpEnabled === true,
     expiresAt: row.expiresAt || null,
     effectiveExpiresAt: keyExpiryAt(row),
     ipBlacklist: parseIpBlacklist(row.ipBlacklist),
@@ -123,8 +130,8 @@ export async function updateApiKey(id, data) {
     const merged = { ...rowToKey(row), ...data };
     const cols = keyAccessToColumns(merged.access);
     db.run(
-      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, dailyLimit = ?, minuteLimit = ?, hourLimit = ?, monthLimit = ?, tokenLimit = ?, tokenLimitWindow = ?, tokenResetEnabled = ?, tokenCycleStart = ?, spendLimit = ?, tokensPerMinuteLimit = ?, maxConcurrentLimit = ?, maintenanceEnabled = ?, maintenanceMessage = ?, expiresAt = ?, ipBlacklist = ? WHERE id = ?`,
-      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, Math.max(0, Number(merged.dailyLimit) || 0), Math.max(0, Number(merged.minuteLimit) || 0), Math.max(0, Number(merged.hourLimit) || 0), Math.max(0, Number(merged.monthLimit) || 0), Math.max(0, Number(merged.tokenLimit) || 0), TOKEN_WINDOWS[merged.tokenLimitWindow] ? merged.tokenLimitWindow : "24h", merged.tokenResetEnabled === false ? 0 : 1, merged.tokenCycleStart || new Date().toISOString(), Math.max(0, Number(merged.spendLimit) || 0), Math.max(0, Number(merged.tokensPerMinuteLimit) || 0), Math.max(0, Number(merged.maxConcurrentLimit) || 0), merged.maintenanceEnabled ? 1 : 0, merged.maintenanceMessage || null, merged.expiresAt || null, JSON.stringify(Array.isArray(merged.ipBlacklist) ? merged.ipBlacklist : []), id]
+      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, dailyLimit = ?, minuteLimit = ?, hourLimit = ?, monthLimit = ?, tokenLimit = ?, tokenLimitWindow = ?, tokenResetEnabled = ?, tokenCycleStart = ?, spendLimit = ?, tokensPerMinuteLimit = ?, maxConcurrentLimit = ?, maintenanceEnabled = ?, maintenanceMessage = ?, changeKeyEnabled = ?, manageIpEnabled = ?, expiresAt = ?, ipBlacklist = ? WHERE id = ?`,
+      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, Math.max(0, Number(merged.dailyLimit) || 0), Math.max(0, Number(merged.minuteLimit) || 0), Math.max(0, Number(merged.hourLimit) || 0), Math.max(0, Number(merged.monthLimit) || 0), Math.max(0, Number(merged.tokenLimit) || 0), TOKEN_WINDOWS[merged.tokenLimitWindow] ? merged.tokenLimitWindow : "24h", merged.tokenResetEnabled === false ? 0 : 1, merged.tokenCycleStart || new Date().toISOString(), Math.max(0, Number(merged.spendLimit) || 0), Math.max(0, Number(merged.tokensPerMinuteLimit) || 0), Math.max(0, Number(merged.maxConcurrentLimit) || 0), merged.maintenanceEnabled ? 1 : 0, merged.maintenanceMessage || null, merged.changeKeyEnabled === false ? 0 : 1, merged.manageIpEnabled === false ? 0 : 1, merged.expiresAt || null, JSON.stringify(Array.isArray(merged.ipBlacklist) ? merged.ipBlacklist : []), id]
     );
     result = rowToKey(db.get(`SELECT * FROM apiKeys WHERE id = ?`, [id]));
   });

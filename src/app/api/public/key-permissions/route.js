@@ -96,6 +96,9 @@ export async function GET(request) {
 
     return json({
       key: { name: record.name, masked: maskApiKey(record.key), createdAt: record.createdAt || null },
+      // Read-only when the admin turns "Manage IP" off: the list and history
+      // stay visible, but the owner cannot change the blacklist.
+      manageIpEnabled: record.manageIpEnabled !== false,
       permissions: record.access || { restricted: false, allow: [] },
       limits: {
         dailyLimit: record.dailyLimit || 0,
@@ -125,6 +128,9 @@ export async function PATCH(request) {
   try {
     const record = await sessionRecord(request);
     if (!record) return json({ error: "Sesi key tidak valid. Masukkan API key kembali." }, 401);
+    if (record.manageIpEnabled === false) {
+      return json({ error: "Pengelolaan IP dinonaktifkan oleh admin." }, 403);
+    }
 
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body) ||

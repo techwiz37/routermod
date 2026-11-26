@@ -111,58 +111,66 @@ export default function ManageKeysPage() {
             <AntaresButton variant="ghost" onClick={() => setRetry((value) => value + 1)}>{translate("Retry")}</AntaresButton>
           </section>
         ) : !key ? <section className="an-panel key-dashboard-panel">{translate("No active key to manage.")}</section> : (
-          <AntaresPanel className="key-manage-panel" icon="key" title={translate("Custom API key")} subtitle={translate("Only this session's key can be changed. Permissions, limits and expiry follow admin settings.")} aria-label={translate("Custom API key")}>
+          <AntaresPanel className="key-manage-panel" icon="key" title={translate("Custom API key")} subtitle={key.changeKeyEnabled === false ? translate("The administrator has locked this key. You can still use it normally.") : translate("Only this session's key can be changed. Permissions, limits and expiry follow admin settings.")} aria-label={translate("Custom API key")}>
             <dl className="key-manage-current">
               <div className="key-manage-current-tile"><dt>{translate("Key name")}</dt><dd>{key.name || translate("API key")}</dd></div>
               <div className="key-manage-current-tile"><dt>{translate("Current key")}</dt><dd><code>{key.masked}</code></dd></div>
             </dl>
-            <AntaresNotice variant="warn" icon="warning" className="key-manage-warning" >
-              <p id="custom-key-warning">{translate("Once saved, the old key stops working immediately. Store the new key safely and update every application that uses it. Usage history is not reset.")}</p>
-            </AntaresNotice>
-            <form onSubmit={save} className="key-manage-form">
-              <Input
-                id="new-api-key"
-                variant="antares"
-                label={translate("New API key")}
-                type="password"
-                autoComplete="new-password"
-                autoCapitalize="none"
-                spellCheck={false}
-                minLength={5}
-                maxLength={128}
-                pattern="[A-Za-z0-9_\-]{5,128}"
-                value={newKey}
-                onChange={(event) => { setNewKey(event.target.value); setSuccess(""); }}
-                hint={translate(CUSTOM_API_KEY_HELP)}
-                required
-                disabled={saving}
-                aria-describedby="custom-key-warning"
-              />
-              <Input
-                id="confirm-api-key"
-                variant="antares"
-                label={translate("Repeat new API key")}
-                type="password"
-                autoComplete="new-password"
-                autoCapitalize="none"
-                spellCheck={false}
-                maxLength={128}
-                value={confirmKey}
-                onChange={(event) => setConfirmKey(event.target.value)}
-                required
-                disabled={saving}
-              />
-              <label className="key-manage-confirm">
-                <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} disabled={saving} required className="peer sr-only" />
-                <span className="flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border border-[var(--t-line)] bg-[var(--t-field)] text-transparent transition-colors peer-checked:border-[var(--t-accent)] peer-checked:bg-[var(--t-accent)] peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--t-accent)]">
-                  <span className="material-symbols-outlined text-[13px] leading-none" aria-hidden="true">check</span>
-                </span>
-                <span>{translate("I have saved the new key and will update it in my applications.")}</span>
-              </label>
-              {error && <p className="key-manage-feedback is-error" role="alert">{error}</p>}
-              {success && <p className="key-manage-feedback" role="status">{success}</p>}
-              <div><AntaresButton type="submit" loading={saving} disabled={saving}>{translate("Save new API key")}</AntaresButton></div>
-            </form>
+            {key.changeKeyEnabled === false ? (
+              <AntaresNotice variant="warn" icon="lock" className="key-manage-warning">
+                <p>{translate("Key changes are disabled by the administrator. Contact the admin if you need a new key.")}</p>
+              </AntaresNotice>
+            ) : (
+              <>
+              <AntaresNotice variant="warn" icon="warning" className="key-manage-warning" >
+                <p id="custom-key-warning">{translate("Once saved, the old key stops working immediately. Store the new key safely and update every application that uses it. Usage history is not reset.")}</p>
+              </AntaresNotice>
+              <form onSubmit={save} className="key-manage-form">
+                <Input
+                  id="new-api-key"
+                  variant="antares"
+                  label={translate("New API key")}
+                  type="password"
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  minLength={5}
+                  maxLength={128}
+                  pattern="[A-Za-z0-9_\-]{5,128}"
+                  value={newKey}
+                  onChange={(event) => { setNewKey(event.target.value); setSuccess(""); }}
+                  hint={translate(CUSTOM_API_KEY_HELP)}
+                  required
+                  disabled={saving}
+                  aria-describedby="custom-key-warning"
+                />
+                <Input
+                  id="confirm-api-key"
+                  variant="antares"
+                  label={translate("Repeat new API key")}
+                  type="password"
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  maxLength={128}
+                  value={confirmKey}
+                  onChange={(event) => setConfirmKey(event.target.value)}
+                  required
+                  disabled={saving}
+                />
+                <label className="key-manage-confirm">
+                  <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} disabled={saving} required className="peer sr-only" />
+                  <span className="flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border border-[var(--t-line)] bg-[var(--t-field)] text-transparent transition-colors peer-checked:border-[var(--t-accent)] peer-checked:bg-[var(--t-accent)] peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--t-accent)]">
+                    <span className="material-symbols-outlined text-[13px] leading-none" aria-hidden="true">check</span>
+                  </span>
+                  <span>{translate("I have saved the new key and will update it in my applications.")}</span>
+                </label>
+                {error && <p className="key-manage-feedback is-error" role="alert">{error}</p>}
+                {success && <p className="key-manage-feedback" role="status">{success}</p>}
+                <div><AntaresButton type="submit" loading={saving} disabled={saving}>{translate("Save new API key")}</AntaresButton></div>
+              </form>
+              </>
+            )}
           </AntaresPanel>
         )}
         </div>

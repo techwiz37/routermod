@@ -34,6 +34,11 @@ export function publicKeyPayload(record, key) {
     tokenLimit: record.tokenLimit || 0,
     tokenLimitWindow: record.tokenLimitWindow || "24h",
     tokenResetEnabled: record.tokenResetEnabled !== false,
+    // The owner may only rotate the secret while the admin's "Change key"
+    // switch is on; otherwise Manage Keys shows a locked panel.
+    changeKeyEnabled: record.changeKeyEnabled !== false,
+    // "Manage IP" off makes the owner's IP page read-only for the blacklist.
+    manageIpEnabled: record.manageIpEnabled !== false,
   };
 }
 
@@ -156,7 +161,11 @@ export async function PATCH(request) {
   }
   try {
     const currentKey = request.cookies.get(COOKIE_NAME)?.value;
-    if (!await activeKey(currentKey)) return json({ error: "Sesi key tidak valid. Masukkan API key kembali." }, 401);
+    const record = await activeKey(currentKey);
+    if (!record) return json({ error: "Sesi key tidak valid. Masukkan API key kembali." }, 401);
+    if (record.changeKeyEnabled === false) {
+      return json({ error: "Perubahan key dinonaktifkan oleh admin." }, 403);
+    }
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => key !== "newKey")) {
       return json({ error: "Permintaan hanya boleh berisi API key baru." }, 400);
