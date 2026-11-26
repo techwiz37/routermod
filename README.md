@@ -15,7 +15,7 @@ A self-hosted AI gateway built on [9Router](https://github.com/decolua/9router),
 
 <sub><strong>English</strong> · <a href="#ringkasan-bahasa-indonesia">Bahasa Indonesia</a></sub>
 
-<a href="images/routermod-overview.webp"><img src="images/routermod-overview.webp" alt="RouterMod endpoint and keys dashboard showing provider health, account totals, and monthly token usage" width="1177" height="836" /></a>
+<a href="images/routermod-overview.webp"><img src="images/routermod-overview.webp" alt="RouterMod endpoint and keys dashboard showing provider health, account totals, and monthly token usage" width="1440" height="900" /></a>
 
 <sub>The Endpoint &amp; Keys overview: provider health, active accounts, and monthly token usage at a glance. Click any screenshot to view it at full size.</sub>
 
@@ -57,37 +57,37 @@ Sign in while viewing recent gateway activity and the Top Models ranking, based 
 
 Turn providers on or off, check connection health, and see which accounts are live. Custom OpenAI- and Anthropic-compatible endpoints appear alongside the built-in integrations.
 
-<a href="images/routermod-providers.webp"><img src="images/routermod-providers.webp" alt="Provider management page with provider cards, active account counts, health checks, and custom compatible endpoints" width="1177" height="836" /></a>
+<a href="images/routermod-providers.webp"><img src="images/routermod-providers.webp" alt="Provider management page with provider cards, active account counts, health checks, and custom compatible endpoints" width="1440" height="900" /></a>
 
 ### Model Control Center
 
 Browse provider catalogs, search model names, and control which models are exposed through the API.
 
-<a href="images/routermod-models.webp"><img src="images/routermod-models.webp" alt="Model Control Center with searchable provider catalogs and per-model enable switches" width="1177" height="836" /></a>
+<a href="images/routermod-models.webp"><img src="images/routermod-models.webp" alt="Model Control Center with searchable provider catalogs and per-model enable switches" width="1440" height="900" /></a>
 
 ### Combos and Vision Adapter
 
 Group models under one name and choose a routing strategy. The screenshot shows the initial combo state and the vision and audio adapter configuration.
 
-<a href="images/routermod-combos.webp"><img src="images/routermod-combos.webp" alt="Combo configuration page showing fallback, round robin, fusion, and vision and audio adapter controls" width="1177" height="836" /></a>
+<a href="images/routermod-combos.webp"><img src="images/routermod-combos.webp" alt="Combo configuration page showing fallback, round robin, fusion, and vision and audio adapter controls" width="1440" height="900" /></a>
 
 ### API key dashboard
 
 Every API key gets its own usage view: requests per day, token totals, recorded cost, models used, and recent requests. Switch the period for a shorter window or use the lifetime summary.
 
-<a href="images/routermod-dashboard-keys.webp"><img src="images/routermod-dashboard-keys.webp" alt="API key dashboard showing lifetime requests, tokens, recorded cost, requests per day, and recent activity" width="1177" height="836" /></a>
+<a href="images/routermod-dashboard-keys.webp"><img src="images/routermod-dashboard-keys.webp" alt="API key dashboard showing lifetime requests, tokens, recorded cost, requests per day, and recent activity" width="1440" height="900" /></a>
 
 ### All-time leaderboard
 
 Top Models &amp; Keys ranks the most used models and keys by total requests across all recorded usage. Key names are masked unless you are signed in with the admin key.
 
-<a href="images/routermod-top-models-keys.webp"><img src="images/routermod-top-models-keys.webp" alt="All-time leaderboard with the top 10 models and top 10 keys ranked by total requests and token usage" width="1177" height="836" /></a>
+<a href="images/routermod-top-models-keys.webp"><img src="images/routermod-top-models-keys.webp" alt="All-time leaderboard with the top 10 models and top 10 keys ranked by total requests and token usage" width="1440" height="900" /></a>
 
 ### System settings
 
 Manage dashboard language, password and login mode, routing and network preferences, and local database backups from one page.
 
-<a href="images/routermod-profile.webp"><img src="images/routermod-profile.webp" alt="System settings page with language, security, login mode, local database backup, and display theme controls" width="1177" height="836" /></a>
+<a href="images/routermod-profile.webp"><img src="images/routermod-profile.webp" alt="System settings page with language, security, login mode, local database backup, and display theme controls" width="1440" height="900" /></a>
 
 ## Features
 
