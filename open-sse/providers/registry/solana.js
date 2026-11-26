@@ -28,7 +28,12 @@ export default {
     baseUrl: BASE_URL,
     format: "openai",
     noAuth: true,
-    retry: { 429: { attempts: 5, delayMs: 2500 } },
+    // The bridge returns response headers only after the browser finishes the
+    // whole turn, which routinely takes 30-90s. Keep the connect deadline above
+    // that so a slow-but-healthy answer is not aborted and retried. A saturated
+    // worker pool answers 503 quickly, so the only long wait is real work.
+    timeoutMs: 150000,
+    retry: { 429: { attempts: 5, delayMs: 2500 }, 503: { attempts: 2, delayMs: 4000 } },
   },
   // From the bridge's /v1/models + MODEL_MAP. Extra alias is accepted via
   // passthroughModels so new upstream ids work without a rebuild.

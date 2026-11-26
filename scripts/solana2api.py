@@ -31,6 +31,11 @@ PROXY = os.getenv("SOLANA2API_PROXY", "").strip()
 HEADLESS = os.getenv("SOLANA2API_HEADLESS", "0") == "1"
 TIMEOUT = int(os.getenv("SOLANA2API_TIMEOUT", "120"))
 API_KEY = os.getenv("SOLANA2API_KEY", "")
+# One browser can answer a single prompt at a time. A pool keeps parallel
+# callers from queueing behind each other for minutes; QUEUE_TIMEOUT makes a
+# saturated pool fail fast with 503 instead of hanging until the client aborts.
+WORKERS = max(1, int(os.getenv("SOLANA2API_WORKERS", "2")))
+QUEUE_TIMEOUT = max(1, int(os.getenv("SOLANA2API_QUEUE_TIMEOUT", "20")))
 
 MODEL_MAP = {
     "deepseek-v4.1-flash": "DeepSeek V4.1 Flash",
@@ -76,7 +81,8 @@ def _next_proxy() -> Optional[str]:
 
 
 class SolanaWorker:
-    def __init__(self):
+    def __init__(self, index: int = 0):
+        self.index = index
         self._lock = asyncio.Lock()
         self._browser = None
         self._page = None
@@ -134,7 +140,7 @@ class SolanaWorker:
             raise RuntimeError("NO_TEXTAREA")
 
         self._ready = True
-        print("[worker] siap")
+        print(f"[worker {self.index}] siap")
 
     async def ask(self, prompt: str, timeout: int = TIMEOUT) -> Dict[str, Any]:
         async with self._lock:
@@ -216,7 +222,12 @@ class SolanaWorker:
                     break
 
             elapsed = time.time() - t0
-            return {"text": text.strip(), "elapsed": elapsed}
+            text = text.strip()
+            if not text:
+                # Preserve the server's liveness: a silent empty result is an
+                # upstream failure, not a valid completion.
+                raise RuntimeError("EMPTY_RESPONSE")
+            return {"text": text, "elapsed": elapsed}
 
     @staticmethod
     def _extract(raw: str) -> str:
@@ -238,12 +249,39 @@ class SolanaWorker:
             pass
 
 
-worker = SolanaWorker()
+class WorkerPool:
+    """Hands each request its own browser for the duration of one answer."""
 
+    def __init__(self, size: int):
+        self._workers = [SolanaWorker(i) for i in range(size)]
+        self._idle: asyncio.Queue = asyncio.Queue()
+        for w in self._workers:
+            self._idle.put_nowait(w)
+
+    async def ask(self, prompt: str, timeout: int = TIMEOUT) -> Dict[str, Any]:
+        try:
+            worker = await asyncio.wait_for(self._idle.get(), timeout=QUEUE_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise RuntimeError("BUSY")
+        try:
+            return await worker.ask(prompt, timeout)
+        finally:
+            # Even a failed ask returns its worker so the pool self-heals.
+            self._idle.put_nowait(worker)
+
+    def ready_count(self) -> int:
+        return sum(1 for w in self._workers if w._ready)
+
+    async def close(self):
+        for w in self._workers:
+            await w.close()
+
+
+worker = WorkerPool(WORKERS)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"[boot] solana2api :{PORT} headless={HEADLESS} proxy={'yes' if PROXY or PROXIES else 'no'}")
+    print(f"[boot] solana2api :{PORT} headless={HEADLESS} workers={WORKERS} queueTimeout={QUEUE_TIMEOUT}s proxy={'yes' if PROXY or PROXIES else 'no'}")
     yield
     await worker.close()
 
@@ -365,7 +403,7 @@ async def models():
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "ready": worker._ready, "headless": HEADLESS}
+    return {"ok": True, "ready": worker.ready_count(), "workers": WORKERS, "headless": HEADLESS}
 
 
 @app.post("/v1/chat/completions")
@@ -406,6 +444,11 @@ async def chat(req: ChatRequest, authorization: Optional[str] = None):
 
     try:
         res = await worker.ask(prompt)
+    except RuntimeError as e:
+        if str(e) == "BUSY":
+            raise HTTPException(503, "all solana workers busy; retry shortly",
+                                headers={"Retry-After": "10"})
+        raise HTTPException(502, f"upstream: {type(e).__name__}: {str(e)[:200]}")
     except Exception as e:
         raise HTTPException(502, f"upstream: {type(e).__name__}: {str(e)[:200]}")
 

@@ -118,3 +118,6 @@ debug.log
 # Local sensitive data (credentials in plain text)
 antigravity-accounts.txt
 free-proxy-list.txt
+
+__pycache__/
+*.pyc
