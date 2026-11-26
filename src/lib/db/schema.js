@@ -191,6 +191,31 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_af_provider_model ON automateFailures(provider, model)",
     ],
   },
+  informations: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      title: "TEXT NOT NULL",
+      body: "TEXT NOT NULL",
+      isActive: "INTEGER DEFAULT 1",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_informations_active ON informations(isActive, createdAt DESC)",
+    ],
+  },
+  informationReads: {
+    columns: {
+      id: "INTEGER PRIMARY KEY AUTOINCREMENT",
+      informationId: "TEXT NOT NULL",
+      keyId: "TEXT NOT NULL",
+      readAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_information_reads_unique ON informationReads(informationId, keyId)",
+      "CREATE INDEX IF NOT EXISTS idx_information_reads_key ON informationReads(keyId)",
+    ],
+  },
 };
 
 export function buildCreateTableSql(name, def) {

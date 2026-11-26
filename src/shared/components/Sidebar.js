@@ -21,6 +21,7 @@ const navItems = [
   { href: "/dashboard/providers", label: "Provider", icon: "hub" },
   { href: "/dashboard/combos", label: "Combo & Vision Adapter", icon: "layers" },
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
+  { href: "/dashboard/informations", label: "Informations", icon: "campaign" },
   { href: "/dashboard/quota", label: "Check Limit", icon: "data_usage" },
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
   { href: "/dashboard/automate", label: "Automate", icon: "automation" },
@@ -30,6 +31,7 @@ const navItems = [
 
 const keyNavItems = [
   { href: "/dashboard-keys", label: "Dashboard", icon: "dns" },
+  { href: "/dashboard-keys/informations", label: "Informations", icon: "campaign" },
   { href: "/dashboard-keys/live-models", label: "Live Models", icon: "model_training" },
   { href: "/dashboard-keys/top-models-keys", label: "Top Models & Keys", icon: "leaderboard" },
   { href: "/dashboard-keys/billing", label: "Billing", icon: "receipt_long" },

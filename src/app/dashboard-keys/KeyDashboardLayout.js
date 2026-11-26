@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Header from "@/shared/components/Header";
 import Sidebar from "@/shared/components/Sidebar";
 import AntaresFooter from "@/shared/components/AntaresFooter";
+import KeyInformationsPopup from "./components/KeyInformationsPopup";
 import { onLocaleChange, translate } from "@/i18n/runtime";
 
 // Reuse admin chrome and shell geometry, but never mount its admin fetching,
@@ -96,6 +97,7 @@ export default function KeyDashboardLayout({ children, onLogout }) {
           <AntaresFooter />
         </div>
       </div>
+      <KeyInformationsPopup />
     </div>
   );
 }
