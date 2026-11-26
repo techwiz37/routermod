@@ -76,7 +76,7 @@ export default function KeyInformationsPopup() {
       subtitle={translate("{count} unread announcement(s) for this key").replace("{count}", String(items.length))}
       size="lg"
       footer={
-        <AntaresButton icon="done_all" onClick={acknowledge} loading={saving}>
+        <AntaresButton icon="done_all" onClick={acknowledge} loading={saving} className="w-full sm:w-auto">
           {translate("I have read")}
         </AntaresButton>
       }
@@ -84,8 +84,8 @@ export default function KeyInformationsPopup() {
       <ul className="flex flex-col gap-3">
         {items.map((item) => (
           <li key={item.id} className="rounded-[12px] border border-[var(--t-line-soft)] bg-[var(--t-raised)] p-3.5">
-            <h3 className="text-sm font-semibold text-[var(--t-ink)]">{item.title}</h3>
-            <p className="mt-1.5 whitespace-pre-line break-words text-[12.5px] leading-relaxed text-[var(--t-muted)]">{item.body}</p>
+            <h3 className="break-words text-sm font-semibold text-[var(--t-ink)]">{item.title}</h3>
+            <p className="mt-1.5 whitespace-pre-line break-words [overflow-wrap:anywhere] text-[12.5px] leading-relaxed text-[var(--t-muted)]">{item.body}</p>
             <p className="mt-2 font-mono text-[10.5px] text-[var(--t-dim)]">
               {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
             </p>

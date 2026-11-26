@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AntaresButton from "@/shared/components/AntaresButton";
 import AntaresModal from "@/shared/components/AntaresModal";
 import AntaresNotice from "@/shared/components/AntaresNotice";
@@ -38,8 +38,26 @@ export default function InformationsPage() {
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [locale, setLocale] = useState(getCurrentLocale());
+  const bodyRef = useRef(null);
 
   useEffect(() => onLocaleChange(() => setLocale(getCurrentLocale())), []);
+
+  // Grow the message field with its content up to a share of the viewport,
+  // then let it scroll internally. This keeps long announcements comfortable
+  // to write on both mobile and desktop without overflowing the modal.
+  useEffect(() => {
+    if (!editorOpen) return;
+    const frame = requestAnimationFrame(() => {
+      const element = bodyRef.current;
+      if (!element) return;
+      const max = Math.max(180, Math.min(window.innerHeight * 0.42, 380));
+      element.style.height = "auto";
+      const next = Math.min(element.scrollHeight + 2, max);
+      element.style.height = `${next}px`;
+      element.style.overflowY = element.scrollHeight > max ? "auto" : "hidden";
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editorOpen, form.body]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -198,7 +216,7 @@ export default function InformationsPage() {
               <li key={item.id} className="flex flex-col gap-2 border-b border-[var(--t-line-soft)] py-3.5 last:border-b-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-medium text-[var(--t-ink)]">{item.title}</h3>
+                    <h3 className="min-w-0 break-words text-sm font-medium text-[var(--t-ink)]">{item.title}</h3>
                     <span
                       className="rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
                       style={{
@@ -209,7 +227,7 @@ export default function InformationsPage() {
                       {item.isActive ? translate("Active") : translate("Inactive")}
                     </span>
                   </div>
-                  <p className="mt-1 line-clamp-3 whitespace-pre-line break-words text-[12.5px] leading-relaxed text-[var(--t-muted)]">{item.body}</p>
+                  <p className="mt-1 line-clamp-3 whitespace-pre-line break-words [overflow-wrap:anywhere] text-[12.5px] leading-relaxed text-[var(--t-muted)]">{item.body}</p>
                   <p className="mt-1.5 font-mono text-[10.5px] text-[var(--t-dim)]">
                     {translate("Published")} {formatDate(item.createdAt, locale)}
                     {item.updatedAt && item.updatedAt !== item.createdAt ? ` · ${translate("Updated")} ${formatDate(item.updatedAt, locale)}` : ""}
@@ -244,10 +262,10 @@ export default function InformationsPage() {
         subtitle={translate("Key owners see active notices once, as a popup after signing in.")}
         size="lg"
         footer={
-          <>
-            <AntaresButton variant="ghost" onClick={() => setEditorOpen(false)} disabled={saving}>{translate("Cancel")}</AntaresButton>
-            <AntaresButton onClick={save} loading={saving} icon="send">{editing ? translate("Save changes") : translate("Publish")}</AntaresButton>
-          </>
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+            <AntaresButton variant="ghost" onClick={() => setEditorOpen(false)} disabled={saving} className="w-full sm:w-auto">{translate("Cancel")}</AntaresButton>
+            <AntaresButton onClick={save} loading={saving} icon="send" className="w-full sm:w-auto">{editing ? translate("Save changes") : translate("Publish")}</AntaresButton>
+          </div>
         }
       >
         <form onSubmit={save} className="flex flex-col gap-3.5">
@@ -267,12 +285,13 @@ export default function InformationsPage() {
             </label>
             <textarea
               id="information-body"
+              ref={bodyRef}
               value={form.body}
               onChange={(event) => setForm((previous) => ({ ...previous, body: event.target.value }))}
               rows={7}
               maxLength={20000}
               placeholder={translate("Write the announcement key owners need to see.")}
-              className="w-full resize-y rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] px-3.5 py-2.5 text-[16px] sm:text-sm text-[var(--t-ink)] placeholder:text-[var(--t-dim)] focus:border-[var(--t-accent)] focus:shadow-[var(--t-focus)] focus:outline-none"
+              className="w-full min-h-[9rem] resize-none overflow-y-auto rounded-[10px] border border-[var(--t-line)] bg-[var(--t-field)] px-3.5 py-2.5 text-[16px] sm:text-sm text-[var(--t-ink)] placeholder:text-[var(--t-dim)] focus:border-[var(--t-accent)] focus:shadow-[var(--t-focus)] focus:outline-none"
             />
             <p className="text-[11px] text-[var(--t-dim)]">{form.body.length} / 20000</p>
           </div>

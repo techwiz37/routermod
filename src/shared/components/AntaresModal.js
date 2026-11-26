@@ -70,8 +70,8 @@ export default function AntaresModal({
         {(title || subtitle) && (
           <div className="sticky top-0 z-10 shrink-0 flex items-start justify-between gap-3 px-4 sm:px-5 py-3 sm:py-3.5 border-b border-[var(--t-line-soft)] bg-[var(--t-card)]">
             <div className="min-w-0 flex-1">
-              {title && <h2 className="text-[15px] font-medium text-[var(--t-ink)] leading-tight">{title}</h2>}
-              {subtitle && <div className="an-panel-sub mt-1 text-xs">{subtitle}</div>}
+              {title && <h2 className="break-words text-[15px] font-medium text-[var(--t-ink)] leading-tight">{title}</h2>}
+              {subtitle && <div className="an-panel-sub mt-1 break-words text-xs">{subtitle}</div>}
             </div>
             <button
               onClick={onClose}
@@ -83,7 +83,7 @@ export default function AntaresModal({
           </div>
         )}
 
-        <div className={cn("p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto", hideScrollbar ? "scrollbar-none" : "custom-scrollbar")}>
+        <div className={cn("p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto overscroll-contain", hideScrollbar ? "scrollbar-none" : "custom-scrollbar")}>
           {children}
         </div>
 

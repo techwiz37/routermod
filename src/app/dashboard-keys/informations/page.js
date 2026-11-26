@@ -160,14 +160,14 @@ export default function KeyInformationsPage() {
                   {items.map((item) => (
                     <li key={item.id} className="border-b border-[var(--t-line-soft)] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-sm font-semibold text-[var(--t-ink)]">{item.title}</h2>
+                        <h2 className="break-words text-sm font-semibold text-[var(--t-ink)]">{item.title}</h2>
                         {!item.read && (
                           <span className="rounded-full border border-[var(--t-accent)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--t-accent)]">
                             {translate("New")}
                           </span>
                         )}
                       </div>
-                      <p className="mt-1.5 whitespace-pre-line break-words text-[12.5px] leading-relaxed text-[var(--t-muted)]">{item.body}</p>
+                      <p className="mt-1.5 whitespace-pre-line break-words [overflow-wrap:anywhere] text-[12.5px] leading-relaxed text-[var(--t-muted)]">{item.body}</p>
                       <p className="mt-1.5 font-mono text-[10.5px] text-[var(--t-dim)]">{formatDate(item.createdAt, locale)}</p>
                     </li>
                   ))}
