@@ -27,7 +27,12 @@ export default function KeyLiveStats({ keyData, stats, onReset }) {
   const s = stats || {};
   const resetEnabled = keyData?.tokenResetEnabled !== false;
   const resetAt = resetEnabled ? (s.resetAt || null) : null;
-  const tokenLimit = Math.max(0, Number(keyData?.tokenLimit) || 0);
+  // Purchased topup tokens extend the base quota for a limited period, so the
+  // card must compare usage against the effective limit. Using the base limit
+  // made a topped-up key look "full" right after the topup was credited.
+  const baseLimit = Math.max(0, Number(keyData?.tokenLimit) || 0);
+  const topupTokens = Math.max(0, Number(keyData?.topupTokens) || 0);
+  const tokenLimit = Math.max(0, Number(keyData?.effectiveTokenLimit ?? keyData?.tokenLimit) || 0);
   const unlimited = tokenLimit <= 0;
   const used = Number(s.tokensUsed) || 0;
   const lifetimeUsed = Number(s.lifetimeTokensUsed) || 0;
@@ -61,9 +66,14 @@ export default function KeyLiveStats({ keyData, stats, onReset }) {
         <div className="min-w-0 rounded-lg border border-[var(--t-line-soft)] bg-[var(--t-raised)] p-2.5">
           <div className="flex flex-col gap-1.5 text-[10px] font-mono text-[var(--t-muted)] sm:flex-row sm:items-center sm:justify-between">
             <span className="font-semibold uppercase tracking-wider">{translate("Token quota")}</span>
-            <span className="break-words" title={`${formatNumber(used)} / ${formatNumber(tokenLimit)}`} style={{ color: over ? "var(--t-danger)" : undefined }}>{formatTokens(used)} / {formatTokens(tokenLimit)} · {windowLabel(keyData?.tokenLimitWindow)}</span>
+            <span className="break-words" title={`${formatNumber(used)} / ${formatNumber(tokenLimit)}${topupTokens > 0 ? ` (${formatNumber(baseLimit)} base + ${formatNumber(topupTokens)} topup)` : ""}`} style={{ color: over ? "var(--t-danger)" : undefined }}>{formatTokens(used)} / {formatTokens(tokenLimit)} · {windowLabel(keyData?.tokenLimitWindow)}</span>
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--t-line-soft)]"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} /></div>
+          {topupTokens > 0 && (
+            <div className="mt-1.5 text-[10px] font-mono text-[var(--t-muted)]">
+              {translate("Includes")} {formatTokens(topupTokens)} {translate("topup tokens")}
+            </div>
+          )}
           {resetEnabled ? (
             <div className="mt-2 flex min-w-0 items-center gap-1 text-[10px] font-mono text-[var(--t-accent)]">
               <span className="material-symbols-outlined text-[13px]">timer</span>

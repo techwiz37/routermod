@@ -378,6 +378,17 @@ const KeyConfigForm = forwardRef(function KeyConfigForm({ apiKey, onClose, onSav
             </p>
           </div>
 
+          {Number(apiKey.topupTokens) > 0 && (
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-[var(--t-field)] border border-[var(--t-line-soft)] text-xs text-[var(--t-muted)]">
+              <span className="material-symbols-outlined text-[18px] text-[var(--t-ok)] shrink-0 mt-0.5">add_card</span>
+              <p className="leading-relaxed">
+                {translate("Includes {tokens} topup tokens. Effective quota: {total}.")
+                  .replace("{tokens}", formatTokens(apiKey.topupTokens))
+                  .replace("{total}", formatTokens(apiKey.effectiveTokenLimit ?? apiKey.tokenLimit))}
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
